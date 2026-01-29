@@ -1,1 +1,3 @@
 smoke test 2026-01-28T21:06:10Z
+
+test change for main-branch push protection check (2026-01-29)
