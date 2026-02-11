@@ -11,7 +11,6 @@ depends_on:
   - agent/reviewer
   - agent/formatter
   - rule/cross-review-policy
-  - rule/model-routing
   - rule/tdd-policy
   - rule/mandatory-tools
 ---
@@ -30,57 +29,62 @@ depends_on:
 
 ## Диаграмма процесса
 
-```mermaid
-flowchart TD
-    Start([Задача от пользователя]) --> P0
+```
+  ┌──────────────────┐
+  │ Задача от        │
+  │ пользователя     │
+  └────────┬─────────┘
+           ▼
+╔══════════════════════════╗
+║  Phase 0: Классификация  ║
+║  Explorer (Economy)      ║
+╚════════════╤═════════════╝
+             │
+     ┌───────┴───────┐
+     ▼               ▼
+ [Простая]    [Средняя/Сложная]
+     │               │
+     ▼               ▼
+┌─────────┐  ╔═══════════════════════════════════════╗
+│quick-fix│  ║  Phase 1: Анализ                      ║
+│ 3 шага  │  ║  Analyst (Mid/High) ──► Reviewer (P)  ║
+└────┬────┘  ║       ▲ BLOCK ◄──────────┘            ║
+     │       ╚══════════════════╤════════════════════╝
+     │                          ▼
+     │       ╔═══════════════════════════════════════╗
+     │       ║  Phase 2: Архитектура                 ║
+     │       ║  Architect (High) ──► Reviewer (P)    ║
+     │       ║       ▲ BLOCK ◄──────────┘            ║
+     │       ╠═══════════════════════════════════════╣
+     │       ║  ⏸  STOP: ждём ОК от пользователя    ║
+     │       ╚══════════════════╤════════════════════╝
+     │                          ▼
+     │       ╔═══════════════════════════════════════╗
+     │       ║  Phase 3: Разработка (TDD)            ║
+     │       ║  Developer (High) ──► Reviewer (P)    ║
+     │       ║       ▲ BLOCK ◄──────────┘            ║
+     │       ╚══════════════════╤════════════════════╝
+     │                          ▼
+     │       ╔═══════════════════════════════════════╗
+     │       ║  Phase 4: Покрытие и регрессия        ║
+     │       ║  Tester (Mid/High) ──► Reviewer (H)   ║
+     │       ║       ▲ BLOCK ◄──────────┘            ║
+     │       ╚══════════════════╤════════════════════╝
+     │                          ▼
+     │       ╔═══════════════════════════════════════╗
+     │       ║  Phase 5: Итоги                       ║
+     │       ║  Formatter (Economy)                  ║
+     │       ╚══════════════════╤════════════════════╝
+     │                          │
+     └──────────┬───────────────┘
+                ▼
+  ┌──────────────────────┐
+  │ Результат            │
+  │ пользователю         │
+  └──────────────────────┘
 
-    subgraph P0 [Phase 0: Классификация]
-        C0[Explorer: Economy tier]
-        C0 --> Route{Сложность?}
-    end
-
-    Route -->|Простая| QF[Quick-fix: 3 шага]
-    Route -->|Средняя/Сложная| P1
-
-    subgraph P1 [Phase 1: Анализ]
-        A1[Analyst: Mid/High] --> R1[Reviewer: Premium]
-        R1 -->|BLOCK| A1
-        R1 -->|OK| P1Done[Спека готова]
-    end
-
-    P1Done --> P2
-
-    subgraph P2 [Phase 2: Архитектура]
-        A2[Architect: High/Premium] --> R2[Reviewer: Premium]
-        R2 -->|BLOCK| A2
-        R2 -->|OK| UserGate{Пользователь ОК?}
-    end
-
-    UserGate -->|Нет| A2
-    UserGate -->|Да| P3
-
-    subgraph P3 [Phase 3: Разработка]
-        A3[Developer: High] --> R3[Reviewer: Premium]
-        R3 -->|BLOCK| A3
-        R3 -->|OK| P3Done[Код готов]
-    end
-
-    P3Done --> P4
-
-    subgraph P4 [Phase 4: Покрытие и регрессия]
-        A4[Tester: Mid/High] --> R4[Reviewer: High]
-        R4 -->|BLOCK| A4
-        R4 -->|OK| P4Done[Тесты пройдены]
-    end
-
-    P4Done --> P5
-
-    subgraph P5 [Phase 5: Итоги]
-        A5[Formatter: Economy]
-    end
-
-    A5 --> Done([Результат пользователю])
-    QF --> Done
+  Легенда: (P) = Premium tier, (H) = High tier
+           BLOCK = возврат автору, макс. 3 итерации
 ```
 
 ---
@@ -243,5 +247,4 @@ flowchart TD
 | [quick-fix.md](./quick-fix.md) | Маршрут для простых задач |
 | [orchestrator.md](./orchestrator.md) | Протокол оркестрации |
 | [cross-review-policy.md](../rules/cross-review-policy.md) | Протокол ревью, чек-листы |
-| [model-routing.md](../rules/model-routing.md) | Выбор tier для каждого агента |
 | [docs/SPEC-001-framework-architecture.md](../../docs/SPEC-001-framework-architecture.md) | Общая архитектура |

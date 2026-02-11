@@ -1,7 +1,7 @@
 ---
 id: skill/test-execution
 type: skill
-depends_on: [registry/tool-registry]
+depends_on: []
 ---
 
 # Запуск и анализ тестов (Test Execution)
@@ -92,14 +92,14 @@ errors: [{ module: "УправлениеСкладом", test: "ТестПолу
 
 ---
 
-## Связанные capability
+## MCP-инструменты
 
-| Capability | Категория | Назначение |
-|------------|-----------|------------|
-| `run_tests` | Core | Запуск тестов YaxUnit |
-| `build_project` | Important | Сборка перед тестами (чистый билд) |
-| `navigate_symbol` | Core | Переход к падающему тесту и тестируемому коду |
-| `check_syntax` | Core | Проверка синтаксиса перед/после изменений |
+| Инструмент | MCP-сервер | Назначение |
+|------------|------------|------------|
+| `run_tests` | test-runner | Запуск тестов YaxUnit |
+| `build_project` | test-runner | Сборка перед тестами (чистый билд) |
+| `navigate_symbol` | lsp-bridge | Переход к падающему тесту и тестируемому коду |
+| `check_syntax` | test-runner | Проверка синтаксиса перед/после изменений |
 
 ---
 

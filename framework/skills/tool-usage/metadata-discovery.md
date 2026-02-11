@@ -1,7 +1,7 @@
 ---
 id: skill/metadata-discovery
 type: skill
-depends_on: [registry/tool-registry]
+depends_on: []
 ---
 
 # Работа с метаданными (Metadata Discovery)
@@ -95,14 +95,14 @@ search_metadata(query: "ОстаткиТоваров", object_type: "Регис�
 
 ---
 
-## Связанные capability
+## MCP-инструменты
 
-| Capability | Категория | Назначение |
-|------------|-----------|------------|
-| `search_metadata` | Important | Поиск объектов метаданных по запросу |
-| `navigate_symbol` | Core | Переход к модулям, процедурам найденных объектов |
-| `get_call_graph` | Important | Анализ цепочек вызовов в модулях |
-| `dump_config` | Optional | Выгрузка конфигурации (может требоваться для search_metadata) |
+| Инструмент | MCP-сервер | Назначение |
+|------------|------------|------------|
+| `search_metadata` | 1c-mcp-tools | Поиск объектов метаданных по запросу |
+| `navigate_symbol` | lsp-bridge | Переход к модулям, процедурам найденных объектов |
+| `get_call_graph` | lsp-bridge | Анализ цепочек вызовов в модулях |
+| `dump_config` | test-runner | Выгрузка конфигурации (может требоваться для search_metadata) |
 
 ---
 

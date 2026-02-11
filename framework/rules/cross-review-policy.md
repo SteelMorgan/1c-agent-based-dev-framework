@@ -4,7 +4,6 @@ type: rule
 depends_on:
   - rule/tdd-policy
   - rule/sdd-policy
-  - rule/model-routing
   - skill/spec-standard
 ---
 
@@ -120,6 +119,6 @@ depends_on:
 |--------|-------|
 | [tdd-policy.md](./tdd-policy.md) | Тесты проверяются ревьюером на покрытие |
 | [sdd-policy.md](./sdd-policy.md) | Спека ревьюируется до реализации |
-| [model-routing.md](./model-routing.md) | Tier ревьюера ≥ tier автора |
+| Правило tier ревьюера | `model` ревьюера ≥ `model` автора (задано в agent frontmatter) |
 | [skills/spec-writing/spec-standard.md](../skills/spec-writing/spec-standard.md) | Критерии качества спеки |
 | [docs/SPEC-001-framework-architecture.md](../../docs/SPEC-001-framework-architecture.md) | Review Gating, протокол кросс-ревью |

@@ -9,42 +9,37 @@
 ## Ключевые возможности
 
 - **Модульность** — навыки, правила, агенты и воркфлоу подключаются отдельно
-- **MCP-agnostic** — замена MCP-сервера = правка одного provider profile
+- **MCP-agnostic** — агенты обнаруживают инструменты через MCP (`tools/list`), без жёстких привязок
 - **Кросс-ревью** — артефакты проверяются другим агентом по чек-листам
 - **SDD / TDD** — стандарт спецификаций, тест-планы, тест-раннер
-- **Tier-инг моделей** — Economy/Mid/High/Premium для экономии токенов
+- **Tier-инг моделей** — haiku/sonnet/opus задаётся per-agent через `model` field
 
 ---
 
 ## Быстрый старт
 
-### Вариант 1: Ручная установка (MVP)
-
-1. Скопируйте `framework/` в корень проекта
-2. Скопируйте `.cursor/` (адаптер для Cursor IDE)
-3. Отредактируйте `framework/config.md` под свой проект
-4. Начинайте работу — bootstrap-правило подхватит конфигурацию
-
-### Вариант 2: Install-скрипт
+### Install-скрипт (рекомендуется)
 
 ```bash
 # Интерактивный режим — выбор IDE, дерево компонентов с чекбоксами
-python install.py
+python tools/install.py
 
 # Командная строка — IDE + компоненты, зависимости подтянутся автоматически
-python install.py --ide cursor --include agent/developer workflow/quick-fix
+python tools/install.py --ide cursor --include agent/developer workflow/quick-fix
 
 # Посмотреть дерево всех компонентов
-python install.py --ide cursor --list
+python tools/install.py --ide cursor --list
 
 # Установить всё
-python install.py --ide cursor --all
+python tools/install.py --ide cursor --all
 
 # Пересоздать симлинки если переместили фреймворк
-python install.py --relink
+python tools/install.py --relink
 ```
 
-Скрипт создаёт симлинки или копии (если нет админ прав) в директории IDE. Работает на Python 3.7+ без внешних зависимостей.
+Скрипт создаёт симлинки в директории IDE, настраивает модели агентов через TUI. Работает на Python 3.7+ без внешних зависимостей.
+
+Подробное руководство по всем возможностям — [docs/install-guide.md](docs/install-guide.md).
 
 **Время до первого запуска: ~5 минут.**
 
@@ -62,32 +57,34 @@ python install.py --relink
 1c-agent-based-dev-framework/
 ├── docs/                     # Спецификации и исследования
 │   └── SPEC-001-framework-architecture.md
-├── .cursor/                  # Адаптер для Cursor IDE
-│   └── rules/
-│       └── framework-bootstrap.mdc
 ├── framework/                # Ядро (IDE-agnostic markdown)
-│   ├── config.md            # ← Единственный файл для настройки
-│   ├── tool-registry/       # Capability-контракты и provider profiles
-│   ├── skills/              # tool-usage, bsl-practices, spec-writing
+│   ├── skills/              # tool-usage, bsl-practices, spec-writing, *_ext
 │   ├── rules/               # mandatory-tools, cross-review, TDD, SDD
 │   ├── agents/              # Роли: analyst, architect, developer, etc.
 │   └── workflows/           # full-cycle, quick-fix, orchestrator
+├── tools/
+│   ├── install.py           # Установщик компонентов
+│   ├── tui.py               # TUI-интерфейс для install.py
+│   └── model-defaults.json  # Маппинг моделей по IDE
 └── README.md
 ```
 
 ---
 
-## Поддерживаемые MCP-серверы
+## MCP-серверы с готовыми tool-usage навыками
 
-| Провайдер | Репозиторий |
-|-----------|-------------|
-| platform-context | [alkoleft/mcp-bsl-platform-context](https://github.com/alkoleft/mcp-bsl-platform-context) |
-| copilot-proxy | [SteelMorgan/spring-mcp-1c-copilot](https://github.com/SteelMorgan/spring-mcp-1c-copilot) |
-| test-runner | [alkoleft/mcp-onec-test-runner](https://github.com/alkoleft/mcp-onec-test-runner) |
-| log-checker | [SteelMorgan/1c-log-checker](https://github.com/SteelMorgan/1c-log-checker) |
-| metadata-tools | [RooLee10/1c-mcp-tools](https://github.com/RooLee10/1c-mcp-tools) — метаданные, запросы к БД, навигационные ссылки (6 tool-ов) |
-| batch-ops | [vladimir-kharin/1c-batch](https://github.com/vladimir-kharin/1c-batch) |
-| lsp-bridge | mcp-bsl-lsp-bridge |
+> Фреймворк не ограничен этим списком. Для добавления нового MCP-сервера — создайте tool-usage навык.
+> Полный маппинг capability → MCP → навык: [`_capability-index.md`](framework/skills/tool-usage/_capability-index.md).
+
+| MCP-сервер | Репозиторий | Навык |
+|------------|-------------|-------|
+| platform-context | [alkoleft/mcp-bsl-platform-context](https://github.com/alkoleft/mcp-bsl-platform-context) | search-before-write |
+| copilot-proxy | [SteelMorgan/spring-mcp-1c-copilot](https://github.com/SteelMorgan/spring-mcp-1c-copilot) | search-before-write |
+| test-runner | [alkoleft/mcp-onec-test-runner](https://github.com/alkoleft/mcp-onec-test-runner) | syntax-checking, test-execution |
+| log-checker | [SteelMorgan/1c-log-checker](https://github.com/SteelMorgan/1c-log-checker) | log-analysis |
+| metadata-tools | [RooLee10/1c-mcp-tools](https://github.com/RooLee10/1c-mcp-tools) | metadata-discovery |
+| batch-ops | [vladimir-kharin/1c-batch](https://github.com/vladimir-kharin/1c-batch) | — |
+| lsp-bridge | mcp-bsl-lsp-bridge | code-navigation |
 
 ---
 
@@ -112,7 +109,7 @@ python install.py --relink
 | IDE | Каталог для проектных навыков |
 |-----|------------------------------|
 | **Cursor** | `.cursor/rules/` и `.cursor/skills/` в корне проекта |
-| **Claude Code** | `AGENTS.md` или `.claude/` в корне проекта |
+| **Claude Code** | `.claude/skills/` в корне проекта |
 | **Windsurf** | `.windsurfrules` в корне проекта |
 | **VS Code + Continue** | `.continue/` в корне проекта |
 
@@ -124,96 +121,28 @@ python install.py --relink
 
 ### Добавление нового навыка (skill)
 
-Навык — это markdown-документ, обучающий агента конкретному умению. Два типа:
+Навык — это markdown-документ, обучающий агента конкретному умению.
 
-| Тип | Каталог | Назначение | Пример |
-|-----|---------|-----------|--------|
+| Категория | Каталог | Назначение | Пример |
+|-----------|---------|-----------|--------|
 | **bsl-practices** | `framework/skills/bsl-practices/` | Стандарты кодирования, паттерны, антипаттерны | `coding-standards.md` |
-| **tool-usage** | `framework/skills/tool-usage/` | Как и когда использовать конкретную capability | `syntax-checking.md` |
+| **tool-usage** | `framework/skills/tool-usage/` | Когда и как использовать MCP-инструменты | `syntax-checking.md` |
+| **spec-writing** | `framework/skills/spec-writing/` | Стандарты спецификаций | `spec-standard.md` |
+| **_ext** | `framework/skills/*_ext/` | Расширения внешних навыков (Anthropic и др.) | `agent-development_ext` |
 
-**Шаги создания:**
+Подробности создания навыков — в навыке `skill-creator_ext`.
 
-1. **Скопировать шаблон** [`_template-skill.md`](framework/skills/_template-skill.md) в нужный подкаталог
-2. **Заполнить YAML frontmatter:**
-   ```yaml
-   ---
-   id: skill/<имя-файла-без-расширения>
-   type: skill
-   depends_on: []  # или [registry/tool-registry] для tool-usage
-   ---
-   ```
-3. **Заполнить секции:** Назначение, Когда применять (таблица триггер → действие), Сценарии использования, Примеры (корректный / некорректный код)
-4. **Обновить зависимости** — если агенты должны знать про новый навык, добавить его id в `depends_on` соответствующих агентов
+### Добавление нового MCP-инструмента
 
-**Чек-лист нового навыка:**
-- [ ] Объясняет ПОЧЕМУ, а не только ЧТО
-- [ ] Есть примеры кода (правильный + неправильный)
-- [ ] Привязан к конкретным capability (для tool-usage) или паттернам (для bsl-practices)
-- [ ] YAML frontmatter с `id`, `type`, `depends_on`
-- [ ] Агенты, использующие навык, обновлены
+1. **Создать или обновить tool-usage навык** — описать КОГДА и ПОЧЕМУ использовать инструмент, workarounds, сценарии
+2. **Обновить `_capability-index.md`** — добавить строку capability → MCP → навык
+3. **Обновить агентов** — если навык нужен новым агентам, добавить в `skills` frontmatter
+4. **Обновить таблицу MCP-серверов** в этом README
 
-### Добавление нового инструмента (tool)
-
-Когда программист 1С дорабатывает MCP-сервер (добавляет обработку-контейнер, расширяет существующую) или подключает новый MCP — нужно обновить фреймворк, чтобы агенты знали про новый tool.
-
-#### Сценарий 1: Новый tool в существующем MCP-сервере
-
-Пример: добавили обработку-контейнер `mcp_ИнструментАнализДанных` в RooLee10/1c-mcp-tools.
-
-**Шаги:**
-
-1. **Обновить provider profile** (`framework/tool-registry/providers/<provider>.md`)
-   - Добавить новый tool в секцию "Инструменты"
-   - Описать: имя tool, параметры (с типами и обязательностью), формат результата, побочные эффекты
-   - Добавить пример вызова
-
-2. **Решить: это новая capability или расширение существующей?**
-   - Если tool расширяет возможности существующей capability → обновить маппинг в provider profile
-   - Если tool даёт **принципиально новую** возможность → создать capability contract в `tool-registry.md` (шаг 3)
-
-3. **Создать capability contract** (если нужен)
-   - Добавить в `framework/tool-registry/tool-registry.md` → секция нужной категории (Core/Important/Optional)
-   - Описать: входные параметры, формат результата (`structured` / `raw_text` / `mixed`), типичные ошибки, побочные эффекты
-   - Обновить матрицу совместимости
-
-4. **Создать или обновить skill** (`framework/skills/tool-usage/`)
-   - Если для tool нужен отдельный навык — создать файл по образцу существующих
-   - Если tool логически относится к существующему навыку — дополнить его
-   - В skill описать: КОГДА использовать, с ЧЕМ комбинировать, примеры сценариев
-
-5. **Обновить зависимости**
-   - Добавить YAML frontmatter `depends_on` в новые файлы
-   - Обновить `depends_on` в файлах, которые теперь ссылаются на новый навык/capability
-   - Обновить агентов, если новый tool входит в их зону ответственности
-
-#### Сценарий 2: Совершенно новый MCP-сервер
-
-1. **Создать provider profile** из шаблона [`_template-provider.md`](framework/tool-registry/_template-provider.md)
-2. Выполнить шаги 2-5 из Сценария 1 для каждого tool
-3. **Обновить `config.md`** — добавить MCP-сервер в секцию провайдеров
-4. **Обновить таблицу** "Поддерживаемые MCP-серверы" в этом README
-
-#### Чек-лист после добавления tool
-
-- [ ] Provider profile содержит все tool-ы с точными параметрами
-- [ ] Новые capability (если есть) описаны в `tool-registry.md`
-- [ ] Матрица совместимости в `tool-registry.md` обновлена
-- [ ] Skill для нового tool создан/обновлён (КОГДА использовать + примеры)
-- [ ] YAML frontmatter `depends_on` актуален во всех затронутых файлах
-- [ ] Агенты, работающие с новой capability, обновлены
-
-#### Пример: tool-ы запросов в metadata-tools
-
-RooLee10/1c-mcp-tools добавил обработку `mcp_ИнструментРаботаСЗапросами` с 4 tool-ами:
-
-| Tool | Что делает | Capability |
-|------|-----------|------------|
-| `validate_query` | Проверка синтаксиса запроса без выполнения | `validate_query` (новая) |
-| `execute_query` | Выполнение запроса с авторезолвом ссылок | `execute_query` (новая) |
-| `parse_nav_link` | Навигационная ссылка → описание объекта | `resolve_nav_link` (новая) |
-| `get_nav_link` | Описание объекта → навигационная ссылка | `resolve_nav_link` (новая) |
-
-Были созданы 3 новые capability в `tool-registry.md`, обновлён provider profile `metadata-tools.md`, обновлена матрица совместимости.
+**Чек-лист:**
+- [ ] Tool-usage навык описывает КОГДА использовать + workarounds + сценарии
+- [ ] `_capability-index.md` содержит маппинг
+- [ ] Агенты, использующие навык, обновлены (`skills` в frontmatter)
 
 ---
 

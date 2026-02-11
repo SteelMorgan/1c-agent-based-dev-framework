@@ -1,7 +1,7 @@
 ---
 id: skill/code-navigation
 type: skill
-depends_on: [registry/tool-registry]
+depends_on: []
 ---
 
 # Навигация по коду (Code Navigation)
@@ -106,15 +106,15 @@ depends_on: [registry/tool-registry]
 
 ---
 
-## Связанные capability
+## MCP-инструменты
 
-| Capability | Категория | Назначение |
-|------------|-----------|------------|
-| `navigate_symbol` | Core | Поиск символов, переход к определению, hover |
-| `get_call_graph` | Important | Граф вызовов (входящие/исходящие) |
-| `rename_symbol` | Important | Безопасное переименование по проекту |
-| `get_diagnostics` | Core | Диагностика LSP для файла |
-| `get_code_actions` | Optional | Быстрые исправления (Quick Fixes) |
+| Инструмент | MCP-сервер | Назначение |
+|------------|------------|------------|
+| `navigate_symbol` | lsp-bridge | Поиск символов, переход к определению, hover |
+| `get_call_graph` | lsp-bridge | Граф вызовов (входящие/исходящие) |
+| `rename_symbol` | lsp-bridge | Безопасное переименование по проекту |
+| `get_diagnostics` | lsp-bridge | Диагностика LSP для файла |
+| `get_code_actions` | lsp-bridge | Быстрые исправления (Quick Fixes) |
 
 ---
 

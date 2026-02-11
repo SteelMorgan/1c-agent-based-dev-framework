@@ -1,7 +1,7 @@
 ---
 id: skill/syntax-checking
 type: skill
-depends_on: [registry/tool-registry]
+depends_on: []
 ---
 
 # Проверка синтаксиса (Syntax Checking)
@@ -93,12 +93,12 @@ check_syntax(target: "путь/к/модулю/УправлениеСкладо�
 
 ---
 
-## Связанные capability
+## MCP-инструменты
 
-| Capability | Категория | Назначение |
-|------------|-----------|------------|
-| `check_syntax` | Core | Формальная проверка синтаксиса (EDT / Designer) |
-| `get_diagnostics` | Core | LSP-диагностика для текущего файла (быстрая обратная связь) |
+| Инструмент | MCP-сервер | Назначение |
+|------------|------------|------------|
+| `check_syntax` | test-runner | Формальная проверка синтаксиса (EDT / Designer) |
+| `get_diagnostics` | lsp-bridge | LSP-диагностика для текущего файла (быстрая обратная связь) |
 
 ---
 

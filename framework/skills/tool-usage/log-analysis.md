@@ -1,7 +1,7 @@
 ---
 id: skill/log-analysis
 type: skill
-depends_on: [registry/tool-registry]
+depends_on: []
 ---
 
 # Анализ логов (Log Analysis)
@@ -97,14 +97,14 @@ search_event_log(
 
 ---
 
-## Связанные capability
+## MCP-инструменты
 
-| Capability | Категория | Назначение |
-|------------|-----------|------------|
-| `search_event_log` | Optional | Поиск по журналу регистрации (ЖР) |
-| `search_tech_log` | Optional | Поиск по технологическому журналу (ТЖ) |
-| `configure_tech_log` | Optional | Управление конфигурацией ТЖ |
-| `navigate_symbol` | Core | Переход к коду по метаданным из логов |
+| Инструмент | MCP-сервер | Назначение |
+|------------|------------|------------|
+| `search_event_log` | log-checker | Поиск по журналу регистрации (ЖР) |
+| `search_tech_log` | log-checker | Поиск по технологическому журналу (ТЖ) |
+| `configure_tech_log` | log-checker | Управление конфигурацией ТЖ |
+| `navigate_symbol` | lsp-bridge | Переход к коду по метаданным из логов |
 
 ---
 

@@ -38,7 +38,7 @@
 
 ### Маппинг на возможности фреймворка
 
-- **search_platform_api** — поиск по API платформы
+- **search_syntax_reference** — поиск по справке синтаксиса платформы 1С
 
 ---
 
@@ -204,7 +204,7 @@ AI-ассистент для вопросов по 1С, объяснение с�
 
 | Возможность | mcp-bsl-platform-context | spring-mcp-1c-copilot | mcp-onec-test-runner | 1c-log-checker | 1c-mcp-tools | 1c-batch | mcp-bsl-lsp-bridge | 1c_mcp |
 |-------------|:------------------------:|:---------------------:|:--------------------:|:---------------:|:------------:|:--------:|:------------------:|:------:|
-| search_platform_api | ✓ | | | | | | | |
+| search_syntax_reference | ✓ | | | | | | | |
 | ask_ai | | ✓ | | | | | | |
 | explain_syntax | | ✓ | | | | | | |
 | check_code_quality | | ✓ | | | | | | |
