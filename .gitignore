@@ -1,0 +1,5 @@
+# Generated artifacts (do not commit)
+.cursor/skills/skills-manifest.json
+.cursor/skills/auto-skill-bootstrap/state.json
+.cursor/skills/auto-skill-bootstrap/candidates.json
+
