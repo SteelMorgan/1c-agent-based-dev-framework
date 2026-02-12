@@ -40,6 +40,7 @@ public class Main {
         System.out.println("  role compile      - Compile role from JSON DSL");
         System.out.println("  mxl compile       - Compile MXL from JSON DSL");
         System.out.println("  skd compile       - Compile SKD from JSON DSL");
+        System.out.println("  validate          - Validate 1C XML files");
         System.out.println();
         System.out.println("Options:");
         System.out.println("  --format <designer|edt>  - Output format (default: designer)");

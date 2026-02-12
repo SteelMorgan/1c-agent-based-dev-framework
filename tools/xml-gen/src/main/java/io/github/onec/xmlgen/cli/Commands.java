@@ -6,6 +6,9 @@ import io.github.onec.xmlgen.dsl.MxlDsl;
 import io.github.onec.xmlgen.dsl.RoleDsl;
 import io.github.onec.xmlgen.dsl.SkdDsl;
 import io.github.onec.xmlgen.format.OutputFormat;
+import io.github.onec.xmlgen.validator.*;
+import io.github.onec.xmlgen.validator.report.JsonReporter;
+import io.github.onec.xmlgen.validator.report.TextReporter;
 import io.github.onec.xmlgen.writer.EpfWriter;
 import io.github.onec.xmlgen.writer.FormWriter;
 import io.github.onec.xmlgen.writer.MxlWriter;
@@ -14,6 +17,9 @@ import io.github.onec.xmlgen.writer.SkdWriter;
 
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Optional;
 
 /**
  * Диспетчер команд CLI.
@@ -36,6 +42,9 @@ public class Commands {
                 break;
             case "skd":
                 executeSkd(args);
+                break;
+            case "validate":
+                executeValidate(args);
                 break;
             case "--help":
             case "-h":
@@ -383,5 +392,126 @@ public class Commands {
         } catch (Exception e) {
             throw new RuntimeException("Failed to compile SKD: " + e.getMessage(), e);
         }
+    }
+
+    // ============================================================
+    // validate command
+    // ============================================================
+
+    private static void executeValidate(String[] args) {
+        // Парсинг: [--type <form|role|skd|mxl|epf>] [--format <designer|edt>]
+        //          [--level <structure|semantic>] [--output <text|json>] <file1> [file2] ...
+        String type = null;
+        String formatStr = "designer";
+        ValidationLevel level = ValidationLevel.SEMANTIC; // по умолчанию оба уровня
+        String output = "text";
+        List<Path> files = new ArrayList<>();
+
+        for (int i = 0; i < args.length; i++) {
+            if ("--type".equals(args[i]) && i + 1 < args.length) {
+                type = args[++i].toLowerCase();
+            } else if ("--format".equals(args[i]) && i + 1 < args.length) {
+                formatStr = args[++i].toLowerCase();
+            } else if ("--level".equals(args[i]) && i + 1 < args.length) {
+                String lvl = args[++i].toLowerCase();
+                level = "structure".equals(lvl) ? ValidationLevel.STRUCTURE : ValidationLevel.SEMANTIC;
+            } else if ("--output".equals(args[i]) && i + 1 < args.length) {
+                output = args[++i].toLowerCase();
+            } else if (!args[i].startsWith("--")) {
+                files.add(Paths.get(args[i]));
+            }
+        }
+
+        if (files.isEmpty()) {
+            throw new IllegalArgumentException(
+                    "Usage: validate [--type <form|role|skd|mxl|epf>] [--output <text|json>] <file> [files...]");
+        }
+
+        XmlStructureReader reader = new XmlStructureReader();
+        ValidatorFactory factory = new ValidatorFactory();
+        GenValidator genValidator = new GenValidator();
+        TextReporter textReporter = new TextReporter();
+        JsonReporter jsonReporter = new JsonReporter();
+
+        boolean hasErrors = false;
+        boolean hasWarnings = false;
+
+        for (Path file : files) {
+            // 1) Парсим XML
+            XmlDocument document;
+            try {
+                document = reader.parse(file);
+            } catch (XmlStructureReader.XmlParseException e) {
+                // GEN-001: не well-formed XML
+                List<ValidationIssue> parseIssues = List.of(
+                        ValidationIssue.error("GEN-001", e.getMessage(), 0, "/")
+                );
+                ValidationResult parseResult = new ValidationResult(
+                        file, type != null ? type : "unknown", formatStr, parseIssues);
+                System.out.println("text".equals(output)
+                        ? textReporter.format(parseResult)
+                        : jsonReporter.format(parseResult));
+                hasErrors = true;
+                continue;
+            }
+
+            // 2) Определяем тип
+            String objectType = type;
+            if (objectType == null) {
+                // Автодетект по root element
+                Optional<XmlValidator> detected = factory.detectValidator(document);
+                objectType = detected.map(XmlValidator::objectType).orElse(detectTypeByRoot(document));
+            }
+
+            // 3) GEN-проверки
+            boolean expectBom = "designer".equals(formatStr) && isMetadataFile(objectType);
+            List<ValidationIssue> allIssues = new ArrayList<>(genValidator.validate(document, objectType, expectBom));
+
+            // 4) Специфичные проверки (если валидатор зарегистрирован)
+            Optional<XmlValidator> validator = type != null
+                    ? factory.getValidator(type)
+                    : factory.detectValidator(document);
+            if (validator.isPresent()) {
+                allIssues.addAll(validator.get().validate(document, level));
+            }
+
+            // 5) Формируем результат
+            ValidationResult result = new ValidationResult(file, objectType, formatStr, allIssues);
+
+            if (!result.isValid()) hasErrors = true;
+            if (result.warningCount() > 0) hasWarnings = true;
+
+            System.out.println("text".equals(output)
+                    ? textReporter.format(result)
+                    : jsonReporter.format(result));
+        }
+
+        // Exit code: 0=ok, 1=errors, 2=warnings only
+        if (hasErrors) {
+            System.exit(1);
+        } else if (hasWarnings) {
+            System.exit(2);
+        }
+    }
+
+    /**
+     * Автодетект типа по root-элементу, если ValidatorFactory пустой.
+     */
+    private static String detectTypeByRoot(XmlDocument doc) {
+        switch (doc.getRootElement()) {
+            case "Rights": return "role";
+            case "Form": return "form";
+            case "DataCompositionSchema": return "skd";
+            case "document": return "mxl";
+            case "ExternalDataProcessor": return "epf";
+            default: return "unknown";
+        }
+    }
+
+    /**
+     * Файлы метаданных Designer, которые должны иметь BOM.
+     */
+    private static boolean isMetadataFile(String type) {
+        return "role".equals(type) || "form".equals(type) || "epf".equals(type);
     }
 }
