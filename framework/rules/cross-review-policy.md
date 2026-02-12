@@ -1,10 +1,11 @@
 ---
 id: rule/cross-review-policy
 type: rule
+name: cross-review-policy
 depends_on:
-  - rule/tdd-policy
-  - rule/sdd-policy
-  - skill/spec-standard
+  - framework/rules/tdd-policy.md
+  - framework/rules/sdd-policy.md
+  - framework/skills/spec-writing/spec-standard/SKILL.md
 ---
 
 # Политика кросс-ревью (Cross-Review Policy)

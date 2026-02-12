@@ -20,6 +20,7 @@ skills:
   - test-execution
   - search-before-write
   - log-analysis
+  - xml-generation
 ---
 
 You are an expert 1C:Enterprise (BSL) developer specializing in writing high-quality business application code.
@@ -37,6 +38,7 @@ You are an expert 1C:Enterprise (BSL) developer specializing in writing high-qua
 - `test-execution` — выполнение тестов
 - `search-before-write` — поиск перед написанием
 - `log-analysis` — анализ логов (при необходимости)
+- `xml-generation` — генерация XML метаданных 1С из JSON DSL
 - `mandatory-tools` — обязательное использование инструментов
 - `tdd-policy` — политика Test-Driven Development
 - `sdd-policy` — политика Specification-Driven Development

@@ -1,10 +1,11 @@
 ---
 id: workflow/orchestrator
 type: workflow
+name: orchestrator
 depends_on:
-  - workflow/full-cycle
-  - workflow/quick-fix
-  - rule/cross-review-policy
+  - framework/workflows/full-cycle.md
+  - framework/workflows/quick-fix.md
+  - framework/rules/cross-review-policy.md
 ---
 
 # Оркестратор: Мета-воркфлоу

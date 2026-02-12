@@ -1,18 +1,19 @@
 ---
 id: workflow/full-cycle
 type: workflow
+name: full-cycle
 depends_on:
-  - workflow/quick-fix
-  - agent/explorer
-  - agent/analyst
-  - agent/architect
-  - agent/developer
-  - agent/tester
-  - agent/reviewer
-  - agent/formatter
-  - rule/cross-review-policy
-  - rule/tdd-policy
-  - rule/mandatory-tools
+  - framework/workflows/quick-fix.md
+  - framework/agents/explorer.md
+  - framework/agents/analyst.md
+  - framework/agents/architect.md
+  - framework/agents/developer.md
+  - framework/agents/tester.md
+  - framework/agents/reviewer.md
+  - framework/agents/formatter.md
+  - framework/rules/cross-review-policy.md
+  - framework/rules/tdd-policy.md
+  - framework/rules/mandatory-tools.md
 ---
 
 # Воркфлоу: Полный цикл разработки (Full Cycle)

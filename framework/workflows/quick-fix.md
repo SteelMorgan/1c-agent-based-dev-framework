@@ -1,14 +1,15 @@
 ---
 id: workflow/quick-fix
 type: workflow
+name: quick-fix
 depends_on:
-  - workflow/full-cycle
-  - agent/explorer
-  - agent/developer
-  - skill/coding-standards
-  - skill/anti-patterns
-  - skill/syntax-checking
-  - skill/test-execution
+  - framework/workflows/full-cycle.md
+  - framework/agents/explorer.md
+  - framework/agents/developer.md
+  - framework/skills/bsl-practices/coding-standards/SKILL.md
+  - framework/skills/bsl-practices/anti-patterns/SKILL.md
+  - framework/skills/tool-usage/syntax-checking/SKILL.md
+  - framework/skills/tool-usage/test-execution/SKILL.md
 ---
 
 # Воркфлоу: Быстрое исправление (Quick Fix)

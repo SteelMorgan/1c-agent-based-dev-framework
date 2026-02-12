@@ -1,12 +1,13 @@
 ---
 id: rule/mandatory-tools
 type: rule
+name: mandatory-tools
 depends_on:
-  - skill/search-before-write
-  - skill/syntax-checking
-  - skill/test-execution
-  - skill/metadata-discovery
-  - skill/code-navigation
+  - framework/skills/tool-usage/search-before-write/SKILL.md
+  - framework/skills/tool-usage/syntax-checking/SKILL.md
+  - framework/skills/tool-usage/test-execution/SKILL.md
+  - framework/skills/tool-usage/metadata-discovery/SKILL.md
+  - framework/skills/tool-usage/code-navigation/SKILL.md
 ---
 
 # Обязательное использование возможностей (Mandatory Tools)
