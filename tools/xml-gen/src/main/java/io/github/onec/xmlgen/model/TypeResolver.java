@@ -1,5 +1,7 @@
 package io.github.onec.xmlgen.model;
 
+import com.github._1c_syntax.bsl.types.AllowedLength;
+import com.github._1c_syntax.bsl.types.DateFractions;
 import lombok.Value;
 
 import java.util.regex.Matcher;
@@ -7,6 +9,8 @@ import java.util.regex.Pattern;
 
 /**
  * Преобразование DSL типов в XML типы 1С.
+ * 
+ * Использует enum-ы AllowedLength и DateFractions из mdclasses (bsl-common-library).
  * 
  * Примеры:
  * - string -> xs:string (Length=0, AllowedLength=Variable)
@@ -40,10 +44,11 @@ public class TypeResolver {
             boolean fixed = stringMatcher.group(1) != null;
             String lengthStr = stringMatcher.group(2);
             int length = lengthStr != null ? Integer.parseInt(lengthStr) : 0;
+            AllowedLength allowedLength = fixed ? AllowedLength.FIXED : AllowedLength.VARIABLE;
             
             return new TypeInfo(
                 "xs:string",
-                new StringQualifiers(length, fixed ? "Fixed" : "Variable")
+                new StringQualifiers(length, allowedLength)
             );
         }
         
@@ -74,15 +79,15 @@ public class TypeResolver {
             return new TypeInfo("xs:boolean", null);
         }
         
-        // Date types
+        // Date types — используем DateFractions enum из mdclasses
         if ("date".equals(dslType)) {
-            return new TypeInfo("xs:dateTime", new DateQualifiers("Date"));
+            return new TypeInfo("xs:dateTime", new DateQualifiers(DateFractions.DATE));
         }
         if ("time".equals(dslType)) {
-            return new TypeInfo("xs:dateTime", new DateQualifiers("Time"));
+            return new TypeInfo("xs:dateTime", new DateQualifiers(DateFractions.TIME));
         }
         if ("datetime".equals(dslType)) {
-            return new TypeInfo("xs:dateTime", new DateQualifiers("DateTime"));
+            return new TypeInfo("xs:dateTime", new DateQualifiers(DateFractions.DATE_TIME));
         }
         
         // UUID
@@ -180,11 +185,17 @@ public class TypeResolver {
     
     /**
      * Квалификаторы строки.
+     * Использует AllowedLength enum из mdclasses.
      */
     @Value
     public static class StringQualifiers {
         int length;
-        String allowedLength; // "Variable" | "Fixed"
+        AllowedLength allowedLength;
+        
+        /** XML-значение для AllowedLength. */
+        public String getAllowedLengthXml() {
+            return allowedLength.fullName().getEn();
+        }
     }
     
     /**
@@ -199,9 +210,15 @@ public class TypeResolver {
     
     /**
      * Квалификаторы даты.
+     * Использует DateFractions enum из mdclasses.
      */
     @Value
     public static class DateQualifiers {
-        String dateFractions; // "Date" | "Time" | "DateTime"
+        DateFractions dateFractions;
+        
+        /** XML-значение для DateFractions. */
+        public String getDateFractionsXml() {
+            return dateFractions.fullName().getEn();
+        }
     }
 }

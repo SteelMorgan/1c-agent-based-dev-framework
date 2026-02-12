@@ -1,5 +1,6 @@
 package io.github.onec.xmlgen.writer;
 
+import com.github._1c_syntax.bsl.mdo.support.TemplateType;
 import io.github.onec.xmlgen.dsl.EpfDsl;
 import io.github.onec.xmlgen.format.DesignerLayout;
 import io.github.onec.xmlgen.format.EdtLayout;
@@ -53,7 +54,7 @@ public class EpfWriter extends XmlWriter {
         if (format == OutputFormat.DESIGNER) {
             addFormDesigner(epfName, formName, formSynonym, outputDir, setAsDefault);
         } else {
-            throw new UnsupportedOperationException("EDT format not implemented yet");
+            addFormEdt(epfName, formName, formSynonym, outputDir);
         }
     }
     
@@ -70,7 +71,7 @@ public class EpfWriter extends XmlWriter {
         if (format == OutputFormat.DESIGNER) {
             addTemplateDesigner(epfName, templateName, templateSynonym, templateType, outputDir);
         } else {
-            throw new UnsupportedOperationException("EDT format not implemented yet");
+            addTemplateEdt(epfName, templateName, templateSynonym, templateType, outputDir);
         }
     }
     
@@ -139,8 +140,55 @@ public class EpfWriter extends XmlWriter {
     }
     
     private void initEdt(String name, String synonym, Path outputDir) throws IOException, XMLStreamException {
-        // TODO: EDT format implementation
-        throw new UnsupportedOperationException("EDT format not implemented yet");
+        // Создать структуру каталогов EDT
+        Path mdoPath = EdtLayout.createEpfStructure(outputDir, name);
+        
+        // Генерировать UUID
+        String uuid = UuidGenerator.generate();
+        String objectTypeId = UuidGenerator.generate();
+        String valueTypeId = UuidGenerator.generate();
+        
+        // Создать .mdo файл
+        createWriter(mdoPath, false, new HashMap<>()); // БЕЗ BOM для EDT
+        writeXmlDeclaration();
+        
+        writer.writeStartElement("mdclass", "ExternalDataProcessor", "http://g5.1c.ru/v8/dt/metadata/mdclass");
+        writer.writeNamespace("xsi", "http://www.w3.org/2001/XMLSchema-instance");
+        writer.writeNamespace("core", "http://g5.1c.ru/v8/dt/mcore");
+        writer.writeNamespace("mdclass", "http://g5.1c.ru/v8/dt/metadata/mdclass");
+        writer.writeAttribute("uuid", uuid);
+        writer.writeCharacters("\n");
+        indentLevel = 1;
+        
+        // producedTypes
+        startElement("producedTypes");
+        writer.writeCharacters("\t\t");
+        writer.writeEmptyElement("objectType");
+        writer.writeAttribute("typeId", objectTypeId);
+        writer.writeAttribute("valueTypeId", valueTypeId);
+        writer.writeCharacters("\n");
+        endElement(); // producedTypes
+        
+        writeElement("name", name);
+        
+        // synonym
+        if (synonym != null) {
+            startElement("synonym");
+            writeElement("key", "ru");
+            writeElement("value", synonym);
+            endElement(); // synonym
+        }
+        
+        writer.writeEndElement(); // mdclass:ExternalDataProcessor
+        close();
+        
+        // Создать пустой ObjectModule.bsl
+        Path objectModule = mdoPath.getParent().resolve("ObjectModule.bsl");
+        Files.writeString(objectModule, "// Модуль объекта обработки " + name + "\n");
+        
+        System.out.println("Created EPF (EDT): " + name);
+        System.out.println("  MDO: " + mdoPath);
+        System.out.println("  Object module: " + objectModule);
     }
     
     private void addFormDesigner(String epfName, String formName, String formSynonym, Path outputDir, boolean setAsDefault) throws IOException, XMLStreamException {
@@ -371,40 +419,32 @@ public class EpfWriter extends XmlWriter {
      * Создать тело макета.
      */
     private void createTemplateBody(Path outputPath, String templateType, String templateName) throws IOException {
+        TemplateType tt = TemplateType.valueByName(templateType);
         String content;
         
-        switch (templateType) {
-            case "SpreadsheetDocument":
-                content = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n" +
-                         "<SpreadsheetDocument xmlns=\"http://v8.1c.ru/8.2/data/spreadsheet\">\n" +
-                         "\t<!-- Табличный документ " + templateName + " -->\n" +
-                         "</SpreadsheetDocument>\n";
-                break;
-                
-            case "HTMLDocument":
-                content = "<!DOCTYPE html>\n" +
-                         "<html>\n" +
-                         "<head>\n" +
-                         "\t<meta charset=\"UTF-8\">\n" +
-                         "\t<title>" + templateName + "</title>\n" +
-                         "</head>\n" +
-                         "<body>\n" +
-                         "\t<h1>" + templateName + "</h1>\n" +
-                         "</body>\n" +
-                         "</html>\n";
-                break;
-                
-            case "TextDocument":
-                content = "// Текстовый документ " + templateName + "\n";
-                break;
-                
-            case "BinaryData":
-                // Пустой бинарный файл
-                Files.write(outputPath, new byte[0]);
-                return;
-                
-            default:
-                throw new IllegalArgumentException("Unknown template type: " + templateType);
+        if (tt == TemplateType.SPREADSHEET_DOCUMENT) {
+            content = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n" +
+                     "<SpreadsheetDocument xmlns=\"http://v8.1c.ru/8.2/data/spreadsheet\">\n" +
+                     "\t<!-- Табличный документ " + templateName + " -->\n" +
+                     "</SpreadsheetDocument>\n";
+        } else if (tt == TemplateType.HTML_DOCUMENT) {
+            content = "<!DOCTYPE html>\n" +
+                     "<html>\n" +
+                     "<head>\n" +
+                     "\t<meta charset=\"UTF-8\">\n" +
+                     "\t<title>" + templateName + "</title>\n" +
+                     "</head>\n" +
+                     "<body>\n" +
+                     "\t<h1>" + templateName + "</h1>\n" +
+                     "</body>\n" +
+                     "</html>\n";
+        } else if (tt == TemplateType.TEXT_DOCUMENT) {
+            content = "// Текстовый документ " + templateName + "\n";
+        } else if (tt == TemplateType.BINARY_DATA) {
+            Files.write(outputPath, new byte[0]);
+            return;
+        } else {
+            throw new IllegalArgumentException("Unknown template type: " + templateType);
         }
         
         Files.writeString(outputPath, content);
@@ -414,18 +454,12 @@ public class EpfWriter extends XmlWriter {
      * Получить расширение файла для типа макета.
      */
     private String getTemplateExtension(String templateType) {
-        switch (templateType) {
-            case "SpreadsheetDocument":
-                return "xml";
-            case "HTMLDocument":
-                return "html";
-            case "TextDocument":
-                return "txt";
-            case "BinaryData":
-                return "bin";
-            default:
-                return "xml";
-        }
+        TemplateType tt = TemplateType.valueByName(templateType);
+        if (tt == TemplateType.SPREADSHEET_DOCUMENT) return "xml";
+        if (tt == TemplateType.HTML_DOCUMENT) return "html";
+        if (tt == TemplateType.TEXT_DOCUMENT) return "txt";
+        if (tt == TemplateType.BINARY_DATA) return "bin";
+        return "xml";
     }
     
     /**
@@ -480,5 +514,53 @@ public class EpfWriter extends XmlWriter {
         writeElement("v8:content", text);
         endElement(); // v8:item
         endElement(); // Synonym
+    }
+    
+    // ==================== EDT format ====================
+    
+    private void addFormEdt(String epfName, String formName, String formSynonym, Path outputDir) throws IOException, XMLStreamException {
+        // EDT: Forms/<FormName>/Form.form + Module.bsl
+        Path epfDir = outputDir.resolve("src/ExternalDataProcessors").resolve(epfName);
+        Path formsDir = epfDir.resolve("Forms");
+        Path formPath = EdtLayout.createFormStructure(formsDir, formName);
+        
+        // Создать минимальный Form.form
+        FormWriter formWriter = new FormWriter(OutputFormat.EDT);
+        formWriter.create(new io.github.onec.xmlgen.dsl.FormDsl(null, null, null, null, null, null, null, null), formPath);
+        
+        // Создать Module.bsl
+        Path modulePath = formPath.getParent().resolve("Module.bsl");
+        Files.writeString(modulePath, "// Модуль формы " + formName + "\n");
+        
+        System.out.println("Added form (EDT): " + formName);
+        System.out.println("  Form: " + formPath);
+        System.out.println("  Module: " + modulePath);
+    }
+    
+    private void addTemplateEdt(String epfName, String templateName, String templateSynonym, String templateType, Path outputDir) throws IOException, XMLStreamException {
+        // EDT: Templates/<TemplateName>/Template.<ext>
+        Path epfDir = outputDir.resolve("src/ExternalDataProcessors").resolve(epfName);
+        Path templatesDir = epfDir.resolve("Templates");
+        Path templatePath = EdtLayout.createTemplateStructure(templatesDir, templateName);
+        
+        // Определить расширение для EDT
+        String edtExtension = getEdtTemplateExtension(templateType);
+        Path templateBodyPath = templatePath.getParent().resolve("Template." + edtExtension);
+        createTemplateBody(templateBodyPath, templateType, templateName);
+        
+        System.out.println("Added template (EDT): " + templateName);
+        System.out.println("  Body: " + templateBodyPath);
+    }
+    
+    /**
+     * Получить расширение файла макета для EDT.
+     */
+    private String getEdtTemplateExtension(String templateType) {
+        TemplateType tt = TemplateType.valueByName(templateType);
+        if (tt == TemplateType.SPREADSHEET_DOCUMENT) return "mxlx";
+        if (tt == TemplateType.HTML_DOCUMENT) return "html";
+        if (tt == TemplateType.TEXT_DOCUMENT) return "txt";
+        if (tt == TemplateType.BINARY_DATA) return "bin";
+        return "xml";
     }
 }

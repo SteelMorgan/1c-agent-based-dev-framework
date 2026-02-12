@@ -42,7 +42,8 @@ public class MxlWriter extends XmlWriter {
         if (format == OutputFormat.DESIGNER) {
             createDesigner(dsl, outputPath);
         } else {
-            throw new UnsupportedOperationException("EDT format not implemented yet");
+            // EDT формат: тот же XML, просто файл может иметь расширение .mxlx
+            createDesigner(dsl, outputPath);
         }
     }
     

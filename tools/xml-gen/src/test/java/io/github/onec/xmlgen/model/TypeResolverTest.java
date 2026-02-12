@@ -1,5 +1,7 @@
 package io.github.onec.xmlgen.model;
 
+import com.github._1c_syntax.bsl.types.AllowedLength;
+import com.github._1c_syntax.bsl.types.DateFractions;
 import org.junit.jupiter.api.Test;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -15,19 +17,21 @@ class TypeResolverTest {
         assertThat(type.getQualifiers()).isInstanceOf(TypeResolver.StringQualifiers.class);
         TypeResolver.StringQualifiers sq = (TypeResolver.StringQualifiers) type.getQualifiers();
         assertThat(sq.getLength()).isEqualTo(0);
-        assertThat(sq.getAllowedLength()).isEqualTo("Variable");
+        assertThat(sq.getAllowedLength()).isEqualTo(AllowedLength.VARIABLE);
+        assertThat(sq.getAllowedLengthXml()).isEqualTo("Variable");
         
         // string(100)
         type = TypeResolver.resolve("string(100)");
         sq = (TypeResolver.StringQualifiers) type.getQualifiers();
         assertThat(sq.getLength()).isEqualTo(100);
-        assertThat(sq.getAllowedLength()).isEqualTo("Variable");
+        assertThat(sq.getAllowedLength()).isEqualTo(AllowedLength.VARIABLE);
         
         // string!(50)
         type = TypeResolver.resolve("string!(50)");
         sq = (TypeResolver.StringQualifiers) type.getQualifiers();
         assertThat(sq.getLength()).isEqualTo(50);
-        assertThat(sq.getAllowedLength()).isEqualTo("Fixed");
+        assertThat(sq.getAllowedLength()).isEqualTo(AllowedLength.FIXED);
+        assertThat(sq.getAllowedLengthXml()).isEqualTo("Fixed");
     }
     
     @Test
@@ -65,15 +69,18 @@ class TypeResolverTest {
         TypeResolver.TypeInfo type = TypeResolver.resolve("date");
         assertThat(type.getXmlType()).isEqualTo("xs:dateTime");
         TypeResolver.DateQualifiers dq = (TypeResolver.DateQualifiers) type.getQualifiers();
-        assertThat(dq.getDateFractions()).isEqualTo("Date");
+        assertThat(dq.getDateFractions()).isEqualTo(DateFractions.DATE);
+        assertThat(dq.getDateFractionsXml()).isEqualTo("Date");
         
         type = TypeResolver.resolve("time");
         dq = (TypeResolver.DateQualifiers) type.getQualifiers();
-        assertThat(dq.getDateFractions()).isEqualTo("Time");
+        assertThat(dq.getDateFractions()).isEqualTo(DateFractions.TIME);
+        assertThat(dq.getDateFractionsXml()).isEqualTo("Time");
         
         type = TypeResolver.resolve("datetime");
         dq = (TypeResolver.DateQualifiers) type.getQualifiers();
-        assertThat(dq.getDateFractions()).isEqualTo("DateTime");
+        assertThat(dq.getDateFractions()).isEqualTo(DateFractions.DATE_TIME);
+        assertThat(dq.getDateFractionsXml()).isEqualTo("DateTime");
     }
     
     @Test

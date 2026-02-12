@@ -45,7 +45,8 @@ public class SkdWriter extends XmlWriter {
         if (format == OutputFormat.DESIGNER) {
             createDesigner(dsl, outputPath);
         } else {
-            throw new UnsupportedOperationException("EDT format not implemented yet");
+            // EDT формат: тот же XML, просто файл может иметь расширение .dcs
+            createDesigner(dsl, outputPath);
         }
     }
     
@@ -216,7 +217,7 @@ public class SkdWriter extends XmlWriter {
                 TypeResolver.StringQualifiers sq = (TypeResolver.StringQualifiers) typeInfo.getQualifiers();
                 startElement("v8:StringQualifiers");
                 writeElement("v8:Length", String.valueOf(sq.getLength()));
-                writeElement("v8:AllowedLength", sq.getAllowedLength());
+                writeElement("v8:AllowedLength", sq.getAllowedLengthXml());
                 endElement();
             } else if (typeInfo.getQualifiers() instanceof TypeResolver.NumberQualifiers) {
                 TypeResolver.NumberQualifiers nq = (TypeResolver.NumberQualifiers) typeInfo.getQualifiers();
@@ -228,7 +229,7 @@ public class SkdWriter extends XmlWriter {
             } else if (typeInfo.getQualifiers() instanceof TypeResolver.DateQualifiers) {
                 TypeResolver.DateQualifiers dq = (TypeResolver.DateQualifiers) typeInfo.getQualifiers();
                 startElement("v8:DateQualifiers");
-                writeElement("v8:DateFractions", dq.getDateFractions());
+                writeElement("v8:DateFractions", dq.getDateFractionsXml());
                 endElement();
             }
         }

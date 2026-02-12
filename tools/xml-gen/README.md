@@ -56,7 +56,8 @@ JSON DSL → DSL Models → Model Layer → Writers → XML + структура
 
 ## Зависимости
 
-- **mdclasses** (io.github.1c-syntax:mdclasses:0.17.4) — enum-ы и модели метаданных 1С
+- **mdclasses** (io.github.1c-syntax:mdclasses:0.17.4) — enum-ы и модели метаданных 1С (RoleRight, FormElementType, TemplateType, DataSetType)
+- **bsl-common-library** (io.github.1c-syntax:bsl-common-library:0.9.2) — типы и квалификаторы 1С (MDOType, AllowedLength, DateFractions)
 - **jackson-databind** — парсинг JSON DSL
 - **lombok** — @Value, @Builder
 - **junit5 + assertj** — тесты

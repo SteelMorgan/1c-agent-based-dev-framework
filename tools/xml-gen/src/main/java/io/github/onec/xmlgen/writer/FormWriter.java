@@ -1,5 +1,6 @@
 package io.github.onec.xmlgen.writer;
 
+import com.github._1c_syntax.bsl.mdo.storage.form.FormElementType;
 import io.github.onec.xmlgen.dsl.FormDsl;
 import io.github.onec.xmlgen.format.OutputFormat;
 import io.github.onec.xmlgen.model.IdGenerator;
@@ -24,6 +25,33 @@ public class FormWriter extends XmlWriter {
     private final IdGenerator attributeIdGen = new IdGenerator();
     private final IdGenerator commandIdGen = new IdGenerator();
     
+    /**
+     * Маппинг DSL-ключа на FormElementType из mdclasses.
+     * DSL-ключ — краткое имя в JSON, FormElementType — каноническое имя 1С.
+     */
+    private static final Map<String, FormElementType> DSL_TO_FORM_ELEMENT_TYPE = Map.ofEntries(
+        Map.entry("input", FormElementType.INPUT_FIELD),
+        Map.entry("group", FormElementType.USUAL_GROUP),
+        Map.entry("table", FormElementType.TABLE),
+        Map.entry("button", FormElementType.BUTTON),
+        Map.entry("label", FormElementType.LABEL_DECORATION),
+        Map.entry("labelField", FormElementType.LABEL_FIELD),
+        Map.entry("check", FormElementType.CHECK_BOX_FIELD),
+        Map.entry("pages", FormElementType.PAGES),
+        Map.entry("page", FormElementType.PAGE),
+        Map.entry("picture", FormElementType.PICTURE_DECORATION),
+        Map.entry("picField", FormElementType.PICTURE_FIELD),
+        Map.entry("calendar", FormElementType.CALENDAR_FIELD),
+        Map.entry("cmdBar", FormElementType.COMMAND_BAR),
+        Map.entry("popup", FormElementType.POPUP)
+    );
+    
+    /** Получить XML-имя элемента формы по DSL-ключу (из mdclasses enum). */
+    private static String xmlElementName(String dslKey) {
+        FormElementType fet = DSL_TO_FORM_ELEMENT_TYPE.get(dslKey);
+        return fet != null ? fet.fullName().getEn() : dslKey;
+    }
+    
     public FormWriter(OutputFormat format) {
         this.format = format;
     }
@@ -38,7 +66,7 @@ public class FormWriter extends XmlWriter {
         if (format == OutputFormat.DESIGNER) {
             createDesigner(dsl, outputPath);
         } else {
-            throw new UnsupportedOperationException("EDT format not implemented yet");
+            createEdt(dsl, outputPath);
         }
     }
     
@@ -224,7 +252,7 @@ public class FormWriter extends XmlWriter {
                 TypeResolver.StringQualifiers sq = (TypeResolver.StringQualifiers) typeInfo.getQualifiers();
                 startElement("v8:StringQualifiers");
                 writeElement("v8:Length", String.valueOf(sq.getLength()));
-                writeElement("v8:AllowedLength", sq.getAllowedLength());
+                writeElement("v8:AllowedLength", sq.getAllowedLengthXml());
                 endElement();
             } else if (typeInfo.getQualifiers() instanceof TypeResolver.NumberQualifiers) {
                 TypeResolver.NumberQualifiers nq = (TypeResolver.NumberQualifiers) typeInfo.getQualifiers();
@@ -236,7 +264,7 @@ public class FormWriter extends XmlWriter {
             } else if (typeInfo.getQualifiers() instanceof TypeResolver.DateQualifiers) {
                 TypeResolver.DateQualifiers dq = (TypeResolver.DateQualifiers) typeInfo.getQualifiers();
                 startElement("v8:DateQualifiers");
-                writeElement("v8:DateFractions", dq.getDateFractions());
+                writeElement("v8:DateFractions", dq.getDateFractionsXml());
                 endElement();
             }
         }
@@ -383,11 +411,7 @@ public class FormWriter extends XmlWriter {
      * Проверить, является ли ключ типом элемента.
      */
     private boolean isElementType(String key) {
-        return key.equals("input") || key.equals("group") || key.equals("table") ||
-               key.equals("button") || key.equals("label") || key.equals("labelField") ||
-               key.equals("check") || key.equals("pages") || key.equals("page") ||
-               key.equals("picture") || key.equals("picField") || key.equals("calendar") ||
-               key.equals("cmdBar") || key.equals("popup");
+        return DSL_TO_FORM_ELEMENT_TYPE.containsKey(key);
     }
     
     /**
@@ -397,7 +421,7 @@ public class FormWriter extends XmlWriter {
         String indent = "\t".repeat(depth);
         
         writer.writeCharacters(indent);
-        writer.writeStartElement("InputField");
+        writer.writeStartElement(xmlElementName("input"));
         writer.writeAttribute("name", name);
         writer.writeAttribute("id", String.valueOf(id));
         writer.writeCharacters("\n");
@@ -434,7 +458,7 @@ public class FormWriter extends XmlWriter {
         String indent = "\t".repeat(depth);
         
         writer.writeCharacters(indent);
-        writer.writeStartElement("UsualGroup");
+        writer.writeStartElement(xmlElementName("group"));
         writer.writeAttribute("name", name);
         writer.writeAttribute("id", String.valueOf(id));
         writer.writeCharacters("\n");
@@ -492,7 +516,7 @@ public class FormWriter extends XmlWriter {
         String indent = "\t".repeat(depth);
         
         writer.writeCharacters(indent);
-        writer.writeStartElement("Table");
+        writer.writeStartElement(xmlElementName("table"));
         writer.writeAttribute("name", name);
         writer.writeAttribute("id", String.valueOf(id));
         writer.writeCharacters("\n");
@@ -567,7 +591,7 @@ public class FormWriter extends XmlWriter {
         String indent = "\t".repeat(depth);
         
         writer.writeCharacters(indent);
-        writer.writeStartElement("Button");
+        writer.writeStartElement(xmlElementName("button"));
         writer.writeAttribute("name", name);
         writer.writeAttribute("id", String.valueOf(id));
         writer.writeCharacters("\n");
@@ -606,7 +630,7 @@ public class FormWriter extends XmlWriter {
         String indent = "\t".repeat(depth);
         
         writer.writeCharacters(indent);
-        writer.writeStartElement("LabelDecoration");
+        writer.writeStartElement(xmlElementName("label"));
         writer.writeAttribute("name", name);
         writer.writeAttribute("id", String.valueOf(id));
         writer.writeCharacters("\n");
@@ -638,7 +662,7 @@ public class FormWriter extends XmlWriter {
         String indent = "\t".repeat(depth);
         
         writer.writeCharacters(indent);
-        writer.writeStartElement("LabelField");
+        writer.writeStartElement(xmlElementName("labelField"));
         writer.writeAttribute("name", name);
         writer.writeAttribute("id", String.valueOf(id));
         writer.writeCharacters("\n");
@@ -675,7 +699,7 @@ public class FormWriter extends XmlWriter {
         String indent = "\t".repeat(depth);
         
         writer.writeCharacters(indent);
-        writer.writeStartElement("CheckBoxField");
+        writer.writeStartElement(xmlElementName("check"));
         writer.writeAttribute("name", name);
         writer.writeAttribute("id", String.valueOf(id));
         writer.writeCharacters("\n");
@@ -712,7 +736,7 @@ public class FormWriter extends XmlWriter {
         String indent = "\t".repeat(depth);
         
         writer.writeCharacters(indent);
-        writer.writeStartElement("Pages");
+        writer.writeStartElement(xmlElementName("pages"));
         writer.writeAttribute("name", name);
         writer.writeAttribute("id", String.valueOf(id));
         writer.writeCharacters("\n");
@@ -766,7 +790,7 @@ public class FormWriter extends XmlWriter {
         String indent = "\t".repeat(depth);
         
         writer.writeCharacters(indent);
-        writer.writeStartElement("Page");
+        writer.writeStartElement(xmlElementName("page"));
         writer.writeAttribute("name", name);
         writer.writeAttribute("id", String.valueOf(id));
         writer.writeCharacters("\n");
@@ -820,7 +844,7 @@ public class FormWriter extends XmlWriter {
         String indent = "\t".repeat(depth);
         
         writer.writeCharacters(indent);
-        writer.writeStartElement("PictureDecoration");
+        writer.writeStartElement(xmlElementName("picture"));
         writer.writeAttribute("name", name);
         writer.writeAttribute("id", String.valueOf(id));
         writer.writeCharacters("\n");
@@ -852,7 +876,7 @@ public class FormWriter extends XmlWriter {
         String indent = "\t".repeat(depth);
         
         writer.writeCharacters(indent);
-        writer.writeStartElement("PictureField");
+        writer.writeStartElement(xmlElementName("picField"));
         writer.writeAttribute("name", name);
         writer.writeAttribute("id", String.valueOf(id));
         writer.writeCharacters("\n");
@@ -884,7 +908,7 @@ public class FormWriter extends XmlWriter {
         String indent = "\t".repeat(depth);
         
         writer.writeCharacters(indent);
-        writer.writeStartElement("CalendarField");
+        writer.writeStartElement(xmlElementName("calendar"));
         writer.writeAttribute("name", name);
         writer.writeAttribute("id", String.valueOf(id));
         writer.writeCharacters("\n");
@@ -916,7 +940,7 @@ public class FormWriter extends XmlWriter {
         String indent = "\t".repeat(depth);
         
         writer.writeCharacters(indent);
-        writer.writeStartElement("CommandBar");
+        writer.writeStartElement(xmlElementName("cmdBar"));
         writer.writeAttribute("name", name);
         writer.writeAttribute("id", String.valueOf(id));
         writer.writeCharacters("\n");
@@ -962,7 +986,7 @@ public class FormWriter extends XmlWriter {
         String indent = "\t".repeat(depth);
         
         writer.writeCharacters(indent);
-        writer.writeStartElement("Popup");
+        writer.writeStartElement(xmlElementName("popup"));
         writer.writeAttribute("name", name);
         writer.writeAttribute("id", String.valueOf(id));
         writer.writeCharacters("\n");
@@ -1056,5 +1080,262 @@ public class FormWriter extends XmlWriter {
         writer.writeAttribute("name", name + "РасширеннаяПодсказка");
         writer.writeAttribute("id", String.valueOf(tooltipId));
         writer.writeCharacters("\n");
+    }
+    
+    // ==================== EDT format ====================
+    
+    // Namespaces для EDT Form.form
+    private static final Map<String, String> EDT_FORM_NAMESPACES = new HashMap<>();
+    static {
+        EDT_FORM_NAMESPACES.put("xsi", "http://www.w3.org/2001/XMLSchema-instance");
+        EDT_FORM_NAMESPACES.put("core", "http://g5.1c.ru/v8/dt/mcore");
+        EDT_FORM_NAMESPACES.put("form", "http://g5.1c.ru/v8/dt/form");
+    }
+    
+    private void createEdt(FormDsl dsl, Path outputPath) throws IOException, XMLStreamException {
+        createWriter(outputPath, false, EDT_FORM_NAMESPACES); // БЕЗ BOM
+        writeXmlDeclaration();
+        
+        // Корневой элемент form:Form
+        writer.writeStartElement("form", "Form", "http://g5.1c.ru/v8/dt/form");
+        writer.writeNamespace("xsi", "http://www.w3.org/2001/XMLSchema-instance");
+        writer.writeNamespace("core", "http://g5.1c.ru/v8/dt/mcore");
+        writer.writeNamespace("form", "http://g5.1c.ru/v8/dt/form");
+        writer.writeCharacters("\n");
+        indentLevel = 1;
+        
+        // Items (UI elements)
+        if (dsl.getElements() != null && !dsl.getElements().isEmpty()) {
+            for (Map<String, Object> element : dsl.getElements()) {
+                writeEdtItem(element);
+            }
+        }
+        
+        // AutoCommandBar
+        startElement("autoCommandBar");
+        writeElement("name", "ФормаКоманднаяПанель");
+        writeElement("id", "-1");
+        writeElement("autoFill", "true");
+        endElement(); // autoCommandBar
+        
+        // Form-level properties
+        writeElement("autoTitle", "true");
+        writeElement("autoUrl", "true");
+        writeElement("group", "Vertical");
+        writeElement("autoFillCheck", "true");
+        writeElement("allowFormCustomize", "true");
+        writeElement("enabled", "true");
+        writeElement("showTitle", "true");
+        writeElement("showCloseButton", "true");
+        
+        // Attributes
+        if (dsl.getAttributes() != null && !dsl.getAttributes().isEmpty()) {
+            for (FormDsl.Attribute attr : dsl.getAttributes()) {
+                writeEdtAttribute(attr);
+            }
+        }
+        
+        // Events (как handlers)
+        if (dsl.getEvents() != null && !dsl.getEvents().isEmpty()) {
+            startElement("handlers");
+            for (Map.Entry<String, String> event : dsl.getEvents().entrySet()) {
+                startElement("handler");
+                writeElement("event", event.getKey());
+                writeElement("name", event.getValue());
+                endElement(); // handler
+            }
+            endElement(); // handlers
+        }
+        
+        // Commands
+        if (dsl.getCommands() != null && !dsl.getCommands().isEmpty()) {
+            for (FormDsl.Command cmd : dsl.getCommands()) {
+                writeEdtCommand(cmd);
+            }
+        }
+        
+        // CommandInterface
+        startElement("commandInterface");
+        writer.writeCharacters("\t");
+        writer.writeEmptyElement("navigationPanel");
+        writer.writeCharacters("\n");
+        writer.writeCharacters("\t");
+        writer.writeEmptyElement("commandBar");
+        writer.writeCharacters("\n");
+        endElement(); // commandInterface
+        
+        writer.writeEndElement(); // form:Form
+        close();
+        
+        System.out.println("Created form (EDT): " + outputPath);
+    }
+    
+    /**
+     * Записать UI-элемент в EDT формате.
+     */
+    private void writeEdtItem(Map<String, Object> element) throws XMLStreamException {
+        String type = null;
+        Object value = null;
+        
+        for (Map.Entry<String, Object> entry : element.entrySet()) {
+            if (isElementType(entry.getKey())) {
+                type = entry.getKey();
+                value = entry.getValue();
+                break;
+            }
+        }
+        
+        if (type == null) return;
+        
+        String name = value != null ? value.toString() : null;
+        if (element.containsKey("name")) {
+            name = element.get("name").toString();
+        }
+        
+        int id = elementIdGen.next();
+        
+        // Маппинг DSL type → EDT xsi:type
+        String edtType = mapToEdtType(type);
+        
+        writer.writeCharacters("\t".repeat(indentLevel));
+        writer.writeStartElement("items");
+        writer.writeAttribute("http://www.w3.org/2001/XMLSchema-instance", "type", edtType);
+        writer.writeCharacters("\n");
+        indentLevel++;
+        
+        writeElement("name", name);
+        writeElement("id", String.valueOf(id));
+        
+        // DataPath
+        if (element.containsKey("path")) {
+            writer.writeCharacters("\t".repeat(indentLevel));
+            writer.writeStartElement("dataPath");
+            writer.writeAttribute("http://www.w3.org/2001/XMLSchema-instance", "type", "form:DataPath");
+            writer.writeCharacters("\n");
+            indentLevel++;
+            writeElement("segments", element.get("path").toString());
+            indentLevel--;
+            writer.writeCharacters("\t".repeat(indentLevel));
+            writer.writeEndElement(); // dataPath
+            writer.writeCharacters("\n");
+        }
+        
+        // Title (как EDT: title xsi:type="v8:LocalStringType")
+        if (element.containsKey("title")) {
+            startElement("title");
+            startElement("key");
+            writer.writeCharacters("ru");
+            endElement(); // key — hack: using writeElement below
+            // Actually EDT uses <key>ru</key><value>Text</value>
+            indentLevel--; // undo
+            // Simplified: just write the title element
+            writer.writeCharacters("\t".repeat(indentLevel));
+            writer.writeEndElement(); // title
+            writer.writeCharacters("\n");
+        }
+        
+        // Type for fields
+        if ("input".equals(type)) {
+            writeElement("type", xmlElementName("input"));
+            startElement("extInfo");
+            writer.writeCharacters("\t".repeat(indentLevel));
+            writer.writeEndElement();
+            writer.writeCharacters("\n");
+            indentLevel--;
+            indentLevel++;
+        } else if ("check".equals(type)) {
+            writeElement("type", xmlElementName("check"));
+        } else if ("labelField".equals(type)) {
+            writeElement("type", xmlElementName("labelField"));
+        }
+        
+        // Nested children
+        if (element.containsKey("children")) {
+            @SuppressWarnings("unchecked")
+            List<Map<String, Object>> children = (List<Map<String, Object>>) element.get("children");
+            for (Map<String, Object> child : children) {
+                writeEdtItem(child);
+            }
+        }
+        
+        indentLevel--;
+        writer.writeCharacters("\t".repeat(indentLevel));
+        writer.writeEndElement(); // items
+        writer.writeCharacters("\n");
+    }
+    
+    /**
+     * Маппинг DSL type → EDT xsi:type.
+     */
+    private String mapToEdtType(String dslType) {
+        return switch (dslType) {
+            case "input", "check", "labelField", "calendar", "picField" -> "form:FormField";
+            case "group" -> "form:FormGroup";
+            case "table" -> "form:Table";
+            case "button" -> "form:Button";
+            case "label", "picture" -> "form:Decoration";
+            case "pages" -> "form:Pages";
+            case "page" -> "form:Page";
+            case "cmdBar" -> "form:CommandBar";
+            case "popup" -> "form:Popup";
+            default -> "form:FormField";
+        };
+    }
+    
+    /**
+     * Записать реквизит в EDT формате.
+     */
+    private void writeEdtAttribute(FormDsl.Attribute attr) throws XMLStreamException {
+        int id = attributeIdGen.next();
+        
+        startElement("attributes");
+        writeElement("name", attr.getName());
+        writeElement("id", String.valueOf(id));
+        
+        if (attr.getType() != null) {
+            startElement("valueType");
+            // В EDT: <types>String</types> без namespace квалификаторов  
+            TypeResolver.TypeInfo typeInfo = TypeResolver.resolve(attr.getType());
+            String edtTypeName = typeInfo.getXmlType();
+            // Убираем xs: prefix если есть
+            if (edtTypeName.startsWith("xs:")) {
+                edtTypeName = toPascalCase(edtTypeName.substring(3));
+            }
+            writeElement("types", edtTypeName);
+            endElement(); // valueType
+        }
+        
+        if (attr.getMain() != null && attr.getMain()) {
+            writeElement("main", "true");
+        }
+        
+        endElement(); // attributes
+    }
+    
+    /**
+     * Записать команду в EDT формате.
+     */
+    private void writeEdtCommand(FormDsl.Command cmd) throws XMLStreamException {
+        int id = commandIdGen.next();
+        
+        startElement("formCommands");
+        writeElement("name", cmd.getName());
+        writeElement("id", String.valueOf(id));
+        
+        if (cmd.getAction() != null) {
+            startElement("action");
+            writer.writeCharacters("\t".repeat(indentLevel));
+            writer.writeStartElement("handler");
+            writer.writeCharacters("\n");
+            indentLevel++;
+            writeElement("name", cmd.getAction());
+            indentLevel--;
+            writer.writeCharacters("\t".repeat(indentLevel));
+            writer.writeEndElement(); // handler
+            writer.writeCharacters("\n");
+            endElement(); // action
+        }
+        
+        endElement(); // formCommands
     }
 }

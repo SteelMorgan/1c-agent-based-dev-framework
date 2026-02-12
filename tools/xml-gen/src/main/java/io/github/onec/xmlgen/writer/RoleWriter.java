@@ -1,5 +1,7 @@
 package io.github.onec.xmlgen.writer;
 
+import com.github._1c_syntax.bsl.mdo.support.RoleRight;
+import com.github._1c_syntax.bsl.types.MDOType;
 import io.github.onec.xmlgen.dsl.RoleDsl;
 import io.github.onec.xmlgen.format.OutputFormat;
 import io.github.onec.xmlgen.model.UuidGenerator;
@@ -33,7 +35,7 @@ public class RoleWriter extends XmlWriter {
         if (format == OutputFormat.DESIGNER) {
             createDesigner(dsl, outputDir);
         } else {
-            throw new UnsupportedOperationException("EDT format not implemented yet");
+            createEdt(dsl, outputDir);
         }
     }
     
@@ -200,59 +202,60 @@ public class RoleWriter extends XmlWriter {
         return result;
     }
     
+    /** Вспомогательный метод: добавить право в карту по XML-имени. */
+    private static void grant(Map<String, Boolean> rights, RoleRight... roleRights) {
+        for (RoleRight r : roleRights) {
+            rights.put(r.fullName().getEn(), true);
+        }
+    }
+    
+    /** Определить MDOType из имени объекта (Catalog.Товары → CATALOG). */
+    private static MDOType resolveObjectType(String objectName) {
+        String typePart = objectName.split("\\.")[0];
+        return MDOType.fromValue(typePart).orElse(MDOType.UNKNOWN);
+    }
+    
     /**
      * Получить права пресета для типа объекта.
+     * Использует enum-ы RoleRight и MDOType из mdclasses.
      */
     private Map<String, Boolean> getPresetRights(String objectName, String preset) {
         Map<String, Boolean> rights = new HashMap<>();
-        
-        String objectType = objectName.split("\\.")[0];
+        MDOType mdoType = resolveObjectType(objectName);
         
         switch (preset.toLowerCase()) {
             case "view":
-                rights.put("Read", true);
-                rights.put("View", true);
-                if (objectType.equals("Catalog") || objectType.equals("Document")) {
-                    rights.put("InputByString", true);
+                grant(rights, RoleRight.READ, RoleRight.VIEW);
+                if (mdoType == MDOType.CATALOG || mdoType == MDOType.DOCUMENT) {
+                    grant(rights, RoleRight.INPUT_BY_STRING);
                 }
-                if (objectType.equals("DataProcessor") || objectType.equals("Report")) {
-                    rights.put("Use", true);
+                if (mdoType == MDOType.DATA_PROCESSOR || mdoType == MDOType.REPORT) {
+                    grant(rights, RoleRight.USE);
                 }
                 break;
                 
             case "edit":
-                // CRUD
-                rights.put("Read", true);
-                rights.put("Insert", true);
-                rights.put("Update", true);
-                rights.put("Delete", true);
-                rights.put("View", true);
-                rights.put("Edit", true);
+                grant(rights,
+                    RoleRight.READ, RoleRight.INSERT, RoleRight.UPDATE, RoleRight.DELETE,
+                    RoleRight.VIEW, RoleRight.EDIT,
+                    RoleRight.INTERACTIVE_INSERT, RoleRight.INTERACTIVE_DELETE,
+                    RoleRight.INTERACTIVE_SET_DELETION_MARK, RoleRight.INTERACTIVE_CLEAR_DELETION_MARK
+                );
                 
-                // Interactive
-                rights.put("InteractiveInsert", true);
-                rights.put("InteractiveDelete", true);
-                rights.put("InteractiveSetDeletionMark", true);
-                rights.put("InteractiveClearDeletionMark", true);
-                
-                if (objectType.equals("Catalog") || objectType.equals("Document")) {
-                    rights.put("InputByString", true);
-                    rights.put("InteractiveDeleteMarked", true);
+                if (mdoType == MDOType.CATALOG || mdoType == MDOType.DOCUMENT) {
+                    grant(rights, RoleRight.INPUT_BY_STRING, RoleRight.INTERACTIVE_DELETE_MARKED);
                 }
                 
-                // Posting для документов
-                if (objectType.equals("Document")) {
-                    rights.put("Posting", true);
-                    rights.put("UndoPosting", true);
-                    rights.put("InteractivePosting", true);
-                    rights.put("InteractivePostingRegular", true);
-                    rights.put("InteractiveUndoPosting", true);
-                    rights.put("InteractiveChangeOfPosted", true);
+                if (mdoType == MDOType.DOCUMENT) {
+                    grant(rights,
+                        RoleRight.POSTING, RoleRight.UNDO_POSTING,
+                        RoleRight.INTERACTIVE_POSTING, RoleRight.INTERACTIVE_POSTING_REGULAR,
+                        RoleRight.INTERACTIVE_UNDO_POSTING, RoleRight.INTERACTIVE_CHANGE_OF_POSTED
+                    );
                 }
                 break;
                 
             case "full":
-                // Все права для типа (упрощённая версия)
                 rights.putAll(getPresetRights(objectName, "edit"));
                 break;
         }
@@ -266,11 +269,7 @@ public class RoleWriter extends XmlWriter {
     private void writeRestrictionTemplate(RoleDsl.RestrictionTemplate template) throws XMLStreamException {
         startElement("restrictionTemplate");
         writeElement("name", template.getName());
-        
-        // Экранировать & в условии
-        String condition = template.getCondition().replace("&", "&amp;");
-        writeElement("condition", condition);
-        
+        writeElement("condition", template.getCondition());
         endElement(); // restrictionTemplate
     }
     
@@ -284,5 +283,87 @@ public class RoleWriter extends XmlWriter {
         writeElement("v8:content", text);
         endElement(); // v8:item
         endElement(); // Synonym
+    }
+    
+    // ==================== EDT format ====================
+    
+    private void createEdt(RoleDsl dsl, Path outputDir) throws IOException, XMLStreamException {
+        String name = dsl.getName();
+        String uuid = UuidGenerator.generate();
+        
+        // Создать структуру каталогов EDT: Roles/<Name>/
+        Path roleDir = outputDir.resolve("Roles").resolve(name);
+        Files.createDirectories(roleDir);
+        
+        // 1. Создать .mdo файл (Roles/<Name>/<Name>.mdo)
+        createEdtMdo(roleDir.resolve(name + ".mdo"), name, uuid);
+        
+        // 2. Создать Rights.rights (Roles/<Name>/Rights.rights)
+        createRightsRights(roleDir.resolve("Rights.rights"), dsl);
+        
+        System.out.println("Created role (EDT): " + name);
+        System.out.println("  MDO: " + roleDir.resolve(name + ".mdo"));
+        System.out.println("  Rights: " + roleDir.resolve("Rights.rights"));
+    }
+    
+    /**
+     * Создать EDT .mdo файл для роли.
+     * Формат: <mdclass:Role xmlns:mdclass="..." uuid="..."><name>...</name></mdclass:Role>
+     */
+    private void createEdtMdo(Path outputPath, String name, String uuid) throws IOException, XMLStreamException {
+        createWriter(outputPath, false, new HashMap<>()); // БЕЗ BOM для EDT
+        writeXmlDeclaration();
+        
+        writer.writeStartElement("mdclass", "Role", "http://g5.1c.ru/v8/dt/metadata/mdclass");
+        writer.writeNamespace("mdclass", "http://g5.1c.ru/v8/dt/metadata/mdclass");
+        writer.writeAttribute("uuid", uuid);
+        writer.writeCharacters("\n");
+        indentLevel = 1;
+        
+        writeElement("name", name);
+        
+        writer.writeEndElement(); // mdclass:Role
+        close();
+    }
+    
+    /**
+     * Создать Rights.rights (EDT формат прав).
+     * Структурно идентичен Designer Rights.xml, но без атрибута version.
+     */
+    private void createRightsRights(Path outputPath, RoleDsl dsl) throws IOException, XMLStreamException {
+        createWriter(outputPath, false, new HashMap<>()); // БЕЗ BOM для EDT
+        writeXmlDeclaration();
+        
+        writer.writeStartElement("Rights");
+        writer.writeDefaultNamespace("http://v8.1c.ru/8.2/roles");
+        writer.writeNamespace("xsi", "http://www.w3.org/2001/XMLSchema-instance");
+        writer.writeAttribute("http://www.w3.org/2001/XMLSchema-instance", "type", "Rights");
+        writer.writeCharacters("\n");
+        indentLevel = 1;
+        
+        // Глобальные флаги
+        writeElement("setForNewObjects", 
+                    String.valueOf(dsl.getSetForNewObjects() != null ? dsl.getSetForNewObjects() : false));
+        writeElement("setForAttributesByDefault", 
+                    String.valueOf(dsl.getSetForAttributesByDefault() != null ? dsl.getSetForAttributesByDefault() : true));
+        writeElement("independentRightsOfChildObjects", 
+                    String.valueOf(dsl.getIndependentRightsOfChildObjects() != null ? dsl.getIndependentRightsOfChildObjects() : false));
+        
+        // Объекты с правами
+        if (dsl.getObjects() != null) {
+            for (RoleDsl.ObjectRights obj : dsl.getObjects()) {
+                writeObjectRights(obj);
+            }
+        }
+        
+        // Шаблоны ограничений
+        if (dsl.getTemplates() != null) {
+            for (RoleDsl.RestrictionTemplate template : dsl.getTemplates()) {
+                writeRestrictionTemplate(template);
+            }
+        }
+        
+        writer.writeEndElement(); // Rights
+        close();
     }
 }

@@ -19,6 +19,8 @@ java {
 dependencies {
     // mdclasses для enum-ов и моделей
     implementation("io.github.1c-syntax:mdclasses:0.17.4")
+    // bsl-common-library для типов, квалификаторов и enum-ов (AllowedLength, DateFractions, MDOType)
+    implementation("io.github.1c-syntax:bsl-common-library:0.9.2")
     
     // Jackson для JSON DSL
     implementation("com.fasterxml.jackson.core:jackson-databind:2.17.+")
