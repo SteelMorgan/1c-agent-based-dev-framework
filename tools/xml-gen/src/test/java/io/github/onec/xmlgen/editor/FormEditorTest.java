@@ -22,7 +22,7 @@ class FormEditorTest {
                 .addChild(XmlNode.builder().name("Commands").build())
                 .addChild(XmlNode.builder().name("ChildItems").build())
                 .build();
-        document = new XmlDocument(null, false, "Form", "", Map.of(), root.getChildren(), root);
+        document = new XmlDocument(null, false, null, "Form", "", Map.of(), root.getChildren(), root);
         editor = new FormEditor(document);
     }
 

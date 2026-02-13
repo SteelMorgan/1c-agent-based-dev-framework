@@ -19,7 +19,7 @@ class IdAllocatorTest {
                 .addChild(XmlNode.builder().name("child").attribute("Id", "2").build())
                 .build();
         
-        XmlDocument doc = new XmlDocument(null, false, "root", "", Map.of(), root.getChildren(), root);
+        XmlDocument doc = new XmlDocument(null, false, null, "root", "", Map.of(), root.getChildren(), root);
         
         IdAllocator allocator = new IdAllocator(doc);
         

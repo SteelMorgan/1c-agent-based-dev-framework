@@ -16,6 +16,8 @@ public class XmlDocument {
     Path file;
     /** Файл начинается с UTF-8 BOM (EF BB BF) */
     boolean hasBom;
+    /** Оригинальный XML declaration (e.g. {@code <?xml version="1.0" encoding="UTF-8"?>}) */
+    String xmlDeclaration;
     /** Имя корневого элемента */
     String rootElement;
     /** Namespace корневого элемента */

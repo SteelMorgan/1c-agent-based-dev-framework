@@ -75,6 +75,22 @@ public class XmlStructureReader {
     }
 
     private XmlDocument doParse(XMLStreamReader reader, Path file, boolean hasBom) throws XMLStreamException {
+        // Capture XML declaration from reader
+        String xmlDeclaration = null;
+        String version = reader.getVersion();
+        String encoding = reader.getCharacterEncodingScheme();
+        if (version != null) {
+            StringBuilder decl = new StringBuilder("<?xml version=\"").append(version).append("\"");
+            if (encoding != null) {
+                decl.append(" encoding=\"").append(encoding).append("\"");
+            }
+            if (reader.standaloneSet()) {
+                decl.append(" standalone=\"").append(reader.isStandalone() ? "yes" : "no").append("\"");
+            }
+            decl.append("?>");
+            xmlDeclaration = decl.toString();
+        }
+
         // Ищем корневой элемент
         while (reader.hasNext()) {
             int event = reader.next();
@@ -83,6 +99,7 @@ public class XmlStructureReader {
                 return new XmlDocument(
                         file,
                         hasBom,
+                        xmlDeclaration,
                         root.getName(),
                         root.getNamespace(),
                         root.getAttributes(),

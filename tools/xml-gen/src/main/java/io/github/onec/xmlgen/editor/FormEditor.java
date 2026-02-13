@@ -5,6 +5,9 @@ import io.github.onec.xmlgen.validator.XmlNode;
 
 import java.util.*;
 
+import static io.github.onec.xmlgen.editor.EditorUtils.createNode;
+import static io.github.onec.xmlgen.editor.EditorUtils.findOrCreateChild;
+
 public class FormEditor {
 
     private final XmlDocument document;
@@ -126,63 +129,45 @@ public class FormEditor {
     }
 
     public void moveElement(String name, String afterName, String beforeName, String intoName) {
-        // Find and detach
+        // Find element to move
         XmlNode element = findElement(name);
         if (element == null) throw new IllegalArgumentException("Element not found: " + name);
         
         XmlNode oldParent = findParentOf(document.getRoot(), element);
-        if (oldParent == null) throw new IllegalStateException("Orphan element: " + name); 
-        
-        oldParent.getChildren().remove(element);
+        if (oldParent == null) throw new IllegalStateException("Orphan element: " + name);
 
-        // Find new parent and position
-        XmlNode newParent;
+        // Find new parent and position BEFORE detaching to avoid index shifts
         if (intoName != null) {
-            newParent = findElement(intoName);
+            XmlNode newParent = findElement(intoName);
             if (newParent == null) throw new IllegalArgumentException("Target parent not found: " + intoName);
+            oldParent.getChildren().remove(element);
             newParent.addChild(element);
         } else if (afterName != null) {
             XmlNode sibling = findElement(afterName);
-             if (sibling == null) throw new IllegalArgumentException("Target sibling not found: " + afterName);
-            newParent = findParentOf(document.getRoot(), sibling);
-            int index = newParent.getChildren().indexOf(sibling);
-            newParent.getChildren().add(index + 1, element);
+            if (sibling == null) throw new IllegalArgumentException("Target sibling not found: " + afterName);
+            XmlNode newParent = findParentOf(document.getRoot(), sibling);
+            int siblingIndex = newParent.getChildren().indexOf(sibling);
+            oldParent.getChildren().remove(element);
+            // Recalc index after removal (if same parent, sibling may have shifted)
+            int insertIndex = newParent.getChildren().indexOf(sibling);
+            newParent.getChildren().add(insertIndex + 1, element);
         } else if (beforeName != null) {
             XmlNode sibling = findElement(beforeName);
-             if (sibling == null) throw new IllegalArgumentException("Target sibling not found: " + beforeName);
-            newParent = findParentOf(document.getRoot(), sibling);
-            int index = newParent.getChildren().indexOf(sibling);
-            newParent.getChildren().add(index, element);
+            if (sibling == null) throw new IllegalArgumentException("Target sibling not found: " + beforeName);
+            XmlNode newParent = findParentOf(document.getRoot(), sibling);
+            oldParent.getChildren().remove(element);
+            // Recalc index after removal
+            int insertIndex = newParent.getChildren().indexOf(sibling);
+            newParent.getChildren().add(insertIndex, element);
         } else {
-             // Move to root ChildItems
-             newParent = findOrCreateChild(document.getRoot(), "ChildItems");
-             newParent.addChild(element);
+            // Move to root ChildItems
+            oldParent.getChildren().remove(element);
+            XmlNode newParent = findOrCreateChild(document.getRoot(), "ChildItems");
+            newParent.addChild(element);
         }
     }
 
     // --- Helpers ---
-
-    private XmlNode createNode(String name) {
-        String prefix = "";
-        String localName = name;
-        if (name.contains(":")) {
-            String[] parts = name.split(":");
-            prefix = parts[0];
-            localName = parts[1];
-        }
-        return XmlNode.builder().name(localName).prefix(prefix).build();
-    }
-
-    private XmlNode findOrCreateChild(XmlNode parent, String name) {
-        return parent.getChildren().stream()
-                .filter(c -> c.getName().equals(name))
-                .findFirst()
-                .orElseGet(() -> {
-                    XmlNode node = createNode(name);
-                    parent.addChild(node);
-                    return node;
-                });
-    }
 
     private XmlNode findElement(String name) {
          XmlNode childItems = document.getRoot().child("ChildItems");
@@ -210,7 +195,8 @@ public class FormEditor {
 
     private void removeElementRecursive(XmlNode root, String name) {
         root.getChildren().removeIf(c -> name.equals(c.attr("name")));
-        for (XmlNode child : root.getChildren()) {
+        // Iterate over a copy to avoid issues if list implementation changes
+        for (XmlNode child : new ArrayList<>(root.getChildren())) {
             removeElementRecursive(child, name);
         }
     }

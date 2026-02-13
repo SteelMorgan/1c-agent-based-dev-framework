@@ -20,7 +20,7 @@ class RoleEditorTest {
         XmlNode root = XmlNode.builder()
                 .name("Rights")
                 .build();
-        document = new XmlDocument(null, false, "Rights", "", Map.of(), root.getChildren(), root);
+        document = new XmlDocument(null, false, null, "Rights", "", Map.of(), root.getChildren(), root);
         editor = new RoleEditor(document);
     }
 

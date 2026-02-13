@@ -6,6 +6,9 @@ import io.github.onec.xmlgen.validator.XmlNode;
 import java.util.Map;
 import java.util.UUID;
 
+import static io.github.onec.xmlgen.editor.EditorUtils.createNode;
+import static io.github.onec.xmlgen.editor.EditorUtils.findOrCreateChild;
+
 public class EpfEditor {
     private final XmlDocument document;
 
@@ -72,25 +75,4 @@ public class EpfEditor {
         parent.addChild(props);
     }
 
-    private XmlNode findOrCreateChild(XmlNode parent, String name) {
-        return parent.getChildren().stream()
-                .filter(c -> c.getName().equals(name))
-                .findFirst()
-                .orElseGet(() -> {
-                    XmlNode node = XmlNode.createElement(name, Map.of());
-                    parent.addChild(node);
-                    return node;
-                });
-    }
-
-    private XmlNode createNode(String name) {
-        String prefix = "";
-        String localName = name;
-        if (name.contains(":")) {
-            String[] parts = name.split(":");
-            prefix = parts[0];
-            localName = parts[1];
-        }
-        return XmlNode.builder().name(localName).prefix(prefix).build();
-    }
 }

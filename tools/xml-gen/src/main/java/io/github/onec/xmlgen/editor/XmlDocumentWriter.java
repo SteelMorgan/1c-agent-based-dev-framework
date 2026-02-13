@@ -27,8 +27,9 @@ public class XmlDocumentWriter {
             try (Writer writer = new OutputStreamWriter(os, StandardCharsets.UTF_8);
                  BufferedWriter bw = new BufferedWriter(writer)) {
                 
-                // XML Declaration
-                bw.write("<?xml version=\"1.0\" encoding=\"UTF-8\"?>");
+                // XML Declaration — use original if available
+                String decl = document.getXmlDeclaration();
+                bw.write(decl != null ? decl : "<?xml version=\"1.0\" encoding=\"UTF-8\"?>");
                 bw.newLine();
 
                 if (document.getRoot() != null) {

@@ -46,17 +46,26 @@ Analyze the screenshot using `form-visual-requirements` skill criteria.
 
 ## Example
 
-```bash
-# 1. Open browser
-browser_navigate url="http://localhost/ib"
+```
+# The example below shows the CONCEPTUAL workflow.
+# In practice, use MCP tools with proper refs from browser_snapshot.
 
-# 2. Login
-browser_fill element="User" value="Admin"
-browser_click element="Login"
+# 1. Navigate to the web client
+browser_navigate(url="http://localhost/ib")
 
-# 3. Navigate to form
-browser_navigate url="http://localhost/ib/e1cib/list/Catalog.Items"
+# 2. Login — first take a snapshot to get element refs
+browser_snapshot()
+# Find the username/password input refs from the snapshot, then:
+browser_fill(ref="<ref_from_snapshot>", value="Admin")
+browser_fill(ref="<ref_from_snapshot>", value="password")
+browser_click(ref="<ref_from_snapshot>", element="Login button")
 
-# 4. Screenshot
-browser_take_screenshot filename="catalog_items.png"
+# 3. Navigate directly to the form via deep link
+browser_navigate(url="http://localhost/ib/e1cib/list/Catalog.Items")
+
+# 4. Wait for the form to load, then capture
+browser_wait_for(time=2)
+browser_take_screenshot(filename="catalog_items.png")
+
+# 5. Analyze the screenshot using form-visual-requirements criteria
 ```

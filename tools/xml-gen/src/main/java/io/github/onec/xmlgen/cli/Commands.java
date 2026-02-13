@@ -19,6 +19,7 @@ import io.github.onec.xmlgen.writer.SkdWriter;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -616,9 +617,9 @@ public class Commands {
     }
     
     private static String getArg(String[] args, String key, boolean required) {
-        for (int i = 1; i < args.length - 1; i++) {
+        for (int i = 1; i < args.length; i++) {
             if (key.equals(args[i]) && i + 1 < args.length) {
-                return args[i+1];
+                return args[i + 1];
             }
         }
         if (required) throw new IllegalArgumentException("Argument " + key + " is required");
@@ -627,13 +628,23 @@ public class Commands {
     
     private static Path getFileArg(String[] args) {
         if (args.length < 2) throw new IllegalArgumentException("File argument required");
-        Path file = Paths.get(args[args.length - 1]);
-        if (!Files.exists(file)) throw new IllegalArgumentException("File not found: " + file);
-        return file;
+        // File is the last positional argument (not starting with --)
+        for (int i = args.length - 1; i >= 1; i--) {
+            if (!args[i].startsWith("--")) {
+                // Skip values of named arguments
+                if (i > 0 && args[i - 1].startsWith("--")) {
+                    continue;
+                }
+                Path file = Paths.get(args[i]);
+                if (!Files.exists(file)) throw new IllegalArgumentException("File not found: " + file);
+                return file;
+            }
+        }
+        throw new IllegalArgumentException("File argument required");
     }
     
     private static void saveAndValidate(XmlDocument doc, Path file, String type) throws Exception {
-        // Validate
+        // Validate in-memory before writing
         List<ValidationIssue> issues = new ValidatorFactory().getValidator(type)
                 .map(v -> v.validate(doc, ValidationLevel.SEMANTIC))
                 .orElse(List.of());
@@ -647,8 +658,16 @@ public class Commands {
             System.exit(1);
         }
         
-        // Save
-        new XmlDocumentWriter().write(doc, file);
+        // Atomic save: write to temp file, then move (as per SPEC-004 rollback protocol)
+        Path tmpFile = file.resolveSibling(file.getFileName() + ".tmp");
+        try {
+            new XmlDocumentWriter().write(doc, tmpFile);
+            Files.move(tmpFile, file, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
+        } catch (Exception e) {
+            // Cleanup temp file on failure
+            try { Files.deleteIfExists(tmpFile); } catch (Exception ignored) {}
+            throw new RuntimeException("Failed to write file: " + e.getMessage(), e);
+        }
         System.out.println("Modified " + file);
     }
 }

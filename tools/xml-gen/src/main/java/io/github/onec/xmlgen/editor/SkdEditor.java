@@ -5,6 +5,9 @@ import io.github.onec.xmlgen.validator.XmlNode;
 
 import java.util.Map;
 
+import static io.github.onec.xmlgen.editor.EditorUtils.createNode;
+import static io.github.onec.xmlgen.editor.EditorUtils.findOrCreateChild;
+
 public class SkdEditor {
     private final XmlDocument document;
 
@@ -85,27 +88,5 @@ public class SkdEditor {
                 .filter(ds -> name.equals(ds.childText("name")))
                 .findFirst()
                 .orElse(null);
-    }
-    
-    private XmlNode findOrCreateChild(XmlNode parent, String name) {
-        return parent.getChildren().stream()
-                .filter(c -> c.getName().equals(name))
-                .findFirst()
-                .orElseGet(() -> {
-                    XmlNode node = createNode(name);
-                    parent.addChild(node);
-                    return node;
-                });
-    }
-
-    private XmlNode createNode(String name) {
-        String prefix = "";
-        String localName = name;
-        if (name.contains(":")) {
-            String[] parts = name.split(":");
-            prefix = parts[0];
-            localName = parts[1];
-        }
-        return XmlNode.builder().name(localName).prefix(prefix).build();
     }
 }

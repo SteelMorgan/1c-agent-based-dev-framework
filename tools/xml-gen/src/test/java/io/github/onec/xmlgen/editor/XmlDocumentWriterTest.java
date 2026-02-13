@@ -53,7 +53,7 @@ class XmlDocumentWriterTest {
                 .name("root")
                 .addChild(XmlNode.builder().name("child").build())
                 .build();
-        XmlDocument doc = new XmlDocument(null, false, "root", "", Map.of(), root.getChildren(), root);
+        XmlDocument doc = new XmlDocument(null, false, null, "root", "", Map.of(), root.getChildren(), root);
         
         XmlDocumentWriter writer = new XmlDocumentWriter();
         Path output = tempDir.resolve("indent.xml");
