@@ -101,6 +101,7 @@ public class XmlStructureReader {
     private XmlNode parseElement(XMLStreamReader reader) throws XMLStreamException {
         XmlNode.Builder builder = XmlNode.builder()
                 .name(reader.getLocalName())
+                .prefix(reader.getPrefix())
                 .namespace(reader.getNamespaceURI())
                 .line(reader.getLocation().getLineNumber());
 
@@ -110,6 +111,17 @@ public class XmlStructureReader {
             String localName = reader.getAttributeLocalName(i);
             String key = (prefix != null && !prefix.isEmpty()) ? prefix + ":" + localName : localName;
             builder.attribute(key, reader.getAttributeValue(i));
+        }
+
+        // Собираем объявления пространств имен (xmlns)
+        for (int i = 0; i < reader.getNamespaceCount(); i++) {
+            String nsPrefix = reader.getNamespacePrefix(i);
+            String nsUri = reader.getNamespaceURI(i);
+            if (nsPrefix == null || nsPrefix.isEmpty()) {
+                builder.attribute("xmlns", nsUri);
+            } else {
+                builder.attribute("xmlns:" + nsPrefix, nsUri);
+            }
         }
 
         // Парсим содержимое: текст + дочерние элементы

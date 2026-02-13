@@ -1,6 +1,8 @@
 package io.github.onec.xmlgen.validator;
 
-import lombok.Value;
+import lombok.Data;
+import lombok.NoArgsConstructor;
+import lombok.AllArgsConstructor;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -9,22 +11,36 @@ import java.util.Map;
 
 /**
  * XML-узел, полученный из StAX-парсинга.
- * Содержит имя, namespace, атрибуты, текст, дочерние узлы и номер строки.
+ * Содержит имя, префикс, namespace, атрибуты, текст, дочерние узлы и номер строки.
+ * Мутабельный для удобства редактирования.
  */
-@Value
+@Data
+@NoArgsConstructor
 public class XmlNode {
     /** Локальное имя элемента */
-    String name;
+    private String name;
+    /** Префикс пространства имен (пустая строка = без префикса) */
+    private String prefix;
     /** Namespace URI (пустая строка = без namespace) */
-    String namespace;
+    private String namespace;
     /** Атрибуты элемента (prefix:local → value) */
-    Map<String, String> attributes;
+    private Map<String, String> attributes = new LinkedHashMap<>();
     /** Текстовое содержимое (конкатенация всех text-нод) */
-    String text;
+    private String text;
     /** Дочерние элементы */
-    List<XmlNode> children;
-    /** Номер строки в исходном файле (1-based, 0 = неизвестно) */
-    int line;
+    private List<XmlNode> children = new ArrayList<>();
+    /** Номер строки в исходном файле (1-based, 0 = неизвестно/новый) */
+    private int line;
+
+    public XmlNode(String name, String prefix, String namespace, Map<String, String> attributes, String text, List<XmlNode> children, int line) {
+        this.name = name;
+        this.prefix = prefix != null ? prefix : "";
+        this.namespace = namespace != null ? namespace : "";
+        this.attributes = new LinkedHashMap<>(attributes);
+        this.text = text;
+        this.children = new ArrayList<>(children);
+        this.line = line;
+    }
 
     /**
      * Найти первый дочерний элемент по имени.
@@ -81,6 +97,7 @@ public class XmlNode {
 
     public static class Builder {
         private String name = "";
+        private String prefix = "";
         private String namespace = "";
         private final Map<String, String> attributes = new LinkedHashMap<>();
         private final StringBuilder text = new StringBuilder();
@@ -88,6 +105,7 @@ public class XmlNode {
         private int line = 0;
 
         public Builder name(String name) { this.name = name; return this; }
+        public Builder prefix(String prefix) { this.prefix = prefix != null ? prefix : ""; return this; }
         public Builder namespace(String namespace) { this.namespace = namespace != null ? namespace : ""; return this; }
         public Builder attribute(String key, String value) { this.attributes.put(key, value); return this; }
         public Builder appendText(String t) { if (t != null) this.text.append(t); return this; }
@@ -95,7 +113,35 @@ public class XmlNode {
         public Builder line(int line) { this.line = line; return this; }
 
         public XmlNode build() {
-            return new XmlNode(name, namespace, Map.copyOf(attributes), text.toString().trim(), List.copyOf(children), line);
+            return new XmlNode(name, prefix, namespace, new LinkedHashMap<>(attributes), text.toString().trim(), new ArrayList<>(children), line);
         }
+    }
+
+    /**
+     * Создать новый элемент
+     */
+    public static XmlNode createElement(String name, Map<String, String> attrs) {
+        return new XmlNode(name, "", "", attrs, "", new ArrayList<>(), 0);
+    }
+
+    /**
+     * Добавить атрибут (удобство)
+     */
+    public void setAttribute(String key, String value) {
+        attributes.put(key, value);
+    }
+    
+    /**
+     * Удалить атрибут
+     */
+    public void removeAttribute(String key) {
+        attributes.remove(key);
+    }
+
+    /**
+     * Добавить дочерний элемент
+     */
+    public void addChild(XmlNode child) {
+        children.add(child);
     }
 }

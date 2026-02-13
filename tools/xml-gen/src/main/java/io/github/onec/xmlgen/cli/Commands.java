@@ -5,6 +5,7 @@ import io.github.onec.xmlgen.dsl.FormDsl;
 import io.github.onec.xmlgen.dsl.MxlDsl;
 import io.github.onec.xmlgen.dsl.RoleDsl;
 import io.github.onec.xmlgen.dsl.SkdDsl;
+import io.github.onec.xmlgen.editor.*;
 import io.github.onec.xmlgen.format.OutputFormat;
 import io.github.onec.xmlgen.validator.*;
 import io.github.onec.xmlgen.validator.report.JsonReporter;
@@ -15,9 +16,11 @@ import io.github.onec.xmlgen.writer.MxlWriter;
 import io.github.onec.xmlgen.writer.RoleWriter;
 import io.github.onec.xmlgen.writer.SkdWriter;
 
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
 
@@ -56,7 +59,7 @@ public class Commands {
 
     private static void executeEpf(String[] args) {
         if (args.length == 0) {
-            throw new IllegalArgumentException("EPF subcommand required: init, add-form, add-template");
+            throw new IllegalArgumentException("EPF subcommand required: init, add-form, add-template, add-attribute, add-tabular-section");
         }
         
         String subcommand = args[0];
@@ -69,6 +72,10 @@ public class Commands {
                 break;
             case "add-template":
                 epfAddTemplate(args);
+                break;
+            case "add-attribute":
+            case "add-tabular-section":
+                epfEdit(args);
                 break;
             default:
                 throw new IllegalArgumentException("Unknown EPF subcommand: " + subcommand);
@@ -184,7 +191,7 @@ public class Commands {
             throw new IllegalArgumentException("--name is required");
         }
         if (templateType == null) {
-            throw new IllegalArgumentException("--type is required (SpreadsheetDocument, HTMLDocument, TextDocument, BinaryData)");
+            throw new IllegalArgumentException("--type is required");
         }
         if (outputDir == null) {
             throw new IllegalArgumentException("output directory is required");
@@ -198,21 +205,47 @@ public class Commands {
         }
     }
 
+    private static void epfEdit(String[] args) {
+        Path file = getFileArg(args);
+        try {
+            XmlDocument doc = new XmlStructureReader().parse(file);
+            EpfEditor editor = new EpfEditor(doc);
+            String cmd = args[0];
+            
+            if ("add-attribute".equals(cmd)) {
+                 editor.addAttribute(
+                     getArg(args, "--name", true),
+                     getArg(args, "--type", false),
+                     getArg(args, "--synonym", false)
+                 );
+            } else if ("add-tabular-section".equals(cmd)) {
+                 editor.addTabularSection(
+                     getArg(args, "--name", true),
+                     getArg(args, "--synonym", false)
+                 );
+            }
+            saveAndValidate(doc, file, "epf");
+        } catch (Exception e) {
+            throw new RuntimeException("EPF editor failed: " + e.getMessage(), e);
+        }
+    }
+
     private static void executeForm(String[] args) {
         if (args.length == 0) {
-            throw new IllegalArgumentException("Form subcommand required: compile");
+            throw new IllegalArgumentException("Form subcommand required: compile, add-attribute, add-element, add-command, remove-element, move-element");
         }
         
         String subcommand = args[0];
         if ("compile".equals(subcommand.toLowerCase())) {
             formCompile(args);
+        } else if (subcommand.startsWith("add-") || subcommand.endsWith("-element")) {
+            formEdit(args);
         } else {
             throw new IllegalArgumentException("Unknown Form subcommand: " + subcommand);
         }
     }
     
     private static void formCompile(String[] args) {
-        // Парсинг: --format <designer|edt> <input.json> <output.xml>
         OutputFormat format = OutputFormat.DESIGNER;
         Path inputJson = null;
         Path outputXml = null;
@@ -235,11 +268,8 @@ public class Commands {
         }
         
         try {
-            // Читаем JSON DSL
             ObjectMapper mapper = new ObjectMapper();
             FormDsl dsl = mapper.readValue(inputJson.toFile(), FormDsl.class);
-            
-            // Генерируем Form.xml
             FormWriter writer = new FormWriter(format);
             writer.create(dsl, outputXml);
         } catch (Exception e) {
@@ -247,21 +277,61 @@ public class Commands {
         }
     }
 
+    private static void formEdit(String[] args) {
+        Path file = getFileArg(args);
+        try {
+            XmlDocument doc = new XmlStructureReader().parse(file);
+            FormEditor editor = new FormEditor(doc);
+            String cmd = args[0];
+            
+            if ("add-attribute".equals(cmd)) {
+                 editor.addAttribute(getArg(args, "--name", true), getArg(args, "--type", true));
+            } else if ("add-element".equals(cmd)) {
+                 editor.addElement(
+                     getArg(args, "--type", true),
+                     getArg(args, "--name", true),
+                     getArg(args, "--path", false),
+                     getArg(args, "--parent", false),
+                     getArg(args, "--after", false)
+                 );
+            } else if ("add-command".equals(cmd)) {
+                 editor.addCommand(
+                     getArg(args, "--name", true),
+                     getArg(args, "--title", false),
+                     getArg(args, "--action", false)
+                 );
+            } else if ("remove-element".equals(cmd)) {
+                 editor.removeElement(getArg(args, "--name", true));
+            } else if ("move-element".equals(cmd)) {
+                 editor.moveElement(
+                     getArg(args, "--name", true),
+                     getArg(args, "--after", false),
+                     getArg(args, "--before", false),
+                     getArg(args, "--into", false)
+                 );
+            }
+            saveAndValidate(doc, file, "form");
+        } catch (Exception e) {
+            throw new RuntimeException("Form editor failed: " + e.getMessage(), e);
+        }
+    }
+
     private static void executeRole(String[] args) {
         if (args.length == 0) {
-            throw new IllegalArgumentException("Role subcommand required: compile");
+            throw new IllegalArgumentException("Role subcommand required: compile, add-object, add-right");
         }
         
         String subcommand = args[0];
         if ("compile".equals(subcommand.toLowerCase())) {
             roleCompile(args);
+        } else if (subcommand.startsWith("add-")) {
+            roleEdit(args);
         } else {
             throw new IllegalArgumentException("Unknown Role subcommand: " + subcommand);
         }
     }
     
     private static void roleCompile(String[] args) {
-        // Парсинг: --format <designer|edt> <input.json> <output_dir>
         OutputFormat format = OutputFormat.DESIGNER;
         Path inputJson = null;
         Path outputDir = null;
@@ -284,15 +354,36 @@ public class Commands {
         }
         
         try {
-            // Читаем JSON DSL
             ObjectMapper mapper = new ObjectMapper();
             RoleDsl dsl = mapper.readValue(inputJson.toFile(), RoleDsl.class);
-            
-            // Генерируем XML
             RoleWriter writer = new RoleWriter(format);
             writer.create(dsl, outputDir);
         } catch (Exception e) {
             throw new RuntimeException("Failed to compile role: " + e.getMessage(), e);
+        }
+    }
+
+    private static void roleEdit(String[] args) {
+        Path file = getFileArg(args);
+        try {
+            XmlDocument doc = new XmlStructureReader().parse(file);
+            RoleEditor editor = new RoleEditor(doc);
+            String cmd = args[0];
+            
+            if ("add-object".equals(cmd)) {
+                 String rightsStr = getArg(args, "--rights", true);
+                 List<String> rights = Arrays.asList(rightsStr.split(","));
+                 editor.addObject(getArg(args, "--name", true), rights);
+            } else if ("add-right".equals(cmd)) {
+                 editor.addRight(
+                     getArg(args, "--object", true),
+                     getArg(args, "--name", true),
+                     getArg(args, "--value", true)
+                 );
+            }
+            saveAndValidate(doc, file, "role");
+        } catch (Exception e) {
+            throw new RuntimeException("Role editor failed: " + e.getMessage(), e);
         }
     }
 
@@ -310,7 +401,6 @@ public class Commands {
     }
     
     private static void mxlCompile(String[] args) {
-        // Парсинг: --format <designer|edt> <input.json> <output.xml>
         OutputFormat format = OutputFormat.DESIGNER;
         Path inputJson = null;
         Path outputXml = null;
@@ -333,11 +423,8 @@ public class Commands {
         }
         
         try {
-            // Читаем JSON DSL
             ObjectMapper mapper = new ObjectMapper();
             MxlDsl dsl = mapper.readValue(inputJson.toFile(), MxlDsl.class);
-            
-            // Генерируем Template.xml
             MxlWriter writer = new MxlWriter(format);
             writer.create(dsl, outputXml);
         } catch (Exception e) {
@@ -347,19 +434,20 @@ public class Commands {
 
     private static void executeSkd(String[] args) {
         if (args.length == 0) {
-            throw new IllegalArgumentException("SKD subcommand required: compile");
+            throw new IllegalArgumentException("SKD subcommand required: compile, add-field, add-parameter");
         }
         
         String subcommand = args[0];
         if ("compile".equals(subcommand.toLowerCase())) {
             skdCompile(args);
+        } else if (subcommand.startsWith("add-")) {
+            skdEdit(args);
         } else {
             throw new IllegalArgumentException("Unknown SKD subcommand: " + subcommand);
         }
     }
     
     private static void skdCompile(String[] args) {
-        // Парсинг: --format <designer|edt> <input.json> <output.xml>
         OutputFormat format = OutputFormat.DESIGNER;
         Path inputJson = null;
         Path outputXml = null;
@@ -382,15 +470,39 @@ public class Commands {
         }
         
         try {
-            // Читаем JSON DSL
             ObjectMapper mapper = new ObjectMapper();
             SkdDsl dsl = mapper.readValue(inputJson.toFile(), SkdDsl.class);
-            
-            // Генерируем Template.xml
             SkdWriter writer = new SkdWriter(format);
             writer.create(dsl, outputXml);
         } catch (Exception e) {
             throw new RuntimeException("Failed to compile SKD: " + e.getMessage(), e);
+        }
+    }
+
+    private static void skdEdit(String[] args) {
+        Path file = getFileArg(args);
+        try {
+            XmlDocument doc = new XmlStructureReader().parse(file);
+            SkdEditor editor = new SkdEditor(doc);
+            String cmd = args[0];
+            
+            if ("add-parameter".equals(cmd)) {
+                 editor.addParameter(
+                     getArg(args, "--name", true),
+                     getArg(args, "--title", false),
+                     getArg(args, "--type", false)
+                 );
+            } else if ("add-field".equals(cmd)) {
+                 editor.addField(
+                     getArg(args, "--dataset", true),
+                     getArg(args, "--name", true),
+                     getArg(args, "--path", true),
+                     getArg(args, "--title", false)
+                 );
+            }
+            saveAndValidate(doc, file, "skd");
+        } catch (Exception e) {
+            throw new RuntimeException("SKD editor failed: " + e.getMessage(), e);
         }
     }
 
@@ -403,7 +515,7 @@ public class Commands {
         //          [--level <structure|semantic>] [--output <text|json>] <file1> [file2] ...
         String type = null;
         String formatStr = "designer";
-        ValidationLevel level = ValidationLevel.SEMANTIC; // по умолчанию оба уровня
+        ValidationLevel level = ValidationLevel.SEMANTIC;
         String output = "text";
         List<Path> files = new ArrayList<>();
 
@@ -437,12 +549,10 @@ public class Commands {
         boolean hasWarnings = false;
 
         for (Path file : files) {
-            // 1) Парсим XML
             XmlDocument document;
             try {
                 document = reader.parse(file);
             } catch (XmlStructureReader.XmlParseException e) {
-                // GEN-001: не well-formed XML
                 List<ValidationIssue> parseIssues = List.of(
                         ValidationIssue.error("GEN-001", e.getMessage(), 0, "/")
                 );
@@ -455,19 +565,15 @@ public class Commands {
                 continue;
             }
 
-            // 2) Определяем тип
             String objectType = type;
             if (objectType == null) {
-                // Автодетект по root element
                 Optional<XmlValidator> detected = factory.detectValidator(document);
                 objectType = detected.map(XmlValidator::objectType).orElse(detectTypeByRoot(document));
             }
 
-            // 3) GEN-проверки
             boolean expectBom = "designer".equals(formatStr) && isMetadataFile(objectType);
             List<ValidationIssue> allIssues = new ArrayList<>(genValidator.validate(document, objectType, expectBom));
 
-            // 4) Специфичные проверки (если валидатор зарегистрирован)
             Optional<XmlValidator> validator = type != null
                     ? factory.getValidator(type)
                     : factory.detectValidator(document);
@@ -475,7 +581,6 @@ public class Commands {
                 allIssues.addAll(validator.get().validate(document, level));
             }
 
-            // 5) Формируем результат
             ValidationResult result = new ValidationResult(file, objectType, formatStr, allIssues);
 
             if (!result.isValid()) hasErrors = true;
@@ -486,17 +591,15 @@ public class Commands {
                     : jsonReporter.format(result));
         }
 
-        // Exit code: 0=ok, 1=errors, 2=warnings only
         if (hasErrors) {
             System.exit(1);
         } else if (hasWarnings) {
             System.exit(2);
         }
     }
+    
+    // --- Helpers ---
 
-    /**
-     * Автодетект типа по root-элементу, если ValidatorFactory пустой.
-     */
     private static String detectTypeByRoot(XmlDocument doc) {
         switch (doc.getRootElement()) {
             case "Rights": return "role";
@@ -508,10 +611,44 @@ public class Commands {
         }
     }
 
-    /**
-     * Файлы метаданных Designer, которые должны иметь BOM.
-     */
     private static boolean isMetadataFile(String type) {
         return "role".equals(type) || "form".equals(type) || "epf".equals(type);
+    }
+    
+    private static String getArg(String[] args, String key, boolean required) {
+        for (int i = 1; i < args.length - 1; i++) {
+            if (key.equals(args[i]) && i + 1 < args.length) {
+                return args[i+1];
+            }
+        }
+        if (required) throw new IllegalArgumentException("Argument " + key + " is required");
+        return null;
+    }
+    
+    private static Path getFileArg(String[] args) {
+        if (args.length < 2) throw new IllegalArgumentException("File argument required");
+        Path file = Paths.get(args[args.length - 1]);
+        if (!Files.exists(file)) throw new IllegalArgumentException("File not found: " + file);
+        return file;
+    }
+    
+    private static void saveAndValidate(XmlDocument doc, Path file, String type) throws Exception {
+        // Validate
+        List<ValidationIssue> issues = new ValidatorFactory().getValidator(type)
+                .map(v -> v.validate(doc, ValidationLevel.SEMANTIC))
+                .orElse(List.of());
+                
+        boolean hasErrors = issues.stream().anyMatch(i -> i.getSeverity() == Severity.ERROR);
+        
+        if (hasErrors) {
+            System.err.println("Validation failed after modification:");
+            ValidationResult result = new ValidationResult(file, type, "designer", issues);
+            System.err.println(new TextReporter().format(result));
+            System.exit(1);
+        }
+        
+        // Save
+        new XmlDocumentWriter().write(doc, file);
+        System.out.println("Modified " + file);
     }
 }

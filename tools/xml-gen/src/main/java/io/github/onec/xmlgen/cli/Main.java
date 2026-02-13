@@ -28,19 +28,30 @@ public class Main {
     }
 
     private static void printUsage() {
-        System.out.println("xml-gen - 1C XML metadata generator");
+        System.out.println("xml-gen - 1C XML metadata generator & editor");
         System.out.println();
         System.out.println("Usage: java -jar xml-gen.jar <command> [options] <input> <output>");
         System.out.println();
         System.out.println("Commands:");
-        System.out.println("  epf init          - Create new EPF structure");
-        System.out.println("  epf add-form      - Add form to EPF");
-        System.out.println("  epf add-template  - Add template to EPF");
-        System.out.println("  form compile      - Compile form from JSON DSL");
-        System.out.println("  role compile      - Compile role from JSON DSL");
-        System.out.println("  mxl compile       - Compile MXL from JSON DSL");
-        System.out.println("  skd compile       - Compile SKD from JSON DSL");
-        System.out.println("  validate          - Validate 1C XML files");
+        System.out.println("  epf init              - Create new EPF structure");
+        System.out.println("  epf add-form          - Add form to EPF");
+        System.out.println("  epf add-template      - Add template to EPF");
+        System.out.println("  epf add-attribute     - Add attribute to EPF");
+        System.out.println("  epf add-tabular-section - Add tabular section to EPF");
+        System.out.println("  form compile          - Compile form from JSON DSL");
+        System.out.println("  form add-attribute    - Add attribute to form");
+        System.out.println("  form add-element      - Add element to form");
+        System.out.println("  form add-command      - Add command to form");
+        System.out.println("  form remove-element   - Remove element from form");
+        System.out.println("  form move-element     - Move element in form");
+        System.out.println("  role compile          - Compile role from JSON DSL");
+        System.out.println("  role add-object       - Add object rights to role");
+        System.out.println("  role add-right        - Add right to object in role");
+        System.out.println("  skd compile           - Compile SKD from JSON DSL");
+        System.out.println("  skd add-parameter     - Add parameter to SKD");
+        System.out.println("  skd add-field         - Add field to SKD dataset");
+        System.out.println("  mxl compile           - Compile MXL from JSON DSL");
+        System.out.println("  validate              - Validate 1C XML files");
         System.out.println();
         System.out.println("Options:");
         System.out.println("  --format <designer|edt>  - Output format (default: designer)");
