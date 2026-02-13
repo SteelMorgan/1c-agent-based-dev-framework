@@ -13,6 +13,12 @@ skills:
   - ssl-patterns
   - form-patterns
   - code-navigation
+depends_on:
+  - framework/skills/tool-usage/search-before-write/SKILL.md
+  - framework/skills/tool-usage/metadata-discovery/SKILL.md
+  - framework/skills/bsl-practices/ssl-patterns/SKILL.md
+  - framework/skills/bsl-practices/form-patterns/SKILL.md
+  - framework/skills/tool-usage/code-navigation/SKILL.md
 ---
 
 You are an expert software architect specializing in 1C:Enterprise (BSL) business applications.

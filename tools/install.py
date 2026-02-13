@@ -224,23 +224,37 @@ class FrameworkGraph:
             if not fm:
                 continue
 
-            # Поддержка двух форматов frontmatter:
-            # Old: id, type, depends_on (skills, rules, workflows)
-            # New: name, description, model, readonly, skills (agents)
-            if "id" in fm:
-                comp_id = fm["id"]
-                comp_type = fm.get("type", "unknown")
-                depends = fm.get("depends_on", [])
-            elif "name" in fm:
-                name = fm["name"]
+            # Извлекаем name и type из frontmatter
+            name = fm.get("name")
+            comp_type = fm.get("type")
+            
+            # Если type не указан, пытаемся определить из пути
+            if not comp_type:
                 comp_type = self._infer_type_from_path(md_file) or "unknown"
-                comp_id = f"{comp_type}/{name}"
-                # Convert skills list to depends_on format
-                skills = fm.get("skills", [])
-                depends = [f"skill/{s}" for s in skills] if isinstance(skills, list) else []
-            else:
+            
+            # Если name не указан, пропускаем
+            if not name:
                 continue
-
+            
+            # Формируем comp_id как type/name
+            comp_id = f"{comp_type}/{name}"
+            
+            # Обрабатываем зависимости
+            depends = fm.get("depends_on", [])
+            
+            # Для агентов: конвертируем skills список в пути
+            if comp_type == "agent" and "skills" in fm:
+                skills = fm.get("skills", [])
+                if isinstance(skills, list):
+                    # Конвертируем имена навыков в пути (нужно найти файл по имени)
+                    skill_paths = []
+                    for skill_name in skills:
+                        # Ищем навык по имени в уже отсканированных или по структуре
+                        skill_path = self._find_skill_path(skill_name)
+                        if skill_path:
+                            skill_paths.append(skill_path)
+                    depends.extend(skill_paths)
+            
             if isinstance(depends, str):
                 depends = [depends] if depends else []
 
@@ -253,6 +267,15 @@ class FrameworkGraph:
                 depends_on=depends,
                 filepath=md_file,
             )
+    
+    def _find_skill_path(self, skill_name: str) -> str:
+        """Находит путь к навыку по его имени."""
+        # Ищем SKILL.md файлы с соответствующим name в frontmatter
+        for skill_file in self.framework_dir.glob("skills/**/SKILL.md"):
+            fm = parse_frontmatter(skill_file)
+            if fm and fm.get("name") == skill_name:
+                return str(skill_file.relative_to(self.framework_dir.parent))
+        return ""
 
     def resolve_dependencies(self, selected_ids: Set[str]) -> Set[str]:
         """Рекурсивно резолвит все зависимости для выбранных компонентов."""
@@ -267,10 +290,21 @@ class FrameworkGraph:
             comp = self.components.get(cid)
             if comp:
                 for dep in comp.depends_on:
-                    if dep not in resolved and dep in self.components:
-                        queue.append(dep)
+                    # dep теперь путь к файлу, нужно найти comp_id
+                    dep_id = self._path_to_comp_id(dep)
+                    if dep_id and dep_id not in resolved and dep_id in self.components:
+                        queue.append(dep_id)
 
         return resolved
+    
+    def _path_to_comp_id(self, path: str) -> str:
+        """Конвертирует путь к файлу в comp_id (type/name)."""
+        # Ищем компонент с таким filepath
+        for comp_id, comp in self.components.items():
+            rel_path = str(comp.filepath.relative_to(self.framework_dir.parent))
+            if rel_path == path or str(comp.filepath) == path:
+                return comp_id
+        return ""
 
     def get_by_type(self, comp_type: str) -> List[Component]:
         """Возвращает компоненты определённого типа, отсортированные по id."""
@@ -285,6 +319,46 @@ class FrameworkGraph:
             [c for c in self.components.values() if c.type != "template"],
             key=lambda c: (c.type, c.id),
         )
+    
+    def is_framework_meta_skill(self, comp_id: str) -> bool:
+        """Проверяет, является ли навык служебным (framework-meta)."""
+        comp = self.components.get(comp_id)
+        if not comp or comp.type != "skill":
+            return False
+        # Проверяем, что путь содержит framework-meta
+        rel_path = str(comp.filepath.relative_to(self.framework_dir.parent))
+        return "framework-meta" in rel_path
+
+    def load_mutual_groups(self) -> List[List[str]]:
+        """Загружает группы взаимозависимостей из framework-cycles.json."""
+        cycles_file = self.framework_dir.parent / "tools" / "framework-cycles.json"
+        if not cycles_file.exists():
+            return []
+        try:
+            data = json.loads(cycles_file.read_text(encoding="utf-8"))
+            return [c["artifacts"] for c in data.get("cycles", [])]
+        except (json.JSONDecodeError, KeyError, OSError):
+            return []
+
+    def get_linked_components(self, comp_id: str) -> List[str]:
+        """Возвращает comp_id компонентов, связанных взаимозависимостью."""
+        comp = self.components.get(comp_id)
+        if not comp:
+            return []
+        
+        rel_path = str(comp.filepath.relative_to(self.framework_dir.parent))
+        groups = self.load_mutual_groups()
+        
+        linked = []
+        for group in groups:
+            if rel_path in group:
+                for artifact in group:
+                    if artifact != rel_path:
+                        # Конвертируем путь обратно в comp_id
+                        linked_id = self._path_to_comp_id(artifact)
+                        if linked_id:
+                            linked.append(linked_id)
+        return linked
 
 
 # ─── Интерактивный UI ────────────────────────────────────────────────────────
@@ -361,8 +435,20 @@ def print_tree(graph: FrameworkGraph, selected: Optional[Set[str]] = None):
             if c.depends_on:
                 dep_count = len(c.depends_on)
                 deps_str = dim(f" ({dep_count} зав.)")
+            
+            # Пометка для framework-meta навыков
+            meta_note = ""
+            if graph.is_framework_meta_skill(c.id):
+                meta_note = dim(" [только для изменения фреймворка]")
+            
+            # Индикатор взаимозависимости
+            linked = graph.get_linked_components(c.id)
+            link_str = ""
+            if linked:
+                linked_names = [lid.split("/")[-1] for lid in linked]
+                link_str = cyan(f" ↔ {', '.join(linked_names)}")
 
-            print(f"    {cyan(str(idx).rjust(3))}  {c.id:<40} {c.display_name}{deps_str}{marker}")
+            print(f"    {cyan(str(idx).rjust(3))}  {c.id:<40} {c.display_name}{deps_str}{meta_note}{link_str}{marker}")
             idx_map[idx] = c.id
             idx += 1
 
@@ -481,9 +567,21 @@ def interactive_select(graph: FrameworkGraph) -> Set[str]:
                 if n in idx_map:
                     cid = idx_map[n]
                     if cid in selected:
+                        # Отключаем — вместе со связанными
                         selected.discard(cid)
+                        linked = graph.get_linked_components(cid)
+                        for lid in linked:
+                            if lid in selected:
+                                selected.discard(lid)
+                                print(cyan(f"  ↔ Автоматически снят связанный: {lid}"))
                     else:
+                        # Включаем — вместе со связанными
                         selected.add(cid)
+                        linked = graph.get_linked_components(cid)
+                        for lid in linked:
+                            if lid not in selected and lid in {c.id for c in graph.get_installable()}:
+                                selected.add(lid)
+                                print(cyan(f"  ↔ Автоматически выбран связанный: {lid}"))
                 else:
                     print(yellow(f"  Номер {n} вне диапазона."))
         except ValueError:
@@ -795,18 +893,35 @@ def install_components(
             print(yellow(f"  ⚠ Компонент {comp_id} не найден в графе. Пропуск."))
             skipped += 1
             continue
+        
+        # Блокируем установку framework-meta навыков
+        if graph.is_framework_meta_skill(comp_id):
+            print(yellow(f"  ⚠ Навык {comp_id} предназначен только для изменения фреймворка."))
+            print(yellow(f"    Откройте каталог фреймворка как проект в IDE для его использования."))
+            skipped += 1
+            continue
 
         # Определяем целевую директорию
         dir_key = TYPE_TO_DIR.get(comp.type, "rules_dir")
         target_base = project_dir / ide_cfg[dir_key]
 
-        # Имя файла: id → путь (skill/coding-standards → coding-standards.md)
-        _, _, short_name = comp.id.rpartition("/")
-        if not short_name:
-            short_name = comp.id.replace("/", "-")
-        target_file = target_base / f"{short_name}.md"
-
+        # Определяем источник для симлинка/копирования
         source_file = comp.filepath.resolve()
+        
+        # Для навыков: симлинк на родительскую директорию (папку навыка)
+        # Для агентов/правил: симлинк на файл
+        if comp.type == "skill" and source_file.name == "SKILL.md":
+            # Навык в новой структуре: симлинк на папку навыка
+            source_path = source_file.parent
+            short_name = source_file.parent.name
+        else:
+            # Агенты, правила, workflows: симлинк на файл
+            source_path = source_file
+            _, _, short_name = comp.id.rpartition("/")
+            if not short_name:
+                short_name = comp.id.replace("/", "-")
+        
+        target_file = target_base / f"{short_name}.md"
 
         if dry_run:
             action = "→ (symlink)" if use_symlinks else "→ (copy)"
@@ -824,18 +939,26 @@ def install_components(
         if use_symlinks:
             try:
                 try:
-                    rel_path = os.path.relpath(source_file, target_file.parent)
+                    rel_path = os.path.relpath(source_path, target_file.parent)
                     target_file.symlink_to(rel_path)
                 except ValueError:
-                    target_file.symlink_to(source_file)
+                    target_file.symlink_to(source_path)
                 installed += 1
             except OSError as e:
                 print(red(f"  ✗ Ошибка симлинка {comp.id}: {e}"))
-                shutil.copy2(source_file, target_file)
+                # Fallback: копируем файл (для навыков копируем SKILL.md)
+                if comp.type == "skill":
+                    shutil.copy2(source_file, target_file)
+                else:
+                    shutil.copy2(source_path, target_file)
                 print(yellow(f"    → скопирован как fallback"))
                 installed += 1
         else:
-            shutil.copy2(source_file, target_file)
+            # При копировании: для навыков копируем SKILL.md, для остальных — сам файл
+            if comp.type == "skill":
+                shutil.copy2(source_file, target_file)
+            else:
+                shutil.copy2(source_path, target_file)
             installed += 1
 
     return installed, skipped

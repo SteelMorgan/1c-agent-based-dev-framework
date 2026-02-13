@@ -21,6 +21,20 @@ skills:
   - search-before-write
   - log-analysis
   - xml-generation
+depends_on:
+  - framework/skills/bsl-practices/coding-standards/SKILL.md
+  - framework/skills/bsl-practices/query-patterns/SKILL.md
+  - framework/skills/bsl-practices/anti-patterns/SKILL.md
+  - framework/skills/bsl-practices/ssl-patterns/SKILL.md
+  - framework/skills/bsl-practices/form-patterns/SKILL.md
+  - framework/skills/bsl-practices/error-handling/SKILL.md
+  - framework/skills/tool-usage/code-navigation/SKILL.md
+  - framework/skills/tool-usage/metadata-discovery/SKILL.md
+  - framework/skills/tool-usage/syntax-checking/SKILL.md
+  - framework/skills/tool-usage/test-execution/SKILL.md
+  - framework/skills/tool-usage/search-before-write/SKILL.md
+  - framework/skills/tool-usage/log-analysis/SKILL.md
+  - framework/skills/xml-generation/SKILL.md
 ---
 
 You are an expert 1C:Enterprise (BSL) developer specializing in writing high-quality business application code.

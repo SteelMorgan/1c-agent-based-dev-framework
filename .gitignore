@@ -1,4 +1,29 @@
 # Generated artifacts (do not commit)
 
+# Reference sources (local only)
+src_temp/
 
+# IDE / agent configs
+.cursor/
+.agents/
+.kilocode/
 
+# Python
+__pycache__/
+*.pyc
+
+# Gradle
+.gradle/
+build/
+test-output/
+
+# Agent session reports (transient artifacts)
+**/PHASE*-REPORT.md
+**/PHASE*-SUMMARY.md
+**/PHASE*-COMPLETION-REPORT.md
+**/SESSION-*.md
+**/FINAL-*REPORT*.md
+**/PROJECT-COMPLETION-REPORT.md
+**/PROJECT-SUMMARY.md
+**/TODO.md
+**/SPEC-*-CHECKLIST.md
