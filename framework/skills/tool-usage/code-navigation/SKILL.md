@@ -109,15 +109,15 @@ description: Навигация по коду (Code Navigation). Навык уч
 
 ---
 
-## MCP-инструменты
+## Capabilities
 
-| Инструмент | MCP-сервер | Назначение |
-|------------|------------|------------|
-| `navigate_symbol` | lsp-bridge | Поиск символов, переход к определению, hover |
-| `get_call_graph` | lsp-bridge | Граф вызовов (входящие/исходящие) |
-| `rename_symbol` | lsp-bridge | Безопасное переименование по проекту |
-| `get_diagnostics` | lsp-bridge | Диагностика LSP для файла |
-| `get_code_actions` | lsp-bridge | Быстрые исправления (Quick Fixes) |
+| Capability | Назначение |
+|------------|------------|
+| `navigate_symbol` | Поиск символов, переход к определению, hover |
+| `get_call_graph` | Граф вызовов (входящие/исходящие) |
+| `rename_symbol` | Безопасное переименование по проекту |
+| `get_diagnostics` | Диагностика LSP для файла |
+| `get_code_actions` | Быстрые исправления (Quick Fixes) |
 
 ---
 

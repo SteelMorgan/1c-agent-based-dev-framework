@@ -21,4 +21,4 @@ alwaysApply: true
 
 - Агент обнаруживает доступные инструменты динамически через MCP (`tools/list`) — не hardcode имена tool-ов
 - Навыки использования: `framework/skills/tool-usage/`
-- Справочник capability → MCP: `framework/skills/tool-usage/_capability-index.md`
+- Маппинг capability → MCP: `framework/capabilities/registry.yaml`, правило: `framework/rules/capability-resolution.mdc`

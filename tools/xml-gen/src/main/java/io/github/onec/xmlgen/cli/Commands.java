@@ -225,7 +225,7 @@ public class Commands {
                      getArg(args, "--synonym", false)
                  );
             }
-            saveAndValidate(doc, file, "epf");
+            saveAndValidate(doc, file, "epf", args);
         } catch (Exception e) {
             throw new RuntimeException("EPF editor failed: " + e.getMessage(), e);
         }
@@ -311,7 +311,7 @@ public class Commands {
                      getArg(args, "--into", false)
                  );
             }
-            saveAndValidate(doc, file, "form");
+            saveAndValidate(doc, file, "form", args);
         } catch (Exception e) {
             throw new RuntimeException("Form editor failed: " + e.getMessage(), e);
         }
@@ -382,7 +382,7 @@ public class Commands {
                      getArg(args, "--value", true)
                  );
             }
-            saveAndValidate(doc, file, "role");
+            saveAndValidate(doc, file, "role", args);
         } catch (Exception e) {
             throw new RuntimeException("Role editor failed: " + e.getMessage(), e);
         }
@@ -501,7 +501,7 @@ public class Commands {
                      getArg(args, "--title", false)
                  );
             }
-            saveAndValidate(doc, file, "skd");
+            saveAndValidate(doc, file, "skd", args);
         } catch (Exception e) {
             throw new RuntimeException("SKD editor failed: " + e.getMessage(), e);
         }
@@ -511,14 +511,22 @@ public class Commands {
     // validate command
     // ============================================================
 
+    private static MetadataTypeValidator createMetadataValidator(String[] args) {
+        String srcRootStr = getArg(args, "--src-root", false);
+        Path srcRoot = srcRootStr != null ? Paths.get(srcRootStr) : null;
+        return new MetadataTypeValidator(srcRoot);
+    }
+
     private static void executeValidate(String[] args) {
-        // Парсинг: [--type <form|role|skd|mxl|epf>] [--format <designer|edt>]
+        // Парсинг: [--type <form|role|skd|mxl|epf>] [--format <designer|edt>] [--src-root <path>]
         //          [--level <structure|semantic>] [--output <text|json>] <file1> [file2] ...
         String type = null;
         String formatStr = "designer";
         ValidationLevel level = ValidationLevel.SEMANTIC;
         String output = "text";
         List<Path> files = new ArrayList<>();
+        
+        MetadataTypeValidator metadataValidator = createMetadataValidator(args);
 
         for (int i = 0; i < args.length; i++) {
             if ("--type".equals(args[i]) && i + 1 < args.length) {
@@ -530,6 +538,8 @@ public class Commands {
                 level = "structure".equals(lvl) ? ValidationLevel.STRUCTURE : ValidationLevel.SEMANTIC;
             } else if ("--output".equals(args[i]) && i + 1 < args.length) {
                 output = args[++i].toLowerCase();
+            } else if ("--src-root".equals(args[i]) && i + 1 < args.length) {
+                i++; // Skip value (already handled)
             } else if (!args[i].startsWith("--")) {
                 files.add(Paths.get(args[i]));
             }
@@ -537,12 +547,12 @@ public class Commands {
 
         if (files.isEmpty()) {
             throw new IllegalArgumentException(
-                    "Usage: validate [--type <form|role|skd|mxl|epf>] [--output <text|json>] <file> [files...]");
+                    "Usage: validate [--type <form|role|skd|mxl|epf>] [--output <text|json>] [--src-root <path>] <file> [files...]");
         }
 
         XmlStructureReader reader = new XmlStructureReader();
         ValidatorFactory factory = new ValidatorFactory();
-        GenValidator genValidator = new GenValidator();
+        GenValidator genValidator = new GenValidator(metadataValidator);
         TextReporter textReporter = new TextReporter();
         JsonReporter jsonReporter = new JsonReporter();
 
@@ -643,11 +653,25 @@ public class Commands {
         throw new IllegalArgumentException("File argument required");
     }
     
-    private static void saveAndValidate(XmlDocument doc, Path file, String type) throws Exception {
+    private static void saveAndValidate(XmlDocument doc, Path file, String type, String[] args) throws Exception {
         // Validate in-memory before writing
-        List<ValidationIssue> issues = new ValidatorFactory().getValidator(type)
+        MetadataTypeValidator metadataValidator = createMetadataValidator(args);
+        GenValidator genValidator = new GenValidator(metadataValidator);
+        
+        List<ValidationIssue> issues = new ArrayList<>();
+        
+        // 1. Run general validation (including type checks)
+        // Assume default format "designer" for now if not specified in args logic, 
+        // but here we just need to know if we expect BOM. 
+        // In "edit" commands we usually preserve format, but for validation we can be strict.
+        // Let's assume designer format (expect BOM) for metadata files.
+        boolean expectBom = isMetadataFile(type);
+        issues.addAll(genValidator.validate(doc, type, expectBom));
+
+        // 2. Run specific validator
+        issues.addAll(new ValidatorFactory().getValidator(type)
                 .map(v -> v.validate(doc, ValidationLevel.SEMANTIC))
-                .orElse(List.of());
+                .orElse(List.of()));
                 
         boolean hasErrors = issues.stream().anyMatch(i -> i.getSeverity() == Severity.ERROR);
         

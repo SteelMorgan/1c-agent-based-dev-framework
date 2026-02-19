@@ -1,6 +1,6 @@
 ---
 name: visual-check
-description: Perform a visual check of a 1C form using a web client and browser automation. Captures a screenshot for analysis.
+description: Perform a visual check of a 1C form using a web client and browser automation. Captures a screenshot, checks for JS errors in console, analyzes using form-visual-requirements.
 ---
 
 # Visual Check Skill
@@ -9,7 +9,7 @@ This skill allows you to visually inspect 1C forms via the web client.
 
 ## Prerequisites
 
-- Active `browser-use` session (or capability to start one).
+- Active browser MCP (Playwright MCP: `npx @playwright/mcp@latest`).
 - 1C Web Client URL (published database).
 - Credentials (login/password).
 
@@ -34,15 +34,34 @@ If redirected to login page:
 2. `browser_fill` user/password.
 3. `browser_click` "Enter" button.
 
-### 3. Capture
+### 3. Capture & Console Check
 
 Once the form is loaded (wait for spinner to disappear):
 1. `browser_take_screenshot` (viewport is usually enough).
-2. Save screenshot as artifact if needed.
+2. `browser_console_messages()` — проверь на "Error", "Exception", "Uncaught".
+3. Сохрани скриншот как артефакт при необходимости.
 
 ### 4. Analysis
 
-Analyze the screenshot using `form-visual-requirements` skill criteria.
+Анализируй скриншот по чек-листу **form-visual-requirements**:
+- Layout & Alignment (alignment, grouping, whitespace, width)
+- Controls & Labels (labels, truncation, captions, CommandBar)
+- Usability (tab order, primary fields, tables, horizontal scroll)
+- Specific Object Types (Catalogs, Documents, Data Processors)
+
+**Отчёт:** укажи результат проверки скриншота и наличие/отсутствие JS-ошибок в консоли.
+
+## Capabilities
+
+| Capability | Назначение |
+|------------|------------|
+| `browser_navigate` | Открытие URL формы |
+| `browser_snapshot` | Получение структуры страницы и refs элементов |
+| `browser_fill` | Заполнение полей (логин, пароль) |
+| `browser_click` | Клик по кнопкам и элементам |
+| `browser_take_screenshot` | Снимок формы |
+| `browser_console_messages` | Проверка JS-ошибок в консоли |
+| `browser_wait_for` | Ожидание загрузки |
 
 ## Example
 
@@ -63,9 +82,10 @@ browser_click(ref="<ref_from_snapshot>", element="Login button")
 # 3. Navigate directly to the form via deep link
 browser_navigate(url="http://localhost/ib/e1cib/list/Catalog.Items")
 
-# 4. Wait for the form to load, then capture
+# 4. Wait for the form to load, then capture and check console
 browser_wait_for(time=2)
 browser_take_screenshot(filename="catalog_items.png")
+browser_console_messages()  # Check for "Error", "Exception"
 
-# 5. Analyze the screenshot using form-visual-requirements criteria
+# 5. Analyze screenshot (form-visual-requirements) + report JS errors if any
 ```

@@ -74,7 +74,7 @@ python tools/install.py --relink
 ## MCP-серверы с готовыми tool-usage навыками
 
 > Фреймворк не ограничен этим списком. Для добавления нового MCP-сервера — создайте tool-usage навык.
-> Полный маппинг capability → MCP → навык: [`_capability-index.md`](framework/skills/tool-usage/_capability-index.md).
+> Полный маппинг capability → MCP: [`framework/capabilities/registry.yaml`](framework/capabilities/registry.yaml).
 
 | MCP-сервер | Репозиторий | Навык |
 |------------|-------------|-------|
@@ -135,13 +135,13 @@ python tools/install.py --relink
 ### Добавление нового MCP-инструмента
 
 1. **Создать или обновить tool-usage навык** — описать КОГДА и ПОЧЕМУ использовать инструмент, workarounds, сценарии
-2. **Обновить `_capability-index.md`** — добавить строку capability → MCP → навык
+2. **Обновить `framework/capabilities/registry.yaml`** — добавить capability → (server, tool). Либо CLI: `python tools/capability-registry.py set <cap> --server X --tool Y`
 3. **Обновить агентов** — если навык нужен новым агентам, добавить в `skills` frontmatter
 4. **Обновить таблицу MCP-серверов** в этом README
 
 **Чек-лист:**
 - [ ] Tool-usage навык описывает КОГДА использовать + workarounds + сценарии
-- [ ] `_capability-index.md` содержит маппинг
+- [ ] `registry.yaml` содержит маппинг
 - [ ] Агенты, использующие навык, обновлены (`skills` в frontmatter)
 
 ---
