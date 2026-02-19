@@ -1,10 +1,11 @@
 ---
 id: rule/sdd-policy
 type: rule
+name: sdd-policy
 depends_on:
-  - rule/cross-review-policy
-  - rule/tdd-policy
-  - skill/spec-standard
+  - framework/rules/cross-review-policy.md
+  - framework/rules/tdd-policy.md
+  - framework/skills/spec-writing/spec-standard/SKILL.md
 ---
 
 # Политика SDD (Spec-Driven Development)

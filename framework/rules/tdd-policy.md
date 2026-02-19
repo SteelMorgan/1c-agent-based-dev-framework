@@ -1,12 +1,13 @@
 ---
 id: rule/tdd-policy
 type: rule
+name: tdd-policy
 depends_on:
-  - rule/sdd-policy
-  - rule/cross-review-policy
-  - rule/mandatory-tools
-  - skill/test-execution
-  - skill/spec-standard
+  - framework/rules/sdd-policy.md
+  - framework/rules/cross-review-policy.md
+  - framework/rules/mandatory-tools.md
+  - framework/skills/tool-usage/test-execution/SKILL.md
+  - framework/skills/spec-writing/spec-standard/SKILL.md
 ---
 
 # Политика TDD (Test-Driven Development)

@@ -12,14 +12,14 @@ depends_on: []
 
   Типы навыков:
   - bsl-practices/ — стандарты кодирования, паттерны, антипаттерны BSL
-  - tool-usage/    — как и когда использовать capability из tool-registry
+  - tool-usage/    — как и когда использовать MCP-инструменты
   - spec-writing/  — стандарты написания спецификаций
   - (новый тип)/   — создайте подкаталог для нового типа
 
   YAML frontmatter:
   - id: skill/<имя-файла-без-расширения>
   - type: skill
-  - depends_on: [] для standalone, [registry/tool-registry] для tool-usage
+  - depends_on: [] (всегда пустой — зависимости от tool-registry убраны)
 -->
 
 # [Название навыка]

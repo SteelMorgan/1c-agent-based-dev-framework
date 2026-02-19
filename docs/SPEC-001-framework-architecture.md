@@ -34,8 +34,8 @@ Reviewers: GPT 5.2 (feedback), Opus 4.6 (analysis + fixes)
 ### MVP (v0.1) — минимальный рабочий набор
 
 MVP считается достигнутым когда:
-- Есть capability contracts для core-набора (search, check, test, navigate)
-- Есть 3+ provider profile с матрицей совместимости
+- Есть tool-usage навыки для core capabilities (search, check, test, navigate)
+- Есть capability registry с маппингом для 7 MCP-серверов
 - Есть 1 рабочий адаптер (Cursor) с bootstrap
 - Есть демонстрационный сценарий quick-fix и full-cycle с артефактами
 - BSL coding standards и антипаттерны оформлены и работают
@@ -45,9 +45,9 @@ MVP считается достигнутым когда:
 ### MUST (обязательно — без этого задача не решена)
 
 1. `[MVP]` Фреймворк MUST быть модульным ("кубики конструктора") — каждый навык, правило, агент — отдельный файл, подключаемый независимо
-2. `[MVP]` Фреймворк MUST поддерживать замену MCP-сервера через изменение одного provider profile при условии совместимости capability contracts; несовместимость MUST быть явно отражена в матрице совместимости
-3. `[MVP]` Каждая capability в tool-registry MUST иметь описанный контракт: входные параметры, формат результата, типичные ошибки
-4. `[MVP]` Фреймворк MUST включать навыки, объясняющие агенту назначение каждого tool и примеры работы с ним
+2. `[MVP]` Фреймворк MUST поддерживать замену MCP-сервера — агенты обнаруживают tools через MCP (`tools/list`), навыки описывают КОГДА и ПОЧЕМУ использовать; маппинг хранится в `framework/capabilities/registry.yaml`
+3. `[MVP]` Каждая capability MUST быть покрыта tool-usage навыком с описанием сценариев и workarounds
+4. `[MVP]` Фреймворк MUST включать навыки, объясняющие агенту назначение каждого MCP-инструмента и примеры работы с ним
 5. `[MVP]` Фреймворк MUST включать правила обязательного использования tool-ов когда утверждение проверяемо и есть риск ошибки; если capability недоступен — агент MUST зафиксировать причину пропуска
 6. Фреймворк MUST поддерживать кросс-ревью: в детерминированном режиме всё, что сгенерировал один агент, проверяется другим агентом (см. Review Gating)
 7. Ревьюер MUST видеть цель/задачу генератора и оценивать артефакт против цели, используя чек-лист для соответствующего типа артефакта
@@ -61,7 +61,7 @@ MVP считается достигнутым когда:
 ### SHOULD (желательно — значительно улучшает решение)
 
 1. Фреймворк SHOULD поддерживать два режима: детерминированный (жёсткие фазы с обязательным кросс-ревью) и свободный (навыки + правила без фаз, кросс-ревью опционально)
-2. Фреймворк SHOULD включать model-routing — правила выбора модели по tier-у задачи для экономии токенов
+2. Фреймворк SHOULD включать per-agent model field для выбора модели по tier-у задачи для экономии токенов
 3. Фреймворк SHOULD включать economy-агентов для простых задач (исследование кода, форматирование) на дешёвых моделях
 4. Фреймворк SHOULD включать навыки XML-генерации (JSON DSL → Form.xml) кроссплатформенно (Windows + Linux)
 5. Ревью SHOULD ограничиваться 3 итерациями с эскалацией пользователю при нерешённых BLOCK-замечаниях
@@ -81,7 +81,7 @@ MVP считается достигнутым когда:
 2. Фреймворк MUST NOT использовать Memory Bank, TaskMaster или аналогичные системы управления контекстом, забивающие контекстное окно
 3. Фреймворк MUST NOT дублировать развёрнутый контент между файлами — навыки/правила ссылаются друг на друга; допускаются краткие сводные таблицы со ссылкой на source of truth
 4. Фреймворк MUST NOT быть привязан к конкретной IDE (Cursor, Claude Code, etc.) на уровне ядра
-5. Правила и навыки MUST NOT содержать конкретные имена MCP-tool-ов — только абстрактные capability через tool-registry
+5. Правила MUST NOT содержать жёстких привязок к конкретным MCP-tool-ам — агент обнаруживает инструменты динамически через MCP
 
 ---
 
@@ -89,23 +89,22 @@ MVP считается достигнутым когда:
 
 ### In scope
 
-- Реестр инструментов (tool-registry) с capability contracts и абстракцией над MCP-серверами
-- Provider profiles для 7 open-source MCP-серверов:
-  1. `platform-context` — [alkoleft/mcp-bsl-platform-context](https://github.com/alkoleft/mcp-bsl-platform-context) (API платформы)
-  2. `copilot-proxy` — [SteelMorgan/spring-mcp-1c-copilot](https://github.com/SteelMorgan/spring-mcp-1c-copilot) (AI-ассистент 1С)
-  3. `test-runner` — [alkoleft/mcp-onec-test-runner](https://github.com/alkoleft/mcp-onec-test-runner) (тесты, сборка, синтаксис)
-  4. `log-checker` — [SteelMorgan/1c-log-checker](https://github.com/SteelMorgan/1c-log-checker) (ЖР, ТЖ)
-  5. `metadata-tools` — [RooLee10/1c-mcp-tools](https://github.com/RooLee10/1c-mcp-tools) (метаданные, запросы к БД, навигационные ссылки — 6 tool-ов + 1 ресурс)
-  6. `batch-ops` — [vladimir-kharin/1c-batch](https://github.com/vladimir-kharin/1c-batch) (сборка/разборка)
-  7. `lsp-bridge` — mcp-bsl-lsp-bridge (навигация по коду, диагностика)
-- 6 навыков по использованию инструментов
+- Tool-usage навыки для 7 open-source MCP-серверов (маппинг capability → MCP tool)
+- Provider references:
+  1. `platform-context` — [alkoleft/mcp-bsl-platform-context](https://github.com/alkoleft/mcp-bsl-platform-context)
+  2. `copilot-proxy` — [SteelMorgan/spring-mcp-1c-copilot](https://github.com/SteelMorgan/spring-mcp-1c-copilot)
+  3. `test-runner` — [alkoleft/mcp-onec-test-runner](https://github.com/alkoleft/mcp-onec-test-runner)
+  4. `log-checker` — [SteelMorgan/1c-log-checker](https://github.com/SteelMorgan/1c-log-checker)
+  5. `metadata-tools` — [RooLee10/1c-mcp-tools](https://github.com/RooLee10/1c-mcp-tools)
+  6. `batch-ops` — [vladimir-kharin/1c-batch](https://github.com/vladimir-kharin/1c-batch)
+  7. `lsp-bridge` — mcp-bsl-lsp-bridge
+- 6 навыков по использованию инструментов + capability registry
 - 6 навыков по BSL best practices
+- Навыки-расширения (_ext): agent-development_ext, skill-creator_ext
 - Стандарт спецификации (SDD)
-- Навыки XML-генерации (опционально)
-- 5 правил (mandatory-tools, cross-review, TDD, SDD, model-routing)
-- 5 описаний ролей агентов + 2 economy-роли (протоколы в ядре)
+- 4 правила (mandatory-tools, cross-review, TDD, SDD)
+- 7 описаний ролей агентов с model tier-ами в frontmatter
 - 3 воркфлоу (full-cycle, quick-fix, orchestrator)
-- Конфигурация проекта
 - Адаптер для Cursor IDE (первый, остальные — v0.2+)
 
 ### Out of scope
@@ -123,7 +122,7 @@ MVP считается достигнутым когда:
 1. **Агент формирует инструкцию** — конкретный список: тип объекта, имя, реквизиты, табличные части, типы данных
 2. **Агент блокирует работу** и ждёт подтверждения пользователя (фаза помечается `WAITING_USER`)
 3. **Пользователь создаёт объект** в Конфигураторе/EDT и подтверждает готовность
-4. **Агент продолжает** — проверяет наличие объекта через `search_metadata` и пишет код модулей
+4. **Агент продолжает** — проверяет наличие объекта через `list_metadata_objects` и пишет код модулей
 
 ---
 
@@ -134,6 +133,7 @@ MVP считается достигнутым когда:
 1. **Прямые ссылки на MCP-tool-ы в навыках** (как у comol) — проще, но при замене MCP переписывать 15+ файлов
 2. **Двухуровневая абстракция: capability → provider** — сложнее на старте, но замена MCP = один файл
 3. **Runtime-переименование tool-ов** — невозможно технически, MCP-протокол фиксирует имена
+4. **Tool-usage навыки + MCP discovery** — навыки описывают КОГДА, MCP `tools/list` описывает ЧТО. Принято в v0.2
 
 ### Формат спецификации
 
@@ -152,6 +152,7 @@ MVP считается достигнутым когда:
 1. **Одна модель на всё** — просто, но дорого
 2. **Tier-ы Economy/Mid/High/Premium** — оптимизация cost/quality
 3. **Динамический выбор по сложности** — слишком сложно для первой версии
+4. **Per-agent model field** — модель задаётся в frontmatter каждого агента; install.py ремаппит алиасы для Cursor. Принято в v0.2
 
 ---
 
@@ -159,7 +160,7 @@ MVP считается достигнутым когда:
 
 | Решение | Выбор | Обоснование |
 |---------|-------|-------------|
-| Tool-registry | Вариант 2: двухуровневая абстракция | Ключевое требование — замена MCP без переписывания. Стоимость: один дополнительный слой файлов |
+| Tool discovery | Tool-usage навыки + MCP discovery | Агент обнаруживает tools через MCP; навыки описывают КОГДА и ПОЧЕМУ. Убран tool-registry layer — снижена сложность |
 | Формат спеки | Вариант 2: MADR 4.0 + RFC 2119 + ADR | Проверенные стандарты, не изобретение. MADR используется в Wikimedia, CERT/CC |
 | Кросс-ревью | Вариант 2: BLOCK/WARN/INFO | Простота и однозначность. Confidence scoring — overhead без доказанной пользы |
 | Model routing | Вариант 2: Tier-ы | Экономия 10-50x на простых задачах. Grok ($0.20/1M) vs Opus ($15/1M) |
@@ -183,57 +184,58 @@ MVP считается достигнутым когда:
 
 ## Technical Design
 
-### Архитектура (5 слоёв)
+### Архитектура (4 слоя)
 
-```mermaid
-graph TD
-    subgraph layer1 [Layer 1: Tool Registry]
-        TR[tool-registry.md]
-        P1[provider: platform-context]
-        P2[provider: copilot-proxy]
-        P3[provider: test-runner]
-        P4[provider: log-checker]
-        P5[provider: metadata-tools]
-        P6[provider: batch-ops]
-        P7[provider: lsp-bridge]
-        TR --> P1 & P2 & P3 & P4 & P5 & P6 & P7
-    end
-
-    subgraph layer2 [Layer 2: Skills]
-        TU[tool-usage skills x6]
-        BP[bsl-practices skills x6]
-        SW[spec-writing skill]
-        XG[xml-generation skills x2]
-    end
-
-    subgraph layer3 [Layer 3: Rules]
-        MT[mandatory-tools]
-        CR[cross-review-policy]
-        TD[tdd-policy]
-        SD[sdd-policy]
-        MR[model-routing]
-    end
-
-    subgraph layer4 [Layer 4: Agents]
-        AN[analyst]
-        AR[architect]
-        DV[developer]
-        RV[reviewer]
-        TS[tester]
-        EX["explorer (Economy)"]
-        FM["formatter (Economy)"]
-    end
-
-    subgraph layer5 [Layer 5: Workflows]
-        FC[full-cycle]
-        QF[quick-fix]
-        OR[orchestrator]
-    end
-
-    layer2 --> layer1
-    layer3 --> layer2
-    layer4 --> layer2 & layer3
-    layer5 --> layer4
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│  Layer 4: WORKFLOWS                                                 │
+│  ┌─────────────┐  ┌───────────┐  ┌──────────────┐                  │
+│  │ full-cycle   │  │ quick-fix │  │ orchestrator │                  │
+│  └─────────────┘  └───────────┘  └──────────────┘                  │
+├──────────────────────────┬──────────────────────────────────────────┤
+                           │ зависит от
+                           ▼
+┌─────────────────────────────────────────────────────────────────────┐
+│  Layer 3: AGENTS (роли)                                             │
+│  ┌──────────┐ ┌───────────┐ ┌───────────┐ ┌──────────┐ ┌────────┐ │
+│  │ analyst  │ │ architect │ │ developer │ │ reviewer │ │ tester │ │
+│  │ (sonnet) │ │ (sonnet)  │ │ (sonnet)  │ │  (opus)  │ │(sonnet)│ │
+│  └──────────┘ └───────────┘ └───────────┘ └──────────┘ └────────┘ │
+│  ┌─────────────────┐  ┌──────────────────┐                         │
+│  │ explorer (haiku) │  │ formatter (haiku) │                        │
+│  └─────────────────┘  └──────────────────┘                         │
+├──────────────────────────┬──────────────────────────────────────────┤
+                           │ зависит от
+                           ▼
+┌─────────────────────────────────────────────────────────────────────┐
+│  Layer 2: RULES (политики)                                          │
+│  ┌─────────────────┐ ┌────────────────────┐ ┌────────────┐         │
+│  │ mandatory-tools │ │ cross-review-policy │ │ tdd-policy │         │
+│  └─────────────────┘ └────────────────────┘ └────────────┘         │
+│  ┌────────────┐                                                     │
+│  │ sdd-policy │                                                     │
+│  └────────────┘                                                     │
+├──────────────────────────┬──────────────────────────────────────────┤
+                           │ зависит от
+                           ▼
+┌─────────────────────────────────────────────────────────────────────┐
+│  Layer 1: SKILLS (знания)                                           │
+│  ┌───────────────────┐  ┌──────────────────┐  ┌──────────────┐     │
+│  │ tool-usage (x6)   │  │ bsl-practices(x6)│  │ spec-writing │     │
+│  │ (как использовать) │  │ (как писать код) │  │ (как писать  │     │
+│  │                    │  │                  │  │  спеки)      │     │
+│  └───────────────────┘  └──────────────────┘  └──────────────┘     │
+│  ┌───────────────────┐                                              │
+│  │ *_ext (расшир.)   │                                              │
+│  │ (agent-dev, etc.) │                                              │
+│  └───────────────────┘                                              │
+├─────────────────────────────────────────────────────────────────────┤
+                           │
+                           ▼
+               ┌───────────────────────┐
+               │  MCP-серверы (внешние) │
+               │  tools/list discovery │
+               └───────────────────────┘
 ```
 
 ### Структура каталогов
@@ -246,28 +248,19 @@ graph TD
 │   ├── mcp-inventory.md               # Полный инвентарь MCP-инструментов
 │   └── sources-analysis.md            # Критический анализ референсных репо
 │
-├── .cursor/                           # Адаптер для Cursor IDE
-│   ├── rules/bootstrap.mdc
-│   ├── skills/
-│   └── agents/
-│
 ├── framework/                         # Ядро (IDE-agnostic markdown)
-│   ├── tool-registry/                 # Слой 1
-│   │   ├── tool-registry.md
-│   │   ├── providers/ (7 файлов + шаблон)
-│   │   └── _template-provider.md
-│   │
-│   ├── skills/                        # Слой 2
-│   │   ├── tool-usage/ (6 файлов)
-│   │   ├── bsl-practices/ (6 файлов)
+│   ├── skills/                        # Слой 1
+│   │   ├── tool-usage/ (6 навыков)
+│   │   ├── bsl-practices/ (6 навыков)
 │   │   ├── spec-writing/spec-standard.md
-│   │   └── xml-generation/ (2 файла, опционально)
+│   │   └── *_ext/ (расширения внешних навыков)
 │   │
-│   ├── rules/ (5 файлов)             # Слой 3
-│   ├── agents/ (7 файлов + шаблон)   # Слой 4
-│   ├── workflows/ (3 файла)          # Слой 5
-│   └── config.md
+│   ├── rules/ (4 файла)              # Слой 2
+│   ├── agents/ (7 файлов + шаблон)   # Слой 3
+│   └── workflows/ (3 файла)          # Слой 4
 │
+├── tools/
+│   └── install.py                     # Установщик компонентов
 └── README.md
 ```
 
@@ -276,149 +269,94 @@ graph TD
 | Термин | Значение |
 |--------|----------|
 | **MCP server** | Конкретный сервер (репо, версия, endpoint). Пример: `alkoleft/mcp-bsl-platform-context v1.2` |
-| **Provider profile** | Файл-маппинг: какие capability реализует данный MCP server, через какие tool-ы, с какими параметрами |
-| **Capability** | Абстрактная возможность фреймворка (например, `check_syntax`). Не зависит от конкретного MCP server |
-| **Capability contract** | Описание интерфейса capability: входные параметры, формат результата, ошибки |
+| **Tool-usage skill** | Навык, описывающий КОГДА и КАК использовать MCP-инструменты для конкретной задачи |
+| **Capability** | Абстрактная возможность фреймворка (например, `check_syntax`). Маппинг capability → MCP tool в `framework/capabilities/registry.yaml` |
+| **_ext skill** | Расширение внешнего навыка (Anthropic и др.) с framework-специфичными дополнениями |
 
-### Capability Contracts (core)
+### Capability Index
 
-Каждая capability описывается контрактом. Provider profile обязан реализовать контракт или явно указать ограничения.
+Маппинг capability → MCP-сервер → конкретный tool хранится в [`framework/capabilities/registry.yaml`](../framework/capabilities/registry.yaml) — редактируется вручную или через CLI.
 
-**Формат контракта (в `tool-registry.md`):**
-
-```markdown
-#### check_syntax
-Категория: Core (MUST)
-Описание: Проверка синтаксиса BSL-модуля или конфигурации
-
-Входные параметры:
-- target (string, REQUIRED) — путь к модулю или "all" для всей конфигурации
-- mode (string, OPTIONAL) — "edt" | "designer", default: "edt"
-
-Результат:
-- success (boolean) — проверка пройдена без ошибок
-- errors (array) — [{file, line, message, severity}]
-- warnings (array) — [{file, line, message}]
-
-Типичные ошибки:
-- Сервер недоступен → capability помечается unavailable
-- Таймаут на больших конфигурациях → увеличить timeout в config
-
-Побочные эффекты: нет (read-only)
-```
+Агенты обнаруживают доступные инструменты динамически через MCP (`tools/list`). Tool-usage навыки объясняют агенту КОГДА и ПОЧЕМУ использовать конкретные инструменты, включая workarounds и сценарии.
 
 **Категории capability:**
 
 | Категория | Capability | Описание |
 |-----------|-----------|----------|
-| **Core (MUST)** | `search_platform_api`, `check_syntax`, `run_tests`, `navigate_symbol`, `get_diagnostics` | Без них фреймворк не функционален |
-| **Important (SHOULD)** | `get_type_info`, `build_project`, `search_metadata`, `rename_symbol`, `get_call_graph`, `ask_ai_assistant` | Деградация качества, но работать можно |
-| **Optional (MAY)** | `search_event_log`, `search_tech_log`, `configure_tech_log`, `dump_config`, `launch_app`, `get_code_actions`, `search_templates`, `search_ssl_functions` | Дополнительные возможности |
+| **Core (MUST)** | `search_syntax_reference`, `check_syntax`, `run_tests`, `navigate_symbol`, `get_diagnostics` | Без них фреймворк не функционален |
+| **Important (SHOULD)** | `get_type_info`, `build_project`, `list_metadata_objects`, `get_metadata_structure`, `rename_symbol`, `get_call_graph`, `ask_ai_assistant` | Деградация качества, но работать можно |
+| **Optional (MAY)** | `search_event_log`, `search_tech_log`, `configure_tech_log`, `dump_config`, `launch_app`, `get_code_actions`, `check_code_quality`, `search_ssl_functions` | Дополнительные возможности |
 
-### Capability → Provider маппинг
+### Capability → MCP маппинг
 
-| Capability | Кат. | Provider profile | Конкретный tool в MCP |
-|------------|------|------------------|-----------------------|
-| `search_platform_api` | Core | platform-context | `search` |
-| `get_type_info` | Imp. | platform-context | `info` / `getMembers` / `getConstructors` |
-| `check_syntax` | Core | test-runner | `check_syntax_edt` (default) |
-| `run_tests` | Core | test-runner | `run_all_tests` / `run_module_tests` |
-| `build_project` | Imp. | test-runner | `build_project` |
-| `dump_config` | Opt. | test-runner | `dump_config` |
-| `launch_app` | Opt. | test-runner | `launch_app` |
-| `search_event_log` | Opt. | log-checker | `logc_get_event_log` |
-| `search_tech_log` | Opt. | log-checker | `logc_get_tech_log` |
-| `configure_tech_log` | Opt. | log-checker | `logc_configure_techlog` / `logc_save_techlog` / ... |
-| `search_metadata` | Imp. | metadata-tools | `list_metadata_objects` / `get_metadata_structure` |
-| `execute_query` | Opt. | metadata-tools | `execute_query` |
-| `validate_query` | Opt. | metadata-tools | `validate_query` |
-| `resolve_nav_link` | Opt. | metadata-tools | `parse_nav_link` / `get_nav_link` |
-| `navigate_symbol` | Core | lsp-bridge | `definition` / `symbol_explore` / `hover` |
-| `rename_symbol` | Imp. | lsp-bridge | `rename` |
-| `get_diagnostics` | Core | lsp-bridge | `document_diagnostics` |
-| `get_call_graph` | Imp. | lsp-bridge | `call_hierarchy` / `call_graph` |
-| `get_code_actions` | Opt. | lsp-bridge | `code_actions` |
-| `ask_ai_assistant` | Imp. | copilot-proxy | `ask_1c_ai` |
-| `search_templates` | Opt. | copilot-proxy | `ask_1c_ai` (промпт: "найди пример...") |
-| `search_ssl_functions` | Opt. | lsp-bridge → copilot-proxy (fallback) | `symbol_explore` → `ask_1c_ai` |
-
-### Матрица совместимости (Capability × Provider)
-
-> Полная матрица — в `docs/mcp-inventory.md`. Здесь — сводка.
-
-| Provider profile | Core caps | Important caps | Optional caps | Статус |
-|------------------|-----------|----------------|---------------|--------|
-| platform-context | 1/5 | 1/6 | 0/8 | Частичный |
-| test-runner | 2/5 | 1/6 | 2/8 | Частичный |
-| lsp-bridge | 2/5 | 3/6 | 1/8 | Основной |
-| copilot-proxy | 0/5 | 1/6 | 2/8 | Вспомогательный |
-| log-checker | 0/5 | 0/6 | 3/8 | Опциональный |
-| metadata-tools | 0/5 | 1/6 | 3/11 | Частичный — метаданные, запросы, навигационные ссылки |
-| batch-ops | 0/5 | 0/6 | 0/8 | Утилитарный |
+> Полная таблица: [`registry.yaml`](../framework/capabilities/registry.yaml)
 
 ### Tier-ы моделей (принцип)
 
-Фреймворк использует 4 tier-а моделей: **Economy → Mid → High → Premium**. Конкретные модели, цены и бенчмарки — в [`docs/model-capabilities.md`](model-capabilities.md).
+Модель задаётся per-agent через поле `model` в frontmatter: `haiku` (economy), `sonnet` (mid/high), `opus` (premium). `install.py` ремаппит алиасы в конкретные модели для Cursor IDE. Подробности: [`docs/model-capabilities.md`](model-capabilities.md).
 
-**Правила маршрутизации:**
-- Если задачу можно поручить более дешёвой модели без снижения качества — ОБЯЗАТЕЛЬНО поручить ей
-- Explorer (исследование кода) — всегда Economy (grep + LSP = детерминированный результат)
-- Ревьюер НЕ должен быть слабее автора (tier ≥ tier автора)
-- Финальный ревью перед пользователем — всегда Premium
+**Правила:**
+- Если задачу можно решить дешёвой моделью — используй дешёвую (Explorer, Formatter → haiku)
+- Ревьюер НЕ должен быть слабее автора (`model` ревьюера ≥ `model` автора)
 
 ### Workflow: Full Cycle (детерминированный)
 
-```mermaid
-flowchart TD
-    Start([Задача от пользователя]) --> P0
+```
+  ┌──────────────────┐
+  │ Задача от        │
+  │ пользователя     │
+  └────────┬─────────┘
+           ▼
+╔══════════════════════════╗
+║  Phase 0: Классификация  ║
+║  Explorer (haiku)        ║
+╚════════════╤═════════════╝
+             │
+     ┌───────┴───────┐
+     ▼               ▼
+ [Простая]    [Средняя/Сложная]
+     │               │
+     ▼               ▼
+┌─────────┐  ╔═══════════════════════════════════════╗
+│quick-fix│  ║  Phase 1: Анализ                      ║
+│ 3 шага  │  ║  Analyst (sonnet) ──► Reviewer (opus)  ║
+└────┬────┘  ║       ▲ BLOCK ◄──────────┘            ║
+     │       ╚══════════════════╤════════════════════╝
+     │                          ▼
+     │       ╔═══════════════════════════════════════╗
+     │       ║  Phase 2: Архитектура                 ║
+     │       ║  Architect (sonnet) ──► Reviewer (opus) ║
+     │       ║       ▲ BLOCK ◄──────────┘            ║
+     │       ╠═══════════════════════════════════════╣
+     │       ║  ⏸  STOP: ждём ОК от пользователя    ║
+     │       ╚══════════════════╤════════════════════╝
+     │                          ▼
+     │       ╔═══════════════════════════════════════╗
+     │       ║  Phase 3: Разработка (TDD)            ║
+     │       ║  Developer (sonnet) ──► Reviewer (opus) ║
+     │       ║       ▲ BLOCK ◄──────────┘            ║
+     │       ╚══════════════════╤════════════════════╝
+     │                          ▼
+     │       ╔═══════════════════════════════════════╗
+     │       ║  Phase 4: Покрытие и регрессия        ║
+     │       ║  Tester (sonnet) ──► Reviewer (opus)   ║
+     │       ║       ▲ BLOCK ◄──────────┘            ║
+     │       ╚══════════════════╤════════════════════╝
+     │                          ▼
+     │       ╔═══════════════════════════════════════╗
+     │       ║  Phase 5: Итоги                       ║
+     │       ║  Formatter (haiku)                    ║
+     │       ╚══════════════════╤════════════════════╝
+     │                          │
+     └──────────┬───────────────┘
+                ▼
+  ┌──────────────────────┐
+  │ Результат            │
+  │ пользователю         │
+  └──────────────────────┘
 
-    subgraph P0 [Phase 0: Классификация]
-        C0[Explorer: Economy tier]
-        C0 --> Route{Сложность?}
-    end
-
-    Route -->|Простая| QF[Quick-fix: 3 шага]
-    Route -->|Средняя/Сложная| P1
-
-    subgraph P1 [Phase 1: Анализ]
-        A1[Analyst: Mid/High] --> R1[Reviewer: Premium]
-        R1 -->|BLOCK| A1
-        R1 -->|OK| P1Done[Спека готова]
-    end
-
-    P1Done --> P2
-
-    subgraph P2 [Phase 2: Архитектура]
-        A2[Architect: High/Premium] --> R2[Reviewer: Premium]
-        R2 -->|BLOCK| A2
-        R2 -->|OK| UserGate{Пользователь ОК?}
-    end
-
-    UserGate -->|Нет| A2
-    UserGate -->|Да| P3
-
-    subgraph P3 [Phase 3: Разработка]
-        A3[Developer: High] --> R3[Reviewer: Premium]
-        R3 -->|BLOCK| A3
-        R3 -->|OK| P3Done[Код готов]
-    end
-
-    P3Done --> P4
-
-    subgraph P4 [Phase 4: Покрытие и регрессия]
-        A4[Tester: Mid/High] --> R4[Reviewer: High]
-        R4 -->|BLOCK| A4
-        R4 -->|OK| P4Done[Тесты пройдены]
-    end
-
-    P4Done --> P5
-
-    subgraph P5 [Phase 5: Итоги]
-        A5[Formatter: Economy]
-    end
-
-    A5 --> Done([Результат пользователю])
-    QF --> Done
+  Легенда: модели задаются per-agent в frontmatter
+         BLOCK = возврат автору, макс. 3 итерации
 ```
 
 ### Кросс-ревью: протокол
@@ -504,7 +442,7 @@ flowchart TD
 
 | # | Сценарий | Как проверить | Ожидаемый результат | Приоритет | MVP? |
 |---|----------|--------------|---------------------|-----------|------|
-| 1 | Замена MCP-сервера | Подменить provider profile `test-runner` на мок | Навыки и правила ссылаются на capability, не ломаются | MUST | Да |
+| 1 | Замена MCP-сервера | Подключить другой MCP-сервер для check_syntax | Tool-usage навыки и правила не ломаются — агент обнаруживает tools через MCP | MUST | Да |
 | 2 | Capability contract соблюдён | Новый provider для `check_syntax` с другим MCP | Формат входов/выходов совпадает с контрактом | MUST | Да |
 | 3 | Кросс-ревью спеки | Спека с намеренной ошибкой → ревьюер | Ревьюер находит ошибку, ставит BLOCK по чек-листу | MUST | Нет |
 | 4 | Кросс-ревью кода | Код с запросом в цикле → ревьюер | Ревьюер находит антипаттерн по чек-листу BSL | MUST | Нет |
@@ -585,6 +523,7 @@ flowchart TD
 | 2026-02-11 | Tester: определяет причину падения, не всегда фиксит тест | GPT 5.2 audit: формулировка "фиксит тесты" опасна. Если причина в реализации — возврат Developer | Human + AI |
 | 2026-02-11 | Result Format: structured / raw_text / mixed | GPT 5.2 audit: capability contracts подразумевали JSON, реальные MCP-серверы возвращают raw text. Провайдер ДОЛЖЕН указать формат | Human + AI |
 | 2026-02-11 | metadata-tools: 6 tool-ов (метаданные + запросы + навигация) | Анализ исходников RooLee10/1c-mcp-tools: list_metadata_objects, get_metadata_structure, validate_query, execute_query, parse_nav_link, get_nav_link | Human + AI |
+| 2026-02-11 | Удалён tool-registry layer, config.md, model-routing.md | Tool-usage навыки + MCP discovery заменяют двухуровневую абстракцию. Модели задаются per-agent через field `model`. Упрощение: 4 слоя вместо 5, ~15 файлов удалено | Human + AI |
 
 ---
 
@@ -603,13 +542,14 @@ flowchart TD
 
 ```yaml
 ---
-id: agent/developer
-type: agent
-depends_on:
-  - skill/coding-standards
-  - skill/error-handling
-  - rule/mandatory-tools
-  - rule/tdd-policy
+name: developer
+description: >
+  Writes BSL code according to specification, following TDD.
+model: sonnet
+readonly: false
+skills:
+  - coding-standards
+  - error-handling
 ---
 ```
 
@@ -651,12 +591,11 @@ install.sh --ide cursor --include agent/developer workflow/full-cycle
 | # | Что | Prerequisite | Критерий выхода | MVP? |
 |---|-----|-------------|-----------------|------|
 | 1 | **docs/** — исследования (модели, MCP-инвентарь, анализ источников) | — | Документы созданы, данные зафиксированы | Да |
-| 2 | **tool-registry/** — capability contracts + provider profiles | #1 (MCP-инвентарь) | Core capabilities описаны, ≥3 провайдера с матрицей | Да |
+| 2 | **skills/tool-usage/** — навыки использования MCP-инструментов + capability registry | #1 (MCP-инвентарь) | Core capabilities покрыты навыками, registry заполнен | Да |
 | 3 | **skills/bsl-practices/** — стандарты кодирования, антипаттерны | — | ≥10 правил с обоснованиями | Да |
 | 4 | **skills/tool-usage/** — навыки работы с инструментами | #2 (ссылаются на capability) | Каждый навык привязан к capability, есть примеры | Да |
 | 5 | **skills/spec-writing/** — стандарт спецификации | — | Шаблон + пример заполненной спеки | Да |
-| 6 | **rules/** — mandatory-tools, cross-review, TDD, SDD, model-routing | #2, #3, #4 | Правила ссылаются на capability, не на tool-ы | Да |
+| 6 | **rules/** — mandatory-tools, cross-review, TDD, SDD | #3, #4 | Правила ссылаются на навыки, не на конкретные tool-ы | Да |
 | 7 | **agents/** — роли всех tier-ов | #6 (правила определяют поведение) | Протоколы: входы/выходы/ответственность | Частично |
 | 8 | **workflows/** — full-cycle, quick-fix, orchestrator | #7 (используют агентов) | Два демо-сценария проходят | Частично |
-| 9 | **config.md** — конфигурация | #2, #7 | Все параметры задокументированы | Да |
-| 10 | **.cursor/** — адаптер для Cursor IDE | #6, #7, #8 | bootstrap.mdc загружает ядро, агенты запускаются | Да |
+| 9 | **.cursor/** — адаптер для Cursor IDE | #6, #7, #8 | bootstrap.mdc загружает ядро, агенты запускаются | Да |

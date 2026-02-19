@@ -1,0 +1,24 @@
+---
+description: 1C BSL Agent Development Framework — bootstrap-контекст для всех задач
+alwaysApply: true
+---
+
+# 1C BSL Agent Development Framework
+
+Фреймворк агентной разработки для 1С BSL. Это минимальный контекст — детали загружай по требованию.
+
+## Когда загружать что
+
+| Ситуация | Что загрузить |
+|----------|---------------|
+| Обсуждение / планирование задачи | Ничего дополнительно — этого bootstrap достаточно |
+| Сложная задача (много шагов, несколько ролей) | `framework/workflows/orchestrator.md` |
+| Написание / редактирование BSL-кода | `framework/rules/mandatory-tools.md` + `framework/skills/bsl-practices/*` по необходимости |
+| Написание спецификации | `framework/skills/spec-writing/spec-standard.md` |
+| Ревью кода / артефактов | `framework/rules/cross-review-policy.md` + чек-лист |
+
+## Инструменты
+
+- Агент обнаруживает доступные инструменты динамически через MCP (`tools/list`) — не hardcode имена tool-ов
+- Навыки использования: `framework/skills/tool-usage/`
+- Справочник capability → MCP: `framework/skills/tool-usage/_capability-index.md`

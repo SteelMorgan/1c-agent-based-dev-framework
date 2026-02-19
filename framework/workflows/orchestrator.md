@@ -1,11 +1,11 @@
 ---
 id: workflow/orchestrator
 type: workflow
+name: orchestrator
 depends_on:
-  - workflow/full-cycle
-  - workflow/quick-fix
-  - rule/model-routing
-  - rule/cross-review-policy
+  - framework/workflows/full-cycle.md
+  - framework/workflows/quick-fix.md
+  - framework/rules/cross-review-policy.md
 ---
 
 # Оркестратор: Мета-воркфлоу
@@ -47,7 +47,7 @@ depends_on:
 
 ### 2. Маршрутизация моделей
 
-Выбирает tier для каждого агента по [model-routing.md](../rules/model-routing.md):
+Каждый агент имеет предустановленную модель (field `model` в frontmatter):
 - Economy — Explorer, Formatter
 - Mid/High — Analyst, Developer, Tester
 - High/Premium — Architect
@@ -91,7 +91,7 @@ depends_on:
    - Средняя/Сложная → full-cycle.md
    ↓
 4. Для каждой фазы выбранного воркфлоу:
-   a. Выбрать tier модели (model-routing.md)
+   a. Запустить агента (модель задана в agent frontmatter)
    b. Запустить агента с входными данными
    c. Собрать выходной артефакт
    d. Если требуется ревью:
@@ -149,27 +149,35 @@ depends_on:
 
 ## Диаграмма оркестратора
 
-```mermaid
-flowchart TD
-    Start([Задача]) --> Explorer[Explorer: классификация]
-    Explorer --> Decision{Сложность?}
-    Decision -->|Простая| QF[quick-fix]
-    Decision -->|Средняя/Сложная| FC[full-cycle]
-
-    QF --> QFSteps[3 шага без ревью]
-    QFSteps --> Done([Результат])
-
-    FC --> P1[Phase 1: Analyst]
-    P1 --> R1[Reviewer]
-    R1 --> P2[Phase 2: Architect]
-    P2 --> R2[Reviewer]
-    R2 --> UserGate{Пользователь ОК?}
-    UserGate -->|Да| P3[Phase 3: Developer]
-    P3 --> R3[Reviewer]
-    R3 --> P4[Phase 4: Tester]
-    P4 --> R4[Reviewer]
-    R4 --> P5[Phase 5: Formatter]
-    P5 --> Done
+```
+  ┌──────────┐
+  │  Задача  │
+  └─────┬────┘
+        ▼
+  ┌──────────────────────┐
+  │ Explorer (Economy)   │
+  │ классификация задачи │
+  └──────────┬───────────┘
+             │
+     ┌───────┴────────┐
+     ▼                ▼
+ [Простая]     [Средняя/Сложная]
+     │                │
+     ▼                ▼
+┌──────────┐   ┌─────────────────────────────────────────┐
+│quick-fix │   │              full-cycle                  │
+│          │   │                                          │
+│ 1. Найти │   │  Analyst ──► Review ──► Architect ──►    │
+│ 2. Fixить│   │  Review ──► ⏸ User OK? ──► Developer    │
+│ 3. Check │   │  ──► Review ──► Tester ──► Review ──►   │
+│          │   │  Formatter                               │
+└─────┬────┘   └───────────────────┬─────────────────────┘
+      │                            │
+      └────────────┬───────────────┘
+                   ▼
+            ┌────────────┐
+            │  Результат │
+            └────────────┘
 ```
 
 ---
@@ -180,6 +188,5 @@ flowchart TD
 |--------|-------|
 | [full-cycle.md](./full-cycle.md) | Детерминированный воркфлоу |
 | [quick-fix.md](./quick-fix.md) | Облегчённый воркфлоу |
-| [model-routing.md](../rules/model-routing.md) | Выбор tier моделей |
 | [cross-review-policy.md](../rules/cross-review-policy.md) | Протокол ревью |
 | [docs/SPEC-001-framework-architecture.md](../../docs/SPEC-001-framework-architecture.md) | Архитектура фреймворка |
