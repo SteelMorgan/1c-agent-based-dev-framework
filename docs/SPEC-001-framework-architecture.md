@@ -35,7 +35,7 @@ Reviewers: GPT 5.2 (feedback), Opus 4.6 (analysis + fixes)
 
 MVP считается достигнутым когда:
 - Есть tool-usage навыки для core capabilities (search, check, test, navigate)
-- Есть capability-index с маппингом для 7 MCP-серверов
+- Есть capability registry с маппингом для 7 MCP-серверов
 - Есть 1 рабочий адаптер (Cursor) с bootstrap
 - Есть демонстрационный сценарий quick-fix и full-cycle с артефактами
 - BSL coding standards и антипаттерны оформлены и работают
@@ -45,7 +45,7 @@ MVP считается достигнутым когда:
 ### MUST (обязательно — без этого задача не решена)
 
 1. `[MVP]` Фреймворк MUST быть модульным ("кубики конструктора") — каждый навык, правило, агент — отдельный файл, подключаемый независимо
-2. `[MVP]` Фреймворк MUST поддерживать замену MCP-сервера — агенты обнаруживают tools через MCP (`tools/list`), навыки описывают КОГДА и ПОЧЕМУ использовать; маппинг хранится в `_capability-index.md`
+2. `[MVP]` Фреймворк MUST поддерживать замену MCP-сервера — агенты обнаруживают tools через MCP (`tools/list`), навыки описывают КОГДА и ПОЧЕМУ использовать; маппинг хранится в `framework/capabilities/registry.yaml`
 3. `[MVP]` Каждая capability MUST быть покрыта tool-usage навыком с описанием сценариев и workarounds
 4. `[MVP]` Фреймворк MUST включать навыки, объясняющие агенту назначение каждого MCP-инструмента и примеры работы с ним
 5. `[MVP]` Фреймворк MUST включать правила обязательного использования tool-ов когда утверждение проверяемо и есть риск ошибки; если capability недоступен — агент MUST зафиксировать причину пропуска
@@ -98,7 +98,7 @@ MVP считается достигнутым когда:
   5. `metadata-tools` — [RooLee10/1c-mcp-tools](https://github.com/RooLee10/1c-mcp-tools)
   6. `batch-ops` — [vladimir-kharin/1c-batch](https://github.com/vladimir-kharin/1c-batch)
   7. `lsp-bridge` — mcp-bsl-lsp-bridge
-- 6 навыков по использованию инструментов + _capability-index.md
+- 6 навыков по использованию инструментов + capability registry
 - 6 навыков по BSL best practices
 - Навыки-расширения (_ext): agent-development_ext, skill-creator_ext
 - Стандарт спецификации (SDD)
@@ -122,7 +122,7 @@ MVP считается достигнутым когда:
 1. **Агент формирует инструкцию** — конкретный список: тип объекта, имя, реквизиты, табличные части, типы данных
 2. **Агент блокирует работу** и ждёт подтверждения пользователя (фаза помечается `WAITING_USER`)
 3. **Пользователь создаёт объект** в Конфигураторе/EDT и подтверждает готовность
-4. **Агент продолжает** — проверяет наличие объекта через `search_metadata` и пишет код модулей
+4. **Агент продолжает** — проверяет наличие объекта через `list_metadata_objects` и пишет код модулей
 
 ---
 
@@ -250,7 +250,7 @@ MVP считается достигнутым когда:
 │
 ├── framework/                         # Ядро (IDE-agnostic markdown)
 │   ├── skills/                        # Слой 1
-│   │   ├── tool-usage/ (6 навыков + _capability-index.md)
+│   │   ├── tool-usage/ (6 навыков)
 │   │   ├── bsl-practices/ (6 навыков)
 │   │   ├── spec-writing/spec-standard.md
 │   │   └── *_ext/ (расширения внешних навыков)
@@ -270,12 +270,12 @@ MVP считается достигнутым когда:
 |--------|----------|
 | **MCP server** | Конкретный сервер (репо, версия, endpoint). Пример: `alkoleft/mcp-bsl-platform-context v1.2` |
 | **Tool-usage skill** | Навык, описывающий КОГДА и КАК использовать MCP-инструменты для конкретной задачи |
-| **Capability** | Абстрактная возможность фреймворка (например, `check_syntax`). Маппинг capability → MCP tool в `_capability-index.md` |
+| **Capability** | Абстрактная возможность фреймворка (например, `check_syntax`). Маппинг capability → MCP tool в `framework/capabilities/registry.yaml` |
 | **_ext skill** | Расширение внешнего навыка (Anthropic и др.) с framework-специфичными дополнениями |
 
 ### Capability Index
 
-Маппинг capability → MCP-сервер → конкретный tool хранится в [`_capability-index.md`](../framework/skills/tool-usage/_capability-index.md) — справочник для разработчиков фреймворка.
+Маппинг capability → MCP-сервер → конкретный tool хранится в [`framework/capabilities/registry.yaml`](../framework/capabilities/registry.yaml) — редактируется вручную или через CLI.
 
 Агенты обнаруживают доступные инструменты динамически через MCP (`tools/list`). Tool-usage навыки объясняют агенту КОГДА и ПОЧЕМУ использовать конкретные инструменты, включая workarounds и сценарии.
 
@@ -284,12 +284,12 @@ MVP считается достигнутым когда:
 | Категория | Capability | Описание |
 |-----------|-----------|----------|
 | **Core (MUST)** | `search_syntax_reference`, `check_syntax`, `run_tests`, `navigate_symbol`, `get_diagnostics` | Без них фреймворк не функционален |
-| **Important (SHOULD)** | `get_type_info`, `build_project`, `search_metadata`, `rename_symbol`, `get_call_graph`, `ask_ai_assistant` | Деградация качества, но работать можно |
+| **Important (SHOULD)** | `get_type_info`, `build_project`, `list_metadata_objects`, `get_metadata_structure`, `rename_symbol`, `get_call_graph`, `ask_ai_assistant` | Деградация качества, но работать можно |
 | **Optional (MAY)** | `search_event_log`, `search_tech_log`, `configure_tech_log`, `dump_config`, `launch_app`, `get_code_actions`, `check_code_quality`, `search_ssl_functions` | Дополнительные возможности |
 
 ### Capability → MCP маппинг
 
-> Полная таблица: [`_capability-index.md`](../framework/skills/tool-usage/_capability-index.md)
+> Полная таблица: [`registry.yaml`](../framework/capabilities/registry.yaml)
 
 ### Tier-ы моделей (принцип)
 
@@ -591,7 +591,7 @@ install.sh --ide cursor --include agent/developer workflow/full-cycle
 | # | Что | Prerequisite | Критерий выхода | MVP? |
 |---|-----|-------------|-----------------|------|
 | 1 | **docs/** — исследования (модели, MCP-инвентарь, анализ источников) | — | Документы созданы, данные зафиксированы | Да |
-| 2 | **skills/tool-usage/** — навыки использования MCP-инструментов + _capability-index.md | #1 (MCP-инвентарь) | Core capabilities покрыты навыками, capability-index заполнен | Да |
+| 2 | **skills/tool-usage/** — навыки использования MCP-инструментов + capability registry | #1 (MCP-инвентарь) | Core capabilities покрыты навыками, registry заполнен | Да |
 | 3 | **skills/bsl-practices/** — стандарты кодирования, антипаттерны | — | ≥10 правил с обоснованиями | Да |
 | 4 | **skills/tool-usage/** — навыки работы с инструментами | #2 (ссылаются на capability) | Каждый навык привязан к capability, есть примеры | Да |
 | 5 | **skills/spec-writing/** — стандарт спецификации | — | Шаблон + пример заполненной спеки | Да |

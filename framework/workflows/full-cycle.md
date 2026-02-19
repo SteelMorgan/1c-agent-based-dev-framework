@@ -101,7 +101,7 @@ depends_on:
 | **Выход** | Классификация: простая / средняя / сложная |
 | **Маршрутизация** | Простая → `quick-fix.md`; Средняя/Сложная → Phase 1 |
 
-**Инструменты:** `navigate_symbol`, `get_call_graph`, `search_metadata`, `get_diagnostics`
+**Инструменты:** `navigate_symbol`, `get_call_graph`, `list_metadata_objects`, `get_metadata_structure`, `get_diagnostics`
 
 ---
 

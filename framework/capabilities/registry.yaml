@@ -1,0 +1,48 @@
+# Capability → MCP (server, tool)
+# Редактируется через CLI: python tools/capability-registry.py. См. docs/capability-replacement.md
+# Агент использует framework/capabilities/resolved-map.md для резолва capability → вызов.
+
+navigate_symbol: { server: lsp-bsl-bridge, tool: navigate_symbol }
+get_call_graph: { server: lsp-bsl-bridge, tool: get_call_graph }
+get_diagnostics: { server: lsp-bsl-bridge, tool: get_diagnostics }
+get_code_actions: { server: lsp-bsl-bridge, tool: get_code_actions }
+rename_symbol: { server: lsp-bsl-bridge, tool: rename_symbol }
+search_ssl_functions: { server: lsp-bsl-bridge, tool: search_ssl_functions }
+
+check_syntax: { server: test-runner, tool: check_syntax }
+run_tests: { server: test-runner, tool: run_tests }
+build_project: { server: test-runner, tool: build_project }
+dump_config: { server: test-runner, tool: dump_config }
+
+# 1c-mcp: метаданные, запросы, навигационные ссылки
+list_metadata_objects: { server: 1c-mcp, tool: list_metadata_objects }
+get_metadata_structure: { server: 1c-mcp, tool: get_metadata_structure }
+validate_query: { server: 1c-mcp, tool: validate_query }
+execute_query: { server: 1c-mcp, tool: execute_query }
+parse_nav_link: { server: 1c-mcp, tool: parse_nav_link }
+get_nav_link: { server: 1c-mcp, tool: get_nav_link }
+
+search_syntax_reference: { server: 1c-platform-context, tool: search_syntax_reference }
+get_type_info: { server: 1c-platform-context, tool: get_type_info }
+ask_ai_assistant: { server: 1c-copilot-proxy, tool: ask_1c_ai }
+search_event_log: { server: 1c-log-checker, tool: search_event_log }
+search_tech_log: { server: 1c-log-checker, tool: search_tech_log }
+configure_tech_log: { server: 1c-log-checker, tool: configure_tech_log }
+
+# Browser automation — Playwright MCP (Microsoft). npx @playwright/mcp@latest
+#browser_navigate: { server: playwright, tool: browser_navigate }
+#browser_snapshot: { server: playwright, tool: browser_snapshot }
+#browser_fill: { server: playwright, tool: browser_type }
+#browser_click: { server: playwright, tool: browser_click }
+#browser_take_screenshot: { server: playwright, tool: browser_take_screenshot }
+#browser_console_messages: { server: playwright, tool: browser_console_messages }
+#browser_wait_for: { server: playwright, tool: browser_wait_for }
+
+# chrome-devtools-mcp — другие имена tools
+browser_navigate: { server: chrome-devtools, tool: navigate_page }
+browser_snapshot: { server: chrome-devtools, tool: take_snapshot }
+browser_fill: { server: chrome-devtools, tool: fill }
+browser_click: { server: chrome-devtools, tool: click }
+browser_take_screenshot: { server: chrome-devtools, tool: take_screenshot }
+browser_console_messages: { server: chrome-devtools, tool: list_console_messages }
+browser_wait_for: { server: chrome-devtools, tool: wait_for }
