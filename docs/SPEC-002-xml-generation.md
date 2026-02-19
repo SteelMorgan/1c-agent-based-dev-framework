@@ -498,7 +498,7 @@ app:
 ### Phase 6: Интеграция (оценка: ~100 строк diff)
 
 - `xml-generation.md` — обзорный навык: что такое xml-gen, как использовать, ссылки на DSL-навыки
-- Обновить `framework/skills/tool-usage/_capability-index.md` — добавить xml-generation
+- Обновить `framework/capabilities/registry.yaml` — добавить xml-generation capabilities
 - Обновить `docs/SPEC-001-framework-architecture.md` — отметить requirement как выполненный
 - Обновить `README.md` — добавить xml-generation в структуру
 - Добавить xml-generation в `skills` frontmatter агентов `developer.md` и `formatter.md`
@@ -671,7 +671,7 @@ src/test/resources/ext/designer/mdclasses/src/cf/Roles/Роль1/Ext/Rights.xml
 
 | Файл | Что добавить |
 |------|-------------|
-| `framework/skills/tool-usage/_capability-index.md` | Строки с xml-generation capabilities |
+| `framework/capabilities/registry.yaml` | Строки с xml-generation capabilities |
 | `docs/SPEC-001-framework-architecture.md` | Отметить requirement #4 как выполненный |
 | `README.md` | Добавить `xml-generation` в структуру каталогов и таблицу навыков |
 | `framework/agents/developer.md` | Добавить `xml-generation/*` в `skills` frontmatter |
@@ -695,10 +695,10 @@ skills:
 ---
 ```
 
-### Формат capability-index (пример строки)
+### Формат registry.yaml (пример строки)
 
-```markdown
-| `xml_generate_form` | local (xml-gen.jar) | `java -jar xml-gen.jar form compile` | xml-generation/form-dsl |
+```yaml
+xml_generate_form: { server: local, tool: "java -jar xml-gen.jar form compile" }
 ```
 
 ---

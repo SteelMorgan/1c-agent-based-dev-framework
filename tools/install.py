@@ -505,13 +505,13 @@ def _build_checklist_items(graph: FrameworkGraph) -> List:
     return items
 
 
-def interactive_select(graph: FrameworkGraph) -> Set[str]:
+def interactive_select(graph: FrameworkGraph, preselected: Optional[Set[str]] = None) -> Set[str]:
     """Интерактивный выбор компонентов (TUI или текст)."""
 
     # TUI mode
     if _HAS_TUI and is_tui_available():
         items = _build_checklist_items(graph)
-        result = select_many("Выберите компоненты:", items)
+        result = select_many("Выберите компоненты:", items, preselected=preselected)
         if result is None:
             sys.exit(0)
         if not result:
@@ -520,7 +520,7 @@ def interactive_select(graph: FrameworkGraph) -> Set[str]:
         return result
 
     # Text fallback
-    selected: Set[str] = set()
+    selected: Set[str] = set(preselected or set())
 
     while True:
         print(f"\n{'─' * 70}")
@@ -844,23 +844,95 @@ def detect_symlink_support() -> bool:
         shutil.rmtree(test_dir, ignore_errors=True)
 
 
+def _component_source_paths(comp: Component) -> Tuple[Path, Path, str]:
+    """
+    Возвращает (source_file, source_path_for_link, short_name).
+    source_path_for_link:
+      - skill -> директория навыка
+      - остальное -> файл компонента
+    """
+    source_file = comp.filepath.resolve()
+
+    if comp.type == "skill" and source_file.name == "SKILL.md":
+        source_path = source_file.parent
+        short_name = source_file.parent.name
+    else:
+        source_path = source_file
+        _, _, short_name = comp.id.rpartition("/")
+        if not short_name:
+            short_name = comp.id.replace("/", "-")
+
+    return source_file, source_path, short_name
+
+
+def _component_target_file(comp: Component, ide_key: str, project_dir: Path) -> Path:
+    """Строит целевой путь компонента в каталоге проекта."""
+    ide_cfg = IDE_CONFIGS[ide_key]
+    dir_key = TYPE_TO_DIR.get(comp.type, "rules_dir")
+    target_base = project_dir / ide_cfg[dir_key]
+    _, _, short_name = _component_source_paths(comp)
+    return target_base / f"{short_name}.md"
+
+
+def _norm_path(path: Path) -> str:
+    """Нормализует путь для безопасного сравнения."""
+    return str(path.resolve(strict=False))
+
+
+def detect_existing_component_symlinks(
+    graph: FrameworkGraph,
+    ide_key: str,
+    project_dir: Path,
+) -> Set[str]:
+    """
+    Определяет уже установленные компоненты по существующим симлинкам проекта.
+    Возвращает набор comp_id, для которых симлинк указывает на ожидаемый источник.
+    """
+    detected: Set[str] = set()
+
+    for comp in graph.get_installable():
+        if graph.is_framework_meta_skill(comp.id):
+            continue
+
+        target_file = _component_target_file(comp, ide_key, project_dir)
+        if not target_file.is_symlink():
+            continue
+
+        _, expected_source, _ = _component_source_paths(comp)
+        try:
+            raw_link = os.readlink(target_file)
+        except OSError:
+            continue
+
+        link_target = Path(raw_link)
+        if not link_target.is_absolute():
+            link_target = target_file.parent / link_target
+
+        if _norm_path(link_target) == _norm_path(expected_source):
+            detected.add(comp.id)
+
+    return detected
+
+
 def install_components(
     graph: FrameworkGraph,
     selected_ids: Set[str],
+    existing_symlink_ids: Set[str],
     ide_key: str,
     project_dir: Path,
     use_symlinks: bool,
     dry_run: bool = False,
-) -> Tuple[int, int]:
+) -> Tuple[int, int, int]:
     """
     Устанавливает выбранные компоненты в директорию проекта.
-    Возвращает (установлено, пропущено).
+    Возвращает (установлено/обновлено, пропущено, удалено).
     """
     ide_cfg = IDE_CONFIGS[ide_key]
 
     # Резолвим зависимости
     all_ids = graph.resolve_dependencies(selected_ids)
     extra_deps = all_ids - selected_ids
+    to_remove = existing_symlink_ids - all_ids
 
     if extra_deps:
         print(f"\n  {bold('Добавлены зависимости')} ({len(extra_deps)} шт.):")
@@ -868,6 +940,13 @@ def install_components(
             comp = graph.components.get(dep_id)
             name = comp.display_name if comp else dep_id
             print(f"    + {dep_id:<40} {dim(name)}")
+
+    if to_remove:
+        print(f"\n  {bold('Будут удалены снятые компоненты')} ({len(to_remove)} шт.):")
+        for comp_id in sorted(to_remove):
+            comp = graph.components.get(comp_id)
+            name = comp.display_name if comp else comp_id
+            print(f"    - {comp_id:<40} {dim(name)}")
 
     print(f"\n  Итого к установке: {bold(str(len(all_ids)))} компонентов")
     print(f"  Метод: {bold('симлинки' if use_symlinks else 'копирование файлов')}")
@@ -882,10 +961,27 @@ def install_components(
             sys.exit(0)
         if confirm and confirm not in ("y", "yes", "д", "да", ""):
             print("  Отменено.")
-            return 0, 0
+            return 0, 0, 0
 
     installed = 0
     skipped = 0
+    removed = 0
+
+    for comp_id in sorted(to_remove):
+        comp = graph.components.get(comp_id)
+        if not comp:
+            continue
+
+        target_file = _component_target_file(comp, ide_key, project_dir)
+        if dry_run:
+            if target_file.is_symlink():
+                print(f"    ← remove symlink {target_file}")
+                removed += 1
+            continue
+
+        if target_file.is_symlink():
+            target_file.unlink()
+            removed += 1
 
     for comp_id in sorted(all_ids):
         comp = graph.components.get(comp_id)
@@ -901,27 +997,8 @@ def install_components(
             skipped += 1
             continue
 
-        # Определяем целевую директорию
-        dir_key = TYPE_TO_DIR.get(comp.type, "rules_dir")
-        target_base = project_dir / ide_cfg[dir_key]
-
-        # Определяем источник для симлинка/копирования
-        source_file = comp.filepath.resolve()
-        
-        # Для навыков: симлинк на родительскую директорию (папку навыка)
-        # Для агентов/правил: симлинк на файл
-        if comp.type == "skill" and source_file.name == "SKILL.md":
-            # Навык в новой структуре: симлинк на папку навыка
-            source_path = source_file.parent
-            short_name = source_file.parent.name
-        else:
-            # Агенты, правила, workflows: симлинк на файл
-            source_path = source_file
-            _, _, short_name = comp.id.rpartition("/")
-            if not short_name:
-                short_name = comp.id.replace("/", "-")
-        
-        target_file = target_base / f"{short_name}.md"
+        source_file, source_path, _ = _component_source_paths(comp)
+        target_file = _component_target_file(comp, ide_key, project_dir)
 
         if dry_run:
             action = "→ (symlink)" if use_symlinks else "→ (copy)"
@@ -961,7 +1038,7 @@ def install_components(
                 shutil.copy2(source_path, target_file)
             installed += 1
 
-    return installed, skipped
+    return installed, skipped, removed
 
 
 def relink(project_dir: Path):
@@ -1028,6 +1105,8 @@ def main():
                         help="Показать что будет сделано, без реальных изменений")
     parser.add_argument("--relink", action="store_true",
                         help="Проверить и пересоздать сломанные симлинки")
+    parser.add_argument("--sync", action="store_true",
+                        help="Синхронизировать установку: удалить снятые симлинки компонентов")
 
     args = parser.parse_args()
 
@@ -1078,6 +1157,7 @@ def main():
         project_dir = args.project_dir.resolve()
 
     # Выбор компонентов
+    preselected: Set[str] = set()
     if args.all:
         selected = {c.id for c in graph.get_installable()}
     elif args.include:
@@ -1089,7 +1169,11 @@ def main():
             print(f"  Используйте --list для просмотра доступных ID.")
             sys.exit(1)
     else:
-        selected = interactive_select(graph)
+        preselected = detect_existing_component_symlinks(graph, ide_key, project_dir)
+        if preselected:
+            print(f"\n  Найдено существующих симлинков компонентов: {bold(str(len(preselected)))}")
+            print(f"  {dim('Флаги в списке предварительно расставлены по текущей установке.')}")
+        selected = interactive_select(graph, preselected=preselected)
 
     # ── Шаг: Настройка моделей для агентов ──
     script_dir = Path(__file__).resolve().parent
@@ -1138,9 +1222,18 @@ def main():
             print(yellow("\n  ⚠ Симлинки недоступны (Windows без Developer Mode)."))
             print(yellow("    Файлы будут скопированы. При обновлении фреймворка — перезапустите install."))
 
-    installed, skipped = install_components(
+    if is_interactive and not (args.all or args.include):
+        sync_source = preselected
+    elif args.sync:
+        sync_source = detect_existing_component_symlinks(graph, ide_key, project_dir)
+        print(f"\n  Режим синхронизации (--sync): найдено текущих симлинков {bold(str(len(sync_source)))}")
+    else:
+        sync_source = set()
+
+    installed, skipped, removed = install_components(
         graph=graph,
         selected_ids=selected,
+        existing_symlink_ids=sync_source,
         ide_key=ide_key,
         project_dir=project_dir,
         use_symlinks=use_symlinks,
@@ -1149,9 +1242,11 @@ def main():
 
     print()
     if args.dry_run:
-        print(f"  {bold('[DRY RUN]')} Было бы установлено: {installed}, пропущено: {skipped}")
+        print(f"  {bold('[DRY RUN]')} Было бы установлено: {installed}, удалено: {removed}, пропущено: {skipped}")
     else:
         print(green(f"  ✓ Установлено: {installed} компонентов"))
+        if removed:
+            print(green(f"  ✓ Удалено симлинков: {removed}"))
         if skipped:
             print(yellow(f"  ⚠ Пропущено: {skipped}"))
 

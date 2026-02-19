@@ -34,8 +34,18 @@ public class GenValidator {
             "epf", new RootExpectation("ExternalDataProcessor", "http://v8.1c.ru/8.3/MDClasses")
     );
 
+    private final MetadataTypeValidator metadataValidator;
+
+    public GenValidator() {
+        this(null);
+    }
+
+    public GenValidator(MetadataTypeValidator metadataValidator) {
+        this.metadataValidator = metadataValidator;
+    }
+
     /**
-     * Выполнить общие проверки GEN-001..006.
+     * Выполнить общие проверки GEN-001..006 + SEM-001 (types).
      *
      * @param document      распарсенный документ
      * @param objectType    тип объекта ("form", "role", "skd", "mxl", "epf")
@@ -80,7 +90,29 @@ public class GenValidator {
         // GEN-006: UUID-атрибуты
         checkUuids(document.getRoot(), "/", issues);
 
+        // SEM-001: Проверка типов (если включено)
+        if (metadataValidator != null) {
+            checkTypes(document.getRoot(), "/", issues);
+        }
+
         return issues;
+    }
+    
+    private void checkTypes(XmlNode node, String path, List<ValidationIssue> issues) {
+        // Если это элемент <Type> или <v8:Type> - проверяем содержимое
+        if ("Type".equalsIgnoreCase(node.getName()) || "v8:Type".equalsIgnoreCase(node.getName())) {
+            String typeName = node.getText();
+            if (typeName != null && !typeName.isEmpty()) {
+                issues.addAll(metadataValidator.validateType(typeName, node, path));
+            }
+        }
+        
+        // Рекурсия
+        int idx = 0;
+        for (XmlNode child : node.getChildren()) {
+            idx++;
+            checkTypes(child, path + child.getName() + "[" + idx + "]/", issues);
+        }
     }
 
     /**

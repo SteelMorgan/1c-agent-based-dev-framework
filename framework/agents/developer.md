@@ -34,7 +34,7 @@ depends_on:
   - framework/skills/tool-usage/test-execution/SKILL.md
   - framework/skills/tool-usage/search-before-write/SKILL.md
   - framework/skills/tool-usage/log-analysis/SKILL.md
-  - framework/skills/xml-generation/SKILL.md
+  - framework/skills/xml-generation/xml-generation/SKILL.md
 ---
 
 You are an expert 1C:Enterprise (BSL) developer specializing in writing high-quality business application code.
