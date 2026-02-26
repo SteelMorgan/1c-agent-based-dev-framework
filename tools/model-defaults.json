@@ -57,6 +57,83 @@
     ]
   },
 
+  "roocode": {
+    "aliases": {
+      "haiku":  "claude-4.5-haiku",
+      "sonnet": "claude-4.5-sonnet-thinking",
+      "opus":   "claude-4.6-opus-high-thinking"
+    },
+    "available": [
+      "claude-4.6-opus-high-thinking",
+      "claude-4.5-sonnet-thinking",
+      "claude-4.5-haiku",
+      "gpt-5.3-codex-xhigh",
+      "gpt-5.2-xhigh",
+      "gemini-3-pro"
+    ]
+  },
+
+  "kilocode": {
+    "aliases": {
+      "haiku":  "claude-4.5-haiku",
+      "sonnet": "claude-4.5-sonnet-thinking",
+      "opus":   "claude-4.6-opus-high-thinking"
+    },
+    "available": [
+      "claude-4.6-opus-high-thinking",
+      "claude-4.5-sonnet-thinking",
+      "claude-4.5-haiku",
+      "gpt-5.3-codex-xhigh",
+      "gpt-5.2-xhigh",
+      "gemini-3-pro"
+    ]
+  },
+
+  "codex": {
+    "aliases": {
+      "haiku":  "claude-4.5-haiku",
+      "sonnet": "claude-4.5-sonnet-thinking",
+      "opus":   "claude-4.6-opus-high-thinking"
+    },
+    "available": [
+      "claude-4.6-opus-high-thinking",
+      "claude-4.5-sonnet-thinking",
+      "claude-4.5-haiku",
+      "gpt-5.3-codex-xhigh",
+      "gpt-5.2-xhigh",
+      "o3-pro"
+    ]
+  },
+
+  "kiro": {
+    "aliases": {
+      "haiku":  "claude-4.5-haiku",
+      "sonnet": "claude-4.5-sonnet-thinking",
+      "opus":   "claude-4.6-opus-high-thinking"
+    },
+    "available": [
+      "claude-4.6-opus-high-thinking",
+      "claude-4.5-sonnet-thinking",
+      "claude-4.5-haiku"
+    ]
+  },
+
+  "antigravity": {
+    "aliases": {
+      "haiku":  "claude-4.5-haiku",
+      "sonnet": "claude-4.5-sonnet-thinking",
+      "opus":   "claude-4.6-opus-high-thinking"
+    },
+    "available": [
+      "claude-4.6-opus-high-thinking",
+      "claude-4.5-sonnet-thinking",
+      "claude-4.5-haiku",
+      "gpt-5.3-codex-xhigh",
+      "gpt-5.2-xhigh",
+      "gemini-3-pro"
+    ]
+  },
+
   "generic": {
     "aliases": {
       "haiku":  "haiku",
