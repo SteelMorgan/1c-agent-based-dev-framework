@@ -53,20 +53,52 @@ IDE_CONFIGS = {
         "rules_dir": ".cursor/rules",
         "skills_dir": ".cursor/skills",
         "agents_dir": ".cursor/agents",
-        "description": "Cursor IDE — правила в .cursor/rules/, навыки в .cursor/skills/, агенты в .cursor/agents/",
+        "description": "Cursor IDE — правила в .cursor/rules/ (alwaysApply:true), навыки в .cursor/skills/",
+        # Cursor auto-loads .mdc files from .cursor/rules/ with alwaysApply:true — no manual import
     },
     "claude-code": {
         "name": "Claude Code",
-        "rules_dir": ".claude",
+        # Официальная схема (docs.anthropic.com):
+        #   CLAUDE.md — грузится автоматически при старте (в контекст)
+        #   .claude/rules/ — официальное место для разбивки; импортируется через @path в CLAUDE.md
+        # Наш installer кладёт правила в .claude/rules/ — правильное место,
+        # но CLAUDE.md с @-импортами нужно создать вручную.
+        "rules_dir": ".claude/rules",
+        "rules_ext": ".md",
         "skills_dir": ".claude/skills",
         "agents_dir": ".claude/agents",
-        "description": "Claude Code — AGENTS.md + .claude/, subagents в .claude/agents/",
+        "description": "Claude Code — CLAUDE.md + .claude/rules/, навыки в .claude/skills/, агенты в .claude/agents/",
+        # .claude/rules/*.md не грузятся сами — нужен CLAUDE.md с @-импортами
+        "rules_import_hint": {
+            "file": "CLAUDE.md",
+            "format": "@.claude/rules/{name}.md",
+            "note": (
+                "CLAUDE.md грузится автоматически при старте Claude Code.\n"
+                "Файлы из .claude/rules/ — официальный механизм разбивки,\n"
+                "но импортируются только через @-ссылки в CLAUDE.md.\n\n"
+                "Создайте CLAUDE.md в корне проекта и добавьте импорты\n"
+                "(рекомендуется держать CLAUDE.md до 200 строк — docs.anthropic.com):"
+            ),
+        },
     },
     "windsurf": {
         "name": "Windsurf",
+        # Нативно Windsurf читает только .windsurfrules (один файл в корне).
+        # .windsurf/rules/ — наша конвенция, нативно НЕ сканируется.
         "rules_dir": ".windsurf/rules",
         "skills_dir": ".windsurf/skills",
-        "description": "Windsurf — .windsurfrules + .windsurf/",
+        "description": "Windsurf — .windsurf/rules/ + .windsurfrules в корне, навыки в .windsurf/skills/",
+        # Windsurf нативно читает только .windsurfrules — нужно добавить ссылки туда
+        "rules_import_hint": {
+            "file": ".windsurfrules",
+            "format": "# See .windsurf/rules/{name}.md",
+            "note": (
+                "Windsurf нативно читает только файл .windsurfrules в корне проекта.\n"
+                "Директория .windsurf/rules/ НЕ сканируется автоматически.\n\n"
+                "Добавьте в .windsurfrules упоминание установленных правил\n"
+                "или скопируйте их содержимое напрямую. Минимальный вариант:"
+            ),
+        },
     },
     "vscode-continue": {
         "name": "VS Code + Continue",
@@ -79,35 +111,61 @@ IDE_CONFIGS = {
         "rules_dir": ".roo/rules",
         "skills_dir": ".roo/skills",
         "agents_dir": ".roo/agents",
-        "description": "RooCode — .roo/rules/, навыки в .roo/skills/, агенты в .roo/agents/",
+        "description": "RooCode — .roo/rules/ (все файлы авто), навыки в .roo/skills/, агенты в .roo/agents/",
+        # RooCode auto-loads ALL files from .roo/rules/ — no manual import needed
     },
     "kilocode": {
         "name": "Kilo Code",
         "rules_dir": ".kilocode/rules",
         "skills_dir": ".kilocode/skills",
         "agents_dir": ".kilocode/agents",
-        "description": "Kilo Code — AGENTS.md + .kilocode/, агенты в .kilocode/agents/",
+        "description": "Kilo Code — .kilocode/rules/ (авто, RooCode-форк), агенты в .kilocode/agents/",
+        # Kilo Code (RooCode fork) auto-loads ALL files from .kilocode/rules/ — no hint needed
     },
     "cilocode": {
         "name": "Cilo Code (alias Kilo Code)",
         "rules_dir": ".kilocode/rules",
         "skills_dir": ".kilocode/skills",
         "agents_dir": ".kilocode/agents",
-        "description": "Alias для Kilo Code: AGENTS.md + .kilocode/, агенты в .kilocode/agents/",
+        "description": "Alias для Kilo Code: .kilocode/rules/ (авто), агенты в .kilocode/agents/",
+        # Same as kilocode — auto-loads all files from .kilocode/rules/
     },
     "kiro": {
         "name": "Kiro",
         "rules_dir": ".kiro/steering",
         "skills_dir": ".kiro/skills",
         "agents_dir": ".kiro/agents",
-        "description": "Kiro — steering в .kiro/steering/, hooks в .kiro/hooks/, агенты в .kiro/agents/",
+        "description": "Kiro — .kiro/steering/ (авто при inclusion:always), навыки в .kiro/skills/",
+        # Kiro auto-loads steering docs with `inclusion: always` frontmatter
+        "rules_import_hint": {
+            "file": None,  # no entry-point file, but frontmatter required
+            "format": "",
+            "note": (
+                "Kiro загружает steering-файлы из .kiro/steering/ только при наличии\n"
+                "frontmatter-заголовка inclusion: always в каждом файле.\n\n"
+                "Если правила не срабатывают, добавьте в начало каждого .md файла:\n\n"
+                "  ---\n"
+                "  inclusion: always\n"
+                "  ---"
+            ),
+        },
     },
     "codex": {
-        "name": "Codex",
+        "name": "Codex CLI",
         "rules_dir": ".codex/rules",
         "skills_dir": ".codex/skills",
         "agents_dir": ".codex/agents",
-        "description": "Codex — AGENTS.md + .codex/, агенты в .codex/agents/",
+        "description": "Codex CLI (OpenAI) — AGENTS.md + .codex/rules/, агенты в .codex/agents/",
+        # Codex natively reads only AGENTS.md — .codex/rules/ is our convention, needs @ref
+        "rules_import_hint": {
+            "file": "AGENTS.md",
+            "format": "See .codex/rules/{name}.md for {name} rules",
+            "note": (
+                "Codex CLI читает только AGENTS.md (иерархически).\n"
+                "Файлы в .codex/rules/ НЕ загружаются автоматически.\n\n"
+                "Добавьте ссылки в AGENTS.md в корне проекта:"
+            ),
+        },
     },
     "antigravity": {
         "name": "Antigravity",
@@ -220,7 +278,13 @@ def _parse_simple_yaml_block(block: str) -> dict:
 
 
 def parse_frontmatter(filepath: Path) -> Optional[dict]:
-    """Парсит frontmatter и поддерживает технический backmatter в конце файла."""
+    """Парсит frontmatter и технические ---блоки--- в теле файла.
+
+    Ищет блоки в двух позициях:
+    1. Сразу после frontmatter (до первого заголовка #) — стиль full-cycle.
+    2. В конце файла (backmatter) — стиль subagent/*.md.
+    Из блоков берём только технические ключи (depends_on и др.).
+    """
     try:
         text = filepath.read_text(encoding="utf-8")
     except (OSError, UnicodeDecodeError):
@@ -232,10 +296,27 @@ def parse_frontmatter(filepath: Path) -> Optional[dict]:
 
     data = _parse_simple_yaml_block(front.group(1))
 
-    # Технический backmatter (например depends_on) в конце файла переопределяет frontmatter.
+    TECHNICAL_KEYS = {"depends_on", "metadata", "category", "version"}
+    body = text[front.end():]
+
+    # Позиция 1: блок сразу после frontmatter (до первого заголовка)
+    # Тело может начинаться сразу с --- (без ведущего \n)
+    early_block_re = re.compile(r"^\s*---\s*\n(.*?)\n---\s*(?:\n|$)", re.DOTALL)
+    m = early_block_re.match(body)
+    if m:
+        block_data = _parse_simple_yaml_block(m.group(1))
+        for key in TECHNICAL_KEYS:
+            if key in block_data:
+                data[key] = block_data[key]
+
+    # Позиция 2: backmatter — блок в самом конце файла
+    # BACKMATTER_RE ищет \n---\n...\n---\n?$ — работает для subagent/*.md
     back = BACKMATTER_RE.search(text)
     if back:
-        data.update(_parse_simple_yaml_block(back.group(1)))
+        block_data = _parse_simple_yaml_block(back.group(1))
+        for key in TECHNICAL_KEYS:
+            if key in block_data:
+                data[key] = block_data[key]
 
     return data
 
@@ -311,8 +392,10 @@ class FrameworkGraph:
         return None
 
     def _scan(self):
-        """Сканирует framework/ на .md файлы с frontmatter."""
-        for md_file in sorted(self.framework_dir.rglob("*.md")):
+        """Сканирует framework/ на .md и .mdc файлы с frontmatter."""
+        for md_file in sorted(self.framework_dir.rglob("*")):
+            if md_file.suffix not in (".md", ".mdc"):
+                continue
             if md_file.name.startswith("_"):
                 continue  # Пропускаем шаблоны и служебные файлы
 
@@ -333,19 +416,19 @@ class FrameworkGraph:
             
             # Обрабатываем зависимости
             depends = fm.get("depends_on", [])
-            
-            # Для агентов/сабагентов: конвертируем skills список в пути
-            if comp_type in ("agent", "subagent") and "skills" in fm:
+
+            # Для агентов/субагентов: если backmatter depends_on отсутствует —
+            # строим зависимости из списка skills: в frontmatter.
+            # Если depends_on уже есть (backmatter) — не дублируем.
+            if comp_type in ("agent", "subagent") and "skills" in fm and not depends:
                 skills = fm.get("skills", [])
                 if isinstance(skills, list):
-                    # Конвертируем имена навыков в пути (нужно найти файл по имени)
                     skill_paths = []
                     for skill_name in skills:
-                        # Ищем навык по имени в уже отсканированных или по структуре
                         skill_path = self._find_skill_path(skill_name)
                         if skill_path:
                             skill_paths.append(skill_path)
-                    depends.extend(skill_paths)
+                    depends = skill_paths
             
             if isinstance(depends, str):
                 depends = [depends] if depends else []
@@ -521,14 +604,14 @@ def red(t): return _c(t, "31")
 TYPE_LABELS = {
     "skill": "Навыки",
     "rule": "Правила",
-    "agent": "Агенты",
+    "subagent": "Агенты",
     "workflow": "Воркфлоу",
 }
 
 TYPE_ICONS = {
     "skill": "📘",
     "rule": "📋",
-    "agent": "🤖",
+    "subagent": "🤖",
     "workflow": "🔄",
 }
 
@@ -539,6 +622,7 @@ SKILL_CATEGORY_LABELS = {
     "tool-usage/xml-generation": "XML-генерация",
     "spec-writing": "Спецификации",
     "framework-meta": "Framework-meta",
+    "other": "Прочее",
 }
 
 
@@ -550,7 +634,7 @@ def print_tree(graph: FrameworkGraph, selected: Optional[Set[str]] = None):
     idx = 1
     idx_map: Dict[int, str] = {}
 
-    for comp_type in ["workflow", "agent", "rule", "skill"]:
+    for comp_type in ["workflow", "subagent", "rule", "skill"]:
         comps = [c for c in installable if c.type == comp_type]
         if not comps:
             continue
@@ -580,44 +664,101 @@ def print_tree(graph: FrameworkGraph, selected: Optional[Set[str]] = None):
         else:
             for c in comps:
                 marker = green(" ✓") if selected and c.id in selected else ""
-                deps_str = dim(f" ({len(c.depends_on)} зав.)") if c.depends_on else ""
-                meta_note = ""
                 linked = graph.get_linked_components(c.id)
                 link_str = cyan(f" ↔ {', '.join(lid.split('/')[-1] for lid in linked)}") if linked else ""
-                print(f"    {cyan(str(idx).rjust(3))}  {c.id:<40} {c.display_name}{deps_str}{meta_note}{link_str}{marker}")
+                # Для субагентов: показываем оценку контекста (навыки + правила зависимостей)
+                if comp_type in ("agent", "subagent") and c.depends_on:
+                    deps = graph.resolve_dependencies({c.id})
+                    ctx_text = "\n".join(
+                        _collect_component_text(graph.components[d])
+                        for d in deps
+                        if d in graph.components and graph.components[d].type in ("rule", "skill")
+                    )
+                    ctx_tokens = _estimate_tokens(ctx_text)
+                    cyr_text, lat_text = _split_cyrillic_latin(ctx_text)
+                    eng_tokens = int(round(_estimate_tokens(cyr_text) * 0.7 + _estimate_tokens(lat_text)))
+                    ctx_str = dim(f" [Тек. = {ctx_tokens}, eng = {eng_tokens}]")
+                else:
+                    deps_count = len(c.depends_on)
+                    ctx_str = dim(f" ({deps_count} зав.)") if deps_count else ""
+                print(f"    {cyan(str(idx).rjust(3))}  {c.id:<40} {c.display_name}{ctx_str}{link_str}{marker}")
                 idx_map[idx] = c.id
                 idx += 1
 
     return idx_map
 
 
-def select_ide() -> str:
-    """Интерактивный выбор IDE (TUI или текст)."""
+def select_ides() -> List[str]:
+    """Интерактивный выбор одной или нескольких IDE (TUI или текст).
+
+    Возвращает список выбранных ключей IDE.
+    """
     ide_list = list(IDE_CONFIGS.keys())
 
-    # TUI mode
+    # TUI mode — select_many принимает List[Tuple[id, label, desc, is_header]]
+    # и возвращает Set[str] (набор выбранных id)
     if _HAS_TUI and is_tui_available():
+        try:
+            # ChecklistItem = Tuple[str, str, str, bool]: (id, label, description, is_header)
+            checklist: List = [
+                (key, cfg["name"], cfg["description"], False)
+                for key, cfg in IDE_CONFIGS.items()
+            ]
+            while True:
+                result = select_many(
+                    "Выберите IDE  [Пробел — отметить, Enter — подтвердить, нужна ≥1]:",
+                    checklist,
+                    allow_back=False,
+                )
+                if result is None:
+                    sys.exit(0)
+                # result — Set[str] с выбранными id (ключами IDE)
+                # Сохраняем порядок из ide_list
+                selected_keys = [k for k in ide_list if k in result]
+                if selected_keys:
+                    return selected_keys
+                # Пустой выбор — показываем снова с подсказкой
+        except Exception:
+            pass
+        # Fallback: одиночный выбор
         items = [(cfg["name"], cfg["description"]) for cfg in IDE_CONFIGS.values()]
         idx = select_one("Выберите IDE:", items)
         if idx < 0:
             sys.exit(0)
-        return ide_list[idx]
+        return [ide_list[idx]]
 
-    # Text fallback
-    print(f"\n{bold('Выберите IDE:')}\n")
+    # Text fallback — с поддержкой множественного ввода
+    print(f"\n{'─' * 70}")
+    print(bold("  Выберите IDE"))
+    print(f"{'─' * 70}")
+    print(f"\n  {dim('Можно выбрать несколько: например, 1,3 или 1-3')}\n")
     for i, key in enumerate(ide_list, 1):
         cfg = IDE_CONFIGS[key]
-        print(f"  {cyan(str(i))}  {cfg['name']:<25} {dim(cfg['description'])}")
+        hint = ""
+        if "rules_import_hint" in cfg:
+            hint = yellow(" ⚠ требует ручной настройки")
+        print(f"  {cyan(str(i).rjust(2))}  {cfg['name']:<25} {dim(cfg['description'])}{hint}")
 
     while True:
         try:
             choice = input(f"\n{bold('IDE')} [1-{len(ide_list)}]: ").strip()
-            num = int(choice)
-            if 1 <= num <= len(ide_list):
-                return ide_list[num - 1]
+            nums = _parse_numbers(choice)
+            keys = []
+            for n in nums:
+                if 1 <= n <= len(ide_list):
+                    key = ide_list[n - 1]
+                    if key not in keys:
+                        keys.append(key)
+            if keys:
+                return keys
         except (ValueError, EOFError):
             pass
         print(red("  Некорректный выбор. Повторите."))
+
+
+# Обратная совместимость для кода который ещё вызывает select_ide()
+def select_ide() -> str:
+    return select_ides()[0]
 
 
 def _skill_category(comp: "Component", framework_dir: Path) -> str:
@@ -642,7 +783,7 @@ def _build_checklist_items(graph: FrameworkGraph) -> List:
     installable = graph.get_installable_for_user()
     fw_dir = graph.framework_dir
 
-    types_order = ["workflow", "agent", "rule", "skill"]
+    types_order = ["workflow", "agent", "subagent", "rule", "skill"]
     for comp_type in types_order:
         comps = [c for c in installable if c.type == comp_type]
         if not comps:
@@ -666,13 +807,30 @@ def _build_checklist_items(graph: FrameworkGraph) -> List:
                     items.append((c.id, c.id, c.short_description(), False))
         else:
             for c in comps:
-                items.append((c.id, c.id, c.short_description(), False))
+                # Для агентов/субагентов — описание с оценкой контекста навыков+правил
+                if comp_type in ("agent", "subagent") and c.depends_on:
+                    deps = graph.resolve_dependencies({c.id})
+                    ctx_text = "\n".join(
+                        _collect_component_text(graph.components[d])
+                        for d in deps
+                        if d in graph.components and graph.components[d].type in ("rule", "skill")
+                    )
+                    ctx_tokens = _estimate_tokens(ctx_text)
+                    cyr_text, lat_text = _split_cyrillic_latin(ctx_text)
+                    eng_tokens = int(round(_estimate_tokens(cyr_text) * 0.7 + _estimate_tokens(lat_text)))
+                    desc = f"{c.short_description()} [Тек. = {ctx_tokens}, eng = {eng_tokens}]"
+                else:
+                    desc = c.short_description()
+                items.append((c.id, c.id, desc, False))
 
     return items
 
 
 def interactive_select(
-    graph: FrameworkGraph, preselected: Optional[Set[str]] = None
+    graph: FrameworkGraph,
+    preselected: Optional[Set[str]] = None,
+    show_context_estimate: bool = False,
+    show_english_estimate: bool = False,
 ) -> Optional[Set[str]]:
     """Интерактивный выбор компонентов (TUI или текст).
     Возвращает: Set[str] — выбранные ID, None — отмена, BACK — назад к предыдущему шагу.
@@ -685,6 +843,19 @@ def interactive_select(
             comp = graph.components.get(comp_id)
             return comp.filepath if comp else None
 
+        def _status_lines(selected_ids: Set[str]) -> List[str]:
+            if not selected_ids:
+                return []
+            always_tokens, on_demand_tokens, total_tokens, english_total, savings = estimate_context_usage(
+                graph,
+                selected_ids,
+            )
+            savings_str = f" (экономия {savings})" if savings else ""
+            return [
+                f"Контекст: ~{total_tokens} токенов (всегда {always_tokens} + по треб. {on_demand_tokens})",
+                f"English-only: ~{english_total}{savings_str}",
+            ]
+
         result = select_many(
             "Выберите компоненты:",
             items,
@@ -693,11 +864,68 @@ def interactive_select(
             get_dependencies=graph.get_all_dependencies,
             get_required_by=graph.get_required_by,
             get_mutual=lambda cid: graph.get_linked_components(cid),
+            status_lines_provider=_status_lines,
         )
         return result  # None | BACK | Set[str]
 
     # Text fallback
     selected: Set[str] = set(preselected or set())
+    # Отслеживаем, какие зависимости были добавлены автоматически и кем
+    # auto_deps[dep_id] = set of comp_ids that caused this dep to be auto-added
+    auto_deps: Dict[str, Set[str]] = {}
+
+    # Инициализируем auto_deps для preselected (тихо, без вывода)
+    for _pre_cid in list(preselected or []):
+        for _dep in graph.get_all_dependencies(_pre_cid) - {_pre_cid}:
+            auto_deps.setdefault(_dep, set()).add(_pre_cid)
+
+    def _auto_add_deps(cid: str) -> None:
+        """Авто-добавляет транзитивные зависимости компонента cid, помечая их как авто."""
+        deps = graph.get_all_dependencies(cid) - {cid}
+        newly_added = []
+        for dep in deps:
+            if dep not in selected:
+                selected.add(dep)
+                newly_added.append(dep)
+            auto_deps.setdefault(dep, set()).add(cid)
+        if newly_added:
+            for dep in sorted(newly_added):
+                comp = graph.components.get(dep)
+                name = comp.display_name if comp else dep
+                print(cyan(f"  + Авто-добавлена зависимость: {dep} ({name})"))
+
+    def _auto_remove_orphan_deps(cid: str) -> None:
+        """При снятии cid убирает его авто-зависимости, которые больше никем не нужны."""
+        # Находим зависимости, которые cid добавил автоматически
+        my_auto = {dep for dep, causes in auto_deps.items() if cid in causes}
+        for dep in my_auto:
+            auto_deps[dep].discard(cid)
+        # Убираем те, у которых не осталось живых причин.
+        # dep считается "явно пользовательским" только если его нет в auto_deps вообще.
+        # Пустое множество causes означает, что все авто-причины сняты → dep-сирота.
+        for dep in sorted(my_auto):
+            # Живые причины: компоненты ещё в selected, которые требуют этот dep
+            remaining_causes = auto_deps.get(dep, set()) & selected
+            # Явно выбранный пользователем = dep вообще не попал в auto_deps
+            # (пользователь выбрал его вручную до того, как была вызвана _auto_add_deps)
+            is_user_explicit = dep not in auto_deps
+            if not remaining_causes and not is_user_explicit and dep in selected:
+                # Финальная проверка: не нужен ли dep другим выбранным компонентам
+                still_needed = graph.get_required_by(dep) & selected
+                if not still_needed:
+                    selected.discard(dep)
+                    auto_deps.pop(dep, None)
+                    comp = graph.components.get(dep)
+                    name = comp.display_name if comp else dep
+                    print(cyan(f"  - Авто-снята сиротская зависимость: {dep} ({name})"))
+
+    def _can_deselect(cid: str) -> Optional[str]:
+        """Проверяет, можно ли снять cid. Возвращает None если можно, иначе — причину."""
+        blockers = graph.get_required_by(cid) & selected - {cid}
+        if blockers:
+            blocker_names = ", ".join(sorted(b.split("/")[-1] for b in blockers))
+            return f"требуется: {blocker_names}"
+        return None
 
     while True:
         print(f"\n{'─' * 70}")
@@ -707,7 +935,19 @@ def interactive_select(
         idx_map = print_tree(graph, selected)
 
         print(f"\n{'─' * 70}")
-        print(f"  Выбрано: {green(str(len(selected)))} компонентов")
+        # Подсчёт токенов — всегда показываем в text-режиме
+        if selected:
+            always_tokens, on_demand_tokens, total_tokens, english_total, savings = estimate_context_usage(
+                graph, selected
+            )
+            savings_str = f" (экономия {savings})" if savings else ""
+            token_str = (
+                f"~{total_tokens} токенов (всегда {always_tokens} + по треб. {on_demand_tokens})"
+                f" | English-only ~{english_total}{savings_str}"
+            )
+            print(f"  Выбрано: {green(str(len(selected)))} компонентов  {dim(token_str)}")
+        else:
+            print(f"  Выбрано: {green('0')} компонентов")
         print(f"{'─' * 70}")
         print()
         print(f"  {bold('Команды:')}")
@@ -733,9 +973,11 @@ def interactive_select(
             break
         if raw == "all":
             selected = {c.id for c in graph.get_installable_for_user()}
+            auto_deps.clear()
             continue
         if raw == "none":
             selected.clear()
+            auto_deps.clear()
             continue
 
         try:
@@ -744,20 +986,32 @@ def interactive_select(
                 if n in idx_map:
                     cid = idx_map[n]
                     if cid in selected:
-                        # Отключаем — вместе со связанными
+                        # Проверяем блокировку: нельзя снять, если нужен другим выбранным
+                        block_reason = _can_deselect(cid)
+                        if block_reason:
+                            print(red(f"  ✗ Нельзя снять {cid} — {block_reason}"))
+                            print(red(f"    Сначала снимите зависящие компоненты."))
+                            continue
+                        # Снимаем — вместе со связанными и сиротскими авто-зависимостями
                         selected.discard(cid)
+                        auto_deps.pop(cid, None)
+                        _auto_remove_orphan_deps(cid)
                         linked = graph.get_linked_components(cid)
                         for lid in linked:
                             if lid in selected:
                                 selected.discard(lid)
+                                auto_deps.pop(lid, None)
+                                _auto_remove_orphan_deps(lid)
                                 print(cyan(f"  ↔ Автоматически снят связанный: {lid}"))
                     else:
-                        # Включаем — вместе со связанными
+                        # Включаем — авто-добавляем зависимости, вместе со связанными
                         selected.add(cid)
+                        _auto_add_deps(cid)
                         linked = graph.get_linked_components(cid)
                         for lid in linked:
                             if lid not in selected and lid in {c.id for c in graph.get_installable_for_user()}:
                                 selected.add(lid)
+                                _auto_add_deps(lid)
                                 print(cyan(f"  ↔ Автоматически выбран связанный: {lid}"))
                 else:
                     print(yellow(f"  Номер {n} вне диапазона."))
@@ -858,6 +1112,152 @@ def _parse_numbers(s: str) -> List[int]:
         else:
             result.append(int(part))
     return result
+
+
+def _estimate_tokens(text: str) -> int:
+    """Оценка токенов: len(text) / 4 с округлением вверх."""
+    if not text:
+        return 0
+    return (len(text) + 3) // 4
+
+
+def _split_cyrillic_latin(text: str) -> Tuple[str, str]:
+    """Разделяет текст на кириллицу и всё остальное (латиница/цифры/пунктуация)."""
+    if not text:
+        return "", ""
+    cyrillic_text = re.sub(r"[^А-Яа-яЁё]", "", text)
+    latin_text = re.sub(r"[А-Яа-яЁё]", "", text)
+    return cyrillic_text, latin_text
+
+
+def _collect_component_text(comp: "Component") -> str:
+    """Возвращает текст компонента для оценки контекста."""
+    try:
+        if comp.type == "skill" and comp.filepath.name == "SKILL.md":
+            return comp.filepath.read_text(encoding="utf-8")
+        if comp.filepath.suffix in (".md", ".mdc"):
+            return comp.filepath.read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError):
+        return ""
+    return ""
+
+
+def estimate_context_usage(
+    graph: "FrameworkGraph",
+    selected_ids: Set[str],
+) -> Tuple[int, int, int, int, int]:
+    """Оценивает контекст: always, on-demand, total, english-only, savings."""
+
+    resolved = graph.resolve_dependencies(selected_ids)
+    always_types = {"rule", "agent", "subagent", "workflow"}
+    always_text = []
+    on_demand_text = []
+
+    for cid in sorted(resolved):
+        comp = graph.components.get(cid)
+        if not comp:
+            continue
+        text = _collect_component_text(comp)
+        if comp.type in always_types:
+            always_text.append(text)
+        else:
+            on_demand_text.append(text)
+
+    combined_text = "\n".join(always_text + on_demand_text)
+    always_tokens = _estimate_tokens("\n".join(always_text))
+    on_demand_tokens = _estimate_tokens("\n".join(on_demand_text))
+    total_tokens = always_tokens + on_demand_tokens
+
+    cyrillic_text, latin_text = _split_cyrillic_latin(combined_text)
+    cyrillic_tokens = _estimate_tokens(cyrillic_text)
+    latin_tokens = _estimate_tokens(latin_text)
+    english_total = int(round(cyrillic_tokens * 0.7 + latin_tokens))
+    savings = total_tokens - english_total
+
+    return always_tokens, on_demand_tokens, total_tokens, english_total, savings
+
+
+def estimate_agent_contexts(
+    graph: "FrameworkGraph",
+    selected_ids: Set[str],
+) -> List[Tuple[str, int, int, int]]:
+    """Оценка контекста по агентам с учётом зависимых правил и навыков."""
+    resolved = graph.resolve_dependencies(selected_ids)
+    agent_ids = [
+        cid
+        for cid in sorted(resolved)
+        if graph.components.get(cid) and graph.components[cid].type in {"agent", "subagent"}
+    ]
+    results: List[Tuple[str, int, int, int]] = []
+
+    for agent_id in agent_ids:
+        deps = graph.resolve_dependencies({agent_id})
+        include_ids: List[str] = []
+        for cid in sorted(deps | {agent_id}):
+            comp = graph.components.get(cid)
+            if not comp:
+                continue
+            if cid == agent_id or comp.type in {"rule", "skill"}:
+                include_ids.append(cid)
+
+        combined_text = "\n".join(
+            _collect_component_text(graph.components[cid])
+            for cid in include_ids
+            if cid in graph.components
+        )
+        total_tokens = _estimate_tokens(combined_text)
+        cyrillic_text, latin_text = _split_cyrillic_latin(combined_text)
+        cyrillic_tokens = _estimate_tokens(cyrillic_text)
+        latin_tokens = _estimate_tokens(latin_text)
+        english_total = int(round(cyrillic_tokens * 0.7 + latin_tokens))
+        savings = total_tokens - english_total
+        results.append((agent_id, total_tokens, english_total, savings))
+
+    return results
+
+
+def format_agent_contexts(
+    graph: "FrameworkGraph",
+    agent_contexts: List[Tuple[str, int, int, int]],
+    show_english: bool,
+) -> List[str]:
+    """Формирует блок строк с оценкой контекста по агентам."""
+    if not agent_contexts:
+        return []
+    lines = ["  Контекст по агентам (агент + правила/навыки зависимостей):"]
+    for agent_id, total_tokens, english_total, savings in agent_contexts:
+        short = agent_id.split("/")[-1]
+        label = short
+        if graph.components.get(agent_id) and graph.components[agent_id].type == "subagent":
+            label = f"{short} (sub)"
+        if show_english:
+            savings_str = f" ({savings})" if savings else ""
+            lines.append(f"    {label:<14} {total_tokens} | English-only {english_total}{savings_str}")
+        else:
+            lines.append(f"    {label:<14} {total_tokens}")
+    return lines
+
+
+def format_context_estimate(
+    always_tokens: int,
+    on_demand_tokens: int,
+    total_tokens: int,
+    english_total: int,
+    savings: int,
+    show_english: bool,
+) -> List[str]:
+    """Формирует блок строк для вывода оценки контекста."""
+    lines = [
+        f"  {bold('Оценка контекста (токены):')}",
+        f"    Всегда в контексте: {bold(str(always_tokens))}",
+        f"    По требованию:       {bold(str(on_demand_tokens))}",
+        f"    Общее:               {bold(str(total_tokens))}",
+    ]
+    if show_english:
+        savings_str = f" ({savings})" if savings else ""
+        lines.append(f"    Оценка (English-only): {bold(str(english_total))}{savings_str}")
+        lines.append("    Оценка перевода:       ~30% экономии (ориентир)")
+    return lines
 
 
 # ─── Выбор и запись моделей ───────────────────────────────────────────────────
@@ -1033,6 +1433,56 @@ def write_session_log(
         print(yellow(f"  Не удалось записать лог: {e}"))
 
 
+def print_rules_import_hint(ide_key: str, project_dir: Path, installed_rules: List[str]) -> None:
+    """Выводит напоминание о ручной настройке entry-point файла для IDE,
+    которые не подхватывают правила автоматически (CLAUDE.md, AGENTS.md, .windsurfrules и т.д.)."""
+    ide_cfg = IDE_CONFIGS[ide_key]
+    hint = ide_cfg.get("rules_import_hint")
+    if not hint:
+        return
+
+    entry_file = hint.get("file")  # None для Kiro (нет единого entry-point)
+    rules_dir = ide_cfg["rules_dir"]
+    note = hint.get("note", "")
+
+    print()
+    print(yellow(f"  ⚠  {ide_cfg['name']}: правила требуют ручной настройки"))
+    print(f"  {'─' * 66}")
+
+    # Случай Kiro: нет entry-point файла, только frontmatter предупреждение
+    if not entry_file:
+        print(f"  Правила установлены в  {cyan(rules_dir + '/')}")
+        print()
+        for line in note.splitlines():
+            print(f"  {dim(line)}" if line.startswith("  ") else f"  {line}")
+        print(f"  {'─' * 66}")
+        return
+
+    entry_path = project_dir / entry_file
+
+    print(f"  Файлы правил установлены в  {cyan(rules_dir + '/')}")
+    print(f"  но НЕ подхватываются автоматически — нужен  {bold(entry_file)}")
+    print()
+    # Выводим note (описание что делать)
+    for line in note.splitlines():
+        print(f"  {line}")
+    print()
+
+    # Выводим конкретные строки для каждого установленного правила
+    fmt = hint.get("format", "")
+    if fmt and installed_rules:
+        for rule_name in sorted(installed_rules):
+            line = fmt.replace("{name}", rule_name).replace("{description}", rule_name)
+            print(f"    {dim(line)}")
+        print()
+
+    if entry_path.exists():
+        print(green(f"  ✓ {entry_file} уже существует — откройте и добавьте строки выше."))
+    else:
+        print(yellow(f"  Файл {entry_file} не найден — создайте его в корне проекта."))
+    print(f"  {'─' * 66}")
+
+
 # ─── Установка ───────────────────────────────────────────────────────────────
 
 def detect_symlink_support() -> bool:
@@ -1087,13 +1537,15 @@ def _component_target_file(
     ide_cfg = IDE_CONFIGS[ide_key]
     dir_key = _dir_key_for_component(comp.type, ide_cfg)
     target_base = project_dir / ide_cfg[dir_key]
-    _, _, short_name = _component_source_paths(comp)
+    source_file, _, short_name = _component_source_paths(comp)
     if comp.type == "skill":
         if use_symlinks:
             return target_base / short_name  # симлинк на каталог
         skill_fn = ide_cfg.get("skill_filename", "SKILL.md")
         return target_base / short_name / skill_fn
-    return target_base / f"{short_name}.md"
+    # Сохраняем оригинальное расширение файла (.md или .mdc)
+    ext = source_file.suffix if source_file.suffix in (".md", ".mdc") else ".md"
+    return target_base / f"{short_name}{ext}"
 
 
 def _norm_path(path: Path) -> str:
@@ -1330,6 +1782,244 @@ def relink(project_dir: Path):
         print(f"  Для исправления: переустановите фреймворк (python tools/1c-ai-agent-cli.py)")
 
 
+# ─── xml-gen: сборка и установка ─────────────────────────────────────────────
+
+XML_GEN_GROUP = "tool-usage/xml-generation"
+XML_GEN_JAR_DIR = Path.home() / ".local" / "share" / "1c-xml-gen"
+XML_GEN_JAR = XML_GEN_JAR_DIR / "xml-gen.jar"
+XML_GEN_BIN = Path.home() / ".local" / "bin" / "xml-gen"
+
+WRAPPER_SH = """\
+#!/bin/sh
+exec java -jar "{jar}" "$@"
+"""
+
+WRAPPER_BAT = """\
+@echo off
+java -jar "{jar}" %*
+"""
+
+
+def _xml_gen_selected(all_ids: Set[str]) -> bool:
+    """Возвращает True, если среди выбранных есть хотя бы один навык xml-generation."""
+    return any(XML_GEN_GROUP in comp_id for comp_id in all_ids)
+
+
+def _tool_usage_selected(all_ids: Set[str], graph: "FrameworkGraph") -> bool:
+    """Возвращает True, если среди выбранных есть хотя бы один навык из tool-usage."""
+    for comp_id in all_ids:
+        comp = graph.components.get(comp_id)
+        if comp and comp.type == "skill":
+            try:
+                rel = comp.filepath.relative_to(graph.framework_dir)
+                if rel.parts[:2] == ("skills", "tool-usage"):
+                    return True
+            except ValueError:
+                pass
+    return False
+
+
+def install_capabilities_symlink(
+    framework_dir: Path,
+    project_dir: Path,
+    use_symlinks: bool = True,
+    dry_run: bool = False,
+) -> bool:
+    """Создаёт capabilities/ в корне проекта → framework/capabilities/.
+
+    Возвращает True если создан/уже существует, False при ошибке.
+    """
+    src = framework_dir / "capabilities"
+    if not src.exists():
+        return False  # нечего линковать
+
+    target = project_dir / "capabilities"
+
+    if target.exists() or target.is_symlink():
+        # Уже есть — проверяем корректность
+        if target.is_symlink():
+            if target.resolve() == src.resolve():
+                return True  # всё хорошо
+            # Сломанный/неверный симлинк — пересоздаём
+            if not dry_run:
+                target.unlink()
+        else:
+            # Реальный каталог — не трогаем
+            print(yellow(f"  ⚠ capabilities/ уже существует как каталог — пропускаем"))
+            return True
+
+    if dry_run:
+        print(f"  → (symlink) {target}  →  {src}")
+        return True
+
+    try:
+        if use_symlinks:
+            target.symlink_to(src)
+        else:
+            shutil.copytree(str(src), str(target))
+        return True
+    except Exception as e:
+        print(red(f"  ✗ capabilities/: {e}"))
+        return False
+
+
+def _check_java() -> Optional[str]:
+    """Возвращает путь к java если JDK 17+ доступен, иначе None."""
+    java = shutil.which("java")
+    if not java:
+        return None
+    try:
+        out = subprocess.check_output(
+            [java, "-version"], stderr=subprocess.STDOUT, text=True
+        )
+        # "openjdk version "21.0..." или "java version "17..."
+        m = re.search(r'version "(\d+)', out)
+        if m and int(m.group(1)) >= 17:
+            return java
+    except Exception:
+        pass
+    return None
+
+
+def _find_gradlew(script_dir: Path) -> Optional[Path]:
+    """Ищет gradlew рядом со скриптом (tools/xml-gen/gradlew)."""
+    gw = script_dir / "xml-gen" / "gradlew"
+    if gw.exists():
+        return gw
+    return None
+
+
+def _install_java_ubuntu() -> bool:
+    """Предлагает установить OpenJDK 21 через apt. Возвращает True если установлено."""
+    print(yellow("  ⚠ JDK 17+ не найден — он необходим для сборки xml-gen."))
+    print()
+    print("  Для установки OpenJDK 21 выполните:")
+    print(cyan("      sudo apt-get update && sudo apt-get install -y openjdk-21-jdk-headless"))
+    print()
+    try:
+        ans = input("  Установить сейчас? [Y/n]: ").strip().lower()
+    except (EOFError, KeyboardInterrupt):
+        print()
+        return False
+    if ans and ans not in ("y", "yes", "д", "да", ""):
+        return False
+    print()
+    ret = subprocess.run(
+        ["sudo", "apt-get", "install", "-y", "openjdk-21-jdk-headless"],
+        check=False,
+    ).returncode
+    if ret != 0:
+        # Пробуем с update
+        subprocess.run(["sudo", "apt-get", "update", "-q"], check=False)
+        ret = subprocess.run(
+            ["sudo", "apt-get", "install", "-y", "openjdk-21-jdk-headless"],
+            check=False,
+        ).returncode
+    return ret == 0
+
+
+def install_xml_gen(script_dir: Path, dry_run: bool = False) -> bool:
+    """
+    Собирает xml-gen JAR и устанавливает wrapper-скрипт в ~/.local/bin/xml-gen.
+
+    Возвращает True если успешно (или уже установлено), False — если пропущено/ошибка.
+    """
+    print()
+    print(bold("  ── xml-gen: установка CLI-инструмента ──────────────────────"))
+
+    # 1. Проверяем JAR — если уже актуальный, пропускаем сборку
+    gradlew = _find_gradlew(script_dir)
+    if gradlew is None:
+        print(red("  ✗ tools/xml-gen/gradlew не найден — сборка невозможна."))
+        return False
+
+    jar_src = gradlew.parent / "build" / "libs" / "xml-gen-0.1.0-SNAPSHOT.jar"
+    need_build = not jar_src.exists()
+
+    if not need_build:
+        print(green(f"  ✓ JAR уже собран: {jar_src}"))
+    else:
+        # 2. Проверяем JDK
+        java = _check_java()
+        if java is None:
+            system = platform.system()
+            if system == "Linux":
+                ok = _install_java_ubuntu()
+                if not ok:
+                    print(yellow("  ⚠ xml-gen не установлен — JDK недоступен."))
+                    print(yellow("    Навыки xml-generation доступны, но запуск xml-gen потребует"))
+                    print(yellow("    ручной установки JDK 17+ и сборки: cd tools/xml-gen && ./gradlew shadowJar"))
+                    return False
+                java = _check_java()
+                if java is None:
+                    print(red("  ✗ JDK установлен, но java не найдена в PATH. Перезапустите установщик."))
+                    return False
+            else:
+                print(yellow("  ⚠ JDK 17+ не найден. Установите OpenJDK 17+ вручную,"))
+                print(yellow("    затем запустите: cd tools/xml-gen && ./gradlew shadowJar"))
+                print(yellow("    После сборки перезапустите: python tools/1c-ai-agent-cli.py --install-xml-gen"))
+                return False
+
+        # 3. Собираем JAR
+        print(f"  Сборка xml-gen (gradlew shadowJar)...")
+        print(f"  {dim('Это занимает ~10-30 секунд при первом запуске (скачивание Gradle).')}")
+        if dry_run:
+            print(f"  {bold('[DRY RUN]')} ./gradlew shadowJar")
+        else:
+            ret = subprocess.run(
+                [str(gradlew), "shadowJar"],
+                cwd=str(gradlew.parent),
+                check=False,
+            ).returncode
+            if ret != 0:
+                print(red("  ✗ Сборка завершилась с ошибкой. Проверьте вывод выше."))
+                return False
+            print(green(f"  ✓ JAR собран: {jar_src}"))
+
+    # 4. Копируем JAR в ~/.local/share/1c-xml-gen/
+    if dry_run:
+        print(f"  {bold('[DRY RUN]')} cp {jar_src} → {XML_GEN_JAR}")
+    else:
+        XML_GEN_JAR_DIR.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(jar_src, XML_GEN_JAR)
+        print(green(f"  ✓ JAR установлен: {XML_GEN_JAR}"))
+
+    # 5. Создаём wrapper-скрипт
+    system = platform.system()
+    if system == "Windows":
+        wrapper_path = XML_GEN_BIN.with_suffix(".bat")
+        wrapper_content = WRAPPER_BAT.format(jar=XML_GEN_JAR)
+    else:
+        wrapper_path = XML_GEN_BIN
+        wrapper_content = WRAPPER_SH.format(jar=XML_GEN_JAR)
+
+    if dry_run:
+        print(f"  {bold('[DRY RUN]')} write wrapper → {wrapper_path}")
+    else:
+        wrapper_path.parent.mkdir(parents=True, exist_ok=True)
+        wrapper_path.write_text(wrapper_content, encoding="utf-8")
+        if system != "Windows":
+            wrapper_path.chmod(0o755)
+        print(green(f"  ✓ Wrapper установлен: {wrapper_path}"))
+
+    # 6. Проверяем PATH
+    bin_dir = str(wrapper_path.parent)
+    path_dirs = os.environ.get("PATH", "").split(os.pathsep)
+    if bin_dir not in path_dirs:
+        print()
+        print(yellow(f"  ⚠ {bin_dir} не в $PATH."))
+        if system != "Windows":
+            print(yellow("    Добавьте в ~/.bashrc или ~/.zshrc:"))
+            print(cyan(f'      export PATH="$PATH:{bin_dir}"'))
+            print(yellow("    Или для текущей сессии:"))
+            print(cyan(f'      export PATH="$PATH:{bin_dir}"'))
+        print()
+    else:
+        print(green(f"  ✓ {bin_dir} уже в $PATH — команда xml-gen доступна сразу"))
+
+    return True
+
+
 # ─── Команда clone ────────────────────────────────────────────────────────────
 
 def cmd_clone(args: argparse.Namespace) -> int:
@@ -1425,8 +2115,8 @@ def main():
     subparsers.add_parser("install", help="Установить компоненты в проект")
 
     # Аргументы install (на main parser для обратной совместимости)
-    parser.add_argument("--ide", choices=list(IDE_CONFIGS.keys()),
-                        help="Целевая IDE")
+    parser.add_argument("--ide", nargs="+", choices=list(IDE_CONFIGS.keys()),
+                        help="Целевая IDE (можно указать несколько через пробел)")
     parser.add_argument("--project-dir", type=Path, default=Path("."),
                         help="Каталог проекта (по умолчанию: текущий)")
     parser.add_argument("--include", nargs="+", metavar="ID",
@@ -1441,8 +2131,16 @@ def main():
                         help="Показать что будет сделано, без реальных изменений")
     parser.add_argument("--relink", action="store_true",
                         help="Проверить и пересоздать сломанные симлинки")
+    parser.add_argument("--install-xml-gen", action="store_true",
+                        help="Собрать xml-gen JAR и установить wrapper ~/.local/bin/xml-gen (без полной установки)")
     parser.add_argument("--sync", action="store_true",
                         help="Синхронизировать установку: удалить снятые симлинки компонентов")
+    parser.add_argument("--estimate-context", action="store_true",
+                        help="Оценить потребление контекста для выбранных компонентов")
+    parser.add_argument("--estimate-english-only", action="store_true",
+                        help="Показать English-only оценку контекста")
+    parser.add_argument("--estimate-context-only", action="store_true",
+                        help="Только показать оценку контекста и выйти")
 
     args = parser.parse_args()
 
@@ -1468,6 +2166,12 @@ def main():
         relink(project_dir)
         return
 
+    # Install xml-gen only
+    if args.install_xml_gen:
+        install_xml_gen(script_dir=Path(__file__).resolve().parent, dry_run=False)
+        print()
+        return
+
     # Сканируем framework
     framework_dir = find_framework_dir()
     print(f"  Framework: {framework_dir}")
@@ -1477,17 +2181,21 @@ def main():
 
     # List mode
     if args.list:
-        ide_key = args.ide
-        if not ide_key:
-            ide_key = select_ide()
+        ide_keys = args.ide
+        if not ide_keys:
+            ide_keys = select_ides()
+        ide_key = ide_keys[0]
         print(f"\n  IDE: {bold(IDE_CONFIGS[ide_key]['name'])}")
         print_tree(graph)
         return
 
-    # Выбор IDE
-    ide_key = args.ide
-    if not ide_key:
-        ide_key = select_ide()
+    # Выбор IDE (одна или несколько)
+    ide_keys = args.ide
+    if not ide_keys:
+        ide_keys = select_ides()
+
+    # Для обратной совместимости: одиночный ide_key для шагов где нужен один
+    ide_key = ide_keys[0]
 
     # Выбор каталога проекта и компонентов (интерактивно, если не задано через CLI)
     is_interactive = not (args.all or args.include)
@@ -1516,7 +2224,12 @@ def main():
             if preselected:
                 print(f"\n  Найдено существующих симлинков компонентов: {bold(str(len(preselected)))}")
                 print(f"  {dim('Флаги в списке предварительно расставлены по текущей установке.')}")
-            selected = interactive_select(graph, preselected=preselected)
+            selected = interactive_select(
+                graph,
+                preselected=preselected,
+                show_context_estimate=args.estimate_context or args.estimate_context_only,
+                show_english_estimate=args.estimate_english_only,
+            )
 
             if _HAS_TUI and selected is BACK:
                 continue  # назад к выбору каталога
@@ -1576,34 +2289,119 @@ def main():
             print(yellow("    Файлы будут скопированы. При обновлении фреймворка — перезапустите install."))
 
     if is_interactive and not (args.all or args.include):
-        sync_source = preselected
+        _default_sync_source = preselected
     elif args.sync:
-        sync_source = detect_existing_component_symlinks(graph, ide_key, project_dir)
-        print(f"\n  Режим синхронизации (--sync): найдено текущих симлинков {bold(str(len(sync_source)))}")
+        _default_sync_source = detect_existing_component_symlinks(graph, ide_key, project_dir)
+        print(f"\n  Режим синхронизации (--sync): найдено текущих симлинков {bold(str(len(_default_sync_source)))}")
     else:
-        sync_source = set()
+        _default_sync_source = set()
 
-    installed, skipped, removed = install_components(
-        graph=graph,
-        selected_ids=selected,
-        existing_symlink_ids=sync_source,
-        ide_key=ide_key,
-        project_dir=project_dir,
-        use_symlinks=use_symlinks,
-        dry_run=args.dry_run,
-    )
+    if args.estimate_context or args.estimate_english_only or args.estimate_context_only:
+        always_tokens, on_demand_tokens, total_tokens, english_total, savings = estimate_context_usage(
+            graph,
+            selected,
+        )
+        print()
+        for line in format_context_estimate(
+            always_tokens,
+            on_demand_tokens,
+            total_tokens,
+            english_total,
+            savings,
+            show_english=args.estimate_english_only,
+        ):
+            print(line)
 
-    print()
-    if args.dry_run:
-        print(f"  {bold('[DRY RUN]')} Было бы установлено: {installed}, удалено: {removed}, пропущено: {skipped}")
-    else:
-        print(green(f"  ✓ Установлено: {installed} компонентов"))
-        if removed:
-            print(green(f"  ✓ Удалено симлинков: {removed}"))
-        if skipped:
-            print(yellow(f"  ⚠ Пропущено: {skipped}"))
+        agent_contexts = estimate_agent_contexts(graph, selected)
+        for line in format_agent_contexts(
+            graph,
+            agent_contexts,
+            show_english=args.estimate_english_only,
+        ):
+            print(line)
 
-    # Подсказка по проектным навыкам
+        if args.estimate_context_only:
+            return
+
+    # ── Установка для каждой выбранной IDE ──
+    all_resolved = graph.resolve_dependencies(selected)
+    xml_gen_needed = _xml_gen_selected(all_resolved)
+
+    # Если выбрано несколько IDE — показываем заголовок
+    if len(ide_keys) > 1:
+        ide_names = ", ".join(IDE_CONFIGS[k]["name"] for k in ide_keys)
+        print(f"\n  {bold('Установка для IDE:')} {cyan(ide_names)}")
+
+    total_installed = total_removed = total_skipped = 0
+
+    for current_ide_key in ide_keys:
+        if len(ide_keys) > 1:
+            ide_cfg_cur = IDE_CONFIGS[current_ide_key]
+            print(f"\n  {'─' * 66}")
+            print(f"  {bold('→')} {bold(ide_cfg_cur['name'])}")
+
+        # Для каждой IDE — свой sync_source
+        if is_interactive and not (args.all or args.include):
+            cur_sync_source = preselected if current_ide_key == ide_key else set()
+        elif args.sync:
+            cur_sync_source = detect_existing_component_symlinks(graph, current_ide_key, project_dir)
+        else:
+            cur_sync_source = set()
+
+        installed, skipped, removed = install_components(
+            graph=graph,
+            selected_ids=selected,
+            existing_symlink_ids=cur_sync_source,
+            ide_key=current_ide_key,
+            project_dir=project_dir,
+            use_symlinks=use_symlinks,
+            dry_run=args.dry_run,
+        )
+        total_installed += installed
+        total_skipped += skipped
+        total_removed += removed
+
+        print()
+        if args.dry_run:
+            print(f"  {bold('[DRY RUN]')} {IDE_CONFIGS[current_ide_key]['name']}: было бы установлено: {installed}, удалено: {removed}, пропущено: {skipped}")
+        else:
+            print(green(f"  ✓ {IDE_CONFIGS[current_ide_key]['name']}: установлено {installed} компонентов"))
+            if removed:
+                print(green(f"  ✓ Удалено симлинков: {removed}"))
+            if skipped:
+                print(yellow(f"  ⚠ Пропущено: {skipped}"))
+
+        # Лог сессии для верификации (не в dry-run)
+        if not args.dry_run:
+            write_session_log(
+                project_dir=project_dir,
+                ide_key=current_ide_key,
+                selected=selected,
+                model_map=model_map,
+                use_symlinks=use_symlinks,
+                installed=installed,
+                skipped=skipped,
+                removed=removed,
+            )
+
+    # Post-install: xml-gen CLI (один раз, если выбраны навыки xml-generation)
+    if xml_gen_needed and not args.dry_run:
+        install_xml_gen(script_dir=Path(__file__).resolve().parent, dry_run=False)
+    elif xml_gen_needed and args.dry_run:
+        install_xml_gen(script_dir=Path(__file__).resolve().parent, dry_run=True)
+
+    # Post-install: capabilities/ симлинк (если выбран хотя бы один tool-usage навык)
+    if _tool_usage_selected(all_resolved, graph):
+        cap_ok = install_capabilities_symlink(
+            framework_dir=graph.framework_dir,
+            project_dir=project_dir,
+            use_symlinks=use_symlinks,
+            dry_run=args.dry_run,
+        )
+        if cap_ok and not args.dry_run:
+            print(green(f"  ✓ capabilities/ → framework/capabilities/"))
+
+    # Подсказка по проектным навыкам (для первой IDE)
     ide_cfg = IDE_CONFIGS[ide_key]
     print(f"\n  {bold('Проектные навыки')}: размещайте в {cyan(ide_cfg['skills_dir'] + '/')} вашего проекта")
 
@@ -1611,18 +2409,17 @@ def main():
         print(f"\n  {dim('Симлинки привязаны к расположению фреймворка.')}")
         print(f"  {dim('Если переместите framework/ — запустите: python tools/1c-ai-agent-cli.py --relink')}")
 
-    # Лог сессии для верификации (не в dry-run)
+    # Post-install: напоминания для IDE требующих ручного импорта правил
     if not args.dry_run:
-        write_session_log(
-            project_dir=project_dir,
-            ide_key=ide_key,
-            selected=selected,
-            model_map=model_map,
-            use_symlinks=use_symlinks,
-            installed=installed,
-            skipped=skipped,
-            removed=removed,
-        )
+        # Собираем список установленных правил
+        installed_rule_ids = [
+            cid for cid in all_resolved
+            if graph.components.get(cid) and graph.components[cid].type == "rule"
+        ]
+        installed_rule_names = [cid.split("/")[-1] for cid in installed_rule_ids]
+
+        for current_ide_key in ide_keys:
+            print_rules_import_hint(current_ide_key, project_dir, installed_rule_names)
 
     print()
 

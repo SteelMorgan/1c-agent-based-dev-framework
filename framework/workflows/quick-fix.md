@@ -1,16 +1,9 @@
 ---
-id: workflow/quick-fix
-type: workflow
 name: quick-fix
-depends_on:
-  - framework/workflows/full-cycle.md
-  - framework/agents/explorer.md
-  - framework/agents/developer.md
-  - framework/skills/bsl-practices/coding-standards/SKILL.md
-  - framework/skills/bsl-practices/anti-patterns/SKILL.md
-  - framework/skills/tool-usage/syntax-checking/SKILL.md
-  - framework/skills/tool-usage/test-execution/SKILL.md
+description: Быстрое исправление в одном файле без кросс-ревью.
 ---
+
+
 
 # Воркфлоу: Быстрое исправление (Quick Fix)
 
@@ -63,7 +56,7 @@ Quick-fix — облегчённый воркфлоу для задач, не т
 | Элемент | Описание |
 |---------|----------|
 | **Цель** | Внести изменение |
-| **Правила** | Следовать BSL coding standards ([coding-standards.md](../skills/bsl-practices/coding-standards.md), [anti-patterns.md](../skills/bsl-practices/anti-patterns.md)) |
+| **Правила** | Следовать BSL coding standards ([coding-standards.md](../skills/bsl-practices/coding-standards.md)) |
 | **Выход** | Изменённый BSL-модуль |
 
 **Действия:**
@@ -131,3 +124,14 @@ flowchart LR
 | [orchestrator.md](./orchestrator.md) | Маршрутизация quick-fix vs full-cycle |
 | [syntax-checking.md](../skills/tool-usage/syntax-checking.md) | Навык проверки синтаксиса |
 | [test-execution.md](../skills/tool-usage/test-execution.md) | Навык запуска тестов |
+
+
+---
+depends_on:
+  - framework/workflows/full-cycle.md
+  - framework/subagents/explorer.md
+  - framework/subagents/developer.md
+  - framework/skills/bsl-practices/coding-standards/SKILL.md
+  - framework/skills/tool-usage/syntax-checking/SKILL.md
+  - framework/skills/tool-usage/test-execution/SKILL.md
+---
