@@ -371,8 +371,11 @@ class Component:
 class FrameworkGraph:
     """Граф зависимостей компонентов фреймворка."""
 
-    def __init__(self, framework_dir: Path):
+    def __init__(self, framework_dir: Path, mirror_dir: Optional[Path] = None):
         self.framework_dir = framework_dir
+        # mirror_dir — EN-зеркало (framework_eng/). Симлинки создаются на него.
+        # Если не задан или не существует — симлинки на оригинальный framework_dir.
+        self.mirror_dir = mirror_dir if (mirror_dir and mirror_dir.is_dir()) else None
         self.components: Dict[str, Component] = {}
         self._reverse_deps: Dict[str, Set[str]] = {}  # Кэш обратных зависимостей
         self._scan()
@@ -1505,23 +1508,44 @@ def detect_symlink_support() -> bool:
         shutil.rmtree(test_dir, ignore_errors=True)
 
 
-def _component_source_paths(comp: Component) -> Tuple[Path, Path, str]:
+def _component_source_paths(
+    comp: Component,
+    framework_dir: Optional[Path] = None,
+    mirror_dir: Optional[Path] = None,
+) -> Tuple[Path, Path, str]:
     """
     Возвращает (source_file, source_path_for_link, short_name).
     source_path_for_link:
       - skill -> директория навыка
       - остальное -> файл компонента
+
+    Если mirror_dir задан (framework_eng/) — source_path_for_link указывает на EN-зеркало.
+    Дерево и сканирование всегда по framework/ (RU-источник).
+    Fallback на RU если EN-файл ещё не создан.
     """
     source_file = comp.filepath.resolve()
 
+    def _mirror_of(ru_path: Path) -> Optional[Path]:
+        """framework/x/y → framework_eng/x/y, если существует."""
+        if not mirror_dir or not framework_dir:
+            return None
+        try:
+            rel = ru_path.relative_to(framework_dir)
+            m = mirror_dir / rel
+            return m if m.exists() else None
+        except ValueError:
+            return None
+
     if comp.type == "skill" and source_file.name == "SKILL.md":
-        source_path = source_file.parent
-        short_name = source_file.parent.name
+        ru_dir = source_file.parent
+        short_name = ru_dir.name
+        source_path = _mirror_of(ru_dir) or ru_dir
     else:
+        short_name = comp.id.rpartition("/")[2] or comp.id.replace("/", "-")
+        mirrored = _mirror_of(source_file)
+        if mirrored:
+            source_file = mirrored
         source_path = source_file
-        _, _, short_name = comp.id.rpartition("/")
-        if not short_name:
-            short_name = comp.id.replace("/", "-")
 
     return source_file, source_path, short_name
 
@@ -1574,7 +1598,7 @@ def detect_existing_component_symlinks(
         if not target_file:
             continue
 
-        _, expected_source, _ = _component_source_paths(comp)
+        _, expected_source, _ = _component_source_paths(comp, graph.framework_dir, graph.mirror_dir)
         try:
             raw_link = os.readlink(target_file)
         except OSError:
@@ -1673,7 +1697,7 @@ def install_components(
             skipped += 1
             continue
 
-        source_file, source_path, _ = _component_source_paths(comp)
+        source_file, source_path, _ = _component_source_paths(comp, graph.framework_dir, graph.mirror_dir)
         target_file = _component_target_file(comp, ide_key, project_dir, use_symlinks=use_symlinks)
 
         # IDE с кастомным именем файла навыка (skill.md вместо SKILL.md)
@@ -1824,12 +1848,16 @@ def install_capabilities_symlink(
     project_dir: Path,
     use_symlinks: bool = True,
     dry_run: bool = False,
+    mirror_dir: Optional[Path] = None,
 ) -> bool:
-    """Создаёт capabilities/ в корне проекта → framework/capabilities/.
+    """Создаёт capabilities/ в корне проекта → framework_eng/capabilities/ (или framework/).
 
     Возвращает True если создан/уже существует, False при ошибке.
     """
-    src = framework_dir / "capabilities"
+    # Предпочитаем EN-зеркало если доступно
+    src = (mirror_dir / "capabilities" if mirror_dir else None)
+    if not src or not src.exists():
+        src = framework_dir / "capabilities"
     if not src.exists():
         return False  # нечего линковать
 
@@ -2069,15 +2097,20 @@ def cmd_clone(args: argparse.Namespace) -> int:
 def find_framework_dir() -> Path:
     """Ищет каталог framework/ относительно скрипта."""
     script_dir = Path(__file__).resolve().parent
+    fw_dir = script_dir.parent / "framework"
+    if fw_dir.is_dir():
+        return fw_dir
     fw_dir = script_dir / "framework"
     if fw_dir.is_dir():
         return fw_dir
-    # Может быть запущен из framework/
-    parent_fw = script_dir.parent / "framework"
-    if parent_fw.is_dir():
-        return parent_fw
     print(red(f"Каталог framework/ не найден рядом с {script_dir}"))
     sys.exit(1)
+
+
+def find_mirror_dir(framework_dir: Path) -> Optional[Path]:
+    """Ищет каталог framework_eng/ — EN-зеркало рядом с framework/."""
+    mirror = framework_dir.parent / "framework_eng"
+    return mirror if mirror.is_dir() else None
 
 
 def main():
@@ -2174,9 +2207,14 @@ def main():
 
     # Сканируем framework
     framework_dir = find_framework_dir()
-    print(f"  Framework: {framework_dir}")
+    mirror_dir = find_mirror_dir(framework_dir)
+    print(f"  Framework (RU): {framework_dir}")
+    if mirror_dir:
+        print(f"  Mirror   (EN): {mirror_dir}  ← симлинки будут на EN-версии")
+    else:
+        print(yellow(f"  Mirror (EN): не найден — симлинки на RU-версии (запустите --init-all)"))
 
-    graph = FrameworkGraph(framework_dir)
+    graph = FrameworkGraph(framework_dir, mirror_dir)
     print(f"  Найдено компонентов: {len(graph.components)}")
 
     # List mode
@@ -2396,6 +2434,7 @@ def main():
             framework_dir=graph.framework_dir,
             project_dir=project_dir,
             use_symlinks=use_symlinks,
+            mirror_dir=graph.mirror_dir,
             dry_run=args.dry_run,
         )
         if cap_ok and not args.dry_run:
