@@ -8,7 +8,7 @@
 # Проверка
 python3 tools/validate-framework-deps.py
 
-# Экспорт взаимозависимостей для install.py
+# Экспорт взаимозависимостей для 1c-ai-agent-cli
 python3 tools/validate-framework-deps.py --export-cycles tools/framework-cycles.json
 
 # Автоисправление предупреждений (добавить недостающие depends_on)
@@ -31,22 +31,22 @@ python3 tools/validate-framework-deps.py --fix
 3. **Markdown-ссылки:** `[текст](framework/skills/...)`
 4. **Прямые упоминания:** `framework/rules/mandatory-tools.md`
 
-### Интеграция с install.py
+### Интеграция с 1c-ai-agent-cli
 
-`--export-cycles` генерирует `framework-cycles.json`. Данные автоматически загружаются `install.py` для:
+`--export-cycles` генерирует `framework-cycles.json`. Данные автоматически загружаются `1c-ai-agent-cli` для:
 - Отображения иконки ↔ у связанных компонентов в дереве
 - Автовыбора/автоотключения связанных компонентов
 
 Подробности: [INSTALL-PY-INTEGRATION.md](./INSTALL-PY-INTEGRATION.md)
 
-## install.py
+## 1c-ai-agent-cli
 
-Интерактивный установщик компонентов фреймворка. См. `python3 tools/install.py --help`.
+CLI (clone, install). См. `python tools/1c-ai-agent-cli.py --help`.
 
 ## Файлы
 
 - `validate-framework-deps.py` — валидатор зависимостей
 - `framework-cycles.json` — сгенерированные данные о взаимозависимостях
-- `install.py` — установщик компонентов
+- `1c-ai-agent-cli.py` — CLI (clone, install)
 - `README-validate-deps.md` — подробная документация валидатора
-- `INSTALL-PY-INTEGRATION.md` — интеграция взаимозависимостей в install.py
+- `INSTALL-PY-INTEGRATION.md` — интеграция взаимозависимостей в 1c-ai-agent-cli

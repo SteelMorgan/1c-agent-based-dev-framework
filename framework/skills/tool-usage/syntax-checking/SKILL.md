@@ -1,11 +1,7 @@
 ---
-id_deprecated: skill/syntax-checking
-type: skill
-depends_on: []
 name: syntax-checking
 description: Проверка синтаксиса (Syntax Checking). Навык учит агента **правильно использовать возможности проверки синтаксиса** BSL-кода.
 ---
-
 
 # Проверка синтаксиса (Syntax Checking)
 
@@ -115,3 +111,7 @@ check_syntax(target: "путь/к/модулю/УправлениеСкладо�
 | Проект EDT не найден | Проверить путь к проекту, `sourceSet` в настройках; при необходимости использовать режимы Designer. |
 | Ошибки в `errors` непонятны | Прочитать `message` и `file`/`line`; использовать `navigate_symbol` для перехода к месту ошибки; при необходимости `ask_ai_assistant` для пояснения. |
 | `get_diagnostics` показывает ошибки, `check_syntax` — нет | LSP может быть строже или использовать другие правила; ориентироваться на `check_syntax` как на финальный вердикт. |
+
+---
+depends_on: []
+---

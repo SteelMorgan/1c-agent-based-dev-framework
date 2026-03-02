@@ -24,10 +24,22 @@ get_nav_link: { server: 1c-mcp, tool: get_nav_link }
 
 search_syntax_reference: { server: 1c-platform-context, tool: search_syntax_reference }
 get_type_info: { server: 1c-platform-context, tool: get_type_info }
+
+# mcp-bsl-platform-context: типы и члены платформы 1С
+getMembers: { server: mcp-bsl-platform-context, tool: getMembers }
+getMember: { server: mcp-bsl-platform-context, tool: getMember }
+getConstructors: { server: mcp-bsl-platform-context, tool: getConstructors }
+
 ask_ai_assistant: { server: 1c-copilot-proxy, tool: ask_1c_ai }
 search_event_log: { server: 1c-log-checker, tool: search_event_log }
 search_tech_log: { server: 1c-log-checker, tool: search_tech_log }
 configure_tech_log: { server: 1c-log-checker, tool: configure_tech_log }
+logc_get_techlog_config: { server: 1c-log-checker, tool: logc_get_techlog_config }
+logc_save_techlog: { server: 1c-log-checker, tool: logc_save_techlog }
+logc_configure_techlog: { server: 1c-log-checker, tool: logc_configure_techlog }
+logc_get_actual_log_timestamp: { server: 1c-log-checker, tool: logc_get_actual_log_timestamp }
+logc_restore_techlog: { server: 1c-log-checker, tool: logc_restore_techlog }
+logc_disable_techlog: { server: 1c-log-checker, tool: logc_disable_techlog }
 
 # Browser automation — Playwright MCP (Microsoft). npx @playwright/mcp@latest
 #browser_navigate: { server: playwright, tool: browser_navigate }

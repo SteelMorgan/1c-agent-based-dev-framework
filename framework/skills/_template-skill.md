@@ -1,8 +1,8 @@
 ---
-id: template/skill
-type: template
-depends_on: []
+name: template-skill
+description: Шаблон навыка (Skill) для заполнения новых файлов.
 ---
+
 
 <!--
   Шаблон навыка (Skill)
@@ -17,9 +17,11 @@ depends_on: []
   - (новый тип)/   — создайте подкаталог для нового типа
 
   YAML frontmatter:
-  - id: skill/<имя-файла-без-расширения>
-  - type: skill
-  - depends_on: [] (всегда пустой — зависимости от tool-registry убраны)
+  - name: <kebab-case>
+  - description: <назначение и триггеры>
+
+  Backmatter (технический блок в конце файла):
+  - depends_on: []
 -->
 
 # [Название навыка]
@@ -95,3 +97,7 @@ depends_on: []
 <!-- Ссылки на связанные навыки, правила, capability -->
 
 - [Имя ресурса](относительный/путь) — краткое описание связи
+
+---
+depends_on: []
+---

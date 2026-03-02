@@ -1,5 +1,6 @@
 ---
-description: Резолв capability → MCP tool. Агент использует registry/resolved-map для вызова.
+name: capability-resolution
+description: Резолв capability → MCP tool. Агент использует registry.yaml для вызова.
 alwaysApply: true
 ---
 
@@ -7,16 +8,15 @@ alwaysApply: true
 
 ## Назначение
 
-Навыки и правила ссылаются на **capability** (абстракция). Конкретный вызов — MCP tool. Маппинг хранится в `framework/capabilities/`.
+Навыки и правила ссылаются на **capability** (абстракция). Конкретный вызов — MCP tool. Маппинг хранится в `capabilities/`.
 
-## Источники
+## Источник
 
-- `framework/capabilities/registry.yaml` — источник правды (редактируется вручную, CLI)
-- `framework/capabilities/resolved-map.md` — таблица для агента (если есть; иначе читай registry.yaml)
+- `capabilities/registry.yaml` — источник правды (редактируется вручную, CLI)
 
 ## Правило вызова
 
-1. Навык указывает capability — используй `framework/capabilities/registry.yaml` или `resolved-map.md` для выбора server + tool.
+1. Навык указывает capability — используй `capabilities/registry.yaml` для выбора server + tool.
 2. Схему вызова (arguments) бери из IDE tool list.
 3. Если capability отсутствует или tool недоступен — сообщи пользователю.
 

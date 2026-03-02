@@ -18,27 +18,29 @@
 
 ## Быстрый старт
 
-### Install-скрипт (рекомендуется)
+### CLI 1c-ai-agent-cli (рекомендуется)
 
 ```bash
+# Клонировать репозиторий (если ещё не клонирован)
+python tools/1c-ai-agent-cli.py clone
+
 # Интерактивный режим — выбор IDE, дерево компонентов с чекбоксами
-python tools/install.py
+python tools/1c-ai-agent-cli.py
 
 # Командная строка — IDE + компоненты, зависимости подтянутся автоматически
-python tools/install.py --ide cursor --include agent/developer workflow/quick-fix
+python tools/1c-ai-agent-cli.py --ide cursor --include agent/developer workflow/quick-fix
 
 # Посмотреть дерево всех компонентов
-python tools/install.py --ide cursor --list
+python tools/1c-ai-agent-cli.py --ide cursor --list
 
 # Установить всё
-python tools/install.py --ide cursor --all
+python tools/1c-ai-agent-cli.py --ide cursor --all
 
 # Пересоздать симлинки если переместили фреймворк
-python tools/install.py --relink
+python tools/1c-ai-agent-cli.py --relink
 ```
 
-Скрипт создаёт симлинки в директории IDE, настраивает модели агентов через TUI. Работает на Python 3.7+ без внешних зависимостей.
-
+CLI создаёт симлинки в директории IDE, настраивает модели агентов через TUI. Работает на Python 3.7+, Git (для clone). 
 Подробное руководство по всем возможностям — [docs/install-guide.md](docs/install-guide.md).
 
 **Время до первого запуска: ~5 минут.**
@@ -57,16 +59,106 @@ python tools/install.py --relink
 1c-agent-based-dev-framework/
 ├── docs/                     # Спецификации и исследования
 │   └── SPEC-001-framework-architecture.md
-├── framework/                # Ядро (IDE-agnostic markdown)
+├── framework/                # Ядро на русском языке (источник правды)
 │   ├── skills/              # tool-usage, bsl-practices, spec-writing, *_ext
 │   ├── rules/               # mandatory-tools, cross-review, TDD, SDD
-│   ├── agents/              # Роли: analyst, architect, developer, etc.
+│   ├── subagents/           # Роли: analyst, architect, developer, etc.
 │   └── workflows/           # full-cycle, quick-fix, orchestrator
+├── framework_eng/            # EN-зеркало (генерируется автоматически, не редактировать)
+│   └── ...                  # Идентичная структура, переведённые файлы
 ├── tools/
-│   ├── install.py           # Установщик компонентов
-│   ├── tui.py               # TUI-интерфейс для install.py
+│   ├── 1c-ai-agent-cli.py   # CLI (clone, install) — симлинки на framework_eng/
+│   ├── sync-skill.py        # RU→EN синхронизатор через Codex CLI
+│   ├── hooks/pre-commit     # Git хук (скопировать в .git/hooks/)
+│   ├── tui.py               # TUI-интерфейс для CLI
 │   └── model-defaults.json  # Маппинг моделей по IDE
+├── .claude/CLAUDE.md         # Правила для агентов (языковая политика, синхронизация)
+├── .skills-sync-state.json   # Реестр синхронизации (хэши RU/EN, статусы)
 └── README.md
+```
+
+---
+
+## Двуязычная архитектура навыков (RU → EN)
+
+Навыки фреймворка хранятся **на русском языке** — это удобно для русскоязычного 1С-сообщества.
+Агенты при этом работают с **английскими версиями** — они занимают меньше токенов контекста (~1.5–2× экономия).
+
+### Как устроено
+
+```
+framework/          ← Русский. Источник правды. Редактируют люди и агенты.
+framework_eng/      ← Английский. Зеркало. Генерируется АВТОМАТИЧЕСКИ.
+```
+
+Симлинки IDE (`.claude/skills/`, `.cursor/skills/` и т.д.) указывают на `framework_eng/`.
+Дерево компонентов в CLI строится по `framework/` — имена привычные для пользователя.
+
+### Автоматический перевод
+
+Перевод запускается **автоматически при каждом `git commit`** через pre-commit хук:
+
+```
+git commit
+  ↓
+pre-commit хук: найти изменения в framework/ (кроме README.md)
+  ↓
+tools/sync-skill.py: запустить Codex CLI (cx/gpt-5-codex-mini)
+  ↓
+Codex читает RU-файл из framework/, пишет EN-версию в framework_eng/
+  ↓
+Хук добавляет framework_eng/ файлы в коммит автоматически
+  ↓
+Коммит содержит RU + EN одновременно — данные всегда консистентны
+  ↓
+При ошибке перевода — коммит БЛОКИРУЕТСЯ с инструкцией
+```
+
+### Инструменты связки
+
+| Роль | Инструмент |
+|------|-----------|
+| Редактирование навыков | **Claude Code** (СС) |
+| Перевод RU → EN | **Codex CLI** (`cx/gpt-5-codex-mini`) через `tools/sync-skill.py` |
+| Триггер | `pre-commit` git хук |
+| Реестр состояний | `.skills-sync-state.json` (хэши + статусы) |
+
+> ⚠️ **Важно:** Эта связка предполагает что Codex CLI (`@openai/codex`) установлен
+> и настроен с доступом к модели `cx/gpt-5-codex-mini`.
+> Без него pre-commit хук будет блокировать коммиты с изменениями в `framework/`.
+
+### Правила для агентов (CLAUDE.md)
+
+Файл `.claude/CLAUDE.md` содержит обязательные правила:
+
+- После редактирования любого файла в `framework/` — немедленно синхронизировать зеркало
+- **Никогда не редактировать `framework_eng/` напрямую**
+- Использовать навык `skills-i18n-sync` для проверки статусов и ручной синхронизации
+
+### Установка хука на новой машине
+
+Хук хранится в `tools/hooks/pre-commit` и **не копируется автоматически** при `git clone`.
+При клонировании репозитория выполните:
+
+```bash
+cp tools/hooks/pre-commit .git/hooks/pre-commit
+chmod +x .git/hooks/pre-commit
+```
+
+### Команды синхронизации
+
+```bash
+# Проверить статус всех файлов
+python3 tools/sync-skill.py --check
+
+# Первичная синхронизация (один раз после клонирования)
+python3 tools/sync-skill.py --init-all
+
+# Синхронизировать конкретный файл вручную
+python3 tools/sync-skill.py framework/skills/bsl-practices/coding-standards/SKILL.md
+
+# Синхронизировать всё устаревшее
+python3 tools/sync-skill.py --all
 ```
 
 ---
@@ -125,7 +217,7 @@ python tools/install.py --relink
 
 | Категория | Каталог | Назначение | Пример |
 |-----------|---------|-----------|--------|
-| **bsl-practices** | `framework/skills/bsl-practices/` | Стандарты кодирования, паттерны, антипаттерны | `coding-standards.md` |
+| **bsl-practices** | `framework/skills/bsl-practices/` | Стандарты кодирования и паттерны | `coding-standards.md` |
 | **tool-usage** | `framework/skills/tool-usage/` | Когда и как использовать MCP-инструменты | `syntax-checking.md` |
 | **spec-writing** | `framework/skills/spec-writing/` | Стандарты спецификаций | `spec-standard.md` |
 | **_ext** | `framework/skills/*_ext/` | Расширения внешних навыков (Anthropic и др.) | `agent-development_ext` |
