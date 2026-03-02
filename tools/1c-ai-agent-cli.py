@@ -686,8 +686,8 @@ def print_tree(graph: FrameworkGraph, selected: Optional[Set[str]] = None):
                             "\n".join(_collect_component_text(d) for d in dep_comps)
                         )
                         eng_tokens = int(round(_estimate_tokens(cyr_text) * 0.7 + _estimate_tokens(lat_text)))
-                    eng_label = "реал.EN" if graph.mirror_dir else "оцен.EN"
-                    ctx_str = dim(f" [RU = {ctx_tokens}, {eng_label} = {eng_tokens}]")
+                    eng_label = "~EN" if graph.mirror_dir else "~EN"
+                    ctx_str = dim(f" [~{eng_tokens} токенов]")
                 else:
                     deps_count = len(c.depends_on)
                     ctx_str = dim(f" ({deps_count} зав.)") if deps_count else ""
@@ -835,8 +835,7 @@ def _build_checklist_items(graph: FrameworkGraph) -> List:
                             "\n".join(_collect_component_text(d) for d in dep_comps)
                         )
                         eng_tokens = int(round(_estimate_tokens(cyr_text) * 0.7 + _estimate_tokens(lat_text)))
-                        eng_label = "оцен.EN"
-                    desc = f"{c.short_description()} [RU = {ctx_tokens}, {eng_label} = {eng_tokens}]"
+                    desc = f"{c.short_description()} [~{eng_tokens} токенов]"
                 else:
                     desc = c.short_description()
                 items.append((c.id, c.id, desc, False))
@@ -1186,8 +1185,9 @@ def estimate_context_usage(
 ) -> Tuple[int, int, int, int, int]:
     """Оценивает контекст: always, on-demand, total, english-only, savings.
 
-    english-only считается по реальным EN-файлам из mirror_dir (если доступны),
-    иначе — математически (~0.7 кириллицы).
+    Все значения считаются по EN-файлам из mirror_dir (если доступны).
+    Fallback: математика (~0.7 кириллицы) если зеркало не создано.
+    savings = total_ru - total_en (для справки).
     """
     resolved = graph.resolve_dependencies(selected_ids)
     always_types = {"rule", "agent", "subagent", "workflow"}
@@ -1207,20 +1207,23 @@ def estimate_context_usage(
             on_demand_ru.append(ru_text)
             on_demand_en.append(en_text)
 
-    always_tokens = _estimate_tokens("\n".join(always_ru))
-    on_demand_tokens = _estimate_tokens("\n".join(on_demand_ru))
-    total_tokens = always_tokens + on_demand_tokens
+    total_ru = _estimate_tokens("\n".join(always_ru + on_demand_ru))
 
-    # EN-токены: реальный файл если mirror доступен, иначе математика
     if graph.mirror_dir:
-        english_total = _estimate_tokens("\n".join(always_en + on_demand_en))
+        always_tokens  = _estimate_tokens("\n".join(always_en))
+        on_demand_tokens = _estimate_tokens("\n".join(on_demand_en))
     else:
-        combined_text = "\n".join(always_ru + on_demand_ru)
-        cyrillic_text, latin_text = _split_cyrillic_latin(combined_text)
-        english_total = int(round(_estimate_tokens(cyrillic_text) * 0.7 + _estimate_tokens(latin_text)))
+        # Fallback: математика по RU
+        def _math_en(texts):
+            t = "\n".join(texts)
+            cyr, lat = _split_cyrillic_latin(t)
+            return int(round(_estimate_tokens(cyr) * 0.7 + _estimate_tokens(lat)))
+        always_tokens  = _math_en(always_ru)
+        on_demand_tokens = _math_en(on_demand_ru)
 
-    savings = total_tokens - english_total
-    return always_tokens, on_demand_tokens, total_tokens, english_total, savings
+    total_tokens = always_tokens + on_demand_tokens
+    savings = total_ru - total_tokens
+    return always_tokens, on_demand_tokens, total_tokens, total_tokens, savings
 
 
 def estimate_agent_contexts(
@@ -1302,16 +1305,15 @@ def format_context_estimate(
     mirror_available: bool = False,
 ) -> List[str]:
     """Формирует блок строк для вывода оценки контекста."""
+    en_note = "" if mirror_available else " (~оценка)"
     lines = [
-        f"  {bold('Оценка контекста (токены):')}",
+        f"  {bold('Оценка контекста (токены EN):')}",
         f"    Всегда в контексте: {bold(str(always_tokens))}",
         f"    По требованию:       {bold(str(on_demand_tokens))}",
-        f"    Общее (RU):          {bold(str(total_tokens))}",
+        f"    Итого{en_note}:            {bold(str(total_tokens))}",
     ]
-    if show_english:
-        savings_str = f" (экономия {savings})" if savings else ""
-        en_label = "реальный EN (зеркало)" if mirror_available else "оценка EN (~-30%)"
-        lines.append(f"    {en_label}: {bold(str(english_total))}{savings_str}")
+    if savings > 0:
+        lines.append(f"    Экономия vs RU:      ~{savings} токенов")
     return lines
 
 
