@@ -672,15 +672,22 @@ def print_tree(graph: FrameworkGraph, selected: Optional[Set[str]] = None):
                 # Для субагентов: показываем оценку контекста (навыки + правила зависимостей)
                 if comp_type in ("agent", "subagent") and c.depends_on:
                     deps = graph.resolve_dependencies({c.id})
-                    ctx_text = "\n".join(
-                        _collect_component_text(graph.components[d])
-                        for d in deps
+                    dep_comps = [
+                        graph.components[d] for d in deps
                         if d in graph.components and graph.components[d].type in ("rule", "skill")
-                    )
-                    ctx_tokens = _estimate_tokens(ctx_text)
-                    cyr_text, lat_text = _split_cyrillic_latin(ctx_text)
-                    eng_tokens = int(round(_estimate_tokens(cyr_text) * 0.7 + _estimate_tokens(lat_text)))
-                    ctx_str = dim(f" [Тек. = {ctx_tokens}, eng = {eng_tokens}]")
+                    ]
+                    ctx_tokens = _estimate_tokens("\n".join(_collect_component_text(d) for d in dep_comps))
+                    if graph.mirror_dir:
+                        eng_tokens = _estimate_tokens("\n".join(
+                            _collect_component_text(d, graph.mirror_dir) for d in dep_comps
+                        ))
+                    else:
+                        cyr_text, lat_text = _split_cyrillic_latin(
+                            "\n".join(_collect_component_text(d) for d in dep_comps)
+                        )
+                        eng_tokens = int(round(_estimate_tokens(cyr_text) * 0.7 + _estimate_tokens(lat_text)))
+                    eng_label = "реал.EN" if graph.mirror_dir else "оцен.EN"
+                    ctx_str = dim(f" [RU = {ctx_tokens}, {eng_label} = {eng_tokens}]")
                 else:
                     deps_count = len(c.depends_on)
                     ctx_str = dim(f" ({deps_count} зав.)") if deps_count else ""
@@ -813,15 +820,23 @@ def _build_checklist_items(graph: FrameworkGraph) -> List:
                 # Для агентов/субагентов — описание с оценкой контекста навыков+правил
                 if comp_type in ("agent", "subagent") and c.depends_on:
                     deps = graph.resolve_dependencies({c.id})
-                    ctx_text = "\n".join(
-                        _collect_component_text(graph.components[d])
-                        for d in deps
+                    dep_comps = [
+                        graph.components[d] for d in deps
                         if d in graph.components and graph.components[d].type in ("rule", "skill")
-                    )
-                    ctx_tokens = _estimate_tokens(ctx_text)
-                    cyr_text, lat_text = _split_cyrillic_latin(ctx_text)
-                    eng_tokens = int(round(_estimate_tokens(cyr_text) * 0.7 + _estimate_tokens(lat_text)))
-                    desc = f"{c.short_description()} [Тек. = {ctx_tokens}, eng = {eng_tokens}]"
+                    ]
+                    ctx_tokens = _estimate_tokens("\n".join(_collect_component_text(d) for d in dep_comps))
+                    if graph.mirror_dir:
+                        eng_tokens = _estimate_tokens("\n".join(
+                            _collect_component_text(d, graph.mirror_dir) for d in dep_comps
+                        ))
+                        eng_label = "реал.EN"
+                    else:
+                        cyr_text, lat_text = _split_cyrillic_latin(
+                            "\n".join(_collect_component_text(d) for d in dep_comps)
+                        )
+                        eng_tokens = int(round(_estimate_tokens(cyr_text) * 0.7 + _estimate_tokens(lat_text)))
+                        eng_label = "оцен.EN"
+                    desc = f"{c.short_description()} [RU = {ctx_tokens}, {eng_label} = {eng_tokens}]"
                 else:
                     desc = c.short_description()
                 items.append((c.id, c.id, desc, False))
@@ -1133,15 +1148,35 @@ def _split_cyrillic_latin(text: str) -> Tuple[str, str]:
     return cyrillic_text, latin_text
 
 
-def _collect_component_text(comp: "Component") -> str:
-    """Возвращает текст компонента для оценки контекста."""
-    try:
-        if comp.type == "skill" and comp.filepath.name == "SKILL.md":
-            return comp.filepath.read_text(encoding="utf-8")
-        if comp.filepath.suffix in (".md", ".mdc"):
-            return comp.filepath.read_text(encoding="utf-8")
-    except (OSError, UnicodeDecodeError):
-        return ""
+def _collect_component_text(comp: "Component", mirror_dir: Optional[Path] = None) -> str:
+    """Возвращает текст компонента для оценки контекста.
+    Если mirror_dir задан — читает EN-версию из зеркала (реальный текст агента).
+    Fallback на RU-файл если EN ещё не создан.
+    """
+    def _read(path: Path) -> str:
+        try:
+            return path.read_text(encoding="utf-8")
+        except (OSError, UnicodeDecodeError):
+            return ""
+
+    ru_path = comp.filepath
+
+    if mirror_dir:
+        # Вычисляем зеркальный путь
+        fw_dir = ru_path.parent
+        while fw_dir.name != "framework" and fw_dir.parent != fw_dir:
+            fw_dir = fw_dir.parent
+        try:
+            rel = ru_path.relative_to(fw_dir)
+            en_path = mirror_dir / rel
+            if en_path.exists():
+                return _read(en_path)
+        except ValueError:
+            pass
+
+    # Fallback: читаем RU
+    if ru_path.suffix in (".md", ".mdc"):
+        return _read(ru_path)
     return ""
 
 
@@ -1149,34 +1184,42 @@ def estimate_context_usage(
     graph: "FrameworkGraph",
     selected_ids: Set[str],
 ) -> Tuple[int, int, int, int, int]:
-    """Оценивает контекст: always, on-demand, total, english-only, savings."""
+    """Оценивает контекст: always, on-demand, total, english-only, savings.
 
+    english-only считается по реальным EN-файлам из mirror_dir (если доступны),
+    иначе — математически (~0.7 кириллицы).
+    """
     resolved = graph.resolve_dependencies(selected_ids)
     always_types = {"rule", "agent", "subagent", "workflow"}
-    always_text = []
-    on_demand_text = []
+    always_ru, on_demand_ru = [], []
+    always_en, on_demand_en = [], []
 
     for cid in sorted(resolved):
         comp = graph.components.get(cid)
         if not comp:
             continue
-        text = _collect_component_text(comp)
+        ru_text = _collect_component_text(comp)
+        en_text = _collect_component_text(comp, graph.mirror_dir)
         if comp.type in always_types:
-            always_text.append(text)
+            always_ru.append(ru_text)
+            always_en.append(en_text)
         else:
-            on_demand_text.append(text)
+            on_demand_ru.append(ru_text)
+            on_demand_en.append(en_text)
 
-    combined_text = "\n".join(always_text + on_demand_text)
-    always_tokens = _estimate_tokens("\n".join(always_text))
-    on_demand_tokens = _estimate_tokens("\n".join(on_demand_text))
+    always_tokens = _estimate_tokens("\n".join(always_ru))
+    on_demand_tokens = _estimate_tokens("\n".join(on_demand_ru))
     total_tokens = always_tokens + on_demand_tokens
 
-    cyrillic_text, latin_text = _split_cyrillic_latin(combined_text)
-    cyrillic_tokens = _estimate_tokens(cyrillic_text)
-    latin_tokens = _estimate_tokens(latin_text)
-    english_total = int(round(cyrillic_tokens * 0.7 + latin_tokens))
-    savings = total_tokens - english_total
+    # EN-токены: реальный файл если mirror доступен, иначе математика
+    if graph.mirror_dir:
+        english_total = _estimate_tokens("\n".join(always_en + on_demand_en))
+    else:
+        combined_text = "\n".join(always_ru + on_demand_ru)
+        cyrillic_text, latin_text = _split_cyrillic_latin(combined_text)
+        english_total = int(round(_estimate_tokens(cyrillic_text) * 0.7 + _estimate_tokens(latin_text)))
 
+    savings = total_tokens - english_total
     return always_tokens, on_demand_tokens, total_tokens, english_total, savings
 
 
@@ -1203,16 +1246,24 @@ def estimate_agent_contexts(
             if cid == agent_id or comp.type in {"rule", "skill"}:
                 include_ids.append(cid)
 
-        combined_text = "\n".join(
+        ru_text = "\n".join(
             _collect_component_text(graph.components[cid])
             for cid in include_ids
             if cid in graph.components
         )
-        total_tokens = _estimate_tokens(combined_text)
-        cyrillic_text, latin_text = _split_cyrillic_latin(combined_text)
-        cyrillic_tokens = _estimate_tokens(cyrillic_text)
-        latin_tokens = _estimate_tokens(latin_text)
-        english_total = int(round(cyrillic_tokens * 0.7 + latin_tokens))
+        total_tokens = _estimate_tokens(ru_text)
+
+        if graph.mirror_dir:
+            en_text = "\n".join(
+                _collect_component_text(graph.components[cid], graph.mirror_dir)
+                for cid in include_ids
+                if cid in graph.components
+            )
+            english_total = _estimate_tokens(en_text)
+        else:
+            cyrillic_text, latin_text = _split_cyrillic_latin(ru_text)
+            english_total = int(round(_estimate_tokens(cyrillic_text) * 0.7 + _estimate_tokens(latin_text)))
+
         savings = total_tokens - english_total
         results.append((agent_id, total_tokens, english_total, savings))
 
@@ -1248,18 +1299,19 @@ def format_context_estimate(
     english_total: int,
     savings: int,
     show_english: bool,
+    mirror_available: bool = False,
 ) -> List[str]:
     """Формирует блок строк для вывода оценки контекста."""
     lines = [
         f"  {bold('Оценка контекста (токены):')}",
         f"    Всегда в контексте: {bold(str(always_tokens))}",
         f"    По требованию:       {bold(str(on_demand_tokens))}",
-        f"    Общее:               {bold(str(total_tokens))}",
+        f"    Общее (RU):          {bold(str(total_tokens))}",
     ]
     if show_english:
-        savings_str = f" ({savings})" if savings else ""
-        lines.append(f"    Оценка (English-only): {bold(str(english_total))}{savings_str}")
-        lines.append("    Оценка перевода:       ~30% экономии (ориентир)")
+        savings_str = f" (экономия {savings})" if savings else ""
+        en_label = "реальный EN (зеркало)" if mirror_available else "оценка EN (~-30%)"
+        lines.append(f"    {en_label}: {bold(str(english_total))}{savings_str}")
     return lines
 
 
@@ -2347,6 +2399,7 @@ def main():
             english_total,
             savings,
             show_english=args.estimate_english_only,
+            mirror_available=bool(graph.mirror_dir),
         ):
             print(line)
 
