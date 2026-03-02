@@ -1,48 +1,52 @@
 ---
 name: form-visual-requirements
-description: Checklist and criteria for verifying 1C form layout and usability. Use this to analyze screenshots from visual-check.
+description: Чек-лист и критерии проверки компоновки и удобства форм 1С. Используй для анализа скриншотов из visual-check.
 ---
 
-# Form Visual Requirements
+# Визуальные требования к формам
 
-Use this checklist to verify 1C forms.
+Используй этот чек-лист для проверки форм 1С.
 
-## 1. Layout & Alignment
+## 1. Разметка и выравнивание
 
-- [ ] **Alignment**: Controls should be aligned to a grid. No "staircase" effect.
-- [ ] **Grouping**: Logically related fields should be grouped (Frame, Page).
-- [ ] **Whitespace**: No large empty areas (>150px) unless intentional.
-- [ ] **Width**:
-  - `Code`, `Number`, `Date` fields should be narrow.
-  - `Description`, `Comment`, `Address` fields should be wide (stretch).
-  - Table columns should use "Auto Width" or explicit width to fill space.
+- [ ] **Выравнивание**: элементы выровнены по сетке, без эффекта «лесенки».
+- [ ] **Группировка**: логически связанные поля объединены в группы (рамка, страница).
+- [ ] **Пустоты**: нет больших пустых областей (>150px), если это не задумано.
+- [ ] **Ширина полей**:
+  - `Код`, `Номер`, `Дата` — узкие.
+  - `Описание`, `Комментарий`, `Адрес` — широкие (растянуты).
+  - Колонки табличных частей — «Авто ширина» или явная ширина для заполнения пространства.
 
-## 2. Controls & Labels
+## 2. Элементы и подписи
 
-- [ ] **Labels**: All fields must have labels (or explicit "TitleLocation=None").
-- [ ] **Truncation**: Labels and values should NOT be truncated with ellipsis ("...") if space permits.
-- [ ] **Captions**: Checkbox captions should be clear (e.g., "Active" instead of just a checkbox).
-- [ ] **CommandBar**: "More" (Ещё) menu should not hide primary actions.
+- [ ] **Подписи**: у всех полей есть подписи (или явно указано `TitleLocation=None`).
+- [ ] **Обрезание**: подписи и значения не должны обрезаться троеточием («…») при наличии места.
+- [ ] **Надписи флажков**: подпись флажка должна быть понятной (например, «Активен», а не просто чекбокс).
+- [ ] **Командная панель**: меню «Ещё» не должно скрывать основные действия.
 
-## 3. Usability
+## 3. Удобство использования
 
-- [ ] **Tab Order**: Focus should move Left-to-Right, Top-to-Bottom.
-- [ ] **Primary Fields**: Important identifiers (Name, Code, Date) should be at the Top-Left.
-- [ ] **Tables**: Tabular sections should have a reasonable height (min 5-10 rows visible).
-- [ ] **Horizontal Scroll**: STRICTLY PROHIBITED for main form area (vertical scroll is OK).
+- [ ] **Порядок табуляции**: фокус перемещается слева направо и сверху вниз.
+- [ ] **Ключевые поля**: важные идентификаторы (Наименование, Код, Дата) — в левом верхнем углу.
+- [ ] **Табличные части**: разумная высота (минимум 5–10 видимых строк).
+- [ ] **Горизонтальная прокрутка**: строго запрещена для основной области формы (вертикальная допускается).
 
-## 4. Specific Object Types
+## 4. Специфика по типам объектов
 
-### Catalogs (Справочники)
-- Code/Description usually at top.
-- Hierarchy parent field (if hierarchical) prominent.
+### Справочники
+- Код/Наименование обычно сверху.
+- Поле родителя (при иерархии) — заметное.
 
-### Documents (Документы)
-- Date/Number at top.
-- Status/Organization/Warehouse - header.
-- Tabular sections - body.
-- Totals/Comment/Author - footer.
+### Документы
+- Дата/Номер — вверху.
+- Статус/Организация/Склад — в заголовке.
+- Табличные части — в теле формы.
+- Итоги/Комментарий/Автор — внизу.
 
-### Data Processors (Обработки)
-- Settings/Parameters - top or separate tab.
-- Action buttons - CommandBar or bottom right.
+### Обработки
+- Настройки/параметры — сверху или на отдельной вкладке.
+- Кнопки действий — в командной панели или справа внизу.
+
+---
+depends_on: []
+---

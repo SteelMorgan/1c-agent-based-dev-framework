@@ -3,7 +3,7 @@ name: agent-development-ext
 description: >
   1C BSL Framework extension for agent-development skill.
   Use together with the base agent-development skill when creating or modifying
-  framework agents (analyst, architect, developer, reviewer, tester, explorer, formatter).
+  framework agents (analyst, architect, developer, reviewer, tester, explorer).
   Covers: universal agent format (Cursor + Claude Code), model tier mapping,
   framework-specific frontmatter fields, 1C BSL domain context.
 ---
@@ -36,7 +36,7 @@ description: >
   <<commentary>>...<</commentary>>
   <</example>>
 
-model: sonnet              # haiku | sonnet | opus (алиас, install.py подставит конкретную модель для Cursor)
+model: sonnet              # haiku | sonnet | opus (алиас, CLI подставит конкретную модель для Cursor)
 readonly: true             # true для read-only агентов (analyst, explorer, reviewer)
 skills:                    # Claude Code подгрузит автоматически; Cursor проигнорирует
   - spec-standard
@@ -90,7 +90,6 @@ Claude Code подгрузит skills из frontmatter автоматическ�
 | Роль | model | readonly | Обоснование |
 |------|-------|----------|-------------|
 | explorer | haiku | true | Детерминированная работа, инструменты дают точные результаты |
-| formatter | haiku | false | Простые правки, шаблоны, не требуют рассуждений |
 | analyst | sonnet | true | Анализ требований, создание спецификаций |
 | tester | sonnet | false | Написание и запуск тестов |
 | architect | sonnet | true | Технические решения, trade-offs |
@@ -101,9 +100,9 @@ Claude Code подгрузит skills из frontmatter автоматическ�
 
 `model` ревьюера MUST быть ≥ модели автора артефакта. Если автор `sonnet` — ревьюер `sonnet` или `opus`.
 
-### install.py: интерактивный выбор моделей
+### CLI: интерактивный выбор моделей
 
-При запуске `install.py` пользователь выбирает конкретную модель для каждого агента (или принимает дефолты).
+При запуске `python tools/1c-ai-agent-cli.py` пользователь выбирает конкретную модель для каждого агента (или принимает дефолты).
 
 **Дефолты** хранятся в `tools/model-defaults.json` — по IDE:
 
@@ -130,7 +129,7 @@ Claude Code подгрузит skills из frontmatter автоматическ�
 |------|-------------|--------|
 | `name` | ✓ идентификатор агента | ✓ идентификатор правила |
 | `description` | ✓ trigger-описание с examples | ✓ используется как `description` правила |
-| `model` | ✓ нативно: haiku/sonnet/opus | ✓ install.py записывает конкретную модель в agent-файл |
+| `model` | ✓ нативно: haiku/sonnet/opus | ✓ CLI записывает конкретную модель в agent-файл |
 | `readonly` | — (используют tools/disallowedTools) | ✓ нативно поддерживается |
 | `skills` | ✓ preload навыков в контекст | ✗ игнорируется (навыки в body) |
 | `color` | ✓ визуальный идентификатор | ✗ не поддерживается |
@@ -177,3 +176,7 @@ Claude Code подгрузит skills из frontmatter автоматическ�
 8. [ ] В body — Core Responsibilities, Protocol, Quality Standards, Boundaries
 9. [ ] Нет секции "Используемые capability" — tools через MCP
 10. [ ] Нет отдельных таблиц "Входные/выходные данные" — встроены в body
+
+---
+depends_on: []
+---

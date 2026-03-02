@@ -20,8 +20,8 @@ from pathlib import Path
 from typing import Dict, List, Set, Tuple
 import yaml
 
-# Корень репозитория
-REPO_ROOT = Path(__file__).parent.parent
+# Корень репозитория (скрипт в tools/validate-deps/)
+REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 FRAMEWORK_DIR = REPO_ROOT / "framework"
 
 # Типы артефактов
@@ -154,6 +154,10 @@ class FrameworkValidator:
                                     f"{rel_path}: использует навык '{skill_name}', "
                                     f"но {skill_file.relative_to(REPO_ROOT)} не в depends_on"
                                 )
+                                if self.fix_mode:
+                                    if file_path not in self.fixes:
+                                        self.fixes[file_path] = set()
+                                    self.fixes[file_path].add(skill_file)
                             break
                     
                     if not found:
@@ -270,7 +274,7 @@ class FrameworkValidator:
         return result
     
     def export_cycles_to_json(self, output_file: str):
-        """Экспортирует взаимозависимости в JSON для использования в install.py."""
+        """Экспортирует взаимозависимости в JSON для использования в 1c-ai-agent-cli (tools/1c-ai-agent-cli.py)."""
         import json
         from datetime import datetime, timezone
         
@@ -391,7 +395,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--export-cycles",
         metavar="FILE",
-        help="Экспортировать взаимозависимости в JSON файл для использования в install.py"
+        help="Экспортировать взаимозависимости в JSON файл для использования в 1c-ai-agent-cli (tools/1c-ai-agent-cli.py)"
     )
     
     args = parser.parse_args()

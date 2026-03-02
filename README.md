@@ -18,27 +18,29 @@
 
 ## Быстрый старт
 
-### Install-скрипт (рекомендуется)
+### CLI 1c-ai-agent-cli (рекомендуется)
 
 ```bash
+# Клонировать репозиторий (если ещё не клонирован)
+python tools/1c-ai-agent-cli.py clone
+
 # Интерактивный режим — выбор IDE, дерево компонентов с чекбоксами
-python tools/install.py
+python tools/1c-ai-agent-cli.py
 
 # Командная строка — IDE + компоненты, зависимости подтянутся автоматически
-python tools/install.py --ide cursor --include agent/developer workflow/quick-fix
+python tools/1c-ai-agent-cli.py --ide cursor --include agent/developer workflow/quick-fix
 
 # Посмотреть дерево всех компонентов
-python tools/install.py --ide cursor --list
+python tools/1c-ai-agent-cli.py --ide cursor --list
 
 # Установить всё
-python tools/install.py --ide cursor --all
+python tools/1c-ai-agent-cli.py --ide cursor --all
 
 # Пересоздать симлинки если переместили фреймворк
-python tools/install.py --relink
+python tools/1c-ai-agent-cli.py --relink
 ```
 
-Скрипт создаёт симлинки в директории IDE, настраивает модели агентов через TUI. Работает на Python 3.7+ без внешних зависимостей.
-
+CLI создаёт симлинки в директории IDE, настраивает модели агентов через TUI. Работает на Python 3.7+, Git (для clone). 
 Подробное руководство по всем возможностям — [docs/install-guide.md](docs/install-guide.md).
 
 **Время до первого запуска: ~5 минут.**
@@ -63,8 +65,8 @@ python tools/install.py --relink
 │   ├── agents/              # Роли: analyst, architect, developer, etc.
 │   └── workflows/           # full-cycle, quick-fix, orchestrator
 ├── tools/
-│   ├── install.py           # Установщик компонентов
-│   ├── tui.py               # TUI-интерфейс для install.py
+│   ├── 1c-ai-agent-cli.py    # CLI (clone, install)
+│   ├── tui.py               # TUI-интерфейс для CLI
 │   └── model-defaults.json  # Маппинг моделей по IDE
 └── README.md
 ```
@@ -125,7 +127,7 @@ python tools/install.py --relink
 
 | Категория | Каталог | Назначение | Пример |
 |-----------|---------|-----------|--------|
-| **bsl-practices** | `framework/skills/bsl-practices/` | Стандарты кодирования, паттерны, антипаттерны | `coding-standards.md` |
+| **bsl-practices** | `framework/skills/bsl-practices/` | Стандарты кодирования и паттерны | `coding-standards.md` |
 | **tool-usage** | `framework/skills/tool-usage/` | Когда и как использовать MCP-инструменты | `syntax-checking.md` |
 | **spec-writing** | `framework/skills/spec-writing/` | Стандарты спецификаций | `spec-standard.md` |
 | **_ext** | `framework/skills/*_ext/` | Расширения внешних навыков (Anthropic и др.) | `agent-development_ext` |

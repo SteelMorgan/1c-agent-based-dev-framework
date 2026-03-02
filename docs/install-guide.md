@@ -1,28 +1,31 @@
-# Руководство по install.py
+# Руководство по 1c-ai-agent-cli
 
-Интерактивный установщик фреймворка. Выбирает компоненты, настраивает модели агентов и размещает всё в каталоге проекта — симлинками (по умолчанию) или копиями.
+CLI фреймворка (clone, install). Выбирает компоненты, настраивает модели агентов и размещает всё в каталоге проекта — симлинками (по умолчанию) или копиями.
 
-**Требования:** Python 3.7+, без внешних зависимостей.
+**Требования:** Python 3.7+, Git (для clone).
 
 ---
 
 ## Быстрый старт
 
 ```bash
+# Клонировать репозиторий
+python tools/1c-ai-agent-cli.py clone
+
 # Интерактивный режим — TUI с навигацией стрелками
-python tools/install.py
+python tools/1c-ai-agent-cli.py
 
 # CLI — выбрать IDE и компоненты явно
-python tools/install.py --ide cursor --include agent/developer workflow/quick-fix
+python tools/1c-ai-agent-cli.py --ide cursor --include agent/developer workflow/quick-fix
 
 # Установить всё
-python tools/install.py --ide cursor --all
+python tools/1c-ai-agent-cli.py --ide cursor --all
 
 # Посмотреть дерево без установки
-python tools/install.py --ide cursor --list
+python tools/1c-ai-agent-cli.py --ide cursor --list
 
 # Пробный прогон
-python tools/install.py --ide cursor --all --dry-run
+python tools/1c-ai-agent-cli.py --ide cursor --all --dry-run
 ```
 
 ---
@@ -90,7 +93,7 @@ python tools/install.py --ide cursor --all --dry-run
 
 ```bash
 # Указать каталог явно
-python tools/install.py --ide cursor --all --project-dir /path/to/my-project
+python tools/1c-ai-agent-cli.py --ide cursor --all --project-dir /path/to/my-project
 ```
 
 Если `--project-dir` не указан и используется `--include` или `--all`, каталогом проекта будет текущая директория.
@@ -103,7 +106,7 @@ python tools/install.py --ide cursor --all --project-dir /path/to/my-project
 
 | Тип          | Каталог              | Назначение                                | Куда ставится       |
 |--------------|----------------------|-------------------------------------------|---------------------|
-| **agent**    | `framework/agents/`  | Роли: analyst, architect, developer и др. | `rules_dir`         |
+| **agent**    | `framework/subagents/`  | Роли: analyst, architect, developer и др. | `rules_dir`         |
 | **rule**     | `framework/rules/`   | Политики: TDD, SDD, кросс-ревью          | `rules_dir`         |
 | **skill**    | `framework/skills/`  | Навыки: BSL-практики, tool-usage, spec    | `skills_dir`        |
 | **workflow** | `framework/workflows/`| Процессы: full-cycle, quick-fix           | `rules_dir`         |
@@ -164,10 +167,10 @@ python tools/install.py --ide cursor --all --project-dir /path/to/my-project
 
 ```bash
 # Конкретные компоненты — зависимости подтянутся
-python tools/install.py --ide cursor --include agent/developer agent/reviewer
+python tools/1c-ai-agent-cli.py --ide cursor --include agent/developer agent/reviewer
 
 # Всё сразу
-python tools/install.py --ide cursor --all
+python tools/1c-ai-agent-cli.py --ide cursor --all
 ```
 
 ---
@@ -206,7 +209,7 @@ python tools/install.py --ide cursor --all
 | `aliases`   | Маппинг `haiku`/`sonnet`/`opus` → конкретная модель         |
 | `available` | Список моделей, доступных в TUI для переключения стрелками  |
 
-Отредактируйте этот файл под свой набор доступных моделей до запуска `install.py`.
+Отредактируйте этот файл под свой набор доступных моделей до запуска CLI.
 
 ### Тиры моделей
 
@@ -255,7 +258,7 @@ python tools/install.py --ide cursor --all
 
 ### Куда записываются модели
 
-Выбранные модели записываются **в оригинальные файлы** `framework/agents/*.md` (поле `model:` в frontmatter). Это позволяет устанавливать агентов симлинками, без копирования.
+Выбранные модели записываются **в оригинальные файлы** `framework/subagents/*.md` (поле `model:` в frontmatter). Это позволяет устанавливать агентов симлинками, без копирования.
 
 ---
 
@@ -270,12 +273,12 @@ python tools/install.py --ide cursor --all
 ### Копирование (fallback)
 
 - Используется при `--copy` или если симлинки недоступны
-- Файлы копируются — при обновлении фреймворка нужно перезапустить `install.py`
+- Файлы копируются — при обновлении фреймворка нужно перезапустить CLI
 
 ### Пересоздание симлинков
 
 ```bash
-python tools/install.py --relink
+python tools/1c-ai-agent-cli.py --relink
 ```
 
 Проверяет все `.md`-симлинки в проекте и сообщает о сломанных (например, если `framework/` переместили).
@@ -285,7 +288,7 @@ python tools/install.py --relink
 ## Справочник CLI
 
 ```
-python tools/install.py [OPTIONS]
+python tools/1c-ai-agent-cli.py [OPTIONS]
 ```
 
 | Флаг                     | Описание                                         |
@@ -303,19 +306,19 @@ python tools/install.py [OPTIONS]
 
 ```bash
 # Минимальный набор для быстрого старта
-python tools/install.py --ide cursor --include agent/developer workflow/quick-fix
+python tools/1c-ai-agent-cli.py --ide cursor --include agent/developer workflow/quick-fix
 
 # Полный набор для Cursor с пробным прогоном
-python tools/install.py --ide cursor --all --dry-run
+python tools/1c-ai-agent-cli.py --ide cursor --all --dry-run
 
 # Claude Code — полный набор
-python tools/install.py --ide claude-code --all
+python tools/1c-ai-agent-cli.py --ide claude-code --all
 
 # Windsurf — конкретные компоненты
-python tools/install.py --ide windsurf --include agent/developer agent/reviewer rule/tdd-policy
+python tools/1c-ai-agent-cli.py --ide windsurf --include agent/developer agent/reviewer rule/tdd-policy
 
 # Показать что доступно
-python tools/install.py --ide cursor --list
+python tools/1c-ai-agent-cli.py --ide cursor --list
 ```
 
 ---
@@ -323,7 +326,7 @@ python tools/install.py --ide cursor --list
 ## Типичный сценарий
 
 ```
-1. python tools/install.py
+1. python tools/1c-ai-agent-cli.py
 2. ← Выбор IDE (стрелками)
 3. ← Каталог проекта (Enter — принять текущий, или ввести путь)
 4. ← Выбор компонентов (Space — toggle, Enter — готово)
@@ -372,4 +375,4 @@ python tools/install.py --ide cursor --list
 
 ### Добавить новую IDE
 
-Добавьте секцию в `model-defaults.json` и конфигурацию в `IDE_CONFIGS` внутри `install.py`.
+Добавьте секцию в `model-defaults.json` и конфигурацию в `IDE_CONFIGS` внутри `tools/1c-ai-agent-cli.py`.

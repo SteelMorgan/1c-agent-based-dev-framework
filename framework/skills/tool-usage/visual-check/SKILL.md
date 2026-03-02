@@ -1,91 +1,116 @@
 ---
 name: visual-check
-description: Perform a visual check of a 1C form using a web client and browser automation. Captures a screenshot, checks for JS errors in console, analyzes using form-visual-requirements.
+description: Визуальная проверка формы 1С через веб-клиент и браузерную автоматизацию. Делает скриншот, проверяет JS-ошибки в консоли, анализирует по чеклисту form-visual-requirements.
 ---
 
-# Visual Check Skill
+# Визуальная проверка форм (Visual Check)
 
-This skill allows you to visually inspect 1C forms via the web client.
+## Назначение
 
-## Prerequisites
+Навык позволяет визуально проверять формы 1С через веб-клиент: открыть форму в браузере, сделать скриншот, проверить консоль на JS-ошибки и проанализировать по чеклисту `form-visual-requirements`.
 
-- Active browser MCP (Playwright MCP: `npx @playwright/mcp@latest`).
-- 1C Web Client URL (published database).
-- Credentials (login/password).
+---
 
-## Workflow
+## Предварительные условия
 
-### 1. Navigation
+- URL веб-клиента 1С (опубликованная база).
+- Учётные данные (логин/пароль).
 
-Use `browser_navigate` to open the form. Prefer direct links (Deep Linking) to avoid complex UI navigation.
+---
 
-**URL Patterns:**
+## Процесс проверки
 
-- List Form: `<base_url>/e1cib/list/<MetadataType>.<Name>`
-  - Example: `http://localhost/ib/e1cib/list/Catalog.Товары`
-- Object Form (New): `<base_url>/e1cib/data/<MetadataType>.<Name>?ref=00000000-0000-0000-0000-000000000000`
-  - Better: Use UI "Create" button from list form if direct link is tricky.
-- Object Form (Existing): `<base_url>/e1cib/data/<MetadataType>.<Name>?ref=<UUID>`
+### Шаг 1. Навигация к форме
 
-### 2. Login
+Используй `browser_navigate` для открытия формы. Предпочитай прямые ссылки (Deep Linking) — это быстрее, чем навигация через интерфейс.
 
-If redirected to login page:
-1. `browser_snapshot` to find inputs.
-2. `browser_fill` user/password.
-3. `browser_click` "Enter" button.
+**Шаблоны URL:**
 
-### 3. Capture & Console Check
+- Форма списка: `<base_url>/e1cib/list/<ТипМетаданных>.<Имя>`
+  - Пример: `http://localhost/ib/e1cib/list/Справочник.Товары`
+- Форма объекта (новый): `<base_url>/e1cib/data/<ТипМетаданных>.<Имя>?ref=00000000-0000-0000-0000-000000000000`
+  - Альтернатива: открыть форму списка и нажать «Создать».
+- Форма объекта (существующий): `<base_url>/e1cib/data/<ТипМетаданных>.<Имя>?ref=<UUID>`
 
-Once the form is loaded (wait for spinner to disappear):
-1. `browser_take_screenshot` (viewport is usually enough).
-2. `browser_console_messages()` — проверь на "Error", "Exception", "Uncaught".
-3. Сохрани скриншот как артефакт при необходимости.
+### Шаг 2. Авторизация
 
-### 4. Analysis
+Если браузер перенаправил на страницу входа:
+1. `browser_snapshot` — получить ссылки на элементы страницы.
+2. `browser_fill` — заполнить логин и пароль (используй `ref` из снимка).
+3. `browser_click` — нажать кнопку «Войти».
 
-Анализируй скриншот по чек-листу **form-visual-requirements**:
-- Layout & Alignment (alignment, grouping, whitespace, width)
-- Controls & Labels (labels, truncation, captions, CommandBar)
-- Usability (tab order, primary fields, tables, horizontal scroll)
-- Specific Object Types (Catalogs, Documents, Data Processors)
+### Шаг 3. Снимок и проверка консоли
 
-**Отчёт:** укажи результат проверки скриншота и наличие/отсутствие JS-ошибок в консоли.
+После загрузки формы (дождаться исчезновения индикатора загрузки):
+1. `browser_take_screenshot` — сделать скриншот текущего состояния формы.
+2. `browser_console_messages` — проверить на наличие «Error», «Exception», «Uncaught».
+3. Сохранить скриншот как артефакт при необходимости.
+
+### Шаг 4. Анализ
+
+Анализируй скриншот по чеклисту **form-visual-requirements**:
+- Расположение и выравнивание (alignment, группировка, отступы, ширина)
+- Элементы управления и подписи (метки, обрезка текста, заголовки, командная панель)
+- Удобство использования (порядок обхода, ключевые поля, таблицы, горизонтальная прокрутка)
+- Специфика типа объекта (справочники, документы, обработки)
+
+**Отчёт:** укажи результат анализа скриншота и наличие/отсутствие JS-ошибок в консоли.
+
+---
 
 ## Capabilities
 
 | Capability | Назначение |
 |------------|------------|
 | `browser_navigate` | Открытие URL формы |
-| `browser_snapshot` | Получение структуры страницы и refs элементов |
+| `browser_snapshot` | Получение структуры страницы и ref-ов элементов |
 | `browser_fill` | Заполнение полей (логин, пароль) |
 | `browser_click` | Клик по кнопкам и элементам |
 | `browser_take_screenshot` | Снимок формы |
 | `browser_console_messages` | Проверка JS-ошибок в консоли |
-| `browser_wait_for` | Ожидание загрузки |
+| `browser_wait_for` | Ожидание загрузки формы |
 
-## Example
+---
+
+## Пример
 
 ```
-# The example below shows the CONCEPTUAL workflow.
-# In practice, use MCP tools with proper refs from browser_snapshot.
+# Концептуальный пример рабочего процесса.
+# На практике используй ref-ы из browser_snapshot.
 
-# 1. Navigate to the web client
+# 1. Открыть веб-клиент
 browser_navigate(url="http://localhost/ib")
 
-# 2. Login — first take a snapshot to get element refs
+# 2. Авторизация — сначала снимок для получения ref-ов
 browser_snapshot()
-# Find the username/password input refs from the snapshot, then:
-browser_fill(ref="<ref_from_snapshot>", value="Admin")
-browser_fill(ref="<ref_from_snapshot>", value="password")
-browser_click(ref="<ref_from_snapshot>", element="Login button")
+# Найти ref-ы полей логина и пароля в снимке, затем:
+browser_fill(ref="<ref_из_снимка>", value="Администратор")
+browser_fill(ref="<ref_из_снимка>", value="пароль")
+browser_click(ref="<ref_из_снимка>", element="Кнопка входа")
 
-# 3. Navigate directly to the form via deep link
-browser_navigate(url="http://localhost/ib/e1cib/list/Catalog.Items")
+# 3. Перейти к форме через прямую ссылку
+browser_navigate(url="http://localhost/ib/e1cib/list/Справочник.Товары")
 
-# 4. Wait for the form to load, then capture and check console
+# 4. Дождаться загрузки, сделать скриншот и проверить консоль
 browser_wait_for(time=2)
-browser_take_screenshot(filename="catalog_items.png")
-browser_console_messages()  # Check for "Error", "Exception"
+browser_take_screenshot(filename="справочник_товары.png")
+browser_console_messages()  # Проверить на «Error», «Exception»
 
-# 5. Analyze screenshot (form-visual-requirements) + report JS errors if any
+# 5. Проанализировать скриншот по form-visual-requirements, зафиксировать JS-ошибки
 ```
+
+---
+
+## Типичные ошибки
+
+| Ошибка | Обходной путь |
+|--------|---------------|
+| Форма ещё не загрузилась — скриншот пустой | `browser_wait_for` перед скриншотом; проверить наличие индикатора загрузки |
+| Deep Link не работает для нового объекта | Открыть форму списка → нажать «Создать» через `browser_click` |
+| `browser_fill` не находит поле | Использовать `browser_snapshot` для получения актуальных ref-ов |
+| JS-ошибки есть, но форма выглядит нормально | Зафиксировать ошибки в отчёте — они могут проявиться при сохранении |
+
+---
+depends_on:
+  - framework/skills/bsl-practices/form-visual-requirements/SKILL.md
+---

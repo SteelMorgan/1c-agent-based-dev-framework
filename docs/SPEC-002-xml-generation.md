@@ -674,8 +674,8 @@ src/test/resources/ext/designer/mdclasses/src/cf/Roles/Роль1/Ext/Rights.xml
 | `framework/capabilities/registry.yaml` | Строки с xml-generation capabilities |
 | `docs/SPEC-001-framework-architecture.md` | Отметить requirement #4 как выполненный |
 | `README.md` | Добавить `xml-generation` в структуру каталогов и таблицу навыков |
-| `framework/agents/developer.md` | Добавить `xml-generation/*` в `skills` frontmatter |
-| `framework/agents/formatter.md` | Добавить `xml-generation/*` в `skills` frontmatter |
+| `framework/subagents/developer.md` | Добавить `xml-generation/*` в `skills` frontmatter |
+| `framework/subagents/formatter.md` | Добавить `xml-generation/*` в `skills` frontmatter |
 | `docs/install-guide.md` | Секция: сборка JAR (`./gradlew shadowJar`), путь к артефакту |
 
 ### Формат agent frontmatter (пример)

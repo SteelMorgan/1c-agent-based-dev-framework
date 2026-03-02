@@ -44,7 +44,7 @@ python3 tools/validate-framework-deps.py --fix
 python3 tools/validate-framework-deps.py --export-cycles tools/framework-cycles.json
 ```
 
-Генерирует JSON с группами взаимозависимостей для использования в `install.py`.
+Генерирует JSON с группами взаимозависимостей для использования в `1c-ai-agent-cli.py`.
 
 ## Типы сообщений
 
@@ -65,7 +65,7 @@ python3 tools/validate-framework-deps.py --export-cycles tools/framework-cycles.
 
 **Найдено:**
 ```
-framework/agents/developer.md: зависимость не существует: framework/rules/missing.md
+framework/subagents/developer.md: зависимость не существует: framework/rules/missing.md
 ```
 
 **Решение:**

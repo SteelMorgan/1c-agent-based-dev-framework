@@ -1,8 +1,8 @@
 ---
-type: skill
 name: agent-development
 description: Create custom subagents for specialized AI tasks. Use when the user wants to create a new type of subagent, set up task-specific agents, configure code reviewers, debuggers, or domain-specific assistants with custom prompts.
 ---
+
 # Creating Custom Subagents
 
 This skill guides you through creating custom subagents for Cursor. Subagents are specialized AI assistants that run in isolated contexts with custom system prompts.
@@ -220,3 +220,7 @@ Use the my-agent subagent to [task description]
 - Ensure file is in `.cursor/agents/` or `~/.cursor/agents/`
 - Check file has `.md` extension
 - Verify YAML frontmatter syntax is valid
+
+---
+depends_on: []
+---

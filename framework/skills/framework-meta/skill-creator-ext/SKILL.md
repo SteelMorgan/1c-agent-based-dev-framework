@@ -5,7 +5,7 @@ description: >
   Use together with the base skill-creator skill when creating or modifying
   framework skills (bsl-practices, tool-usage, spec-writing, agent-development-ext, etc.).
   Covers: framework skill categories, tool-usage skills replacing tool-registry,
-  BSL content patterns, install.py integration, project-specific skills.
+  BSL content patterns, 1c-ai-agent-cli integration, project-specific skills.
 ---
 
 # Skill Creator — 1C BSL Framework Extension
@@ -37,7 +37,7 @@ description: >
 
 | Категория | Каталог | Назначение | Примеры |
 |-----------|---------|------------|---------|
-| **BSL-практики** | `skills/bsl-practices/` | Стандарты кодирования, паттерны, антипаттерны | `coding-standards`, `query-patterns`, `anti-patterns` |
+| **BSL-практики** | `skills/bsl-practices/` | Стандарты кодирования и паттерны | `coding-standards`, `query-patterns` |
 | **Tool-usage** | `skills/tool-usage/` | Когда и как использовать MCP-инструменты | `syntax-checking`, `metadata-discovery`, `test-execution` |
 | **Spec-writing** | `skills/spec-writing/` | Стандарты документации и спецификаций | `spec-standard` |
 | **Расширения** | `skills/*-ext/` | Расширения внешних skills (Anthropic и др.) | `agent-development-ext`, `skill-creator-ext` |
@@ -78,7 +78,7 @@ description: >
 
 1. Добавить файл в нужный подкаталог `framework/skills/`
 2. Обновить `skills` в агентах, которые должны использовать навык
-3. `python install.py --list` — убедиться что навык появился
+3. `python tools/1c-ai-agent-cli.py --list` — убедиться что навык появился
 
 ---
 
@@ -123,13 +123,16 @@ Tool-usage навыки — **единственное место** где оп�
 
 ```yaml
 ---
-id: skill/query-patterns
-type: skill
+name: query-patterns
+description: Паттерны запросов 1С.
+---
+
+---
 depends_on: []
 ---
 ```
 
-`install.py` устанавливает через симлинки. Агент загружает по имени.
+CLI устанавливает через симлинки. Агент загружает по имени.
 
 ### IDE skill (внешний, в `.cursor/skills/` или `.agents/skills/`)
 
@@ -276,4 +279,8 @@ description: >
 ### Интеграция
 - [ ] Файл в правильном подкаталоге `framework/skills/`
 - [ ] Агенты обновлены (`skills` в frontmatter)
-- [ ] `python install.py --list` показывает навык
+- [ ] `python tools/1c-ai-agent-cli.py --list` показывает навык
+
+---
+depends_on: []
+---
