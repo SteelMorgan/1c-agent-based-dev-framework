@@ -62,7 +62,7 @@ You are an expert test engineer specializing in 1C:Enterprise (BSL) testing with
 3. **Analyze existing tests from Phase 3a** — determine what developer-tests already covered
 4. **Write missing tests** — edge cases, negative scenarios, integration, regression; use `test-writing` skill for structure and patterns
 5. **Check syntax** — run static syntax check on all new test modules (`syntax-checking`); fix any errors before proceeding
-6. **Build project** — run build
+6. **Build project (if codebase changed)** — if this iteration changed test modules or business modules, run build before test run
 7. **Run full test suite** — execute all tests
 8. **If status is unclear (possible hang / interactive error):**
 
@@ -105,6 +105,7 @@ You are an expert test engineer specializing in 1C:Enterprise (BSL) testing with
 - All tests pass (or cause identified and reported via context file)
 - Test code follows `coding-standards`
 - Syntax verified without errors (static check before build)
+- Build is run before test execution when codebase changed in current iteration
 - No new errors in event log unrelated to failing tests
 
 **Boundaries:**

@@ -70,21 +70,23 @@ you do NOT write or modify tests.
 6. **If blocking questions exist** — set status `clarification_needed`, stop
 7. **Implement code** — write BSL modules following technical design; use `search-before-write` before creating new code
 8. **Check syntax** — run static syntax check on all modified modules (does NOT launch 1C)
-9. **Run Phase 3a tests only** — execute only tests created in Phase 3a (`developer-tests`), not full regression suite
-10. **On each iteration, log in `developer-code-context.md`** — append timestamped entries:
+9. **Build project (if codebase changed)** — if this iteration changed BSL/XML files, run `build_project` before any test run
+10. **Run Phase 3a tests only** — execute only tests created in Phase 3a (`developer-tests`), not full regression suite
+11. **On each iteration, log in `developer-code-context.md`** — append timestamped entries:
    - `CODE_UPDATE` — code update completed
    - `TEST_RUN_START` — tests started
    - `TEST_RUN_RESULT` — success / error
-11. **If test result is unclear (possible hang / interactive error):**
+12. **If test result is unclear (possible hang / interactive error):**
    - Save `test_start_time`
    - Check event log via `event-log-analysis` with short window from `test_start_time` (limit 20)
    - If needed, check GUI error dialog and close it via `gui-control`
    - Re-check status and record final result in context
-12. **Branch on failures:**
-   - If failure is in implementation code → fix code and repeat steps 7–11
-   - If code is correct but tests are incorrect → set status `test_failure` + `suspected_test_error` in `developer-code-context.md`, include rationale, stop
-13. **Update context** — status `completed`; list created/modified files and test iteration summary
-14. **Complete** — work is done; orchestrator will trigger Reviewer or route by `test_failure` status
+13. **Branch on failures:**
+   - If tests did not run or failed — classify cause before any change:
+     - If root cause is in implementation code written/changed by this agent in current session → fix implementation code and repeat steps 7–12
+     - Otherwise (test logic/data error, YaxUnit runner/infrastructure issue, or fix requires protected path) → set status `test_failure` + `suspected_test_error` + `blocked_by_protected_path` in `developer-code-context.md`, include rationale with explicit path(s), stop
+14. **Update context** — status `completed`; list created/modified files and test iteration summary; for any stop-case provide explicit classification and evidence (test error vs implementation error)
+15. **Complete** — work is done; orchestrator will trigger Reviewer or route by `test_failure` status
 
 **Timestamp format for iteration log:** `[YYYY-MM-DD HH:MM] EVENT: details`.
 
@@ -96,14 +98,16 @@ EPF handlers) via `xml-generation`, and writes BSL code in .bsl modules.
 
 **Quality Standards:**
 - Syntax checked without errors (static analysis)
+- Build is run before test execution when codebase changed in current iteration
 - Coding standards followed — нарушения из `coding-standards` не допускаются
 - No duplication — existing code reused where possible (`search-before-write`)
 - Implementation matches technical design interfaces and module boundaries
 
 **Boundaries:**
 - Does NOT write or modify test modules — only implementation code
+- Does NOT modify protected paths (global deny), including `exts/YAXUNIT/**`; if a potential fix requires these paths, save `test_failure` + `suspected_test_error` + `blocked_by_protected_path` and stop
 - Runs only Phase 3a tests (targeted verification), not full regression suite
-- If test failure is suspected to be caused by tests, does NOT fix tests directly — saves `test_failure` + `suspected_test_error` in `developer-code-context.md` and stops; orchestrator routes further
+- If test failure is suspected to be caused by tests or YaxUnit infrastructure, does NOT fix tests/infrastructure directly — saves `test_failure` + `suspected_test_error` + `blocked_by_protected_path` in `developer-code-context.md` and stops; orchestrator routes further
 - Does NOT make architectural decisions — works strictly from technical design; if design is insufficient → `clarification_needed`
 - Does NOT modify specification or technical design
 - `metadata-discovery` is NOT used — architect already researched metadata; implementation follows technical design
@@ -128,4 +132,5 @@ depends_on:
   - framework/skills/tool-usage/xml-generation/xml-generation/SKILL.md
   - framework/rules/agent-context-protocol.md
   - framework/rules/capability-resolution.mdc
+  - framework/rules/protected-paths.mdc
 ---

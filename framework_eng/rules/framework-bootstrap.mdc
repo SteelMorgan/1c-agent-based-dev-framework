@@ -10,19 +10,19 @@ Agent development framework for 1C BSL. This is the minimal context — load det
 ## When to load what
 
 | Situation | What to load |
-|-----------|--------------|
-| Discussion / planning a task | Nothing extra — this bootstrap is enough |
-| **Simple task** (bug in a single file, < 20 lines, no new features, no new metadata objects) | `/<ide-cli-dot-catalog>/rules/quick-fix.md` |
+|----------|---------------|
+| Task discussion / planning | Nothing extra — this bootstrap is enough |
+| **Simple task** (bug in a single file, < 20 lines, without new features, without new metadata objects) | `/<ide-cli-dot-catalog>/rules/quick-fix.md` |
 | **Complex task** (new features, several files, architectural decisions, new metadata objects) | `/<ide-cli-dot-catalog>/rules/orchestrator.md` |
 | Writing / editing BSL code | `/<ide-cli-dot-catalog>/rules/mandatory-tools.md` + `/<ide-cli-dot-catalog>/skills/bsl-practices/*` as needed |
-| Writing specifications | `/<ide-cli-dot-catalog>/skills/spec-writing/spec-standard.md` |
-| Code / artifacts review | `/<ide-cli-dot-catalog>/rules/cross-review-policy.md` + checklist |
+| Writing specification | `/<ide-cli-dot-catalog>/skills/spec-writing/spec-standard.md` |
+| Reviewing code / artifacts | `/<ide-cli-dot-catalog>/rules/cross-review-policy.md` + checklist |
 
 > **If in doubt** — treat it as complex, load `orchestrator.md`.
 
 ## Tools
 
-- The agent detects available tools dynamically via MCP (`tools/list`) — do not hardcode tool names
+- The agent discovers available tools dynamically through MCP (`tools/list`) — do not hardcode tool names
 - Usage skills: `/<ide-cli-dot-catalog>/skills/tool-usage/`
 - Mapping capability → MCP: `/<ide-cli-dot-catalog>/capabilities/registry.yaml`, rule: `/<ide-cli-dot-catalog>/rules/capability-resolution.mdc`
 
@@ -32,4 +32,5 @@ depends_on:
 - framework/rules/mandatory-tools.md
 - framework/workflows/quick-fix.md
 - framework/workflows/orchestrator.md
+- framework/rules/protected-paths.mdc
 ---
