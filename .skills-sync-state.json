@@ -351,9 +351,9 @@
       "status": "synced"
     },
     "framework/subagents/developer-code.md": {
-      "ru_hash": "sha256:47f4fa1b8dcb581f998b5b037c81be2d37d17c14436a579b4af9a09f107aae72",
-      "en_hash": "sha256:571dd9fbac62cd6f97af8bfbd25b7a07c6f2f88dd18e08d654ec454a5c1c4c07",
-      "synced_at": "2026-03-02T19:49:04Z",
+      "ru_hash": "sha256:a09e7203d90088a15168107036f272878bf1cc788a402ce68d4b9a77e87c2ac4",
+      "en_hash": "sha256:1a4962b0aa20b803b57c729ff2c82808d3299e268a612cb8cfe7450a3133305d",
+      "synced_at": "2026-03-03T06:53:01Z",
       "status": "synced"
     },
     "framework/subagents/developer-tests.md": {
@@ -375,21 +375,21 @@
       "status": "synced"
     },
     "framework/subagents/tester.md": {
-      "ru_hash": "sha256:b0a30e9d6ea4567ba3e021d48131e3400c9d5835c6f4e4b62d5fbde469c26736",
-      "en_hash": "sha256:353a8f8a881a2762c8c9458816ff11fee83c813ad148da6e4125a20ca8c50654",
-      "synced_at": "2026-03-02T19:51:16Z",
+      "ru_hash": "sha256:78955501a6920edb14fcde606170e69dfea5aaf3b5baf5a4aacb0d695fb15962",
+      "en_hash": "sha256:c645e5436ba043531a623a3e8631a42754e5aa240d6a61adab59eb50d797a94a",
+      "synced_at": "2026-03-03T06:53:40Z",
       "status": "synced"
     },
     "framework/workflows/full-cycle.md": {
-      "ru_hash": "sha256:cddd1bc7fd589fb16e0121740ac6622167bc126b5b46a990dad7ede45c606feb",
-      "en_hash": "sha256:81ad1df8a5f0f2e458a9e34e7072b11e4a462a1d3256b93b06e3f19901d16bfb",
-      "synced_at": "2026-03-02T19:51:58Z",
+      "ru_hash": "sha256:deb97b43bae3ac9c893c4363ea2ebf55186d6b931ba8d044250e79371765707e",
+      "en_hash": "sha256:d004b0cb1035e3762e17acf97bed32d60edff324f416703a5573776df2d73ae5",
+      "synced_at": "2026-03-03T06:54:28Z",
       "status": "synced"
     },
     "framework/workflows/orchestrator.md": {
-      "ru_hash": "sha256:909814ae9e7e351be10569d30a606a7398cf76ff3eba18172b76e3243d4fa6db",
-      "en_hash": "sha256:5e29e60d85a3983066e51c873bfeccb5e76daa6e35e83fec9a6e35028dbb2dd5",
-      "synced_at": "2026-03-02T22:45:32Z",
+      "ru_hash": "sha256:a50b82c63193a7cf3c373f55a520eeaa8c4d105d3c5488da64f6c757174ac211",
+      "en_hash": "sha256:da0e77eac9bafb293d1f03a57e41550282013011709a8828c832a746102ab4ef",
+      "synced_at": "2026-03-03T06:55:50Z",
       "status": "synced"
     },
     "framework/workflows/quick-fix.md": {
