@@ -279,9 +279,9 @@
       "status": "synced"
     },
     "framework/skills/tool-usage/test-execution/SKILL.md": {
-      "ru_hash": "sha256:65ee323cc96a94eb67b93d1e252018b87d4668930dc35fa9dc796604b315384e",
-      "en_hash": "sha256:53a5daa8f567299f2fe0a8afa25ea8ca7c21a6987ecde140c1a92435e37c265c",
-      "synced_at": "2026-03-03T14:06:37Z",
+      "ru_hash": "sha256:ad7183f4a7d3ec9d63d8fbb0a091abfc590a00382d0b07703842ac0e3f4f788d",
+      "en_hash": "sha256:6a25581c63b2da63f8ebe8ac322001abd7d3678476b03f143845d709c93b6ca7",
+      "synced_at": "2026-03-03T16:51:27Z",
       "status": "synced"
     },
     "framework/skills/tool-usage/visual-check/SKILL.md": {
