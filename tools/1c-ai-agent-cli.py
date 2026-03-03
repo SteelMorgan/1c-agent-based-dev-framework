@@ -29,6 +29,15 @@ from datetime import datetime
 from pathlib import Path
 from typing import Dict, List, Optional, Set, Tuple
 
+try:
+    import tiktoken
+    _TOKENIZER = tiktoken.get_encoding("cl100k_base")
+except Exception:
+    _TOKENIZER = None
+
+# Версия CLI/инсталлятора
+CLI_VERSION = "0.4.1"
+
 # Репозиторий фреймворка для команды clone
 REPO_URL = "https://github.com/SteelMorgan/1c-agent-based-dev-framework"
 
@@ -676,17 +685,8 @@ def print_tree(graph: FrameworkGraph, selected: Optional[Set[str]] = None):
                         graph.components[d] for d in deps
                         if d in graph.components and graph.components[d].type in ("rule", "skill")
                     ]
-                    ctx_tokens = _estimate_tokens("\n".join(_collect_component_text(d) for d in dep_comps))
-                    if graph.mirror_dir:
-                        eng_tokens = _estimate_tokens("\n".join(
-                            _collect_component_text(d, graph.mirror_dir) for d in dep_comps
-                        ))
-                    else:
-                        cyr_text, lat_text = _split_cyrillic_latin(
-                            "\n".join(_collect_component_text(d) for d in dep_comps)
-                        )
-                        eng_tokens = int(round(_estimate_tokens(cyr_text) * 0.7 + _estimate_tokens(lat_text)))
-                    eng_label = "~EN" if graph.mirror_dir else "~EN"
+                    eng_text = "\n".join(_collect_component_text_en(d, graph.mirror_dir) for d in dep_comps)
+                    eng_tokens = _estimate_tokens(eng_text)
                     ctx_str = dim(f" [~{eng_tokens} токенов]")
                 else:
                     deps_count = len(c.depends_on)
@@ -824,17 +824,8 @@ def _build_checklist_items(graph: FrameworkGraph) -> List:
                         graph.components[d] for d in deps
                         if d in graph.components and graph.components[d].type in ("rule", "skill")
                     ]
-                    ctx_tokens = _estimate_tokens("\n".join(_collect_component_text(d) for d in dep_comps))
-                    if graph.mirror_dir:
-                        eng_tokens = _estimate_tokens("\n".join(
-                            _collect_component_text(d, graph.mirror_dir) for d in dep_comps
-                        ))
-                        eng_label = "реал.EN"
-                    else:
-                        cyr_text, lat_text = _split_cyrillic_latin(
-                            "\n".join(_collect_component_text(d) for d in dep_comps)
-                        )
-                        eng_tokens = int(round(_estimate_tokens(cyr_text) * 0.7 + _estimate_tokens(lat_text)))
+                    eng_text = "\n".join(_collect_component_text_en(d, graph.mirror_dir) for d in dep_comps)
+                    eng_tokens = _estimate_tokens(eng_text)
                     desc = f"{c.short_description()} [~{eng_tokens} токенов]"
                 else:
                     desc = c.short_description()
@@ -1132,19 +1123,42 @@ def _parse_numbers(s: str) -> List[int]:
 
 
 def _estimate_tokens(text: str) -> int:
-    """Оценка токенов: len(text) / 4 с округлением вверх."""
+    """Оценка токенов. Предпочтительно cl100k_base (tiktoken), fallback len/4."""
     if not text:
         return 0
+    if _TOKENIZER is not None:
+        try:
+            return len(_TOKENIZER.encode(text))
+        except Exception:
+            pass
     return (len(text) + 3) // 4
 
 
-def _split_cyrillic_latin(text: str) -> Tuple[str, str]:
-    """Разделяет текст на кириллицу и всё остальное (латиница/цифры/пунктуация)."""
-    if not text:
-        return "", ""
-    cyrillic_text = re.sub(r"[^А-Яа-яЁё]", "", text)
-    latin_text = re.sub(r"[А-Яа-яЁё]", "", text)
-    return cyrillic_text, latin_text
+def _collect_component_text_en(comp: "Component", mirror_dir: Optional[Path]) -> str:
+    """Возвращает только EN-текст компонента из зеркала. Без fallback на RU."""
+    if not mirror_dir:
+        return ""
+
+    def _read(path: Path) -> str:
+        try:
+            return path.read_text(encoding="utf-8")
+        except (OSError, UnicodeDecodeError):
+            return ""
+
+    ru_path = comp.filepath
+    fw_dir = ru_path.parent
+    while fw_dir.name != "framework" and fw_dir.parent != fw_dir:
+        fw_dir = fw_dir.parent
+    try:
+        rel = ru_path.relative_to(fw_dir)
+        en_path = mirror_dir / rel
+        if en_path.exists():
+            return _read(en_path)
+    except ValueError:
+        pass
+    return ""
+
+
 
 
 def _collect_component_text(comp: "Component", mirror_dir: Optional[Path] = None) -> str:
@@ -1185,45 +1199,30 @@ def estimate_context_usage(
 ) -> Tuple[int, int, int, int, int]:
     """Оценивает контекст: always, on-demand, total, english-only, savings.
 
-    Все значения считаются по EN-файлам из mirror_dir (если доступны).
-    Fallback: математика (~0.7 кириллицы) если зеркало не создано.
-    savings = total_ru - total_en (для справки).
+    Подсчёт ведётся только по EN-зеркалу (framework_eng). Если EN-файл
+    отсутствует — вклад компонента считается 0.
     """
     resolved = graph.resolve_dependencies(selected_ids)
     always_types = {"rule", "agent", "subagent", "workflow"}
-    always_ru, on_demand_ru = [], []
     always_en, on_demand_en = [], []
 
     for cid in sorted(resolved):
         comp = graph.components.get(cid)
         if not comp:
             continue
-        ru_text = _collect_component_text(comp)
-        en_text = _collect_component_text(comp, graph.mirror_dir)
+        en_text = _collect_component_text_en(comp, graph.mirror_dir)
         if comp.type in always_types:
-            always_ru.append(ru_text)
             always_en.append(en_text)
         else:
-            on_demand_ru.append(ru_text)
             on_demand_en.append(en_text)
 
-    total_ru = _estimate_tokens("\n".join(always_ru + on_demand_ru))
-
-    if graph.mirror_dir:
-        always_tokens  = _estimate_tokens("\n".join(always_en))
-        on_demand_tokens = _estimate_tokens("\n".join(on_demand_en))
-    else:
-        # Fallback: математика по RU
-        def _math_en(texts):
-            t = "\n".join(texts)
-            cyr, lat = _split_cyrillic_latin(t)
-            return int(round(_estimate_tokens(cyr) * 0.7 + _estimate_tokens(lat)))
-        always_tokens  = _math_en(always_ru)
-        on_demand_tokens = _math_en(on_demand_ru)
+    always_tokens = _estimate_tokens("\n".join(always_en))
+    on_demand_tokens = _estimate_tokens("\n".join(on_demand_en))
 
     total_tokens = always_tokens + on_demand_tokens
-    savings = total_ru - total_tokens
-    return always_tokens, on_demand_tokens, total_tokens, total_tokens, savings
+    english_total = total_tokens
+    savings = 0
+    return always_tokens, on_demand_tokens, total_tokens, english_total, savings
 
 
 def estimate_agent_contexts(
@@ -1249,28 +1248,47 @@ def estimate_agent_contexts(
             if cid == agent_id or comp.type in {"rule", "skill"}:
                 include_ids.append(cid)
 
-        ru_text = "\n".join(
-            _collect_component_text(graph.components[cid])
+        en_text = "\n".join(
+            _collect_component_text_en(graph.components[cid], graph.mirror_dir)
             for cid in include_ids
             if cid in graph.components
         )
-        total_tokens = _estimate_tokens(ru_text)
-
-        if graph.mirror_dir:
-            en_text = "\n".join(
-                _collect_component_text(graph.components[cid], graph.mirror_dir)
-                for cid in include_ids
-                if cid in graph.components
-            )
-            english_total = _estimate_tokens(en_text)
-        else:
-            cyrillic_text, latin_text = _split_cyrillic_latin(ru_text)
-            english_total = int(round(_estimate_tokens(cyrillic_text) * 0.7 + _estimate_tokens(latin_text)))
-
-        savings = total_tokens - english_total
+        english_total = _estimate_tokens(en_text)
+        total_tokens = english_total
+        savings = 0
         results.append((agent_id, total_tokens, english_total, savings))
 
     return results
+
+
+def _has_complete_en_mirror(graph: "FrameworkGraph", selected_ids: Set[str]) -> bool:
+    """True, если для всех selected+deps есть EN-файлы в mirror_dir."""
+    if not graph.mirror_dir:
+        return False
+    resolved = graph.resolve_dependencies(selected_ids)
+    for cid in sorted(resolved):
+        comp = graph.components.get(cid)
+        if not comp:
+            continue
+        if not _collect_component_text_en(comp, graph.mirror_dir):
+            return False
+    return True
+
+
+def _has_complete_en_mirror_for_agents(graph: "FrameworkGraph", agent_contexts: List[Tuple[str, int, int, int]]) -> bool:
+    """True, если для всех агентов из списка есть EN-тексты агента и его rule/skill deps."""
+    if not graph.mirror_dir:
+        return False
+    for agent_id, _, _, _ in agent_contexts:
+        deps = graph.resolve_dependencies({agent_id})
+        include_ids = [
+            cid for cid in sorted(deps | {agent_id})
+            if cid in graph.components and (cid == agent_id or graph.components[cid].type in {"rule", "skill"})
+        ]
+        for cid in include_ids:
+            if not _collect_component_text_en(graph.components[cid], graph.mirror_dir):
+                return False
+    return True
 
 
 def format_agent_contexts(
@@ -2235,7 +2253,7 @@ def main():
     print()
     print(bold("  ┌──────────────────────────────────────────────────┐"))
     print(bold("  │   1C BSL Agent Framework — CLI                   │"))
-    print(bold("  │   Версия: 0.2                                    │"))
+    print(bold(f"  │   Версия: {CLI_VERSION:<39}│"))
     print(bold("  └──────────────────────────────────────────────────┘"))
 
     system = platform.system()
@@ -2393,6 +2411,7 @@ def main():
             graph,
             selected,
         )
+        en_complete = _has_complete_en_mirror(graph, selected)
         print()
         for line in format_context_estimate(
             always_tokens,
@@ -2401,7 +2420,7 @@ def main():
             english_total,
             savings,
             show_english=args.estimate_english_only,
-            mirror_available=bool(graph.mirror_dir),
+            mirror_available=en_complete,
         ):
             print(line)
 
@@ -2412,6 +2431,15 @@ def main():
             show_english=args.estimate_english_only,
         ):
             print(line)
+
+        if graph.mirror_dir and not en_complete:
+            print(yellow("  ⚠ Для части компонентов EN-зеркало отсутствует — они учтены как 0 токенов."))
+
+        if graph.mirror_dir and agent_contexts and not _has_complete_en_mirror_for_agents(graph, agent_contexts):
+            print(yellow("  ⚠ Для части агентских зависимостей EN-зеркало отсутствует — оценка по агентам неполная."))
+
+        if not graph.mirror_dir:
+            print(yellow("  ⚠ EN-зеркало не найдено — оценка равна 0. Для корректного подсчёта используйте framework_eng/."))
 
         if args.estimate_context_only:
             return
