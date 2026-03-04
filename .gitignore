@@ -2,6 +2,7 @@
 
 # Reference sources (local only)
 src_temp/
+.venv-tokens/
 
 # IDE / agent configs
 .cursor/
