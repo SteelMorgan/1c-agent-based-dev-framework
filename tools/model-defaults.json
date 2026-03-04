@@ -1,0 +1,149 @@
+{
+  "_comment": "Маппинг алиасов моделей → конкретные модели + список доступных моделей для каждой IDE. Отредактируйте под свой набор.",
+
+  "cursor": {
+    "aliases": {
+      "haiku":  "claude-4.5-haiku",
+      "sonnet": "claude-4.5-sonnet-thinking",
+      "opus":   "claude-4.6-opus-high-thinking"
+    },
+    "available": [
+      "claude-4.6-opus-high-thinking",
+      "claude-4.5-sonnet-thinking",
+      "claude-4.5-haiku",
+      "gpt-5.3-codex-xhigh",
+      "gpt-5.2-xhigh",
+      "gemini-3-pro",
+      "grok-code-fast-1"
+    ]
+  },
+
+  "claude-code": {
+    "aliases": {
+      "haiku":  "haiku",
+      "sonnet": "sonnet",
+      "opus":   "opus"
+    },
+    "available": [
+      "opus",
+      "sonnet",
+      "haiku"
+    ]
+  },
+
+  "windsurf": {
+    "aliases": {
+      "haiku":  "claude-4.5-haiku",
+      "sonnet": "claude-4.5-sonnet-thinking",
+      "opus":   "claude-4.6-opus-high-thinking"
+    },
+    "available": [
+      "claude-4.6-opus-high-thinking",
+      "claude-4.5-sonnet-thinking",
+      "claude-4.5-haiku"
+    ]
+  },
+
+  "vscode-continue": {
+    "aliases": {
+      "haiku":  "claude-4.5-haiku",
+      "sonnet": "claude-4.5-sonnet-thinking",
+      "opus":   "claude-4.6-opus-high-thinking"
+    },
+    "available": [
+      "claude-4.6-opus-high-thinking",
+      "claude-4.5-sonnet-thinking",
+      "claude-4.5-haiku"
+    ]
+  },
+
+  "roocode": {
+    "aliases": {
+      "haiku":  "claude-4.5-haiku",
+      "sonnet": "claude-4.5-sonnet-thinking",
+      "opus":   "claude-4.6-opus-high-thinking"
+    },
+    "available": [
+      "claude-4.6-opus-high-thinking",
+      "claude-4.5-sonnet-thinking",
+      "claude-4.5-haiku",
+      "gpt-5.3-codex-xhigh",
+      "gpt-5.2-xhigh",
+      "gemini-3-pro"
+    ]
+  },
+
+  "kilocode": {
+    "aliases": {
+      "haiku":  "claude-4.5-haiku",
+      "sonnet": "claude-4.5-sonnet-thinking",
+      "opus":   "claude-4.6-opus-high-thinking"
+    },
+    "available": [
+      "claude-4.6-opus-high-thinking",
+      "claude-4.5-sonnet-thinking",
+      "claude-4.5-haiku",
+      "gpt-5.3-codex-xhigh",
+      "gpt-5.2-xhigh",
+      "gemini-3-pro"
+    ]
+  },
+
+  "codex": {
+    "aliases": {
+      "haiku":  "claude-4.5-haiku",
+      "sonnet": "claude-4.5-sonnet-thinking",
+      "opus":   "claude-4.6-opus-high-thinking"
+    },
+    "available": [
+      "claude-4.6-opus-high-thinking",
+      "claude-4.5-sonnet-thinking",
+      "claude-4.5-haiku",
+      "gpt-5.3-codex-xhigh",
+      "gpt-5.2-xhigh",
+      "o3-pro"
+    ]
+  },
+
+  "kiro": {
+    "aliases": {
+      "haiku":  "claude-4.5-haiku",
+      "sonnet": "claude-4.5-sonnet-thinking",
+      "opus":   "claude-4.6-opus-high-thinking"
+    },
+    "available": [
+      "claude-4.6-opus-high-thinking",
+      "claude-4.5-sonnet-thinking",
+      "claude-4.5-haiku"
+    ]
+  },
+
+  "antigravity": {
+    "aliases": {
+      "haiku":  "claude-4.5-haiku",
+      "sonnet": "claude-4.5-sonnet-thinking",
+      "opus":   "claude-4.6-opus-high-thinking"
+    },
+    "available": [
+      "claude-4.6-opus-high-thinking",
+      "claude-4.5-sonnet-thinking",
+      "claude-4.5-haiku",
+      "gpt-5.3-codex-xhigh",
+      "gpt-5.2-xhigh",
+      "gemini-3-pro"
+    ]
+  },
+
+  "generic": {
+    "aliases": {
+      "haiku":  "haiku",
+      "sonnet": "sonnet",
+      "opus":   "opus"
+    },
+    "available": [
+      "opus",
+      "sonnet",
+      "haiku"
+    ]
+  }
+}

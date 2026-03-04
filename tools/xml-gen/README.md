@@ -1,0 +1,164 @@
+# xml-gen
+
+Java-модуль для генерации XML метаданных 1С из JSON DSL.
+
+## Возможности
+
+- Генерация внешних обработок (EPF)
+- Генерация управляемых форм
+- Генерация ролей (Rights.xml)
+- Генерация макетов табличных документов (MXL)
+- Генерация схем компоновки данных (SKD)
+- Поддержка форматов Designer и EDT
+
+## Требования
+
+- JDK 17+
+- Gradle 8.5+ (wrapper включён)
+
+## Сборка
+
+```bash
+./gradlew build
+```
+
+Fat JAR будет создан в `build/libs/xml-gen-0.1.0-SNAPSHOT.jar` (~5.6MB).
+
+## Использование
+
+```bash
+# Справка
+java -jar build/libs/xml-gen-0.1.0-SNAPSHOT.jar
+
+# Создать EPF
+java -jar build/libs/xml-gen-0.1.0-SNAPSHOT.jar epf init --format designer --name МояОбработка output/
+
+# Скомпилировать форму
+java -jar build/libs/xml-gen-0.1.0-SNAPSHOT.jar form compile --format designer form.json output/
+
+# Скомпилировать роль
+java -jar build/libs/xml-gen-0.1.0-SNAPSHOT.jar role compile --format designer role.json output/
+```
+
+## Архитектура
+
+```
+JSON DSL → DSL Models → Model Layer → Writers → XML + структура каталогов
+```
+
+### Основные компоненты
+
+- **cli/** — CLI интерфейс (Main, Commands)
+- **dsl/** — Jackson POJO для JSON DSL
+- **model/** — Нормализация данных, TypeResolver, IdGenerator, UuidGenerator
+- **writer/** — Генераторы XML (XmlWriter, EpfWriter, FormWriter, RoleWriter, MxlWriter, DcsWriter)
+- **format/** — OutputFormat, DesignerLayout, EdtLayout
+
+## Зависимости
+
+- **mdclasses** (io.github.1c-syntax:mdclasses:0.17.4) — enum-ы и модели метаданных 1С (RoleRight, FormElementType, TemplateType, DataSetType)
+- **bsl-common-library** (io.github.1c-syntax:bsl-common-library:0.9.2) — типы и квалификаторы 1С (MDOType, AllowedLength, DateFractions)
+- **jackson-databind** — парсинг JSON DSL
+- **lombok** — @Value, @Builder
+- **junit5 + assertj** — тесты
+
+## Статус реализации
+
+- [x] Phase 0: Инфраструктура
+- [x] Phase 1: EPF (Designer формат)
+  - [x] epf init
+  - [x] epf add-form
+  - [x] epf add-template
+- [x] Phase 2: Role/Rights (Designer формат)
+  - [x] role compile
+  - [x] Presets (view, edit, full)
+- [x] Phase 3: Form (Designer формат, полная реализация UI-элементов)
+  - [x] form compile
+  - [x] Реквизиты, команды, события, свойства
+  - [x] Поддержка коллекций (ValueTable/ValueTree)
+  - [x] UI-элементы (топ-15): InputField, UsualGroup, Table, Button, Label, CheckBox, Pages, Picture, Calendar, CommandBar, Popup
+  - [x] Автоматические ContextMenu и ExtendedTooltip
+  - [x] Вложенность элементов (children)
+- [x] Phase 4: MXL (Designer формат, полная реализация)
+  - [x] mxl compile
+  - [x] Области, текст, параметры, объединение ячеек
+  - [x] Шрифты (fonts) — face, size, bold, italic, underline, strikeout
+  - [x] Стили (styles) — align, valign, border, wrap, format
+  - [x] Применение стилей к ячейкам
+  - [x] Парсинг рамок (all, top,bottom, left,right)
+- [x] Phase 5: SKD (Designer формат, полная реализация — 100%)
+  - [x] skd compile
+  - [x] DataSets (DataSetQuery, DataSetObject, DataSetUnion)
+  - [x] Parameters, totalFields, settingsVariants
+  - [x] Filter (11 операторов: =, <>, >, >=, <, <=, in, notIn, contains, filled, notFilled)
+  - [x] Order (сортировка asc/desc)
+  - [x] ConditionalAppearance (selection, filter, appearance с автоопределением типов)
+  - [x] Structure (группировки)
+- [ ] Phase 6: Интеграция
+
+## Тесты
+
+```bash
+./gradlew test
+```
+
+**Test Coverage:**
+- ✅ `TypeResolverTest` (10+ тестов)
+  - Примитивные типы (string, number, boolean, date, uuid)
+  - Коллекции (ValueTable, ValueTree)
+  - Ссылочные типы (ref:Catalog.Name)
+  - Объектные типы (ExternalDataProcessorObject.Name, DocumentObject.Name, CatalogObject.Name)
+- ✅ `EpfWriterTest` (6 тестов)
+  - testInitCreatesValidStructure
+  - testAddFormCreatesValidStructure
+  - testAddTemplateSpreadsheetDocument
+  - testAddTemplateHTMLDocument
+  - testCompleteEpfWithFormAndTemplates
+  - testBomInMetadataFiles
+- ✅ `FormWriterTest` (8 тестов)
+  - testMinimalForm
+  - testFormWithAttributes
+  - testFormWithCommands
+  - testFormWithEvents
+  - testFormWithValueTable
+  - testCompleteForm
+  - testFormWithUIElements (новый — проверка UI-элементов)
+  - testJsonDslRoundtrip
+- ✅ `MxlWriterTest` (6 тестов)
+  - testMinimalMxl
+  - testMxlWithParameters
+  - testMxlWithSpan
+  - testMxlWithMultipleAreas
+  - testMxlWithFontsAndStyles (новый — проверка шрифтов и стилей)
+  - testJsonDslRoundtrip
+- ✅ `SkdWriterTest` (7 тестов)
+  - testMinimalSkd
+  - testSkdWithParameters
+  - testSkdWithTotalFields
+  - testSkdWithSettingsVariant
+  - testSkdWithFilterAndOrder (проверка filter и order)
+  - testSkdWithConditionalAppearance (новый — проверка условного оформления)
+  - testJsonDslRoundtrip
+
+**Всего тестов:** 36 (все проходят)
+
+**Roundtrip-тесты:**
+- Проверка структуры файлов
+- Проверка содержимого XML
+- Проверка BOM (UTF-8 BOM в метаданных, без BOM в Form.xml/Template.xml)
+- Проверка порядка элементов в ChildObjects
+- Проверка UUID генерации
+- Проверка DefaultForm установки
+- Проверка типов реквизитов и квалификаторов
+- Проверка областей и параметров в MXL
+- Проверка dataSets и settingsVariants в SKD
+- Проверка UI-элементов форм (InputField, UsualGroup, Table, Button, Pages)
+- Проверка шрифтов и стилей в MXL (fonts, styles, border, align)
+- Проверка filter и order в SKD (операторы сравнения, сортировка)
+- Проверка conditionalAppearance в SKD (selection, filter, appearance, типы значений)
+
+Все тесты используют временные каталоги (@TempDir) и проверяют корректность генерируемых файлов.
+
+## Лицензия
+
+LGPL-3.0 (совместимо с mdclasses)

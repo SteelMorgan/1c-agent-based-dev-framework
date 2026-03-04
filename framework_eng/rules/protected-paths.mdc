@@ -1,0 +1,46 @@
+---
+name: protected-paths
+description: Global path protection. Categorically forbids modification of protected directories for any agents and subagents.
+alwaysApply: true
+---
+
+# Protected Paths Policy
+
+## Purpose
+
+This is a global security rule. It applies to **all** agents/subagents and takes precedence when selecting actions.
+
+## Protected Paths (deny-by-default)
+
+Never modify the contents of the following paths:
+
+- `exts/YAXUNIT/**`
+
+> The list of protected paths may include multiple patterns simultaneously. Any match means modification is forbidden.
+
+## What Counts as a Violation
+
+- Any creation/modification/deletion of files within a protected path.
+- Any attempt to "fix" tests or the runner by editing inside a protected path.
+
+## Required Agent Behavior When Blocked
+
+If correcting the problem requires a protected path:
+
+1. Do not make changes inside the protected path.
+2. Record the following statuses in the context:
+   - `test_failure`
+   - `suspected_test_error`
+   - `blocked_by_protected_path`
+3. Provide an explicit justification and list the path(s) that are blocked.
+4. Stop execution and hand the task off to the orchestrator/user.
+
+## Note for developer-code
+developer-code writes implementation code and runs tests. If the tests fail, it must:
+
+- fix only the errors in its own code from the current session;
+- in all other cases (a test failure, YaxUnit infrastructure issue, or the need to edit a protected path) — record the blockage using the protocol above and terminate work.
+
+---
+depends_on: []
+---

@@ -1,0 +1,25 @@
+---
+name: capability-resolution
+description: Резолв capability → MCP tool. Агент использует registry.yaml для вызова.
+alwaysApply: true
+---
+
+# Capability Resolution
+
+## Назначение
+
+Навыки и правила ссылаются на **capability** (абстракция). Конкретный вызов — MCP tool. Маппинг хранится в `capabilities/`.
+
+## Источник
+
+- `capabilities/registry.yaml` — источник правды (редактируется вручную, CLI)
+
+## Правило вызова
+
+1. Навык указывает capability — используй `capabilities/registry.yaml` для выбора server + tool.
+2. Схему вызова (arguments) бери из IDE tool list.
+3. Если capability отсутствует или tool недоступен — сообщи пользователю.
+
+## Замена MCP tool
+
+См. `docs/capability-replacement.md` и CLI: `python tools/capability-registry.py set <capability> --server <server> --tool <tool>`.

@@ -1,0 +1,80 @@
+#!/usr/bin/env bash
+# pre-commit hook: auto-translate changed framework/ files → framework_eng/
+#
+# Блокирует коммит если перевод не удался.
+# Автоматически добавляет framework_eng/ и .skills-sync-state.json в коммит.
+
+set -euo pipefail
+
+REPO_ROOT="$(git rev-parse --show-toplevel)"
+SYNC_SCRIPT="$REPO_ROOT/tools/sync-skill.py"
+
+# ─── Найти изменённые файлы в framework/ (кроме README.md) ───────────────────
+
+# Берём staged файлы (Added, Copied, Modified, Renamed)
+CHANGED=$(git diff --cached --name-only --diff-filter=ACMR | \
+    grep -E '^framework/' | \
+    grep -v 'README\.md$' || true)
+
+# Если нет изменений в framework/ — выходим сразу
+if [ -z "$CHANGED" ]; then
+    exit 0
+fi
+
+echo ""
+echo "┌─────────────────────────────────────────────────────────┐"
+echo "│  skills-i18n-sync: framework/ changes detected          │"
+echo "│  Auto-translating to framework_eng/ via Claude Haiku... │"
+echo "└─────────────────────────────────────────────────────────┘"
+echo ""
+
+# ─── Запустить синхронизацию ──────────────────────────────────────────────────
+
+SYNC_OUTPUT=$(python3 "$SYNC_SCRIPT" $CHANGED 2>&1) || SYNC_EXIT=$?
+SYNC_EXIT=${SYNC_EXIT:-0}
+
+echo "$SYNC_OUTPUT"
+
+# ─── Добавить переведённые файлы в коммит ────────────────────────────────────
+
+# Парсим список файлов которые нужно добавить (после маркера __SYNC_ADD_FILES__)
+if echo "$SYNC_OUTPUT" | grep -q '__SYNC_ADD_FILES__'; then
+    ADD_FILES=$(echo "$SYNC_OUTPUT" | \
+        awk '/^__SYNC_ADD_FILES__$/{found=1; next} found{print}')
+
+    if [ -n "$ADD_FILES" ]; then
+        echo ""
+        echo "Adding translated files to commit:"
+        while IFS= read -r file; do
+            if [ -f "$file" ]; then
+                git add "$file"
+                echo "  + $(basename "$file") ($(realpath --relative-to="$REPO_ROOT" "$file"))"
+            fi
+        done <<< "$ADD_FILES"
+
+        # Также добавляем state файл
+        git add "$REPO_ROOT/.skills-sync-state.json" 2>/dev/null || true
+    fi
+fi
+
+# ─── Результат ───────────────────────────────────────────────────────────────
+
+if [ "$SYNC_EXIT" -ne 0 ]; then
+    echo ""
+    echo "╔══════════════════════════════════════════════════════════╗"
+    echo "║  ✗ COMMIT BLOCKED: translation failed                   ║"
+    echo "║                                                          ║"
+    echo "║  Fix the errors above, then retry.                      ║"
+    echo "║  To check sync status:                                   ║"
+    echo "║    python3 tools/sync-skill.py --check                  ║"
+    echo "║  To retry manually:                                      ║"
+    echo "║    python3 tools/sync-skill.py --all                    ║"
+    echo "╚══════════════════════════════════════════════════════════╝"
+    echo ""
+    exit 1
+fi
+
+echo ""
+echo "✓ framework_eng/ is in sync. Proceeding with commit."
+echo ""
+exit 0

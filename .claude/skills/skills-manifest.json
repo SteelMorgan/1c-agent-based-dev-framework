@@ -1,0 +1,105 @@
+{
+  "generated_at": "2026-02-20T18:51:28.686542+00:00",
+  "repo_root": "/workspaces/work/repos/1C Framework/1c-agent-based-dev-framework",
+  "skills_root": "/workspaces/work/repos/1C Framework/1c-agent-based-dev-framework/.cursor/skills",
+  "skills": [
+    {
+      "name": "1c-ai-agent-cli",
+      "description": "CLI 1C BSL Agent Framework — tools/1c-ai-agent-cli.py (clone, install). Используй при клонировании репозитория, установке компонентов в проект, настройке IDE (Cursor, Claude Code, Windsurf, VS Code+Continue).",
+      "path": "/workspaces/work/repos/1C Framework/1c-agent-based-dev-framework/.cursor/skills/1c-ai-agent-cli/SKILL.md",
+      "scope": "project",
+      "capabilities": []
+    },
+    {
+      "name": "agent-development",
+      "description": "Create custom subagents for specialized AI tasks. Use when the user wants to create a new type of subagent, set up task-specific agents, configure code reviewers, debuggers, or domain-specific assistants with custom prompts.",
+      "path": "/workspaces/work/repos/1C Framework/1c-agent-based-dev-framework/.cursor/skills/agent-development/SKILL.md",
+      "scope": "project",
+      "capabilities": []
+    },
+    {
+      "name": "agent-development-ext",
+      "description": ">",
+      "path": "/workspaces/work/repos/1C Framework/1c-agent-based-dev-framework/.cursor/skills/agent-development-ext/SKILL.md",
+      "scope": "project",
+      "capabilities": []
+    },
+    {
+      "name": "agent-git-workflow",
+      "description": "Standardizes git workflow for the AI agent in the sandbox devcontainer: work in agent/<task>-<yyyymmdd>, integrate via agent, never push to main/master, open PRs via GitHub CLI. Use when the user asks to create branches, push changes, open PRs, or follow this sandbox repo setup.",
+      "path": "/workspaces/work/repos/1C Framework/1c-agent-based-dev-framework/.cursor/skills/agent-git-workflow/SKILL.md",
+      "scope": "project",
+      "capabilities": []
+    },
+    {
+      "name": "auto-skill-bootstrap",
+      "description": "Deterministic helper to inventory existing project skills, detect missing capability coverage, search skills.sh via Skills CLI, and (optionally) install missing skills under a trust policy. Uses skills-manifest.json + state.json to stay idempotent across changing requirements.",
+      "path": "/workspaces/work/repos/1C Framework/1c-agent-based-dev-framework/.cursor/skills/auto-skill-bootstrap/SKILL.md",
+      "scope": "project",
+      "capabilities": []
+    },
+    {
+      "name": "code-quality",
+      "description": "General Correctness rules, Rust patterns, comments, avoiding over-engineering. When writing code always take these into account",
+      "path": "/workspaces/work/repos/1C Framework/1c-agent-based-dev-framework/.cursor/skills/code-quality/SKILL.md",
+      "scope": "project",
+      "capabilities": []
+    },
+    {
+      "name": "find-skills",
+      "description": "Helps users discover and install agent skills when they ask questions like \"how do I do X\", \"find a skill for X\", \"is there a skill that can...\", or express interest in extending capabilities. This skill should be used when the user is looking for functionality that might exist as an installable skill.",
+      "path": "/workspaces/work/repos/1C Framework/1c-agent-based-dev-framework/.cursor/skills/find-skills/SKILL.md",
+      "scope": "project",
+      "capabilities": []
+    },
+    {
+      "name": "java-gradle",
+      "description": "Master Gradle - Kotlin DSL, task configuration, build optimization, caching",
+      "path": "/workspaces/work/repos/1C Framework/1c-agent-based-dev-framework/.cursor/skills/java-gradle/SKILL.md",
+      "scope": "project",
+      "capabilities": []
+    },
+    {
+      "name": "sandbox-framework",
+      "description": "Behavior + permission model for the AI agent inside the sandbox devcontainer. The agent has sudo and may modify its container environment freely to solve tasks, but must never bypass explicit safety restrictions (git hooks/blocks, policy rules) or escalate beyond the sandbox.",
+      "path": "/workspaces/work/repos/1C Framework/1c-agent-based-dev-framework/.cursor/skills/sandbox-framework/SKILL.md",
+      "scope": "project",
+      "capabilities": []
+    },
+    {
+      "name": "skill-creator",
+      "description": "Guide for creating effective skills. This skill should be used when users want to create a new skill (or update an existing skill) that extends Claude's capabilities with specialized knowledge, workflows, or tool integrations.",
+      "path": "/workspaces/work/repos/1C Framework/1c-agent-based-dev-framework/.cursor/skills/skill-creator/SKILL.md",
+      "scope": "project",
+      "capabilities": []
+    },
+    {
+      "name": "skill-creator-ext",
+      "description": ">",
+      "path": "/workspaces/work/repos/1C Framework/1c-agent-based-dev-framework/.cursor/skills/skill-creator-ext/SKILL.md",
+      "scope": "project",
+      "capabilities": []
+    },
+    {
+      "name": "codex-review",
+      "description": "Ревью через внешние LLM (Codex Review). Навык учит агента запускать независимое ревью артефактов через Codex CLI (GPT) и собирать результат. Используй при запросе второго мнения, вызове /review-gpt, или когда пользователь просит проверить план, спецификацию, код или архитектуру альтернативной моделью.",
+      "path": "/workspaces/work/repos/1C Framework/1c-agent-based-dev-framework/.claude/skills/codex-review/SKILL.md",
+      "scope": "project",
+      "capabilities": []
+    },
+    {
+      "name": "gemini-review",
+      "description": "Ревью через внешние LLM (Gemini Review). Навык учит агента запускать независимое ревью артефактов через Gemini (Codex CLI с профилем ag_gemini-3_1-pro-high). Используй при вызове /review-gemini, /review-all, или когда пользователь просит проверить артефакт альтернативной моделью.",
+      "path": "/workspaces/work/repos/1C Framework/1c-agent-based-dev-framework/.claude/skills/gemini-review/SKILL.md",
+      "scope": "project",
+      "capabilities": []
+    },
+    {
+      "name": "opus-review",
+      "description": "Ревью через второй независимый инстанс Opus. Навык учит агента запускать независимое ревью артефактов через субагент Task с изолированным контекстом. Используй при вызове /review-opus, /review-all, или когда пользователь просит проверить артефакт независимым взглядом.",
+      "path": "/workspaces/work/repos/1C Framework/1c-agent-based-dev-framework/.claude/skills/opus-review/SKILL.md",
+      "scope": "project",
+      "capabilities": []
+    }
+  ]
+}

@@ -1,0 +1,95 @@
+{
+  "format": "task_breakdown_v1",
+  "note": "Template + example for Task Breakdown JSON. No JSON Schema is used.",
+  "template": {
+    "spec": {
+      "id": "SPEC-XXX",
+      "title": "<spec title>",
+      "link": "docs/<spec-file>.md",
+      "summary": "<short summary of architecture decomposition>"
+    },
+    "tasks": [
+      {
+        "task_id": "T-001",
+        "title": "<task title>",
+        "task_type": "analysis|architecture|code|test|migration|docs",
+        "depends_on": [],
+        "spec_refs": [
+          "Requirements:MUST-1",
+          "Scope:In scope"
+        ],
+        "deliverables": [
+          "<artifact path or description>"
+        ],
+        "done_criteria": [
+          "<verifiable completion criterion>"
+        ]
+      }
+    ]
+  },
+  "example": {
+    "spec": {
+      "id": "SPEC-001",
+      "title": "Модульный фреймворк агентной разработки на 1С (BSL)",
+      "link": "docs/SPEC-001-framework-architecture.md",
+      "summary": "Декомпозиция архитектурной фазы на задачи: обновить роли, воркфлоу, правила ревью и SDD-гейтинг перед реализацией."
+    },
+    "tasks": [
+      {
+        "task_id": "T-001",
+        "title": "Обновить роль Architect",
+        "task_type": "architecture",
+        "depends_on": [],
+        "spec_refs": [
+          "Requirements:MUST-8",
+          "Technical Design:Layer 3 AGENTS"
+        ],
+        "deliverables": [
+          "framework/subagents/architect.md"
+        ],
+        "done_criteria": [
+          "В output/protocol добавлено требование Task Breakdown JSON",
+          "Указано хранение в отдельном .json файле"
+        ]
+      },
+      {
+        "task_id": "T-002",
+        "title": "Обновить full-cycle Phase 2 и передачу артефактов",
+        "task_type": "architecture",
+        "depends_on": [
+          "T-001"
+        ],
+        "spec_refs": [
+          "Technical Design:Workflow Full Cycle",
+          "Requirements:MUST-6"
+        ],
+        "deliverables": [
+          "framework/workflows/full-cycle.md"
+        ],
+        "done_criteria": [
+          "Phase 2 включает Task Breakdown JSON",
+          "Phase 2 → 3 передаёт SPEC + Technical Design + JSON"
+        ]
+      },
+      {
+        "task_id": "T-003",
+        "title": "Обновить политику кросс-ревью",
+        "task_type": "analysis",
+        "depends_on": [
+          "T-002"
+        ],
+        "spec_refs": [
+          "Review Gating",
+          "Cross-review protocol"
+        ],
+        "deliverables": [
+          "framework/rules/cross-review-policy.md"
+        ],
+        "done_criteria": [
+          "Full review включает JSON-декомпозицию",
+          "Добавлен чек-лист Task Breakdown JSON"
+        ]
+      }
+    ]
+  }
+}
