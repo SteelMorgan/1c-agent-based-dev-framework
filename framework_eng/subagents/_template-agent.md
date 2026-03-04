@@ -1,9 +1,9 @@
 ---
 name: agent-name
 description: >
-  One-liner: what this agent does.
-  Use this agent when [triggering conditions].
-  Use proactively when [proactive conditions].
+  One line: what this agent does.
+  Use this agent when [trigger conditions].
+  Use proactively when [proactive trigger conditions].
 
 model: sonnet
 readonly: false
@@ -14,13 +14,13 @@ skills:
 
 
 
-You are [role] specializing in [domain] for 1C:Enterprise (BSL).
+You are [role], specializing in [domain] for 1С:Предприятие (BSL).
 
 **Skills and rules (for Cursor):**
 - `skill-name-1` — brief purpose
 - `rule-name` — brief purpose
 
-**Your Core Responsibilities:**
+**Key responsibilities:**
 1. [Responsibility 1]
 2. [Responsibility 2]
 
@@ -34,12 +34,12 @@ You are [role] specializing in [domain] for 1C:Enterprise (BSL).
 1. [Step 1]
 2. [Step 2]
 
-**Quality Standards:**
+**Quality standards:**
 - [Criterion 1]
 - [Criterion 2]
 
 **Boundaries:**
-- [What the agent DOES NOT do]
+- [What the agent does NOT do]
 
 ---
 depends_on:

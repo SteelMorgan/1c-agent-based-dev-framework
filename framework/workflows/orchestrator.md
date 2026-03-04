@@ -21,10 +21,10 @@ description: Оркестратор маршрутизирует задачи и
 5. Управляет циклами ревью
 6. Передаёт артефакты между агентами, явно указывая `task_dir`
 7. Определяет точки взаимодействия с пользователем
-8. **Ведёт реестр сессий агентов** (`task_dir/sessions.json`) для возможного resume
+8. **Ведёт реестр сессий агентов** (`task_dir/.context/sessions.json`) для возможного resume
 9. **Запускает codex-review** для сложных артефактов как второе независимое мнение
-10. **Ведёт лог контекста** (`task_dir/orchestrator-context.log`) — минималистичный журнал ключевых событий для возобновления задачи
-11. **Формирует итоговый отчёт** (`task_dir/report.md`) после завершения задачи
+10. **Ведёт лог контекста** (`task_dir/.context/orchestrator-context.md`) — минималистичный журнал ключевых событий для возобновления задачи
+11. **Формирует итоговый отчёт** (`task_dir/.spec/final-report.md`) после завершения задачи
 
 ---
 
@@ -75,7 +75,7 @@ description: Оркестратор маршрутизирует задачи и
 | Tester обнаружил баг в реализации | Tester (метка `implementation_error`) | Вернуть Developer-Code с описанием: какой тест, что ожидалось, что получено |
 | Tester обнаружил ошибку в своём тесте | Tester (метка `test_error`) | Tester исправляет сам, оркестратор не вмешивается |
 | Developer-Code: тесты упали (метка `test_failure`) | Developer-Code | Запустить Reviewer для определения причины: баг в тесте → вернуть Developer-Tests; баг в коде → вернуть Developer-Code |
-| Developer-Code: `test_failure` + `suspected_test_error` | Developer-Code | Запустить Reviewer-арбитраж: сопоставить spec + technical-design + тесты + код, зафиксировать в `reviewer-context-code.md` какой артефакт ошибочен (`tests` или `code`). Далее оркестратор по резюме Reviewer маршрутизирует задачу: в Developer-Tests или в Developer-Code; решение фиксируется в `orchestrator-context.log`. |
+| Developer-Code: `test_failure` + `suspected_test_error` | Developer-Code | Запустить Reviewer-арбитраж: сопоставить spec + technical-design + тесты + код, зафиксировать в `reviewer-context-code.md` какой артефакт ошибочен (`tests` или `code`). Далее оркестратор по резюме Reviewer маршрутизирует задачу: в Developer-Tests или в Developer-Code; решение фиксируется в `orchestrator-context.md`. |
 | 3+ итерации без снятия BLOCK | Reviewer / любой агент | Эскалация пользователю, остановка |
 
 ### 4. Управление артефактами
@@ -88,10 +88,11 @@ description: Оркестратор маршрутизирует задачи и
 
 | Тип данных | Где хранится |
 |------------|--------------|
-| Спецификация, тех. дизайн, Task Breakdown JSON | `task_dir/` |
-| Результаты ревью | `task_dir/` |
-| Отчёты тестирования | `task_dir/` |
-| Реестр сессий агентов | `task_dir/sessions.json` |
+| Спецификация, тех. дизайн, test-report, final-report | `task_dir/.spec/` |
+| Task Breakdown JSON | `task_dir/.context/` |
+| Результаты ревью | `task_dir/.context/` |
+| Реестр сессий агентов | `task_dir/.context/sessions.json` |
+| Контекст-файлы агентов | `task_dir/.context/` |
 | BSL-код, тесты, XML метаданных | Кодовая база проекта (отдельный каталог) |
 
 **Структура `task_dir`:**
@@ -99,29 +100,31 @@ description: Оркестратор маршрутизирует задачи и
 ```
 tasks/
 └── TASK-001-название/
-    ├── orchestrator-context.log   ← Оркестратор (лог контекста, ведётся непрерывно)
-    ├── report.md                  ← Оркестратор (итоговый отчёт, формируется после завершения)
-    ├── sessions.json              ← Оркестратор (реестр agentId всех агентов)
-    ├── explorer-context.md        ← Explorer (Phase 0)
-    ├── analyst-context.md         ← Analyst (Phase 1)
-    ├── spec.md                    ← Analyst (Phase 1)
-    ├── architect-context.md       ← Architect (Phase 2)
-    ├── technical-design.md        ← Architect (Phase 2)
-    ├── task-breakdown.json        ← Architect (Phase 2)
-    ├── developer-tests-context.md ← Developer-Tests (Phase 3a)
-    ├── developer-code-context.md  ← Developer-Code (Phase 3b)
-    ├── tester-context.md          ← Tester (Phase 4)
-    ├── reviewer-context-spec.md   ← Reviewer (Phase 1)
-    ├── reviewer-context-arch.md   ← Reviewer (Phase 2)
-    ├── reviewer-context-tests.md  ← Reviewer (Phase 3a)
-    ├── reviewer-context-code.md   ← Reviewer (Phase 3b)
-    ├── reviewer-context-tester.md ← Reviewer (Phase 4)
-    └── test-report.md             ← Tester (Phase 4)
+    ├── .context/                     ← Контексты агентов и краткие результаты по фазам
+    │   ├── sessions.json             ← Оркестратор (реестр agentId всех агентов)
+    │   ├── orchestrator-context.md   ← Оркестратор (лог контекста, ведётся непрерывно)
+    │   ├── explorer-context.md       ← Explorer (Phase 0)
+    │   ├── analyst-context.md        ← Analyst (Phase 1)
+    │   ├── architect-context.md      ← Architect (Phase 2)
+    │   ├── developer-tests-context.md← Developer-Tests (Phase 3a)
+    │   ├── developer-code-context.md ← Developer-Code (Phase 3b)
+    │   ├── tester-context.md         ← Tester (Phase 4)
+    │   ├── reviewer-context-spec.md  ← Reviewer (Phase 1)
+    │   ├── reviewer-context-arch.md  ← Reviewer (Phase 2)
+    │   ├── reviewer-context-tests.md ← Reviewer (Phase 3a)
+    │   ├── reviewer-context-code.md  ← Reviewer (Phase 3b)
+    │   ├── reviewer-context-tester.md← Reviewer (Phase 4)
+    │   └── task-breakdown.json       ← Architect (Phase 2)
+    └── .spec/                        ← Основные артефакты спецификации и итоговые отчёты
+        ├── spec.md                   ← Analyst (Phase 1)
+        ├── technical-design.md       ← Architect (Phase 2)
+        ├── test-report.md            ← Tester (Phase 4)
+        └── final-report.md           ← Оркестратор (итоговый отчёт)
 ```
 
-### 5. Реестр сессий агентов (sessions.json)
+### 5. Реестр сессий агентов (`task_dir/.context/sessions.json`)
 
-Оркестратор ведёт `task_dir/sessions.json` — реестр agentId всех запущенных агентов.
+Оркестратор ведёт `task_dir/.context/sessions.json` — реестр agentId всех запущенных агентов.
 Используется для `resume` при повторном запуске того же агента (BLOCK → fix → re-review, clarification round и т.д.).
 
 **Структура:**
@@ -144,7 +147,7 @@ tasks/
 
 **Протокол:**
 - После каждого запуска агента — записать agentId в соответствующий ключ
-- При повторном запуске — прочитать sessions.json, попробовать `resume agentId`; если agentId устарел — новый запуск, обновить запись
+- При повторном запуске — прочитать `task_dir/.context/sessions.json`, попробовать `resume agentId`; если agentId устарел — новый запуск, обновить запись
 - Reviewer запускается отдельно для каждого scope (`reviewer-spec`, `reviewer-arch` и т.д.) — у каждого свой ключ
 
 ### 6. Codex-review как второе независимое мнение
@@ -176,15 +179,15 @@ tasks/
 
 ```
 Агент → clarification_needed
-  │  (вопросы записаны в {role}-context.md → Pending Questions)
+  │  (вопросы записаны в task_dir/.context/{role}-context.md → Pending Questions)
   ▼
-Оркестратор читает {role}-context.md → задаёт вопросы пользователю
+Оркестратор читает task_dir/.context/{role}-context.md → задаёт вопросы пользователю
   │
   ▼
 Пользователь отвечает
   │
   ▼
-Оркестратор записывает ответы в {role}-context.md → User Answers
+Оркестратор записывает ответы в task_dir/.context/{role}-context.md → User Answers
   │
   ├── agentId актуален? → resume (оптимизация, та же сессия)
   └── agentId устарел?  → новый запуск агента с task_dir
@@ -211,14 +214,14 @@ tasks/
 2. Инициализировать task_dir:
    - Если передан номер/путь задачи → использовать существующий каталог
    - Иначе → создать tasks/TASK-XXX-название/
-   - Создать/прочитать task_dir/sessions.json
-   - Создать/дополнить task_dir/orchestrator-context.log: записать событие START с датой-временем и текстом задачи
+   - Создать/прочитать task_dir/.context/sessions.json
+   - Создать/дополнить task_dir/.context/orchestrator-context.md: записать событие START с датой-временем и текстом задачи
    ↓
 3. Запустить Explorer для исследования кодовой базы
    - Explorer возвращает: список затронутых модулей, графы вызовов (входящие + исходящие),
      глубину зависимостей, количество точек вызова
-   - Сохранить артефакт Explorer в task_dir (explorer-context.md)
-   - Записать agentId Explorer в sessions.json → ключ "explorer"
+   - Сохранить артефакт Explorer в `task_dir/.context/explorer-context.md`
+   - Записать agentId Explorer в `task_dir/.context/sessions.json` → ключ "explorer"
    - На основе этих данных классифицировать задачу (простая / средняя / сложная)
    ↓
 4. По результату классификации выбрать воркфлоу:
@@ -227,26 +230,26 @@ tasks/
    ↓
 5. Для каждой фазы выбранного воркфлоу:
    a. Запустить агента (модель задана в agent frontmatter)
-      - Оптимизация: прочитать sessions.json; если agentId для этой роли есть → попробовать resume
-      - После запуска: записать agentId в sessions.json → ключ роли агента
+      - Оптимизация: прочитать `task_dir/.context/sessions.json`; если agentId для этой роли есть → попробовать resume
+      - После запуска: записать agentId в `task_dir/.context/sessions.json` → ключ роли агента
    b. Передать входные данные + явно task_dir
-      - **Для Phase 1 (Analyst):** задача + `explorer-context.md` (список модулей, графы вызовов)
-      - **Для Phase 2 (Architect):** утверждённая спека + `explorer-context.md` (графы вызовов, зависимости)
+      - **Для Phase 1 (Analyst):** задача + `task_dir/.context/explorer-context.md` (список модулей, графы вызовов)
+      - **Для Phase 2 (Architect):** утверждённая спека + `task_dir/.context/explorer-context.md` (графы вызовов, зависимости)
    c. Собрать выходной артефакт → сохранить в task_dir
-      - Записать в orchestrator-context.log: событие завершения фазы (агент, результат — OK / BLOCK / clarification_needed)
+      - Записать в `task_dir/.context/orchestrator-context.md`: событие завершения фазы (агент, результат — OK / BLOCK / clarification_needed)
    d. Если требуется ревью:
       - Запустить Reviewer с [TASK]+[SPEC]+[ARTIFACT]+[CHECKLIST]+[review_scope]
       - Передать `review_scope` явно: "spec" | "arch" | "tests" | "code" | "tester"
-      - Для Phase 2 в [ARTIFACT] обязательно включить Technical Design + Task Breakdown JSON-декомпозицию
-      - Записать agentId Reviewer в sessions.json → ключ "reviewer-{scope}"
-      - Сохранить результат ревью в task_dir (reviewer-context-{scope}.md)
+      - Для Phase 2 в [ARTIFACT] обязательно включить `task_dir/.spec/technical-design.md` + `task_dir/.context/task-breakdown.json`
+      - Записать agentId Reviewer в `task_dir/.context/sessions.json` → ключ "reviewer-{scope}"
+      - Сохранить результат ревью в `task_dir/.context/reviewer-context-{scope}.md`
       - Обработать результат (pass / iterate / escalate)
       - При необходимости: запустить codex-review как второе мнение (см. раздел 6)
    e. Если агент вернул `clarification_needed` (Phase 1 — Analyst, Phase 2 — Architect):
-      - Прочитать `{role}-context.md` из task_dir — там список вопросов
+      - Прочитать `task_dir/.context/{role}-context.md` — там список вопросов
       - Задать ВСЕ вопросы пользователю одним блоком
       - Дождаться ответов
-      - Записать ответы в секцию `User Answers` файла `{role}-context.md`
+      - Записать ответы в секцию `User Answers` файла `task_dir/.context/{role}-context.md`
       - Повторно запустить агента с исходной задачей + task_dir
         (агент сам прочитает контекст и ответы при старте)
       - Оптимизация: если agentId предыдущего запуска актуален —
@@ -254,8 +257,8 @@ tasks/
       - Если снова clarification_needed → эскалация пользователю (не повторять)
    f. Передать артефакт на следующую фазу
    ↓
-6. Сформировать итоговый отчёт task_dir/report.md (см. формат ниже)
-   - Записать в orchestrator-context.log: событие DONE
+6. Сформировать итоговый отчёт `task_dir/.spec/final-report.md` (см. формат ниже)
+   - Записать в `task_dir/.context/orchestrator-context.md`: событие DONE
    ↓
 7. Передать результат пользователю
 ```
@@ -271,7 +274,7 @@ tasks/
 
 ---
 
-## Лог контекста (orchestrator-context.log)
+## Лог контекста (`task_dir/.context/orchestrator-context.md`)
 
 Минималистичный журнал ключевых событий. Ведётся непрерывно — позволяет возобновить задачу с той же точки при остановке оркестратора.
 
@@ -303,7 +306,7 @@ tasks/
 [2026-03-02 10:22] DONE_PHASE: Analyst — clarification_needed
 [2026-03-02 10:23] CLARIFICATION: Задан вопрос пользователю: тип реквизита Дата или ДатаВремя?
 [2026-03-02 10:25] USER_INPUT: Дата
-[2026-03-02 10:28] DONE_PHASE: Analyst — OK, spec.md сформирован
+[2026-03-02 10:28] DONE_PHASE: Analyst — OK, task_dir/.spec/spec.md сформирован
 [2026-03-02 10:29] PHASE: Reviewer (scope: spec)
 [2026-03-02 10:31] DONE_PHASE: Reviewer spec — OK
 ...
@@ -317,7 +320,7 @@ tasks/
 
 ---
 
-## Итоговый отчёт (report.md)
+## Итоговый отчёт (`task_dir/.spec/final-report.md`)
 
 Формируется оркестратором после завершения всех фаз задачи.
 

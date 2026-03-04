@@ -93,7 +93,7 @@ description: Полный цикл разработки с обязательн�
 | **Выход** | Список затронутых модулей + графы вызовов + фактические данные (глубина зависимостей, количество точек вызова) |
 | **Маршрутизация** | Оркестратор классифицирует задачу по данным Explorer: Простая → `quick-fix.md`; Средняя/Сложная → Phase 1 |
 
-> Артефакты Explorer (`explorer-context.md`) передаются оркестратором и в Phase 1 (Analyst), и в Phase 2 (Architect) — как контекст затронутых модулей и зависимостей.
+> Артефакты Explorer (`task_dir/.context/explorer-context.md`) передаются оркестратором и в Phase 1 (Analyst), и в Phase 2 (Architect) — как контекст затронутых модулей и зависимостей.
 
 **Инструменты:** `navigate_symbol`, `get_call_graph`, `list_metadata_objects`, `get_metadata_structure`, `get_diagnostics`
 
@@ -103,9 +103,9 @@ description: Полный цикл разработки с обязательн�
 
 | Элемент | Описание |
 |---------|----------|
-| **Вход** | Задача + `explorer-context.md` (список затронутых модулей, графы вызовов) |
+| **Вход** | Задача + `task_dir/.context/explorer-context.md` (список затронутых модулей, графы вызовов) |
 | **Действие** | Analyst создаёт спецификацию в формате MADR 4.0 + RFC 2119 |
-| **Выход** | SPEC-документ (файл спецификации) |
+| **Выход** | `task_dir/.spec/spec.md` (SPEC-документ) |
 | **Ревью** | Reviewer (Premium) проверяет спеку по чек-листу спецификации |
 | **Итерации** | Максимум 3, затем эскалация пользователю |
 
@@ -117,9 +117,9 @@ description: Полный цикл разработки с обязательн�
 
 | Элемент | Описание |
 |---------|----------|
-| **Вход** | Утверждённая спецификация + `explorer-context.md` (графы вызовов, зависимости затронутых модулей) |
+| **Вход** | Утверждённая `task_dir/.spec/spec.md` + `task_dir/.context/explorer-context.md` (графы вызовов, зависимости затронутых модулей) |
 | **Действие** | Architect проектирует решение (Technical Design) и выполняет декомпозицию спеки в Task Breakdown JSON (задачи, зависимости, типы задач, ссылки на разделы спеки) |
-| **Выход** | Technical Design + Task Breakdown JSON (отдельный `.json` файл) + ссылка/краткая выжимка JSON в спеке |
+| **Выход** | `task_dir/.spec/technical-design.md` + `task_dir/.context/task-breakdown.json` + ссылка/краткая выжимка JSON в `task_dir/.spec/spec.md` |
 | **Ревью** | Reviewer (Premium) проверяет архитектуру и Task Breakdown JSON по чек-листам |
 | **STOP** | Ждём подтверждения пользователя перед Phase 3 |
 
@@ -131,7 +131,7 @@ description: Полный цикл разработки с обязательн�
 
 | Элемент | Описание |
 |---------|----------|
-| **Вход** | Утверждённая спека + Test Plan + `task_dir` |
+| **Вход** | Утверждённая `task_dir/.spec/spec.md` + Test Plan + `task_dir` |
 | **Действие** | Developer-Tests пишет YaxUnit unit-тесты для ВСЕХ MUST-сценариев из Test Plan — строго по спеке, без реализации. Тесты ДОЛЖНЫ падать (Red). |
 | **Выход** | Test-модули (.bsl) — тесты не проходят (реализации ещё нет) |
 | **Ревью** | Reviewer (Premium) проверяет тесты: полнота покрытия MUST-сценариев, корректность утверждений |
@@ -144,7 +144,7 @@ description: Полный цикл разработки с обязательн�
 
 | Элемент | Описание |
 |---------|----------|
-| **Вход** | Утверждённая спека + Technical Design + Task Breakdown JSON + test-модули из Phase 3a + `task_dir` |
+| **Вход** | `task_dir/.spec/spec.md` + `task_dir/.spec/technical-design.md` + `task_dir/.context/task-breakdown.json` + test-модули из Phase 3a + `task_dir` |
 | **Действие** | Developer-Code пишет BSL-код чтобы тесты из Phase 3a прошли (Green). НЕ пишет и НЕ модифицирует тесты. Запускает только тесты Phase 3a (целевой прогон), не полный regression-suite. |
 | **Выход** | BSL-модули + XML метаданных — все тесты из Phase 3a проходят |
 | **Ревью** | Reviewer (Premium) проверяет код по BSL-чек-листу |
@@ -159,9 +159,9 @@ description: Полный цикл разработки с обязательн�
 
 | Элемент | Описание |
 |---------|----------|
-| **Вход** | Код + тесты из Phase 3 + тест-план из спеки |
+| **Вход** | Код + тесты из Phase 3 + тест-план из `task_dir/.spec/spec.md` |
 | **Действие** | Tester проверяет покрытие тест-плана, дописывает недостающие тесты (edge-cases, интеграционные, регрессионные), запускает полный прогон |
-| **Выход** | Полный набор тестов (unit + регрессия) + результаты прогона + отчёт пользователю |
+| **Выход** | Полный набор тестов (unit + регрессия) + результаты прогона + `task_dir/.spec/test-report.md` |
 | **Ревью** | Reviewer (High) проверяет тесты по чек-листу тестов |
 
 **Важно:** Phase 4 НЕ дублирует Phase 3. Developer пишет unit-тесты по TDD. Tester дополняет покрытие: edge-cases, негативные сценарии, интеграционные тесты, регрессия.
@@ -178,11 +178,11 @@ description: Полный цикл разработки с обязательн�
 
 | От фазы | К фазе | Артефакт | Формат |
 |---------|--------|-----------|--------|
-| Phase 0 | Phase 1 | Список затронутых модулей + графы вызовов (входящие/исходящие) + глубина зависимостей | `explorer-context.md` в `task_dir` |
-| Phase 0 | Phase 2 | Те же артефакты Explorer — оркестратор передаёт повторно | `explorer-context.md` в `task_dir` |
-| Phase 0 | quick-fix | Классификация + список модулей | `explorer-context.md` в `task_dir` |
-| Phase 1 | Phase 2 | SPEC-документ | Markdown, MADR 4.0 |
-| Phase 2 | Phase 3a | SPEC + Technical Design + Task Breakdown JSON | Markdown + JSON |
+| Phase 0 | Phase 1 | Список затронутых модулей + графы вызовов (входящие/исходящие) + глубина зависимостей | `task_dir/.context/explorer-context.md` |
+| Phase 0 | Phase 2 | Те же артефакты Explorer — оркестратор передаёт повторно | `task_dir/.context/explorer-context.md` |
+| Phase 0 | quick-fix | Классификация + список модулей | `task_dir/.context/explorer-context.md` |
+| Phase 1 | Phase 2 | `task_dir/.spec/spec.md` | Markdown, MADR 4.0 |
+| Phase 2 | Phase 3a | `task_dir/.spec/spec.md` + `task_dir/.spec/technical-design.md` + `task_dir/.context/task-breakdown.json` | Markdown + JSON |
 | Phase 3a | Phase 3b | Test-модули (.bsl) — падающие тесты | Файлы .bsl |
 | Phase 3b | Phase 4 | BSL-модули + все тесты зелёные | Файлы .bsl |
 | Phase 4 | пользователь | Весь набор артефактов | Папка/task bundle |
@@ -190,10 +190,10 @@ description: Полный цикл разработки с обязательн�
 ### Обязательные поля в артефакте
 
 - **Спецификация:** Context, Requirements (RFC 2119), Scope, Test Plan, Acceptance Criteria
-- **Technical Design:** Компоненты, интерфейсы, разделение ответственности (пользователь/агент)
-- **Task Breakdown JSON:** Отдельный `.json` файл в формате "шаблон + пример" (без JSON Schema); обязательны идентификаторы задач (`task_id`), типы задач (`task_type`), зависимости (`depends_on`), ссылки на разделы спеки (`spec_refs`), критерии завершения
+- **Technical Design (`task_dir/.spec/technical-design.md`):** Компоненты, интерфейсы, разделение ответственности (пользователь/агент)
+- **Task Breakdown JSON (`task_dir/.context/task-breakdown.json`):** Отдельный `.json` файл в формате "шаблон + пример" (без JSON Schema); обязательны идентификаторы задач (`task_id`), типы задач (`task_type`), зависимости (`depends_on`), ссылки на разделы спеки (`spec_refs`), критерии завершения
 - **Код:** Путь к файлу, соответствие coding-standards
-- **Тесты:** Связь с MUST-сценариями из спеки
+- **Тесты:** Связь с MUST-сценариями из `task_dir/.spec/spec.md`
 
 ### Каналы передачи
 

@@ -57,10 +57,10 @@
 └─────────────┘   читает context-файл  └─────────────┘
 ```
 
-- **Сабагенты не общаются напрямую** — только через файлы в `task_dir`
+- **Сабагенты не общаются напрямую** — только через файлы в `task_dir/.context/` и `task_dir/.spec/`
 - **Только оркестратор** задаёт вопросы пользователю
-- **Сабагент при неопределённости** — сохраняет статус в `{role}-context.md` и останавливается; оркестратор читает файл и решает следующий шаг
-- **Контекст между запусками** — каждый агент при старте читает свой `{role}-context.md`, продолжает с места остановки
+- **Сабагент при неопределённости** — сохраняет статус в `task_dir/.context/{role}-context.md` и останавливается; оркестратор читает файл и решает следующий шаг
+- **Контекст между запусками** — каждый агент при старте читает свой `task_dir/.context/{role}-context.md`, продолжает с места остановки
 
 ---
 
@@ -69,7 +69,7 @@
 ```
                     ┌─────────────────────────────────────────────────────────────┐
                     │                      ОРКЕСТРАТОР                            │
-                    │                   (sessions.json)                           │
+                    │            (task_dir/.context/sessions.json)               │
                     └──────────────────────────┬──────────────────────────────────┘
                                                │
                     ┌──────────────────────────▼──────────────────────────────────┐
@@ -89,7 +89,7 @@
           │                                                         │
           │  📋 Analyst                                             │
           │     вход: задача + explorer-context.md                  │
-          │     → spec.md (MADR 4.0 + RFC 2119 + Test Plan)        │
+          │     → task_dir/.spec/spec.md (MADR 4.0 + RFC 2119 + Test Plan) │
           │     → если clarification_needed: ⏸ спрашивает оркестр. │
           │                      │                                  │
           │                      ▼                                  │
@@ -102,8 +102,8 @@
           │  Phase 2: Архитектура                                   │
           │                                                         │
           │  🏗️ Architect                                           │
-          │     вход: spec.md + explorer-context.md                 │
-          │     → technical-design.md + task-breakdown.json         │
+          │     вход: task_dir/.spec/spec.md + task_dir/.context/explorer-context.md │
+          │     → task_dir/.spec/technical-design.md + task_dir/.context/task-breakdown.json │
           │     → если clarification_needed: ⏸ спрашивает оркестр. │
           │                      │                                  │
           │                      ▼                                  │
@@ -117,7 +117,7 @@
           │  Phase 3a: Написание тестов (Red TDD)                  │
           │                                                         │
           │  👨‍💻 Developer-Tests                                    │
-          │     вход: spec.md + task-breakdown.json                 │
+          │     вход: task_dir/.spec/spec.md + task_dir/.context/task-breakdown.json │
           │     → test-модули .bsl (тесты ПАДАЮТ — реализации нет) │
           │                      │                                  │
           │                      ▼                                  │
@@ -130,8 +130,8 @@
           │  Phase 3b: Реализация (Green TDD)                      │
           │                                                         │
           │  👨‍💻 Developer-Code                                     │
-          │     вход: spec.md + technical-design.md +              │
-          │           task-breakdown.json + test-модули            │
+          │     вход: task_dir/.spec/spec.md + task_dir/.spec/technical-design.md + │
+          │           task_dir/.context/task-breakdown.json + test-модули            │
           │     → BSL-модули + XML метаданных (тесты ПРОХОДЯТ)     │
           │     → test_failure? → 🔎 Reviewer определяет причину:  │
           │       баг в тесте → Developer-Tests                     │
@@ -148,9 +148,9 @@
           │  Phase 4: Покрытие и регрессия                         │
           │                                                         │
           │  🧪 Tester                                              │
-          │     вход: код + тесты из Phase 3 + spec.md (Test Plan) │
+          │     вход: код + тесты из Phase 3 + task_dir/.spec/spec.md (Test Plan) │
           │     → дополнительные тест-модули .bsl                  │
-          │     → test-report.md                                    │
+          │     → task_dir/.spec/test-report.md                     │
           │     → implementation_error? → ⏸ оркестратор →         │
           │       возврат Developer-Code с описанием бага           │
           │                      │                                  │
@@ -180,22 +180,26 @@
 
 ```
 tasks/TASK-001-название/
-├── sessions.json              ← реестр agentId всех агентов (оркестратор)
-├── explorer-context.md        ← Phase 0
-├── analyst-context.md         ← Phase 1
-├── spec.md                    ← Phase 1
-├── architect-context.md       ← Phase 2
-├── technical-design.md        ← Phase 2
-├── task-breakdown.json        ← Phase 2
-├── developer-tests-context.md ← Phase 3a
-├── developer-code-context.md  ← Phase 3b
-├── tester-context.md          ← Phase 4
-├── reviewer-context-spec.md   ← Reviewer Phase 1
-├── reviewer-context-arch.md   ← Reviewer Phase 2
-├── reviewer-context-tests.md  ← Reviewer Phase 3a
-├── reviewer-context-code.md   ← Reviewer Phase 3b
-├── reviewer-context-tester.md ← Reviewer Phase 4
-└── test-report.md             ← Phase 4
+├── .context/
+│   ├── sessions.json             ← реестр agentId всех агентов (оркестратор)
+│   ├── orchestrator-context.md   ← лог оркестратора
+│   ├── explorer-context.md       ← Phase 0
+│   ├── analyst-context.md        ← Phase 1
+│   ├── architect-context.md      ← Phase 2
+│   ├── task-breakdown.json       ← Phase 2
+│   ├── developer-tests-context.md← Phase 3a
+│   ├── developer-code-context.md ← Phase 3b
+│   ├── tester-context.md         ← Phase 4
+│   ├── reviewer-context-spec.md  ← Reviewer Phase 1
+│   ├── reviewer-context-arch.md  ← Reviewer Phase 2
+│   ├── reviewer-context-tests.md ← Reviewer Phase 3a
+│   ├── reviewer-context-code.md  ← Reviewer Phase 3b
+│   └── reviewer-context-tester.md← Reviewer Phase 4
+└── .spec/
+    ├── spec.md                   ← Phase 1
+    ├── technical-design.md       ← Phase 2
+    ├── test-report.md            ← Phase 4
+    └── final-report.md           ← финальный отчёт оркестратора
 ```
 
 BSL-код, тест-модули и XML метаданных хранятся в **кодовой базе проекта** (не в task_dir).

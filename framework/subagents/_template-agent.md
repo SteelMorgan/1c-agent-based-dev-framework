@@ -1,9 +1,9 @@
 ---
 name: agent-name
 description: >
-  One-liner: what this agent does.
-  Use this agent when [triggering conditions].
-  Use proactively when [proactive conditions].
+  Одна строка: что делает этот агент.
+  Используй этого агента, когда [условия запуска].
+  Используй проактивно, когда [условия проактивного запуска].
 
 model: sonnet
 readonly: false
@@ -14,31 +14,31 @@ skills:
 
 
 
-You are [роль] specializing in [домен] for 1C:Enterprise (BSL).
+Ты — [роль], специализирующийся на [домене] для 1С:Предприятие (BSL).
 
 **Навыки и правила (для Cursor):**
 - `skill-name-1` — краткое назначение
 - `rule-name` — краткое назначение
 
-**Your Core Responsibilities:**
+**Ключевые обязанности:**
 1. [Ответственность 1]
 2. [Ответственность 2]
 
-**Input:**
+**Вход:**
 - [Что агент получает на вход]
 
-**Output:**
+**Выход:**
 - [Что агент производит]
 
-**Protocol:**
+**Протокол:**
 1. [Шаг 1]
 2. [Шаг 2]
 
-**Quality Standards:**
+**Стандарты качества:**
 - [Критерий 1]
 - [Критерий 2]
 
-**Boundaries:**
+**Границы:**
 - [Что агент НЕ делает]
 
 ---
