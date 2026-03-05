@@ -207,9 +207,9 @@
       "status": "synced"
     },
     "framework/skills/tool-usage/codex-review/SKILL.md": {
-      "ru_hash": "sha256:3700fe60b265e01bebc47598a65ee0ee1b6ec31056fdf185642d9020e173836c",
-      "en_hash": "sha256:f4e069c6aaea69d17c50f8a1b0efb3fdc02a6aa31a4d1d56ebc6b3405b4f8d81",
-      "synced_at": "2026-03-02T19:39:15Z",
+      "ru_hash": "sha256:7796320f3b4d6849b13351424d4a4afd2760688f814a15e6617d0030c5df7af5",
+      "en_hash": "sha256:5970a4e447d80084b6cac21aeb7c2b30ee2eee0d952283e9fbde7c1f433fc81e",
+      "synced_at": "2026-03-05T19:48:37Z",
       "status": "synced"
     },
     "framework/skills/tool-usage/codex-review/references/prompt-template.md": {

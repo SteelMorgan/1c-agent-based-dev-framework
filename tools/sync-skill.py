@@ -34,6 +34,14 @@ CODEX_POLL_INTERVAL = 3   # секунды между проверками фа�
 CODEX_TIMEOUT = 600       # максимальное время ожидания в секундах (10 мин для больших файлов)
 
 
+def is_codex_custom_mode() -> bool:
+    """
+    Возвращает True если включён кастомный режим Codex с профилями.
+    Проверяет переменную окружения CUSTOM_CODEX_ENABLED=1.
+    """
+    return os.environ.get("CUSTOM_CODEX_ENABLED", "0") == "1"
+
+
 def make_translate_prompt(ru_rel: str, en_rel: str) -> str:
     """Промпт для Codex — работает с файлами проекта напрямую."""
     return textwrap.dedent(f"""\
@@ -121,16 +129,29 @@ def translate_file(ru_path: Path, en_path: Path) -> bool:
 
     print(f"  → Translating {ru_rel} ...", end="", flush=True)
 
+    # Формируем аргументы в зависимости от режима Codex
+    if is_codex_custom_mode():
+        cmd = [
+            "codex", "exec",
+            "-p", CODEX_PROFILE,
+            "--sandbox", "workspace-write",
+            "--ephemeral",
+            "-o", str(done_file),
+            prompt,
+        ]
+    else:
+        cmd = [
+            "codex", "exec",
+            "-m", "gpt-5.1-codex-mini",
+            "--sandbox", "workspace-write",
+            "--ephemeral",
+            "-o", str(done_file),
+            prompt,
+        ]
+
     try:
         proc = subprocess.Popen(
-            [
-                "codex", "exec",
-                "-p", CODEX_PROFILE,
-                "--sandbox", "workspace-write",
-                "--ephemeral",
-                "-o", str(done_file),
-                prompt,
-            ],
+            cmd,
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,
             cwd=str(REPO_ROOT),
@@ -251,12 +272,15 @@ def cmd_sync(file_args: list[str], *, check_hashes: bool = True) -> int:
 
         current_hash = sha256_file(ru_path)
 
-        # Если хэш не изменился и EN уже есть — пропускаем
+        # Если хэш не изменился и EN существует и его хэш совпадает — пропускаем
         if check_hashes and rel in state["files"]:
             info = state["files"][rel]
+            en_path_check = ru_to_en_path(ru_path)
+            en_actual_hash = sha256_file(en_path_check) if en_path_check.exists() else None
             if (info.get("ru_hash") == current_hash
                     and info.get("status") == "synced"
-                    and ru_to_en_path(ru_path).exists()):
+                    and en_actual_hash is not None
+                    and info.get("en_hash") == en_actual_hash):
                 print(f"  ✓ {rel} — up to date, skipping")
                 continue
 

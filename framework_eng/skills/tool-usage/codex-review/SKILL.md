@@ -1,228 +1,200 @@
 ---
 name: codex-review
-description: Review via external LLMs (Codex Review). The skill teaches an agent to run an independent review of artifacts through the Codex CLI (GPT) and gather the outcome. Use it when requesting a second opinion, invoking /review-gpt, /review-gemini, /review-all, or when the user asks to check a plan, specification, code, or architecture with an alternative model.
+description: Review via external LLMs (Codex). The skill teaches the agent to launch an independent review of artifacts through the Codex CLI (GPT) and collect the result. Use it when requesting a second opinion, invoking /review-gpt, /review-all, or when the user asks to check a plan, specification, code, or architecture with an alternative model. The skill can also be used to forward an arbitrary task to another LLM at the user’s request.
 ---
 
-# Review via external LLMs (Codex Review)
+# Review via Codex CLI
 
-## Purpose
-
-The skill teaches an agent to obtain an **independent review** of artifacts from alternative LLMs by running them through CLI tools. The reviewer operates in a read-only sandbox, reads project files and framework skills, and returns a structured feedback.
-
-**Principle:** Claude Code is the orchestrator. It formulates the task, passes the artifact and criteria (skills), and the external agent analyzes and responds on its own.
-
----
-
-## When to apply
+## When to use
 
 | Trigger | Action |
 |---------|--------|
-| The user invokes `/review-gpt` | Run the review through Codex CLI |
-| The user invokes `/review-all` | Run GPT + Opus in parallel (see `opus-review`) |
-| The user asks for a “second opinion” | Suggest `/review-gpt` or `/review-all` |
+| `/review-gpt` | Run a review through the Codex CLI |
+| `/review-all` | GPT + Opus in parallel (see `opus-review`) |
+| “second opinion” | Suggest `/review-gpt` or `/review-all` |
 | Complex architecture, > 5 files | Recommend a review |
-| Before implementing a specification | Suggest reviewing the plan |
+| Before implementing a specification | Propose reviewing the plan |
 
 ---
 
-## Prompt construction
+## Step 0: Determine Codex mode
 
-The prompt for the reviewer consists of three mandatory blocks. Detailed template: [references/prompt-template.md](references/prompt-template.md).
+Before invoking, determine the Codex operating mode:
 
-### Block 1: Task
+```bash
+if [[ "${CUSTOM_CODEX_ENABLED:-0}" == "1" ]]; then
+  echo true   # custom mode with profiles
+else
+  echo false  # standard mode
+fi
+```
 
-What needs to be checked and in what context. Example:
+| Result | Mode | Command |
+|--------|------|---------|
+| `true` | Custom API server | see [Mode: custom](#mode-custom) |
+| `false` | Standard ChatGPT auth | see [Mode: default](#mode-default) |
 
-> Conduct a review of the implementation plan for the integration with the external system.
-> Context: customization of the standard UT configuration, task #42.
+---
 
-### Block 2: Artifact
+## Mode: custom
 
-The specific object under review. **Always provide paths to files — the reviewer reads them independently. Never insert file contents into the prompt.**
+The custom server is configured via `base_url` — use profiles from `config.toml`.
 
-Rules by type:
+```bash
+codex exec \
+  -p cx_gpt-5_3-codex-high \
+  --sandbox read-only \
+  --ephemeral \
+  -o /tmp/codex-review-$(date +%s).txt \
+  - < /tmp/codex-prompt.txt
+```
 
-- **Specification** — path to the specification file + paths to source materials (task, analysis)
-- **Code** — basis for the changes (spec or task) + hint to use `git diff --name-only HEAD~1` + key files
-- **Tests** — path to test files/directory + the module under test + the basis (spec)
-- **Form** — path to the form module + basis for the changes
-- **Architecture** — path to the architecture document + key implementation files
-- **If there are no files** (artifact only in chat) — provide it as text as an exception
+---
 
-### Block 3: Skills (review criteria)
+## Mode: default
 
-Links to `SKILL.md` files that the reviewer **will read itself** and use as criteria. Skill selection depends on artifact type:
+Standard ChatGPT auth. The model and effort are passed via flags.
 
-| Artifact type | Skills |
-|---------------|--------|
+```bash
+codex exec \
+  -m gpt-5.4 \
+  -c 'model_reasoning_effort="high"' \
+  --sandbox read-only \
+  --ephemeral \
+  -o /tmp/codex-review-$(date +%s).txt \
+  - < /tmp/codex-prompt.txt
+```
+
+---
+
+## Passing the prompt: directly or via file
+
+### Directly in the argument (single quotes only)
+
+Use this when the prompt is **short** (up to ~100 characters), **single-line**, and **does not contain backticks or `$`**:
+
+```bash
+codex exec -m gpt-5.4 -c 'model_reasoning_effort="high"' \
+  --sandbox read-only --ephemeral \
+  'Объясни назначение функции РассчитатьСумму в файле Module.bsl'
+```
+
+**Rules for quotes:**
+- The prompt must always be enclosed in **single** quotes `'...'`
+- Double quotes `"..."` trigger `Invalid JSON body`
+- Characters such as `!`, `-`, `#`, and spaces are safe inside single quotes
+- Pass a single quote inside the prompt via a file
+
+### Via file (main approach for reviews)
+
+Always use when the prompt is:
+- **Multi-line** (any review prompt from a template)
+- Contains backticks `` ` ``, `$`, `\`, or single quotes
+- Longer than ~100 characters
+
+```bash
+# 1. Record the prompt
+REVIEW_TS=$(date +%s)
+PROMPT_FILE=/tmp/codex-prompt-${REVIEW_TS}.txt
+RESULT_FILE=/tmp/codex-review-${REVIEW_TS}.txt
+
+cat <<'EOF' > "$PROMPT_FILE"
+<текст промпта — любой длины и символы без ограничений>
+EOF
+
+# 2. Run (default mode)
+codex exec \
+  -m gpt-5.4 \
+  -c 'model_reasoning_effort="high"' \
+  --sandbox read-only \
+  --ephemeral \
+  -o "$RESULT_FILE" \
+  - < "$PROMPT_FILE"
+```
+
+---
+
+## Crafting the prompt
+
+### Arbitrary task
+
+If the task is not a review, the agent creates the prompt on its own. Principles:
+
+- **One task — one prompt.** Clearly articulate what needs to be done.
+- **Context via files.** If data from the project is required, mention the paths instead of pasting the content into the prompt. Codex will read the files itself.
+- **Result via file.** If output (text, code) is expected, ask to write it to a specific path.
+
+An example — analyzing a file:
+```
+Прочитай файл src/ОбщиеМодули/ДССЛ_Резервирование/Module.bsl.
+Найди все места где выполняется запрос к базе данных вне транзакции.
+Запиши список в /tmp/codex-result.txt в формате: имя функции, строка, описание проблемы.
+```
+
+An example — generating code:
+```
+Прочитай спецификацию docs/specs/SPEC-резервирование.md.
+Сгенерируй заготовку модуля BSL согласно спецификации.
+Запиши результат в src/ОбщиеМодули/ДССЛ_Резервирование/Module.bsl.
+```
+
+### Review
+
+A review prompt consists of three blocks. Full template: [references/prompt-template.md](references/prompt-template.md).
+
+**Block 1 — Task:** what is being verified and in what context (2–5 sentences).
+
+**Block 2 — Artifact:** paths to files — the reviewer reads them directly. Never insert file content into the prompt.
+
+**Block 3 — Skills:** paths to `SKILL.md` for each artifact type:
+
+| Type | Skills |
+|-----|--------|
 | BSL code | `coding-standards`, `error-handling`, `query-patterns`, `ssl-patterns`, `form-patterns` |
-| Specification / plan | `spec-standard` |
+| Specification | `spec-standard` |
 | Form (UI) | `form-patterns`, `form-visual-requirements` |
 | Architecture | `ssl-patterns`, `query-patterns`, `coding-standards` |
 | Tests | `coding-standards`, `error-handling` |
 
-Paths to skills are relative to the project root:
-```
-framework/skills/bsl-practices/<name>/SKILL.md
-framework/skills/spec-writing/<name>/SKILL.md
-```
-
-For mixed artifacts (code + form) — combine skills from both groups.
-
----
-
-## Running Codex CLI
-
-### Command
-
-```bash
-codex exec \
-  -p cx_gpt-5_3-codex-high \
-  --sandbox read-only \
-  --ephemeral \
-  -o /tmp/codex-review-$(date +%s).txt \
-  "<prompt>"
-```
-
-### Passing a long prompt
-
-Prompts for the reviewer are almost always multi-line and contain special characters.
-**Always** write the prompt to a temporary file and pass it via stdin:
-
-```bash
-# 1. Write the prompt to a temporary file
-cat <<'EOF' > /tmp/codex-prompt-$(date +%s).txt
-<prompt text — any length, with quotes, markdown, etc.>
-EOF
-
-# 2. Pass it through stdin
-codex exec \
-  -p cx_gpt-5_3-codex-high \
-  --sandbox read-only \
-  --ephemeral \
-  -o /tmp/codex-review-$(date +%s).txt \
-  - < /tmp/codex-prompt-*.txt
-```
-
-**Do not use** `echo "<prompt>"` — it breaks on quotes and special characters.
-
-### Running in the background
-
-Use the Bash tool with `run_in_background: true`. This allows monitoring progress without blocking the main conversation.
-
-**Important:** remember the path to the `-o` file — it is the main way to obtain the result.
+Paths: `framework/skills/bsl-practices/<name>/SKILL.md`
 
 ---
 
 ## Monitoring and collecting the result
 
-### Step 1: Start
+Run in the background (`run_in_background: true`). Remember the `RESULT_FILE`.
 
-Write the prompt to a temporary file, then start Codex:
-
-```
-REVIEW_TS=$(date +%s)
-PROMPT_FILE=/tmp/codex-prompt-${REVIEW_TS}.txt
-RESULT_FILE=/tmp/codex-review-${REVIEW_TS}.txt
-
-# Write the prompt (via Bash or Write tool)
-cat <<'EOF' > $PROMPT_FILE
-<prompt>
-EOF
-
-# Run in the background (via Bash with run_in_background: true)
-codex exec -p cx_gpt-5_3-codex-high --sandbox read-only --ephemeral \
-  -o $RESULT_FILE - < $PROMPT_FILE
-```
-
-Obtain the task_id from the output. Remember the `RESULT_FILE` path.
-
-### Step 2: Monitor progress
-
-Use **two methods in parallel**:
-
-**Method A — TaskOutput (primary):**
-```
-TaskOutput(task_id, block=false)  — check status
-```
-If TaskOutput returns data — determine the status by keywords:
-- `exec` — Codex is executing shell commands (reading files)
-- `codex` — Codex is formulating the response
-- `tokens used` — completion
-
-**Method B — checking the `-o` file (fallback):**
-```
-Read(RESULT_FILE)  — if the file exists → Codex has finished
-```
-
-> ⚠️ **Important:** TaskOutput can lose the task (return "no task found").
-> In that case **do not wait** — immediately check the `-o` file via Read.
-> The `-o` file is created **atomically upon completion** of the Codex process —
-> it does not exist while Codex is working, and appears only when the process
-> has fully finished. If the file exists — Codex has definitely finished.
-
-Report a brief status to the user:
-- “GPT is reading project files...”
-- “GPT is analyzing the artifact...”
-- “GPT is forming the feedback...”
-
-### Step 3: Retrieve the result
+**Checking completion:**
 
 ```
-Read(RESULT_FILE)  — read the clean result
+# Method A — TaskOutput
+TaskOutput(task_id, block=false)
+
+# Method B — file -o (created atomically upon completion)
+Read(RESULT_FILE)  — if it exists → Codex finished
 ```
 
-The `-o` file contains **only the final reviewer’s answer**, without Codex headers or logs.
+> If `TaskOutput` returned “no task found” — immediately check the `-o` file.
 
-If the `-o` file is empty or not created — read the last message from stdout via `TaskOutput(task_id, block=true)`.
+Report status to the user based on keywords in stdout:
+- `exec` → “GPT is reading project files..."
+- `codex` → “GPT is forming the answer..."
+- `tokens used` → completed
 
-### Step 4: Present to the user
+**Obtaining the result:**
+```
+Read(RESULT_FILE)  — clean answer without logs
+```
 
-- Show the reviewer’s feedback
-- If there are critical issues — suggest correcting the artifact
-- The feedback is an **opinion**; the final decision is up to the user
+If the file is empty → `TaskOutput(task_id, block=true)`.
 
 ---
 
 ## Error handling
 
 | Situation | Action |
-|----------|--------|
-| Codex CLI is not installed | Inform: `npm install -g @openai/codex` |
-| Timeout (process did not finish) | Show partial output from stdout |
-| API error (exit code ≠ 0) | Show stderr, suggest retrying |
-| The `-o` file is empty | Take the last message from stdout |
-| Prompt is too long | Pass it through stdin with `-` |
-
----
-
-## Common mistakes
-
-| Mistake | Consequence | How to avoid |
-|--------|------------|--------------|
-| Not including skills in the prompt | The reviewer gives a general response without referencing project standards | Always include the “Skills” block with paths to SKILL.md |
-| Passing skill contents instead of paths | Prompt ballooning, token limit | Pass only paths — Codex will read files itself |
-| Running without `--sandbox read-only` | The reviewer might try to modify files | Always specify `--sandbox read-only` |
-| Forgetting `--ephemeral` | Disk pollution with sessions | Always specify `--ephemeral` |
-| Not using `-o` | Need to parse noisy stdout | Always specify `-o` for a clean result |
-| Providing the artifact without the task | The reviewer lacks context | Always start the prompt with the “Task” block |
-
----
-
-## Related resources
-
-- [Prompt template](references/prompt-template.md) — detailed template with examples
-- [Opus review skill](../opus-review/SKILL.md) — review through the second Opus instance (Task tool)
-- [Codex Review specification](../../../../docs/SPEC-codex-review.md) — full system specification
-- [Framework reviewer](../../../subagents/reviewer.md) — internal reviewer agent (for comparing approaches)
-
----
-depends_on:
-  - framework/skills/bsl-practices/coding-standards/SKILL.md
-  - framework/skills/bsl-practices/error-handling/SKILL.md
-  - framework/skills/bsl-practices/query-patterns/SKILL.md
-  - framework/skills/bsl-practices/ssl-patterns/SKILL.md
-  - framework/skills/bsl-practices/form-patterns/SKILL.md
-  - framework/skills/bsl-practices/form-visual-requirements/SKILL.md
-  - framework/skills/spec-writing/spec-standard/SKILL.md
----
+|-----------|--------|
+| `Invalid JSON body` | The prompt was passed in double quotes — switch to single quotes or use a file |
+| Codex CLI is not installed | `npm install -g @openai/codex` |
+| Timeout | Show the partial result from stdout |
+| File `-o` is empty | Take the last message from `TaskOutput` |
