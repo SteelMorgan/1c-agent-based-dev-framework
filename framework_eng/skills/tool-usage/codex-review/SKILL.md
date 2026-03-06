@@ -1,6 +1,6 @@
 ---
 name: codex-review
-description: Review via external LLMs (Codex). The skill teaches the agent to launch an independent review of artifacts through the Codex CLI (GPT) and collect the result. Use it when requesting a second opinion, invoking /review-gpt, /review-all, or when the user asks to check a plan, specification, code, or architecture with an alternative model. The skill can also be used to forward an arbitrary task to another LLM at the user’s request.
+description: Review via external LLM (Codex). The skill teaches the agent to launch an independent review of artifacts through the Codex CLI (GPT) and collect the result. Use it when requesting a second opinion, invoking /review-gpt, /review-all, or when the user asks to check a plan, specification, code, or architecture with an alternative model. The skill can also be used to hand off an arbitrary task to another LLM at the user's request.
 ---
 
 # Review via Codex CLI
@@ -11,15 +11,15 @@ description: Review via external LLMs (Codex). The skill teaches the agent to la
 |---------|--------|
 | `/review-gpt` | Run a review through the Codex CLI |
 | `/review-all` | GPT + Opus in parallel (see `opus-review`) |
-| “second opinion” | Suggest `/review-gpt` or `/review-all` |
+| “second opinion” | Offer `/review-gpt` or `/review-all` |
 | Complex architecture, > 5 files | Recommend a review |
-| Before implementing a specification | Propose reviewing the plan |
+| Before implementing a specification | Suggest reviewing the plan |
 
 ---
 
-## Step 0: Determine Codex mode
+## Step 0: determine Codex mode
 
-Before invoking, determine the Codex operating mode:
+Before invoking, identify the Codex operating mode:
 
 ```bash
 if [[ "${CUSTOM_CODEX_ENABLED:-0}" == "1" ]]; then
@@ -41,11 +41,11 @@ fi
 The custom server is configured via `base_url` — use profiles from `config.toml`.
 
 ```bash
+RESULT_FILE=$(mktemp /tmp/codex-review-XXXXXX.txt)
 codex exec \
   -p cx_gpt-5_3-codex-high \
-  --sandbox read-only \
   --ephemeral \
-  -o /tmp/codex-review-$(date +%s).txt \
+  -o "$RESULT_FILE" \
   - < /tmp/codex-prompt.txt
 ```
 
@@ -56,12 +56,12 @@ codex exec \
 Standard ChatGPT auth. The model and effort are passed via flags.
 
 ```bash
+RESULT_FILE=$(mktemp /tmp/codex-review-XXXXXX.txt)
 codex exec \
   -m gpt-5.4 \
   -c 'model_reasoning_effort="high"' \
-  --sandbox read-only \
   --ephemeral \
-  -o /tmp/codex-review-$(date +%s).txt \
+  -o "$RESULT_FILE" \
   - < /tmp/codex-prompt.txt
 ```
 
@@ -71,32 +71,30 @@ codex exec \
 
 ### Directly in the argument (single quotes only)
 
-Use this when the prompt is **short** (up to ~100 characters), **single-line**, and **does not contain backticks or `$`**:
+Use this when the prompt is **short** (up to ~100 characters), **single-line**, and **does not include backticks or `$`:**
 
 ```bash
 codex exec -m gpt-5.4 -c 'model_reasoning_effort="high"' \
-  --sandbox read-only --ephemeral \
+  --ephemeral \
   'Объясни назначение функции РассчитатьСумму в файле Module.bsl'
 ```
 
-**Rules for quotes:**
-- The prompt must always be enclosed in **single** quotes `'...'`
-- Double quotes `"..."` trigger `Invalid JSON body`
-- Characters such as `!`, `-`, `#`, and spaces are safe inside single quotes
+**Why single quotes:**
+- When the AI agent generates a command with double quotes, it often forgets to escape `$`, `` ` ``, `!`, so the shell expands them, the argument is garbled, and the API returns `Invalid JSON body`
+- Single quotes `'...'` pass the content as-is, which is safe for `!`, `-`, `#`, `$`, spaces
 - Pass a single quote inside the prompt via a file
 
 ### Via file (main approach for reviews)
 
-Always use when the prompt is:
-- **Multi-line** (any review prompt from a template)
+Always use this method when the prompt is:
+- **Multi-line** (any review prompt from the template)
 - Contains backticks `` ` ``, `$`, `\`, or single quotes
 - Longer than ~100 characters
 
 ```bash
 # 1. Record the prompt
-REVIEW_TS=$(date +%s)
-PROMPT_FILE=/tmp/codex-prompt-${REVIEW_TS}.txt
-RESULT_FILE=/tmp/codex-review-${REVIEW_TS}.txt
+PROMPT_FILE=$(mktemp /tmp/codex-prompt-XXXXXX.txt)
+RESULT_FILE=$(mktemp /tmp/codex-review-XXXXXX.txt)
 
 cat <<'EOF' > "$PROMPT_FILE"
 <текст промпта — любой длины и символы без ограничений>
@@ -106,7 +104,6 @@ EOF
 codex exec \
   -m gpt-5.4 \
   -c 'model_reasoning_effort="high"' \
-  --sandbox read-only \
   --ephemeral \
   -o "$RESULT_FILE" \
   - < "$PROMPT_FILE"
@@ -114,39 +111,39 @@ codex exec \
 
 ---
 
-## Crafting the prompt
+## Prompt construction
 
 ### Arbitrary task
 
-If the task is not a review, the agent creates the prompt on its own. Principles:
+If the task is not a review, the agent builds the prompt independently. Principles:
 
-- **One task — one prompt.** Clearly articulate what needs to be done.
-- **Context via files.** If data from the project is required, mention the paths instead of pasting the content into the prompt. Codex will read the files itself.
-- **Result via file.** If output (text, code) is expected, ask to write it to a specific path.
+- **One task — one prompt.** Clearly state what needs to be done.
+- **Context via files.** If the project data is required, list the paths instead of pasting the contents into the prompt. Codex will read the files itself.
+- **Result via file.** If you expect output (text, code), ask to write it to a specific path.
 
-An example — analyzing a file:
+Example — analyzing a file:
 ```
-Прочитай файл src/ОбщиеМодули/ДССЛ_Резервирование/Module.bsl.
-Найди все места где выполняется запрос к базе данных вне транзакции.
-Запиши список в /tmp/codex-result.txt в формате: имя функции, строка, описание проблемы.
+Read the file src/ОбщиеМодули/ДССЛ_Резервирование/Module.bsl.
+Find all places where a database query is executed outside a transaction.
+Write the list to /tmp/codex-result.txt in the following format: function name, line, issue description.
 ```
 
-An example — generating code:
+Example — generating code:
 ```
-Прочитай спецификацию docs/specs/SPEC-резервирование.md.
-Сгенерируй заготовку модуля BSL согласно спецификации.
-Запиши результат в src/ОбщиеМодули/ДССЛ_Резервирование/Module.bsl.
+Read the specification docs/specs/SPEC-резервирование.md.
+Generate a BSL module skeleton according to the specification.
+Write the result to src/ОбщиеМодули/ДССЛ_Резервирование/Module.bsl.
 ```
 
 ### Review
 
 A review prompt consists of three blocks. Full template: [references/prompt-template.md](references/prompt-template.md).
 
-**Block 1 — Task:** what is being verified and in what context (2–5 sentences).
+**Block 1 — Task:** what is being checked and in what context (2–5 sentences).
 
-**Block 2 — Artifact:** paths to files — the reviewer reads them directly. Never insert file content into the prompt.
+**Block 2 — Artifact:** paths to files — the reviewer reads them on their own. Prefer paths; insert text only if the artifact does not exist on disk (diff, generated fragment) or a short critical context is required.
 
-**Block 3 — Skills:** paths to `SKILL.md` for each artifact type:
+**Block 3 — Skills:** paths to `SKILL.md` by artifact type:
 
 | Type | Skills |
 |-----|--------|
@@ -162,7 +159,7 @@ Paths: `framework/skills/bsl-practices/<name>/SKILL.md`
 
 ## Monitoring and collecting the result
 
-Run in the background (`run_in_background: true`). Remember the `RESULT_FILE`.
+Run in the background (`run_in_background: true`). Keep track of the `RESULT_FILE`.
 
 **Checking completion:**
 
@@ -171,19 +168,19 @@ Run in the background (`run_in_background: true`). Remember the `RESULT_FILE`.
 TaskOutput(task_id, block=false)
 
 # Method B — file -o (created atomically upon completion)
-Read(RESULT_FILE)  — if it exists → Codex finished
+Read(RESULT_FILE)  — if it exists → Codex has finished
 ```
 
 > If `TaskOutput` returned “no task found” — immediately check the `-o` file.
 
-Report status to the user based on keywords in stdout:
-- `exec` → “GPT is reading project files..."
-- `codex` → “GPT is forming the answer..."
+Optional UX hints — if stdout contains characteristic words, you can inform the user about an approximate status (these words may change between CLI versions):
+- `exec` → “GPT is reading project files...”
+- `codex` → “GPT is forming the answer...”
 - `tokens used` → completed
 
 **Obtaining the result:**
 ```
-Read(RESULT_FILE)  — clean answer without logs
+Read(RESULT_FILE)  — the clean answer without logs
 ```
 
 If the file is empty → `TaskOutput(task_id, block=true)`.
@@ -193,8 +190,11 @@ If the file is empty → `TaskOutput(task_id, block=true)`.
 ## Error handling
 
 | Situation | Action |
-|-----------|--------|
-| `Invalid JSON body` | The prompt was passed in double quotes — switch to single quotes or use a file |
+|----------|--------|
+| `Invalid JSON body` | The prompt was distorted by shell expansion of double quotes — switch to single quotes or pass via a file |
 | Codex CLI is not installed | `npm install -g @openai/codex` |
+| Auth failure / `login required` | Run `codex login`; if using custom mode — verify `config.toml` and the API key |
+| Unknown profile `-p` | Check the profile name in `~/.codex/config.toml` |
+| Rate limit / 429 | Tell the user, wait 30–60 seconds, retry |
+| Non-zero exit, file `-o` not created | Show stderr from `TaskOutput`; check cwd, paths, model |
 | Timeout | Show the partial result from stdout |
-| File `-o` is empty | Take the last message from `TaskOutput` |

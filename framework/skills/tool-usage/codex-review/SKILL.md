@@ -41,11 +41,11 @@ fi
 Кастомный сервер настроен через `base_url` — используй профили из `config.toml`.
 
 ```bash
+RESULT_FILE=$(mktemp /tmp/codex-review-XXXXXX.txt)
 codex exec \
   -p cx_gpt-5_3-codex-high \
-  --sandbox read-only \
   --ephemeral \
-  -o /tmp/codex-review-$(date +%s).txt \
+  -o "$RESULT_FILE" \
   - < /tmp/codex-prompt.txt
 ```
 
@@ -56,12 +56,12 @@ codex exec \
 Стандартный ChatGPT auth. Модель и effort передаются флагами.
 
 ```bash
+RESULT_FILE=$(mktemp /tmp/codex-review-XXXXXX.txt)
 codex exec \
   -m gpt-5.4 \
   -c 'model_reasoning_effort="high"' \
-  --sandbox read-only \
   --ephemeral \
-  -o /tmp/codex-review-$(date +%s).txt \
+  -o "$RESULT_FILE" \
   - < /tmp/codex-prompt.txt
 ```
 
@@ -75,14 +75,13 @@ codex exec \
 
 ```bash
 codex exec -m gpt-5.4 -c 'model_reasoning_effort="high"' \
-  --sandbox read-only --ephemeral \
+  --ephemeral \
   'Объясни назначение функции РассчитатьСумму в файле Module.bsl'
 ```
 
-**Правила кавычек:**
-- Промпт — всегда в **одинарных** кавычках `'...'`
-- Двойные кавычки `"..."` вызывают `Invalid JSON body`
-- Внутри одинарных кавычек `!`, `-`, `#`, пробелы — безопасны
+**Почему одинарные кавычки:**
+- AI-агент при генерации команд в двойных кавычках часто забывает экранировать `$`, `` ` ``, `!` — shell раскрывает их, аргумент искажается, API возвращает `Invalid JSON body`
+- Одинарные кавычки `'...'` передают содержимое as-is — безопасны для `!`, `-`, `#`, `$`, пробелов
 - Одинарную кавычку внутри промпта передавай через файл
 
 ### Через файл (основной способ для ревью)
@@ -94,9 +93,8 @@ codex exec -m gpt-5.4 -c 'model_reasoning_effort="high"' \
 
 ```bash
 # 1. Записать промпт
-REVIEW_TS=$(date +%s)
-PROMPT_FILE=/tmp/codex-prompt-${REVIEW_TS}.txt
-RESULT_FILE=/tmp/codex-review-${REVIEW_TS}.txt
+PROMPT_FILE=$(mktemp /tmp/codex-prompt-XXXXXX.txt)
+RESULT_FILE=$(mktemp /tmp/codex-review-XXXXXX.txt)
 
 cat <<'EOF' > "$PROMPT_FILE"
 <текст промпта — любой длины и символы без ограничений>
@@ -106,7 +104,6 @@ EOF
 codex exec \
   -m gpt-5.4 \
   -c 'model_reasoning_effort="high"' \
-  --sandbox read-only \
   --ephemeral \
   -o "$RESULT_FILE" \
   - < "$PROMPT_FILE"
@@ -144,7 +141,7 @@ codex exec \
 
 **Блок 1 — Задача:** что проверяем и в каком контексте (2-5 предложений).
 
-**Блок 2 — Артефакт:** пути к файлам — ревьювер читает их сам. Никогда не вставлять содержимое файлов в промпт.
+**Блок 2 — Артефакт:** пути к файлам — ревьювер читает их сам. Предпочитай пути; вставляй текст только если артефакт не существует на диске (diff, сгенерированный фрагмент) или нужен короткий критичный контекст.
 
 **Блок 3 — Навыки:** пути к `SKILL.md` по типу артефакта:
 
@@ -176,7 +173,7 @@ Read(RESULT_FILE)  — если существует → Codex завершил�
 
 > Если `TaskOutput` вернул «no task found» — сразу проверяй файл `-o`.
 
-Сообщать пользователю статус по ключевым словам в stdout:
+Необязательные UX-подсказки — если в stdout встретились характерные слова, можно сообщить пользователю примерный статус (слова могут меняться между версиями CLI):
 - `exec` → «GPT читает файлы проекта...»
 - `codex` → «GPT формирует ответ...»
 - `tokens used` → завершено
@@ -194,8 +191,12 @@ Read(RESULT_FILE)  — чистый ответ без логов
 
 | Ситуация | Действие |
 |----------|----------|
-| `Invalid JSON body` | Промпт передан в двойных кавычках — заменить на одинарные или файл |
+| `Invalid JSON body` | Промпт искажён shell-expansion (двойные кавычки) — передать через файл или одинарные кавычки |
 | Codex CLI не установлен | `npm install -g @openai/codex` |
+| Auth failure / `login required` | Запустить `codex login`; если custom-режим — проверить `config.toml` и API-ключ |
+| Неизвестный профиль `-p` | Проверить имя профиля в `~/.codex/config.toml` |
+| Rate limit / 429 | Сообщить пользователю, подождать 30-60 сек, повторить |
+| Non-zero exit, файл `-o` не создан | Показать stderr из `TaskOutput`; проверить cwd, пути, модель |
 | Таймаут | Показать частичный результат из stdout |
 | Файл `-o` пуст | Взять последнее сообщение из `TaskOutput` |
 
