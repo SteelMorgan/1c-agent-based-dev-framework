@@ -5,14 +5,15 @@ import java.nio.file.Path;
 import java.util.*;
 
 /**
- * Валидатор для корневого XML внешней обработки (ExternalDataProcessor).
+ * Валидатор для корневого XML внешней обработки (ExternalDataProcessor)
+ * и внешнего отчёта (ExternalReport).
  * <p>
  * Level 1 (Structure): EPF-001..006
  */
 public class EpfValidator implements XmlValidator {
 
-    private static final String NS_MDO = "http://v8.1c.ru/8.3/MDClasses";
     private static final String EPF_CLASS_ID = "c3831ec8-d8d5-4f93-8a22-f9bfae07327f";
+    private static final String ERF_CLASS_ID = "e41aff26-25cf-4bb6-b6c1-3f478a75f374";
 
     @Override
     public String objectType() {
@@ -21,8 +22,16 @@ public class EpfValidator implements XmlValidator {
 
     @Override
     public boolean supports(XmlDocument document) {
-        return "MetaDataObject".equals(document.getRootElement())
-                || "ExternalDataProcessor".equals(document.getRootElement());
+        String root = document.getRootElement();
+        if ("ExternalDataProcessor".equals(root) || "ExternalReport".equals(root)) {
+            return true;
+        }
+        if ("MetaDataObject".equals(root)) {
+            XmlNode mdo = document.getRoot();
+            return mdo.child("ExternalDataProcessor") != null
+                    || mdo.child("ExternalReport") != null;
+        }
+        return false;
     }
 
     @Override
@@ -35,32 +44,45 @@ public class EpfValidator implements XmlValidator {
     private void validateStructure(XmlDocument document, List<ValidationIssue> issues) {
         XmlNode root = document.getRoot();
 
-        // Навигация: MetaDataObject → ExternalDataProcessor или напрямую ExternalDataProcessor
+        // Навигация: MetaDataObject → ExternalDataProcessor/ExternalReport
         XmlNode epfNode;
+        boolean isReport;
         if ("MetaDataObject".equals(root.getName())) {
             epfNode = root.child("ExternalDataProcessor");
+            isReport = false;
+            if (epfNode == null) {
+                epfNode = root.child("ExternalReport");
+                isReport = true;
+            }
             if (epfNode == null) {
                 issues.add(ValidationIssue.error("EPF-001",
-                        "MetaDataObject missing <ExternalDataProcessor> child",
+                        "MetaDataObject missing <ExternalDataProcessor> or <ExternalReport> child",
                         root.getLine(), "/MetaDataObject"));
                 return;
             }
         } else if ("ExternalDataProcessor".equals(root.getName())) {
             epfNode = root;
+            isReport = false;
+        } else if ("ExternalReport".equals(root.getName())) {
+            epfNode = root;
+            isReport = true;
         } else {
             issues.add(ValidationIssue.error("EPF-001",
-                    "Expected root element 'MetaDataObject' or 'ExternalDataProcessor', found '"
+                    "Expected root element 'MetaDataObject', 'ExternalDataProcessor' or 'ExternalReport', found '"
                             + root.getName() + "'",
                     root.getLine(), "/"));
             return;
         }
 
+        String elementName = isReport ? "ExternalReport" : "ExternalDataProcessor";
+        String expectedClassId = isReport ? ERF_CLASS_ID : EPF_CLASS_ID;
+
         // EPF-001: uuid присутствует
         String uuid = epfNode.attr("uuid");
         if (uuid == null || uuid.isEmpty()) {
             issues.add(ValidationIssue.error("EPF-001",
-                    "ExternalDataProcessor missing uuid attribute",
-                    epfNode.getLine(), "/ExternalDataProcessor"));
+                    elementName + " missing uuid attribute",
+                    epfNode.getLine(), "/" + elementName));
         }
 
         // Навигация: Properties → Name / InternalInfo → ClassId
@@ -72,26 +94,25 @@ public class EpfValidator implements XmlValidator {
             if (name == null || name.isEmpty()) {
                 issues.add(ValidationIssue.error("EPF-002",
                         "Missing or empty <Name> in Properties",
-                        properties.getLine(), "/ExternalDataProcessor/Properties/Name"));
+                        properties.getLine(), "/" + elementName + "/Properties/Name"));
             }
 
             // EPF-003: ClassId
             XmlNode internalInfo = properties.child("InternalInfo");
             if (internalInfo != null) {
-                // ClassId может быть в xr:ClassId или просто ClassId
                 String classId = findClassId(internalInfo);
                 if (classId != null && !classId.isEmpty()) {
-                    if (!EPF_CLASS_ID.equals(classId)) {
+                    if (!expectedClassId.equals(classId)) {
                         issues.add(ValidationIssue.error("EPF-003",
-                                "Expected ClassId '" + EPF_CLASS_ID + "', found '" + classId + "'",
-                                internalInfo.getLine(), "/ExternalDataProcessor/Properties/InternalInfo/ClassId"));
+                                "Expected ClassId '" + expectedClassId + "', found '" + classId + "'",
+                                internalInfo.getLine(), "/" + elementName + "/Properties/InternalInfo/ClassId"));
                     }
                 }
             }
         } else {
             issues.add(ValidationIssue.error("EPF-002",
                     "Missing <Properties> element",
-                    epfNode.getLine(), "/ExternalDataProcessor"));
+                    epfNode.getLine(), "/" + elementName));
         }
 
         // EPF-004: ChildObjects присутствует
@@ -99,7 +120,7 @@ public class EpfValidator implements XmlValidator {
         if (childObjects == null) {
             issues.add(ValidationIssue.error("EPF-004",
                     "Missing <ChildObjects> element",
-                    epfNode.getLine(), "/ExternalDataProcessor"));
+                    epfNode.getLine(), "/" + elementName));
             return;
         }
 
@@ -117,13 +138,13 @@ public class EpfValidator implements XmlValidator {
         if (formAfterTemplate) {
             issues.add(ValidationIssue.warning("EPF-005",
                     "Forms should be declared before Templates in ChildObjects",
-                    childObjects.getLine(), "/ExternalDataProcessor/ChildObjects"));
+                    childObjects.getLine(), "/" + elementName + "/ChildObjects"));
         }
 
         // EPF-006: Файлы из ChildObjects существуют (если документ — файл на диске)
         Path docDir = document.getFile() != null ? document.getFile().getParent() : null;
         if (docDir != null) {
-            validateChildFiles(childObjects, docDir, issues);
+            validateChildFiles(childObjects, docDir, elementName, issues);
         }
     }
 
@@ -137,7 +158,7 @@ public class EpfValidator implements XmlValidator {
         return null;
     }
 
-    private void validateChildFiles(XmlNode childObjects, Path baseDir, List<ValidationIssue> issues) {
+    private void validateChildFiles(XmlNode childObjects, Path baseDir, String elementName, List<ValidationIssue> issues) {
         for (XmlNode child : childObjects.getChildren()) {
             String childName = child.getName();
             String objName = child.getText();
@@ -156,7 +177,7 @@ public class EpfValidator implements XmlValidator {
             if (!Files.exists(childDir)) {
                 issues.add(ValidationIssue.error("EPF-006",
                         childName + " '" + objName + "' directory not found: " + childDir,
-                        child.getLine(), "/ExternalDataProcessor/ChildObjects/" + childName));
+                        child.getLine(), "/" + elementName + "/ChildObjects/" + childName));
             }
         }
     }

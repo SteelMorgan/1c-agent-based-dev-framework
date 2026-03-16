@@ -31,7 +31,7 @@ public class GenValidator {
             "form", new RootExpectation("Form", "http://v8.1c.ru/8.3/xcf/logform"),
             "skd", new RootExpectation("DataCompositionSchema", "http://v8.1c.ru/8.1/data-composition-system/schema"),
             "mxl", new RootExpectation("document", "http://v8.1c.ru/8.2/data/spreadsheet"),
-            "epf", new RootExpectation("ExternalDataProcessor", "http://v8.1c.ru/8.3/MDClasses")
+            "epf", new RootExpectation("MetaDataObject", "http://v8.1c.ru/8.3/MDClasses")
     );
 
     private final MetadataTypeValidator metadataValidator;

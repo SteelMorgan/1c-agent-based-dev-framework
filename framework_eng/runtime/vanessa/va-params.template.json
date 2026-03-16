@@ -1,0 +1,32 @@
+{
+  "ProjectDirectory": "$workspaceRoot",
+  "ToolsDirectory": "/opt/onescript/2.0.0/lib/add",
+  "WriteMessagesToFile": "$workspaceRoot/build/vanessa/logs/vanessa-messages.log",
+  "FeaturesDirectory": "$workspaceRoot/vanessa-tests/features",
+  "LibraryDirectories": [
+    "$instrumentsRoot/./features/libraries"
+  ],
+  "DebugLog": "True",
+  "ExecuteScenarios": "True",
+  "LoadScenarios": "True",
+  "TerminateSystemAfterExecution": "True",
+  "CloseTestClientAfterScenarioLaunch": "True",
+  "LogScenarioExecutionInJournal": "True",
+  "GenerateAllureReport": "True",
+  "GeneratejUnitReport": "True",
+  "GenerateCucumberJsonReport": "True",
+  "LogScenarioExecutionToTextFile": "True",
+  "LogStepExecution": "True",
+  "BaseAllureOutputDirectory": "$workspaceRoot/build/vanessa/reports/allure",
+  "jUnitOutputDirectory": "$workspaceRoot/build/vanessa/reports/junit",
+  "CucumberJsonOutputDirectory": "$workspaceRoot/build/vanessa/reports/cucumber",
+  "CreateAllureSubdirectoryForThisBuild": "False",
+  "CaptureScreenshotOnError": "False",
+  "ScreenshotOutputDirectory": "$workspaceRoot/build/vanessa/screenshots",
+  "ScenarioExecutionLogFileName": "$workspaceRoot/build/vanessa/logs/vanessa-execution.log",
+  "ExportScenarioExecutionStatusToFile": "True",
+  "ScenarioStatusExportFilePath": "$workspaceRoot/build/vanessa/reports/va-status.json",
+  "UseVanessaExtComponent": "False",
+  "UseGherkinParserFromVanessaExtComponent": "False",
+  "UseExternalScreenshotComponent": "False"
+}

@@ -15,6 +15,10 @@ skills:
   - visual-check
   - event-log-analysis
   - gui-control
+  - screenshot
+  - vanessa-run
+  - vanessa-diagnostics
+  - vanessa-authoring
   - form-visual-requirements
   - code-navigation
   - syntax-checking
@@ -33,6 +37,10 @@ skills:
 - `visual-check` — визуальная проверка форм в браузере
 - `event-log-analysis` — анализ журнала регистрации для диагностики ошибок
 - `gui-control` — проверка и закрытие интерактивного окна ошибки 1С (X11)
+- `screenshot` — фиксация экрана и модальных диалогов, если GUI-блокер не читается по заголовкам окон
+- `vanessa-run` — baseline запуска сценарных тестов Vanessa Automation
+- `vanessa-diagnostics` — классификация падений и разбор артефактов прогона Vanessa
+- `vanessa-authoring` — написание и доработка `.feature` по реальным требованиям проекта
 - `form-visual-requirements` — чек-лист визуальных требований к формам
 - `code-navigation` — навигация по бизнес-коду для диагностики причин падений
 - `syntax-checking` — статический анализ синтаксиса новых тестовых модулей
@@ -122,11 +130,19 @@ depends_on:
   - framework/skills/bsl-practices/test-writing/SKILL.md
   - framework/skills/tool-usage/test-execution/SKILL.md
   - framework/skills/tool-usage/visual-check/SKILL.md
-  - framework/skills/tool-usage/event-log-analysis/SKILL.md
-  - framework/skills/tool-usage/gui-control/SKILL.md
-  - framework/skills/tool-usage/code-navigation/SKILL.md
-  - framework/skills/tool-usage/syntax-checking/SKILL.md
+  - framework/skills/tool-usage/diagnostics/event-log-analysis/SKILL.md
+  - framework/skills/tool-usage/browser-ui/gui-control/SKILL.md
+  - framework/skills/tool-usage/browser-ui/screenshot/SKILL.md
+  - framework/skills/tool-usage/vanessa/vanessa-run/SKILL.md
+  - framework/skills/tool-usage/vanessa/vanessa-diagnostics/SKILL.md
+  - framework/skills/scenario-testing/vanessa-authoring/SKILL.md
+  - framework/skills/tool-usage/code-analysis/code-navigation/SKILL.md
+  - framework/skills/tool-usage/code-analysis/syntax-checking/SKILL.md
   - framework/skills/bsl-practices/form-visual-requirements/SKILL.md
   - framework/rules/agent-context-protocol.md
   - framework/rules/capability-resolution.mdc
+  - framework/rules/vanessa-scenario-policy.mdc
+  - framework/rules/vanessa-run-loop.mdc
+  - framework/rules/vanessa-diagnostics-policy.mdc
+  - framework/rules/vanessa-security-warning.mdc
 ---

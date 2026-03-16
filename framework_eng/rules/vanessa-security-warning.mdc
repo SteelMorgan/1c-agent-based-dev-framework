@@ -1,0 +1,30 @@
+---
+name: vanessa-security-warning
+description: Rule for handling Vanessa Automation security warnings when launching external processing modules.
+---
+
+# Vanessa Security Warning Handling Policy
+
+> RULES — mandatory requirements for interpreting launch blocks via `Предупреждение безопасности`.
+
+## Purpose
+
+When launching the external processing `bddRunner.epf` or its plugins, the 1C platform may display a modal `Предупреждение безопасности`. This is a separate class of blockers that cannot be reliably diagnosed only via the event log or only via window titles.
+
+## MUST
+
+| Requirement | Description |
+|------------|-------------|
+| ЖР как триггер | If the ЖР contains an entry about `Предупреждение безопасности`, the agent MUST treat it as a trigger for visual verification |
+| Visual verification is mandatory | After this signal, the agent MUST rely on a real screen: noVNC or a screenshot |
+| Do not rely on X11 heuristics | Conclusions cannot be made solely from `wmctrl`/`xwininfo`/window titles |
+| Trust-flow only for the first run | The first launch after changing the EPF is not considered a valid test run |
+
+The detailed procedure is described in the diagnostics and GUI skills.
+
+---
+depends_on:
+  - framework/skills/tool-usage/browser-ui/gui-control/SKILL.md
+  - framework/skills/tool-usage/browser-ui/screenshot/SKILL.md
+  - framework/skills/tool-usage/diagnostics/event-log-analysis/SKILL.md
+---

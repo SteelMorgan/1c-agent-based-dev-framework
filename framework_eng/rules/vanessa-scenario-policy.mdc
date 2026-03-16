@@ -1,0 +1,65 @@
+---
+name: vanessa-scenario-policy
+description: Policy for writing Vanessa Automation scenario tests. Scenarios must be based on the project's real requirements and verify a single observable behavior.
+---
+
+# Vanessa Automation Scenario Policy
+
+> RULES — mandatory policies for Vanessa Automation scenario UI tests.
+
+## Purpose
+
+This rule fixes what an agent is allowed to turn into a `.feature` scenario and when it should do so.
+
+Vanessa scenario tests are written not "for example" but as a formalization of a real project requirement.
+
+## Trigger conditions
+
+The rule applies when an agent:
+
+- writes a new `.feature` scenario;
+- extends an existing Vanessa Automation scenario;
+- chooses which project case to use for the next smoke/regression test.
+
+## Requirements
+
+### MUST
+
+| Requirement | Description |
+|------------|----------|
+| Real source of the requirement | The scenario MUST rely either on the specification of a new task or on an existing business case/fixed project task |
+| No imaginary cases | You must not invent scenarios without a project requirement source |
+| One scenario — one behavior | Every new scenario verifies one observable behavior of the form or business flow |
+| Existing steps first | Before adding a new step, the agent MUST look for an existing step in the Vanessa library and the project scenarios |
+| First scenario — short smoke | For a new case, the first scenario MUST be short, stable, and suitable for smoke runs |
+
+### SHOULD
+
+| Requirement | Description |
+|------------|----------|
+| Explicit source | The comment/context SHOULD specify the source: specification, task number, or the case under validation |
+| Separate data setup | Data setup SHOULD be moved outside of the main scenario if it is not a key part of the behavior |
+| Observable expectation | The expectation SHOULD be expressed through the UI state, available requisites, and visible behavior rather than internal technical details |
+
+## Correct formulation of the scenario source
+
+Use the following interpretation:
+
+- For a new task — the scenario is built on an approved specification and describes the expected behavior before or alongside implementation.
+- For an already implemented task — the scenario is built on a real working case and locks in the regression.
+
+Incorrect: "take only completed tasks."
+
+Correct: "use only real project requirements: either the specification of a new task or an existing business case/fixed task."
+
+## Antipatterns
+
+| Antipattern | Why it is forbidden |
+|-------------|---------------|
+| Invented document/flow without a project source | The scenario does not protect a real requirement |
+| Long scenario spanning 5-7 meanings | It fails unstably and is hard to diagnose |
+| Checking internal details instead of behavior | The scenario is fragile and poorly matches the user contract |
+
+---
+depends_on: []
+---

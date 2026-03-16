@@ -1,0 +1,16 @@
+{
+  "$schema": "https://raw.githubusercontent.com/vanessa-opensource/vanessa-runner/develop/vanessa-runner-schema.json",
+  "default": {
+    "--v8version": "${ONEC_VERSION}",
+    "--language": "ru",
+    "--locale": "ru_RU",
+    "--workspace": ".",
+    "--root": ".",
+    "--nocacheuse": true,
+    "--debuglogfile": "build/vanessa/logs/vrunner-debug.log"
+  },
+  "vanessa": {
+    "--workspace": ".",
+    "--vanessasettings": "framework/runtime/vanessa/va-params.template.json"
+  }
+}
