@@ -20,6 +20,7 @@ import os
 import subprocess
 import sys
 import textwrap
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 
 # ─── Пути ─────────────────────────────────────────────────────────────────────
@@ -38,6 +39,7 @@ CODEX_PROFILE = "cx_gpt-5-codex-mini"
 CODEX_DONE_MARKER = "OK"
 CODEX_POLL_INTERVAL = 3   # секунды между проверками файла -o
 CODEX_TIMEOUT = 600       # максимальное время ожидания в секундах (10 мин для больших файлов)
+DEFAULT_WORKERS = 8       # параллельных переводов по умолчанию
 
 
 def is_codex_custom_mode() -> bool:
@@ -250,10 +252,50 @@ def cmd_check() -> int:
     return 1 if dirty > 0 else 0
 
 
-def cmd_sync(file_args: list[str], *, check_hashes: bool = True) -> int:
+def _sync_one_file(ru_path: Path, check_hashes: bool, state_files: dict) -> dict:
+    """
+    Синхронизировать один файл. Возвращает dict с результатом.
+    Вызывается из потока — не пишет в state напрямую.
+    """
+    rel = relative(ru_path)
+
+    if not ru_path.exists():
+        print(f"  ✗ File not found: {rel}")
+        return {"rel": rel, "ok": False}
+
+    current_hash = sha256_file(ru_path)
+
+    # Если хэш не изменился и EN существует и его хэш совпадает — пропускаем
+    if check_hashes and rel in state_files:
+        info = state_files[rel]
+        en_path_check = ru_to_en_path(ru_path)
+        en_actual_hash = sha256_file(en_path_check) if en_path_check.exists() else None
+        if (info.get("ru_hash") == current_hash
+                and info.get("status") == "synced"
+                and en_actual_hash is not None
+                and info.get("en_hash") == en_actual_hash):
+            print(f"  ✓ {rel} — up to date, skipping")
+            return {"rel": rel, "ok": True, "skipped": True}
+
+    en_path = ru_to_en_path(ru_path)
+    if is_translatable(ru_path):
+        ok = translate_file(ru_path, en_path)
+    else:
+        ok = copy_file(ru_path, en_path)
+
+    return {
+        "rel": rel,
+        "ok": ok,
+        "ru_hash": current_hash,
+        "en_path": str(en_path),
+    }
+
+
+def cmd_sync(file_args: list[str], *, check_hashes: bool = True, workers: int = DEFAULT_WORKERS) -> int:
     """
     Синхронизировать указанные файлы (пути относительно корня репо).
     Если file_args пустой и check_hashes=True — синхронизировать все dirty/pending.
+    workers — количество параллельных потоков перевода.
     """
     state = load_state()
     from datetime import datetime, timezone
@@ -283,54 +325,45 @@ def cmd_sync(file_args: list[str], *, check_hashes: bool = True) -> int:
         print("Nothing to sync.")
         return 0
 
+    effective_workers = min(workers, len(targets))
+    print(f"\nSyncing {len(targets)} file(s) with {effective_workers} parallel worker(s)...\n")
+
     errors = []
     added_files = []
 
-    for ru_path in targets:
-        rel = relative(ru_path)
+    # Snapshot state_files для потоков (read-only)
+    state_files_snapshot = dict(state.get("files", {}))
 
-        # Пересчитываем хэш текущего файла
-        if not ru_path.exists():
-            print(f"  ✗ File not found: {rel}")
-            errors.append(rel)
-            continue
+    with ThreadPoolExecutor(max_workers=effective_workers) as pool:
+        futures = {
+            pool.submit(_sync_one_file, ru_path, check_hashes, state_files_snapshot): ru_path
+            for ru_path in targets
+        }
 
-        current_hash = sha256_file(ru_path)
+        for future in as_completed(futures):
+            result = future.result()
+            rel = result["rel"]
 
-        # Если хэш не изменился и EN существует и его хэш совпадает — пропускаем
-        if check_hashes and rel in state["files"]:
-            info = state["files"][rel]
-            en_path_check = ru_to_en_path(ru_path)
-            en_actual_hash = sha256_file(en_path_check) if en_path_check.exists() else None
-            if (info.get("ru_hash") == current_hash
-                    and info.get("status") == "synced"
-                    and en_actual_hash is not None
-                    and info.get("en_hash") == en_actual_hash):
-                print(f"  ✓ {rel} — up to date, skipping")
+            if result.get("skipped"):
                 continue
 
-        en_path = ru_to_en_path(ru_path)
-        if is_translatable(ru_path):
-            ok = translate_file(ru_path, en_path)
-        else:
-            ok = copy_file(ru_path, en_path)
-
-        if ok:
-            en_hash = sha256_file(en_path)
-            now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
-            state["files"][rel] = {
-                "ru_hash": current_hash,
-                "en_hash": en_hash,
-                "synced_at": now,
-                "status": "synced",
-            }
-            added_files.append(str(en_path))
-        else:
-            state["files"].setdefault(rel, {}).update({
-                "ru_hash": current_hash,
-                "status": "dirty",
-            })
-            errors.append(rel)
+            if result["ok"]:
+                en_path = Path(result["en_path"])
+                en_hash = sha256_file(en_path)
+                now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+                state["files"][rel] = {
+                    "ru_hash": result["ru_hash"],
+                    "en_hash": en_hash,
+                    "synced_at": now,
+                    "status": "synced",
+                }
+                added_files.append(result["en_path"])
+            else:
+                state["files"].setdefault(rel, {}).update({
+                    "ru_hash": result.get("ru_hash", ""),
+                    "status": "dirty",
+                })
+                errors.append(rel)
 
     save_state(state)
 
@@ -347,10 +380,11 @@ def cmd_sync(file_args: list[str], *, check_hashes: bool = True) -> int:
             print(f"  - {e}")
         return 1
 
+    print(f"\n✓ Synced {len(added_files) - 1} file(s) successfully.")
     return 0
 
 
-def cmd_init_all() -> int:
+def cmd_init_all(workers: int = DEFAULT_WORKERS) -> int:
     """Первичная синхронизация — перевести все файлы framework/ у которых нет EN-версии."""
     targets = []
     for ru_path in sorted(FRAMEWORK_DIR.rglob("*")):
@@ -364,7 +398,7 @@ def cmd_init_all() -> int:
         return 0
 
     print(f"Found {len(targets)} files without EN mirror. Starting translation...\n")
-    return cmd_sync(targets, check_hashes=False)
+    return cmd_sync(targets, check_hashes=False, workers=workers)
 
 
 # ─── Обновление реестра для новых/удалённых файлов ────────────────────────────
@@ -516,6 +550,8 @@ def main() -> int:
                         help="Sync directory structure: create missing dirs in framework_eng/, report orphans")
     parser.add_argument("--clean", action="store_true",
                         help="With --sync-structure: remove orphaned directories in framework_eng/")
+    parser.add_argument("--workers", "-j", type=int, default=DEFAULT_WORKERS,
+                        help=f"Parallel translation workers (default: {DEFAULT_WORKERS})")
 
     args = parser.parse_args()
 
@@ -527,11 +563,11 @@ def main() -> int:
     elif args.check:
         return cmd_check()
     elif args.init_all:
-        return cmd_init_all()
+        return cmd_init_all(workers=args.workers)
     elif args.all:
-        return cmd_sync([], check_hashes=True)
+        return cmd_sync([], check_hashes=True, workers=args.workers)
     elif args.files:
-        return cmd_sync(args.files, check_hashes=True)
+        return cmd_sync(args.files, check_hashes=True, workers=args.workers)
     else:
         parser.print_help()
         return 0

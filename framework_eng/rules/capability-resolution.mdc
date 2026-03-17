@@ -1,25 +1,17 @@
 ---
 name: capability-resolution
-description: Resolve capability → MCP tool. The agent uses registry.yaml to call it.
+description: Resolve capability → MCP tool. Agent uses registry.yaml for invocation.
 alwaysApply: true
 ---
 
 # Capability Resolution
 
-## Purpose
+## Invocation Rule
 
-Skills and rules refer to a **capability** (an abstraction). The concrete call is an MCP tool. The mapping is stored in `capabilities/`.
-
-## Source
-
-- `capabilities/registry.yaml` — source of truth (edited manually, CLI)
-
-## Invocation rule
-
-1. The skill names a capability — use `capabilities/registry.yaml` to choose the server + tool.
-2. Get the call schema (arguments) from the IDE tool list.
+1. The skill specifies capability — use `capabilities/registry.yaml` to select the server + tool.
+2. Take the invocation schema (arguments) from the IDE tool list.
 3. If the capability is missing or the tool is unavailable — inform the user.
 
-## MCP tool replacement
+## Replacing MCP tool
 
-See `docs/capability-replacement.md` and the CLI: `python tools/capability-registry.py set <capability> --server <server> --tool <tool>`.
+CLI: `python tools/capability-registry.py set <capability> --server <server> --tool <tool>`.

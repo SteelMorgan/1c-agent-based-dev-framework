@@ -66,9 +66,11 @@ class FrameworkValidator:
             depends_on:
               - path1
               - path2
+            requires:
+              - tools
             ---
 
-        depends_on находится в отдельном --- блоке в конце файла.
+        depends_on и requires находятся в отдельном --- блоке в конце файла.
         """
         content = file_path.read_text(encoding="utf-8")
 
@@ -85,14 +87,20 @@ class FrameworkValidator:
 
         rest = top_match.group(2)
 
-        # Bottom depends_on block: ищем последний ---...--- блок с depends_on: в конце файла
-        bottom_match = re.search(r'\n---\s*\n(depends_on:.*?)\n---\s*$', rest, re.DOTALL)
+        # Bottom backmatter block: ищем последний ---...--- блок в конце файла
+        # Может содержать depends_on, requires, metadata и другие технические ключи
+        bottom_match = re.search(r'\n---\s*\n((?:depends_on|requires|metadata).*?)\n---\s*$', rest, re.DOTALL)
         if bottom_match:
             try:
                 bottom_yaml = yaml.safe_load(bottom_match.group(1)) or {}
                 depends_on = bottom_yaml.get("depends_on", [])
                 if not isinstance(depends_on, list):
                     depends_on = []
+                # Сохраняем requires в metadata для доступа из validate_file
+                requires = bottom_yaml.get("requires", [])
+                if not isinstance(requires, list):
+                    requires = []
+                metadata["_requires"] = requires
             except yaml.YAMLError:
                 depends_on = []
             body = rest[:bottom_match.start()]
@@ -179,7 +187,16 @@ class FrameworkValidator:
                         self.fixes[file_path] = set()
                     self.fixes[file_path].add(ref)
 
-        # 4. Для субагентов проверяем skills (ищем и среди навыков, и среди правил)
+        # 4. Проверяем requires: [tools] — если навык ссылается на tools/ в тексте
+        requires = metadata.get("_requires", [])
+        if re.search(r'tools/(runtime|web-test|xml-gen)/', body):
+            if "tools" not in requires:
+                self.warnings.append(
+                    f"{rel_path}: ссылается на tools/ в тексте, "
+                    f"но не объявляет requires: [tools] в backmatter"
+                )
+
+        # 5. Для субагентов проверяем skills (ищем и среди навыков, и среди правил)
         if file_path.parent.name == "subagents":
             skills_list = metadata.get("skills", [])
             if isinstance(skills_list, list):

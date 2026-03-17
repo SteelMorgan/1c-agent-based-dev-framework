@@ -1,37 +1,37 @@
 ---
 name: meta-operations
-description: Operations on 1C metadata objects (23 types) — compile, info, edit, validate, remove. Use when creating catalogs, documents, registers, enumerations, and other configuration objects.
+description: Operations with 1С metadata objects (23 types) — compile, info, edit, validate, remove. Use when creating catalogs, documents, registers, enumerations, and other configuration objects.
 ---
 
 # Meta Operations
 
-Working with 1C metadata objects (Catalog, Document, Register, etc. — 23 types).
+Working with 1С metadata objects (Catalog, Document, Register, etc. — 23 types).
 
 ## When to apply
 
 | Trigger | Action |
-|---------|----------|
+|---------|--------|
 | Need to create a catalog/document/register | `meta compile meta.json <output_dir>` |
-| Need to inspect an object structure | `meta info <objectPath>` |
+| Need to inspect an object’s structure | `meta info <objectPath>` |
 | Need to add an attribute/TS/dimension | `meta edit <objectPath> --op add-attribute "Name: Type"` |
 | Need to validate a metadata object | `meta validate <objectPath>` |
-| Need to delete an object from the configuration | `meta remove <configDir> Type.Name` |
+| Need to remove an object from configuration | `meta remove <configDir> Type.Name` |
 
 ## Supported types (23)
 
 | Category | Types |
 |-----------|------|
-| Reference | Catalog, Document, Enum, ChartOfCharacteristicTypes, ChartOfAccounts, ChartOfCalculationTypes, ExchangePlan |
+| Referential | Catalog, Document, Enum, ChartOfCharacteristicTypes, ChartOfAccounts, ChartOfCalculationTypes, ExchangePlan |
 | Registers | InformationRegister, AccumulationRegister, AccountingRegister, CalculationRegister |
 | Processes | BusinessProcess, Task |
-| Service | HTTPService, WebService |
+| Services | HTTPService, WebService |
 | Other | Constant, DefinedType, CommonModule, Report, DataProcessor, ScheduledJob, DocumentJournal, EventSubscription |
 
 ## Commands
 
 ### meta compile
 
-Generating an object from JSON DSL.
+Generate an object from JSON DSL.
 
 ```bash
 xml-gen meta compile <meta.json> <output_dir>
@@ -41,19 +41,19 @@ xml-gen meta compile <meta.json> <output_dir>
 ```json
 {
   "type": "Catalog",
-  "name": "Products",
+  "name": "Товары",
   "codeLength": 9,
   "descriptionLength": 150,
   "hierarchical": true,
   "attributes": [
-    "ItemCode: String(50)",
-    "Price: Number(15,2)",
-    "Manufacturer: CatalogRef.Контрагенты"
+    "Артикул: String(50)",
+    "Цена: Number(15,2)",
+    "Производитель: CatalogRef.Контрагенты"
   ],
   "tabularSections": [
     {
-      "name": "Barcodes",
-      "attributes": ["Barcode: String(13)"]
+      "name": "Штрихкоды",
+      "attributes": ["Штрихкод: String(13)"]
     }
   ]
 }
@@ -69,7 +69,7 @@ xml-gen meta info [--mode brief|overview|full] <objectPath>
 
 ### meta edit
 
-Modifying an object (add/remove/modify).
+Modify an object (add/remove/modify).
 
 ```bash
 xml-gen meta edit <objectPath> --op <operation> "<value>"
@@ -101,7 +101,7 @@ Counterparty: CatalogRef.Контрагенты | indexing
 
 ### meta validate
 
-Object validation (~40 checks).
+Validate an object (~40 checks).
 
 ```bash
 xml-gen meta validate <objectPath>
@@ -111,27 +111,22 @@ xml-gen meta validate <objectPath>
 
 ### meta remove
 
-Removing an object from the configuration.
+Remove an object from a configuration.
 
 ```bash
 xml-gen meta remove <configDir> <Type.Name> [--dry-run] [--keep-files] [--force]
 ```
 
 **Algorithm:**
-1. Locate the object files
-2. Inspect XML/BSL references
+1. Search for the object files
+2. Check references in XML/BSL
 3. Remove from Configuration.xml ChildObjects
 4. Remove from subsystems
 5. Delete files
 
 ## Russian synonyms of types
 
-You can use Russian names in the shorthand by mapping the Russian term for Catalog to Catalog, the Russian term for Document to Document, the Russian term for Enumeration to Enum, the Russian term for Information register to InformationRegister, etc.
-
-## See also
-
-- [config-operations](../config-operations/) — working with the configuration
-- [xml-gen-cli](../xml-gen-cli/) — validate and edit commands
+The shorthand may use Russian names: Справочник → Catalog, Документ → Document, Перечисление → Enum, РегистрСведений → InformationRegister, etc.
 
 ---
 depends_on: []

@@ -1,34 +1,25 @@
 ---
 name: task-breakdown-subagent
-description: Task decomposition for subagent mode. Defines a standalone Task Breakdown JSON, cross-review, and BLOCK iterations.
+description: Task breakdown for subagent mode. Defines a separate Task Breakdown JSON, cross-review, and BLOCK iterations.
 ---
 
-# Task decomposition skill (subagent mode)
-
-## Purpose
-
-This skill defines the task decomposition process for a mode with specialized roles (for example, Architect/Reviewer) and applies cross-review.
-
-The skill describes:
-- a unified artifact format for decomposition (a separate JSON file);
-- a quality check workflow via Reviewer;
-- the BLOCK remark handling cycle (up to 3 returns, then escalation).
+# Task breakdown skill (subagent mode)
 
 ---
 
 ## When to apply
 
 | Trigger | Action |
-|---------|--------|
-| Full-cycle workflow with Architect/Reviewer roles | Create a Task Breakdown JSON and send it for cross-review |
-| Decomposition is needed before implementation | Use the template + example for the JSON (without JSON Schema) |
-| Reviewer returned BLOCK | Start a fix cycle respecting the iteration limit |
+|---------|----------|
+| Full-cycle process with Architect/Reviewer roles | Create a Task Breakdown JSON and submit it for a cross-review |
+| Need to break down the spec before implementation | Use the template + example for JSON (without JSON Schema) |
+| Reviewer returned BLOCK | Start a remediation loop respecting the iteration limit |
 
 ---
 
 ## Mandatory artifact
 
-The decomposition is documented as a **separate JSON file** (next to the specification or in the agreed project folder).
+The breakdown should be formatted as a **separate JSON file** (located next to the specification or in an agreed project folder).
 
 Format requirements:
 - use the **template + example**;
@@ -41,11 +32,11 @@ Format requirements:
 
 The specification itself must include:
 - a reference to this JSON file, and/or
-- a brief summary of stages and dependencies.
+- a brief extract outlining stages and dependencies.
 
 ---
 
-## JSON template
+## JSON template (template)
 
 ```json
 {
@@ -54,7 +45,7 @@ The specification itself must include:
     {
       "task_id": "T1",
       "task_type": "analysis",
-      "title": "Short task title",
+      "title": "Brief task title",
       "description": "What needs to be done",
       "depends_on": [],
       "spec_refs": ["Requirements.MUST-1"],
@@ -64,7 +55,7 @@ The specification itself must include:
 }
 ```
 
-## JSON example
+## JSON example (example)
 
 ```json
 {
@@ -74,7 +65,7 @@ The specification itself must include:
       "task_id": "T1",
       "task_type": "analysis",
       "title": "Metadata object review",
-      "description": "Compare the set of objects with the Technical Design section",
+      "description": "Compare the object set with the Technical Design section",
       "depends_on": [],
       "spec_refs": ["Technical Design.Metadata Objects", "Requirements.MUST-1"],
       "deliverables": ["List of reviewed objects", "Discrepancy report"]
@@ -96,45 +87,38 @@ The specification itself must include:
 
 ## Process (architecture + JSON → review → BLOCK loop)
 
-1. The Architect forms the work structure based on the specification.
-2. The agent prepares the separate Task Breakdown JSON (template + example, without JSON Schema).
-3. The Reviewer performs a cross-review of the JSON against the specification and dependencies.
+1. Architect forms the work structure based on the specification.
+2. The agent prepares a separate Task Breakdown JSON (template + example, without JSON Schema).
+3. Reviewer performs a cross-review of the JSON against the spec and dependencies.
 4. If the verdict is **BLOCK**:
-   - return for refinement;
-   - a maximum of **3 return iterations**.
-5. If after 3 returns the remarks remain critical:
-   - record the status **BLOCK > 3**;
-   - perform **escalation** (the architect/user decides whether to rebuild the decomposition or clarify the specification).
+   - return for revision;
+   - up to **3 return iterations** maximum.
+5. If critical comments remain after 3 returns:
+   - record status **BLOCK > 3**;
+   - perform **escalation** (architect/user decides whether to rebuild the breakdown or clarify the spec).
 
 ---
 
-## JSON quality checklist (with review)
+## JSON quality checklist (review mode)
 
-- [ ] Every task has a unique `task_id`.
-- [ ] `task_type` reflects the actual phase (analysis/design/implementation/test etc.).
+- [ ] Each task has a unique `task_id`.
+- [ ] `task_type` reflects the actual stage (analysis/design/implementation/test etc.).
 - [ ] `depends_on` contains no cyclic dependencies.
-- [ ] Each task has `spec_refs` pointing to specific sections/requirements of the specification.
+- [ ] Every task has `spec_refs` pointing to specific sections/requirements of the spec.
 - [ ] All critical MUST requirements of the specification are covered.
-- [ ] Task ordering is feasible considering dependencies.
-- [ ] The specification includes a reference/summary for the separate JSON.
+- [ ] The task order is feasible given the dependencies.
+- [ ] The specification includes a reference/extract about the separate JSON.
 
 ---
 
 ## Common mistakes
 
-| Mistake | Consequence | How to avoid |
-|--------|------------|--------------|
-| Missing `spec_refs` | Loss of traceability between tasks and requirements | Link each task to the relevant specification section/item |
-| Uncoordinated `depends_on` | Inability to establish a correct execution order | Verify the dependency DAG before the review |
-| Changing the format between iterations | Increased review defects and invalid integrations | Maintain a stable template + example format |
-| Ignoring the BLOCK limit | Endless iterations without resolution | Enforce the rule of ≤3 returns, then escalate |
-
----
-
-## Related skills
-
-- `spec-standard` — base universal specification standard.
-- `task-breakdown-linear` — alternative process for the linear single-agent mode.
+| Mistake | Consequence |
+|--------|------------|
+| Missing `spec_refs` | Loss of traceability |
+| Inconsistent `depends_on` | Invalid execution order |
+| Changing the format between iterations | Increase in review defects |
+| Ignoring the BLOCK limit | Endless iterations → escalation does not happen |
 
 ---
 depends_on:

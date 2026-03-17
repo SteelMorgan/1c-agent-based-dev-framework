@@ -58,65 +58,30 @@ xml-gen role compile role.json output/
 
 `Read`, `Insert`, `Update`, `Delete`, `View`, `Edit`, `InteractiveInsert`, `InteractiveDelete`, `Posting`, `UndoPosting`
 
-## Команды редактирования
+## Редактирование
 
 ```bash
 xml-gen role add-object --name <ObjectName> --rights <Right1,Right2,...> <Rights.xml>
 xml-gen role add-right --object <ObjectName> --name <RightName> --value <true|false> <Rights.xml>
 ```
 
-## Примеры ролей
-
-**Только чтение:**
-```json
-{
-  "name": "ТолькоЧтение",
-  "rights": {
-    "Catalog.Номенклатура": ["Read"],
-    "Report.ОтчётПоПродажам": ["View"]
-  }
-}
-```
-
-**Менеджер продаж:**
-```json
-{
-  "name": "МенеджерПродаж",
-  "rights": {
-    "Catalog.Номенклатура": ["Read"],
-    "Document.РеализацияТоваров": ["Read", "Insert", "Update", "Posting", "UndoPosting"],
-    "Report.ОтчётПоПродажам": ["View"]
-  }
-}
-```
-
 ## Правильно / Неправильно
 
 ```json
-// ❌ Неправильно — права для Catalog в camelCase (должны совпадать с enum RoleRight)
+// ❌ права в camelCase → enum не распознает
 "rights": {"Catalog.Номенклатура": ["read", "insert"]}
 
-// ✅ Правильно — Read, Insert, Update, Delete, View, Edit и т.д.
+// ✅ enum RoleRight: Read, Insert, Update, Delete, View, Edit, Posting, UndoPosting
 "rights": {"Catalog.Номенклатура": ["Read", "Insert"]}
 ```
 
-> Формат прав — enum RoleRight из mdclasses. Posting — для документов, View/Edit — для отчётов и обработок.
-
 ```json
-// ❌ Неправильно — формат объекта без точки (Catalog.Имя, Document.Имя)
+// ❌ объект без типа → CLI не определит применимость прав
 "rights": {"Номенклатура": ["Read"]}
 
-// ✅ Правильно — ТипОбъекта.ИмяОбъекта
+// ✅ ТипОбъекта.ИмяОбъекта
 "rights": {"Catalog.Номенклатура": ["Read"]}
 ```
-
-> Ключ — полное имя объекта метаданных. Без типа CLI не сможет определить применимость прав.
-
-## См. также
-
-- [xml-generation](../xml-generation/) — общее описание
-- [xml-gen-cli](../xml-gen-cli/) — edit-команды
-- [epf-operations](../epf-operations/) — создание обработок
 
 ---
 depends_on: []

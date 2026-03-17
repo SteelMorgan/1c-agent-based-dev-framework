@@ -1,6 +1,6 @@
 ---
 name: codex-review
-description: Reviews via external LLM (Codex). The skill teaches the agent to launch an independent review of artifacts through Codex CLI (GPT) and collect the result. Use it when requesting a second opinion, invoking /review-gpt, /review-all, or when the user asks to verify a plan, specification, code, or architecture with an alternative model. The skill can also be used to delegate an arbitrary task to another LLM at the user's request.
+description: Review via external LLM (Codex). The skill teaches the agent to run an independent review of artifacts via the Codex CLI (GPT) and gather the result. Use when requesting a second opinion, invoking /review-gpt or /review-all, or when the user asks to check a plan, specification, code, or architecture with an alternative model. The skill can be used to hand off an arbitrary task to another LLM at the user's request.
 ---
 
 # Review via Codex CLI
@@ -9,36 +9,36 @@ description: Reviews via external LLM (Codex). The skill teaches the agent to la
 
 | Trigger | Action |
 |---------|--------|
-| `/review-gpt` | Launch a review via Codex CLI |
+| `/review-gpt` | Launch a review via the Codex CLI |
 | `/review-all` | GPT + Opus in parallel (see `opus-review`) |
 | “second opinion” | Suggest `/review-gpt` or `/review-all` |
 | Complex architecture, > 5 files | Recommend a review |
-| Before implementing a specification | Suggest reviewing the plan |
+| Before implementing a specification | Offer to review the plan |
 
 ---
 
 ## Step 0: determine Codex mode
 
-Before invoking Codex determine which mode is active:
+Before invoking, determine Codex operation mode:
 
 ```bash
 if [[ "${CUSTOM_CODEX_ENABLED:-0}" == "1" ]]; then
   echo true   # custom mode with profiles
 else
-  echo false  # default mode
+  echo false  # standard mode
 fi
 ```
 
 | Result | Mode | Command |
 |--------|------|---------|
-| `true` | Custom API server | see [Mode: custom](#режим-custom) |
-| `false` | Standard ChatGPT auth | see [Mode: default](#режим-default) |
+| `true` | Custom API server | see [Mode: custom](#mode-custom) |
+| `false` | Default ChatGPT auth | see [Mode: default](#mode-default) |
 
 ---
 
 ## Mode: custom
 
-A custom server is configured via `base_url` — use the profiles from `config.toml`.
+The custom server is configured via `base_url` — use the profiles from `config.toml`.
 
 ```bash
 RESULT_FILE=$(mktemp /tmp/codex-review-XXXXXX.txt)
@@ -53,7 +53,7 @@ codex exec \
 
 ## Mode: default
 
-Standard ChatGPT auth. The model and effort are passed with flags.
+Standard ChatGPT auth. The model and effort are passed via flags.
 
 ```bash
 RESULT_FILE=$(mktemp /tmp/codex-review-XXXXXX.txt)
@@ -67,11 +67,9 @@ codex exec \
 
 ---
 
-## Passing the prompt: inline or via file
+## Sending prompts: directly or via file
 
-### Direct in the argument (single quotes only)
-
-Use this when the prompt is **short** (up to ~100 characters), **single-line**, and **does not contain backticks or `$`**:
+### Direct argument (short single-line prompt without `` ` `` and `$`)
 
 ```bash
 codex exec -m gpt-5.4 -c 'model_reasoning_effort="high"' \
@@ -79,25 +77,17 @@ codex exec -m gpt-5.4 -c 'model_reasoning_effort="high"' \
   'Explain the purpose of the РассчитатьСумму function in Module.bsl'
 ```
 
-**Why single quotes:**
-- When the AI agent generates commands in double quotes it often forgets to escape `$`, `` ` ``, `!` — the shell expands them, the argument is mangled, and the API returns `Invalid JSON body`
-- Single quotes `'...'` transmit the content as-is — safe for `!`, `-`, `#`, `$`, spaces
-- Pass a single quote inside the prompt through a file
+Only single quotes — double quotes trigger shell expansion and `Invalid JSON body`.
 
-### Via file (the main method for reviews)
-
-Always use this when the prompt is:
-- **Multiline** (any review prompt from the template)
-- Contains backticks `` ` ``, `$`, `\`, or single quotes
-- Longer than ~100 characters
+### Via file (main method for reviews — multiline, >100 characters, or special characters)
 
 ```bash
-# 1. Write the prompt
+# 1. Save the prompt
 PROMPT_FILE=$(mktemp /tmp/codex-prompt-XXXXXX.txt)
 RESULT_FILE=$(mktemp /tmp/codex-review-XXXXXX.txt)
 
 cat <<'EOF' > "$PROMPT_FILE"
-<prompt text — any length and characters without restrictions>
+<prompt text — any length and characters with no limits>
 EOF
 
 # 2. Run (default mode)
@@ -111,39 +101,21 @@ codex exec \
 
 ---
 
-## Crafting the prompt
+## Prompt construction
 
 ### Arbitrary task
 
-If the task is not a review, the agent builds the prompt independently. Principles:
-
-- **One task — one prompt.** Clearly state what needs to be done.
-- **Context via files.** If project data is required, reference the paths instead of embedding the contents in the prompt. Codex will read the files itself.
-- **Output via file.** If you expect output (text, code), ask to write it to a specific path.
-
-Example — analyzing a file:
-```
-Read the file src/ОбщиеМодули/ДССЛ_Резервирование/Module.bsl.
-Find all places where a database query is executed outside a transaction.
-Write the list to /tmp/codex-result.txt in the format: function name, line, issue description.
-```
-
-Example — code generation:
-```
-Read the specification docs/specs/SPEC-резервирование.md.
-Generate a BSL module stub according to the specification.
-Write the result to src/ОбщиеМодули/ДССЛ_Резервирование/Module.bsl.
-```
+Principles: one task — one prompt; context via file paths (Codex will read them itself); result — to a specific path.
 
 ### Review
 
-The review prompt consists of three blocks. Full template: [references/prompt-template.md](references/prompt-template.md).
+A review prompt consists of three blocks. Full template: [references/prompt-template.md](references/prompt-template.md).
 
 **Block 1 — Task:** what is being checked and in what context (2-5 sentences).
 
-**Block 2 — Artifact:** paths to the files — the reviewer reads them itself. Prefer paths; include inline text only if the artifact does not exist on disk (diff, generated fragment) or a short critical context is needed.
+**Block 2 — Artifact:** paths to files — the reviewer reads them directly. Prefer paths; include text only if the artifact does not exist on disk (diff, generated fragment) or a short critical context is required.
 
-**Block 3 — Skills:** paths to the `SKILL.md` relevant to the artifact type:
+**Block 3 — Skills:** paths to the relevant `SKILL.md` for the artifact type:
 
 | Type | Skills |
 |-----|--------|
@@ -159,31 +131,7 @@ Paths: `framework/skills/bsl-practices/<name>/SKILL.md`
 
 ## Monitoring and collecting the result
 
-Run in the background (`run_in_background: true`). Remember the `RESULT_FILE`.
-
-**Completion check:**
-
-```
-# Method A — TaskOutput
-TaskOutput(task_id, block=false)
-
-# Method B — the `-o` file (created atomically on completion)
-Read(RESULT_FILE)  — if it exists → Codex is done
-```
-
-> If `TaskOutput` returned "no task found," immediately check the `-o` file.
-
-Optional UX hints — if stdout contains characteristic words, you can inform the user of an approximate status (words may change between CLI versions):
-- `exec` → "GPT is reading the project files..."
-- `codex` → "GPT is crafting the response..."
-- `tokens used` → completed
-
-**Getting the result:**
-```
-Read(RESULT_FILE)  — clean response without logs
-```
-
-If the file is empty → `TaskOutput(task_id, block=true)`.
+Run in the background (`run_in_background: true`). Check via `TaskOutput(task_id, block=false)` or `Read(RESULT_FILE)` (the `-o` file is created atomically upon completion). If the file is empty → `TaskOutput(task_id, block=true)`.
 
 ---
 
@@ -191,21 +139,18 @@ If the file is empty → `TaskOutput(task_id, block=true)`.
 
 | Situation | Action |
 |----------|--------|
-| `Invalid JSON body` | The prompt was mangled by shell expansion (double quotes) — send it via a file or single quotes |
-| Codex CLI is not installed | `npm install -g @openai/codex` |
+| `Invalid JSON body` | The prompt was mangled by shell expansion (double quotes) — send via file or single quotes |
+| Codex CLI not installed | `npm install -g @openai/codex` |
 | Auth failure / `login required` | Run `codex login`; if in custom mode — check `config.toml` and the API key |
 | Unknown profile `-p` | Verify the profile name in `~/.codex/config.toml` |
-| Rate limit / 429 | Inform the user, wait 30-60 seconds, retry |
+| Rate limit / 429 | Notify the user, wait 30-60 sec, retry |
 | Non-zero exit, `-o` file not created | Show stderr from `TaskOutput`; check cwd, paths, model |
-| Timeout | Show the partial result from stdout |
+| Timeout | Show partial result from stdout |
 | `-o` file is empty | Take the last message from `TaskOutput` |
 
 ---
 
-## Related resources
-
-- [Prompt template](references/prompt-template.md)
-- [opus-review](../opus-review/SKILL.md) — review using the second Opus instance
+Template prompt: `references/prompt-template.md`. Parallel reviewer: `opus-review`.
 
 ---
 depends_on:

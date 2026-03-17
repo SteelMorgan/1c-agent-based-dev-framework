@@ -1,20 +1,20 @@
 ---
 name: skd-dsl
-description: JSON DSL for generating 1C DataCompositionSchema (SKD) with filters, sorting, and conditional formatting. Use it with skd compile for reports.
+description: JSON DSL for generating Data Composition Schemas 1С (SKD) with filters, sorting, and conditional formatting. Use it with skd compile for reports.
 ---
 
 # SKD DSL
 
-JSON DSL for generating 1C DataCompositionSchema (DataCompositionSchema).
+JSON DSL for generating Data Composition Schemas 1С (DataCompositionSchema).
 
 ## When to use
 
 | Trigger | Action |
-|---------|----------|
+|---------|--------|
 | Need to create a report (СКД) | `skd compile` with JSON DSL |
 | Need to add a parameter to an existing schema | `skd add-parameter` → [xml-gen-cli](../xml-gen-cli/) |
 | Need to add a field to a DataSet | `skd add-field` → [xml-gen-cli](../xml-gen-cli/) |
-| Need a DataSetUnion | Workaround: DataSetQuery with UNION in the query |
+| Need DataSetUnion | Workaround: DataSetQuery with UNION in the query |
 | Need calculated fields | Workaround: calculations in the SELECT of the query |
 | Need to analyze an existing СКД | `skd info <Schema.xml>` |
 
@@ -28,7 +28,7 @@ xml-gen skd compile [--format designer|edt] <input.json> <output.xml>
 
 ## Command info
 
-Analyze a СКД: data sets, fields, parameters, layout variants.
+Analyzes СКД: data sets, fields, parameters, configuration variants.
 
 ```bash
 xml-gen skd info <Schema.xml>
@@ -79,7 +79,7 @@ xml-gen skd info <Schema.xml>
 }
 ```
 
-### Layout variants (settingsVariants)
+### Settings variants (settingsVariants)
 
 ```json
 {
@@ -108,7 +108,7 @@ xml-gen skd info <Schema.xml>
 
 `=`, `<>`, `>`, `>=`, `<`, `<=`, `in`, `notIn`, `contains`, `filled`, `notFilled`
 
-### Total fields (totalFields)
+### Total fields
 
 ```json
 {
@@ -119,70 +119,26 @@ xml-gen skd info <Schema.xml>
 }
 ```
 
-## Full example
-
-```json
-{
-  "dataSets": [{
-    "name": "Продажи",
-    "query": "ВЫБРАТЬ Организация, Номенклатура, Количество, Сумма ИЗ РегистрНакопления.Продажи",
-    "fields": [
-      {"dataPath": "Организация", "title": "Организация"},
-      {"dataPath": "Номенклатура", "title": "Номенклатура"},
-      {"dataPath": "Количество", "title": "Количество", "type": "number(15,2)"},
-      {"dataPath": "Сумма", "title": "Сумма", "type": "number(15,2)"}
-    ]
-  }],
-  "totalFields": [
-    {"dataPath": "Количество", "expression": "Сумма(Количество)"},
-    {"dataPath": "Сумма", "expression": "Сумма(Сумма)"}
-  ],
-  "settingsVariants": [{
-    "name": "Основной",
-    "settings": {
-      "selection": ["Организация", "Номенклатура", "Количество", "Сумма"],
-      "filter": ["Количество > 0"],
-      "order": ["Сумма desc"],
-      "structure": [{"type": "group", "groupBy": ["Организация"], "selection": ["Auto"]}]
-    }
-  }]
-}
-```
-
-## Limitations (15%)
+## Limitations
 
 - Only DataSetQuery (DataSetObject/Union are not supported)
 - No CalculatedFields
 - Workaround: use calculations in queries
 
-## Right / Wrong
+## Correct / Incorrect
 
 ```json
-// ❌ Wrong — filter with a Russian operator (only Latin operators are supported)
+// ❌ Неправильно — filter с русским оператором (поддерживаются только латинские)
 "filter": ["Сумма больше 0"]
 
-// ✅ Right — operators: =, <>, >, >=, <, <=, in, notIn, contains, filled, notFilled
+// ✅ Правильно — операторы: =, <>, >, >=, <, <=, in, notIn, contains, filled, notFilled
 "filter": ["Сумма > 0"]
 ```
 
-> The filter parser expects operators from a fixed list. `больше` is not recognized.
+> The filter parser expects operators from the fixed list. `больше` is not recognized.
 
-```json
-// ❌ Wrong — dataPath in selection is not from dataSets
-"settings": {"selection": ["НесуществующееПоле"]}
+Fields in selection, order, filter, structure must exist in dataSets — otherwise the СКД will not compose.
 
-// ✅ Right — selection only from dataSets fields
-"fields": [{"dataPath": "Сумма", "title": "Сумма"}],
-"settings": {"selection": ["Сумма"]}
-```
-
-> Fields used in selection, order, filter, structure must exist in dataSets. Otherwise the СКД will not compile.
-
-## See also
-
-- [xml-generation](../xml-generation/) — general description
-- [xml-gen-cli](../xml-gen-cli/) — add-parameter, add-field
-- [epf-operations](../epf-operations/) — creating processing routines
 
 ---
 depends_on: []

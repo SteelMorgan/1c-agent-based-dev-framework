@@ -73,11 +73,6 @@ xml-gen config validate <configPath>
 
 Language → Subsystem → StyleItem → Style → CommonPicture → SessionParameter → Role → CommonTemplate → FilterCriterion → CommonModule → CommonAttribute → ExchangePlan → XDTOPackage → WebService → HTTPService → WSReference → EventSubscription → ScheduledJob → SettingsStorage → FunctionalOption → FunctionalOptionsParameter → DefinedType → CommonCommand → CommandGroup → Constant → CommonForm → Catalog → Document → DocumentNumerator → Sequence → DocumentJournal → Enum → Report → DataProcessor → InformationRegister → AccumulationRegister → ChartOfCharacteristicTypes → ChartOfAccounts → AccountingRegister → ChartOfCalculationTypes → CalculationRegister → BusinessProcess → Task → IntegrationService
 
-## См. также
-
-- [meta-operations](../meta-operations/) — работа с объектами метаданных
-- [subsystem-operations](../subsystem-operations/) — подсистемы и интерфейс
-- [xml-gen-cli](../xml-gen-cli/) — validate и edit-команды
 
 ---
 depends_on: []

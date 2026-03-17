@@ -1,35 +1,26 @@
 ---
 name: spec-standard
-description: Universal specification-writing skill (SDD). Sets the spec structure, RFC 2119, and a quality checklist independent of execution mode.
+description: Universal skill for writing specifications (SDD). Defines the spec structure, RFC 2119, and quality checklist regardless of execution mode.
 ---
 
 # Specification Writing Skill (SDD)
 
-## 1. Purpose
-
-This skill establishes a **universal specification standard** for 1С development tasks in the **SDD (Spec-Driven Development)** format.
-
-The skill is responsible for:
-- the structure and completeness of the specification;
-- framing requirements through RFC 2119;
-- verifying the specification quality before implementation.
-
-The skill **does not choose the execution mode** (subagent/linear) and does not provide mechanics for switching modes.
+The skill **does not choose an execution mode** (subagent/linear) — it only provides the structure, RFC 2119, and quality checklist.
 
 ---
 
-## 2. When a specification is required
+## 2. When a specification is needed
 
-| Task type | Spec required | Justification |
-|------------|-------------|-------------|
+| Task type | Specification required | Justification |
+|-----------|------------------------|---------------|
 | New functionality | MUST | Captures the scope, requirements, alternatives, and chosen solution. |
 | Bug fix with architectural impact | MUST | Needed to justify changes in structure/behavior. |
-| Simple localized bug fix | MAY | A short description without a full spec is acceptable if the change is isolated. |
-| Major refactoring | SHOULD | Requires transparency about the boundaries and consequences of the changes. |
+| Simple local bug fix | MAY | A brief description without a full spec is acceptable if the change is isolated. |
+| Large refactoring | SHOULD | Transparency on boundaries and consequences of changes is needed. |
 
 ---
 
-## 3. Required specification structure
+## 3. Mandatory specification structure
 
 ```markdown
 # SPEC-NNN: [Краткое название]
@@ -71,68 +62,53 @@ Date: YYYY-MM-DD
 ## 4. RFC 2119 rules
 
 | Keyword | Meaning | Usage rule |
-|----------------|----------|------------------------|
-| MUST | Mandatory | Without fulfilling it, the requirement is considered unmet. |
-| SHOULD | Strongly recommended | Deviations are allowed only with explicit justification. |
-| MAY | Optional | An enhancement that does not block acceptance. |
+|---------|---------|------------|
+| MUST | Mandatory | Without satisfying it the requirement is considered unmet. |
+| SHOULD | Strongly recommended | Deviation is allowed only with an explicit justification. |
+| MAY | Optional | An improvement that does not block acceptance. |
 | MUST NOT | Forbidden | An explicit restriction; violation is unacceptable. |
 
 Requirements must be:
 - atomic (one requirement equals one verifiable idea);
-- verifiable (it can be confirmed by a test/scenario);
+- verifiable (confirmable with a test/scenario);
 - consistent across sections.
 
 ---
 
-## 5. Task decomposition as a mandatory spec extension
+## 5. Task breakdown
 
-For tasks that require a specification, task decomposition is **mandatory**.
+For tasks with a specification, breakdown is **mandatory** (a separate Task Breakdown JSON file). The specification should include a link to the JSON and/or a brief summary.
 
-Rules:
-1. Decomposition is recorded in a **separate Task Breakdown JSON file**.
-2. The specification must include a **link to the JSON** and/or a brief extract of the task structure.
-3. The decomposition format and terminology are defined by the extension skill.
-4. The choice of the decomposition quality control process happens **outside this skill**:
-   - via `task-breakdown-subagent` (cross-review mode), or
-   - via `task-breakdown-linear` (linear single-agent mode with self-check).
-
-`spec-standard` enforces the obligation of decomposition but does not include the mode-selection mechanics.
+The quality control process sits outside this skill: `task-breakdown-subagent` (cross-review) or `task-breakdown-linear` (self-check).
 
 ---
 
 ## 6. Specification quality criteria
 
-Checklist for review:
+Review checklist:
 
-- [ ] Context explains who has the problem and what is not working.
+- [ ] Context describes who has the problem and what is broken.
 - [ ] Every MUST is covered by an item in the Test Plan.
 - [ ] Scope clearly separates In scope and Out of scope.
-- [ ] Considered Options contains at least 2 alternatives.
-- [ ] Decision Outcome includes justification and consequences.
-- [ ] Technical Design differentiates user tasks (metadata) from agent tasks (code).
+- [ ] Considered Options includes at least 2 alternatives.
+- [ ] Decision Outcome contains rationale and consequences.
+- [ ] Technical Design separates user-facing tasks (metadata) and agent tasks (code).
 - [ ] Sections do not contradict each other.
-- [ ] Requirements are phrased via RFC 2119 (MUST/SHOULD/MAY/MUST NOT).
-- [ ] There is a link/extract for the separate Task Breakdown JSON.
-- [ ] Acceptance Scenarios include business-level Gherkin scenarios (Given/When/Then) for MUST requirements.
+- [ ] Requirements are phrased using RFC 2119 (MUST/SHOULD/MAY/MUST NOT).
+- [ ] There is a link/summary for the separate Task Breakdown JSON.
+- [ ] Acceptance Scenarios contain business-level Gherkin scenarios (Given/When/Then) for the MUST requirements.
 
 ---
 
 ## 7. Common mistakes
 
-| Mistake | Consequence | How to avoid |
-|--------|------------|--------------|
-| Mixing the problem and the solution in Context | It becomes unclear what exactly needs to be fixed | First articulate the problem, then the solution options |
-| Vague requirements without RFC 2119 | It is impossible to unambiguously accept the work | Phrase requirements using MUST/SHOULD/MAY/MUST NOT |
-| Empty Out of scope | Scope creep and uncontrolled task expansion | Explicitly list what is not included |
-| Missing task decomposition | Poor traceability of the implementation | Add a separate Task Breakdown JSON and link it in the spec |
-| Contradictions between Requirements and Technical Design | Implementation and review errors | Do a final cross-check of the sections before moving to Review status |
-
----
-
-## 8. Related skills
-
-- `task-breakdown-subagent` — task decomposition for the subagent mode (cross-review, BLOCK cycle).
-- `task-breakdown-linear` — task decomposition for the linear single-agent mode (self-check).
+| Mistake | Consequence |
+|---------|-------------|
+| Mixing the problem and the solution in Context | It becomes unclear what needs to be fixed |
+| Vague requirements without RFC 2119 | The work cannot be accepted unambiguously |
+| Empty Out of scope | Scope creep |
+| Missing task breakdown | Poor traceability |
+| Contradictions between Requirements ↔ Technical Design | Implementation errors |
 
 ---
 depends_on: []

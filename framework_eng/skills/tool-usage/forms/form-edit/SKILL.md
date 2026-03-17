@@ -1,6 +1,6 @@
 ---
 name: form-edit
-description: Adding elements, attributes, and commands to an existing managed form 1С. Use when you need to precisely modify a ready form.
+description: Adding elements, attributes, and commands to an existing managed 1С form. Use when you need to surgically modify a ready form.
 argument-hint: <FormPath> <JsonPath>
 allowed-tools:
   - Bash
@@ -11,7 +11,7 @@ allowed-tools:
 
 # /form-edit — Form editing
 
-Adds elements, attributes, and/or commands to an existing Form.xml. Automatically picks IDs from the correct pool, generates companion elements (ContextMenu, ExtendedTooltip, etc.), and event handlers.
+Adds elements, attributes, and/or commands to an existing Form.xml. Automatically selects IDs from the correct pool, generates companion elements (ContextMenu, ExtendedTooltip, etc.), and event handlers.
 
 ## Usage
 
@@ -24,7 +24,7 @@ Adds elements, attributes, and/or commands to an existing Form.xml. Automaticall
 | Parameter | Required | Description |
 |-----------|:------------:|----------------------------------|
 | FormPath  | yes        | Path to the existing Form.xml    |
-| JsonPath  | yes        | Path to the JSON describing additions |
+| JsonPath  | yes        | Path to the JSON describing the additions |
 
 ## Command
 
@@ -103,9 +103,9 @@ Groups and tables support `children`/`columns` for nested elements.
 
 ### Buttons: command and stdCommand
 
-- `"command": "ИмяКоманды"` → `Form.Command.ИмяКоманды`
-- `"stdCommand": "Close"` → `Form.StandardCommand.Close`
-- `"stdCommand": "Товары.Add"` → `Form.Item.Товары.StandardCommand.Add` (standard element command)
+- "command": "ИмяКоманды" → `Form.Command.ИмяКоманды`
+- "stdCommand": "Close" → `Form.StandardCommand.Close`
+- "stdCommand": "Товары.Add" → `Form.Item.Товары.StandardCommand.Add` (standard element command)
 
 ### Allowed events (`on`)
 
@@ -154,16 +154,6 @@ Total: 1 form event(s), 1 element(s) (+2 companions), 1 attribute(s)
 Run /form-validate to verify.
 ```
 
-## When to use
-
-- **After `/form-compile`**: add elements that were missing from the original JSON
-- **Modifying existing forms**: add a field, attribute, or command to a configuration form
-- **Batch additions**: a single JSON can contain elements + attributes + commands
-
 ## Workflow
 
-1. `/form-info` — inspect the current form structure
-2. Create the JSON describing the additions
-3. `/form-edit` — add to the form
-4. `/form-validate` — check correctness
-5. `/form-info` — ensure it was added correctly
+`/form-info` → create the JSON → `/form-edit` → `/form-validate` → `/form-info`

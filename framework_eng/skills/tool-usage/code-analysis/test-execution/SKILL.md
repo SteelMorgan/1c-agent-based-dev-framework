@@ -1,184 +1,77 @@
 ---
 name: test-execution
-description: Running and analyzing tests (Test Execution). The skill teaches the agent to **run YaxUnit tests, analyze results, and link test failures to code**.
+description: Running and analyzing tests (Test Execution). The skill teaches the agent to **run YaxUnit tests, analyze the results, and link test failures to the code**.
 ---
 
 # Running and analyzing tests (Test Execution)
 
-## Purpose
+Writing tests is the `test-writing` skill. The YaxUnit API reference is `test-writing/references/yaxunit-cheatsheet.md`.
 
-The skill teaches the agent to **run YaxUnit tests, analyze results, and link test failures to code**. Tests are the only reliable way to ensure that code still works correctly after changes.
+Test failed → assess whether your changes are to blame. If yes — fix, build, rerun. If no — record the reason in `<role>-context.md`.
 
-**Writing tests** is a separate skill [`test-writing`](../../bsl-practices/test-writing/SKILL.md). There is also [`references/yaxunit-cheatsheet.md`](../../bsl-practices/test-writing/references/yaxunit-cheatsheet.md) — the complete YaxUnit API reference.
-
-**Principle:** Run the `run_tests` test. If the test reports that `build_project` must be executed, do it and rerun `run_tests`. If a test failed → evaluate whether your code changes (if any) caused it or not. If your changes are guilty (bug, typo, something overlooked) — fix the code, rebuild, and rerun the tests. If your changes are not guilty or you made none — document the reason in the task folder in `<role>-context.md` and conclude the task.
-
----
-
-## Location of tests in the project
-
-Tests are stored in a **separate configuration extension** at the path:
+## Test locations
 
 ```
-<project root>/exts/TESTS/
+exts/TESTS/CommonModules/<ИмяМодуля>/Module.bsl
 ```
 
-When analyzing failures and navigating to test code, look for sources right here:
+When using `navigate_symbol` — the file is under `exts/TESTS/src/CommonModules/`, not in the main `src/`.
 
-```
-exts/TESTS/
-  CommonModules/          ← test shared modules (ТестыXxx)
-    <ModuleName>/
-      Module.bsl          ← test source
-```
+## Mandatory order: Build → Tests
 
-When using `navigate_symbol` to jump to a test module, expect the file to live in `exts/TESTS/src/CommonModules/`, not the main `src/`.
-
----
+1. Files changed (BSL, XML, tests) → `build_project` → `run_tests`
+2. No changes → `run_tests` directly
 
 ## When to apply
 
 | Trigger | Action |
 |---------|--------|
-| After implementing functionality | Run `build_project` first (if changes were made), then `run_tests` to verify |
-| User asks to run module X tests | Run `build_project` first (if changes were made), then `run_tests` with `scope: "X"` |
-| After refactoring | Run `build_project`, then execute all tests or the affected modules |
-| Bug fix | Write/find a test, fix the issue, then `build_project` (if changes exist) and rerun |
-| Before committing | Recommended: `build_project` + full test run |
+| After implementation | `build_project` → `run_tests` |
+| Module X tests | `build_project` → `run_tests(scope: "ModuleName")` |
+| After refactoring | `build_project` → all tests |
+| Before commit | `build_project` → `run_tests(scope: "all")` → `check_syntax` |
 
----
+## Failure analysis
 
-## Mandatory 2-step execution order
+1. `errors[].module`, `errors[].test`, `errors[].message` — details.
+2. `navigate_symbol` → failing test → tested code → fix → rerun.
 
-1. **Step 1 — Build:** if any source files were modified this iteration (BSL, XML metadata, test modules), run `build_project` first.
-2. **Step 2 — Tests:** after a successful build, execute `run_tests` (targeted scope or full suite).
+### Extracting the cause from logs (when `failedTests > 0`)
 
-If no source changes occurred — a plain `run_tests` without building is acceptable.
+Source order (strictly sequential; move to the next only if the current one does not yield a cause):
 
-## Usage scenarios
+1. **`logFile`**: lines with `[ERR]` → the multiline block up to a timestamp → `Exception|Исключение|Assertion|expected|actual|stack`
+2. Registration log: the last N error entries
+3. **`enterpriseLogPath`**: markers `Ошибка|Исключение|Exception|Critical|Fatal|failed|assert` → block of 0..15 lines before an empty line or timestamp
 
-### Scenario 1: Standard run after changes
+## Interpreting results
 
-**Steps:**
+| Field | Action |
+|-------|--------|
+| `success: true` | All tests passed |
+| `success: false` | Analyze `errors` |
+| `failedTests > 0` | Extract causes from logs (see above) |
 
-1. The agent changed a module (e.g., `УправлениеСкладом`).
-2. Run `build_project` to ensure the project builds cleanly.
-3. Run `run_tests` with `scope: "УправлениеСкладом"` — run the tests for the changed module.
-4. If `success = true` — the task is complete.
-5. If `success = false` — analyze `errors`, fix, and rerun.
-
-### Scenario 2: Analyzing a test failure
-
-**Steps:**
-
-1. `run_tests` returns `failed > 0` and `errors` holds the details.
-2. Read `errors[].module`, `errors[].test`, `errors[].message`.
-3. Use `navigate_symbol` to go to the failing test by name (e.g., `ТестПолучитьОстатки`).
-4. Analyze the Assert and the code under test.
-5. Use `navigate_symbol` to jump to the tested procedure/function.
-6. Fix the code or the test.
-7. Run `run_tests` again to verify.
-
-**Example of an error structure:**
-
-```
-errors: [{ module: "УправлениеСкладом", test: "ТестПолучитьОстатки", message: "Ожидалось 10, получено 0" }]
-```
-
-### Scenario 2.1: failedTests > 0 — extracting reason from logs
-
-**Diagnostics trigger:** if `failedTests > 0`, the agent must extract the failure reason from logs (even if the `errors` field is incomplete).
-
-**Order of sources (strictly sequential):**
-
-1. `logFile`
-2. Registration journal (last N error entries)
-3. `enterpriseLogPath`
-
-Move to the next source only if the current one yields no clear reason.
-
-**Algorithm for `logFile`:**
-
-1. Find lines with `[ERR]`.
-2. For each such line, capture the multi-line block up to the next timestamp.
-3. From the block keep:
-   - **short reason:** the first `[ERR]` line;
-   - **detailed reason:** lines containing `Exception|Assertion|expected|actual|stack`.
-4. Filter out noise: all `[INF]`, `[DBG]`, and irrelevant lines.
-
-If the reason remains unclear — read the last N error entries in the registration journal.
-
-**Algorithm for `enterpriseLogPath`:**
-
-Search for failure markers (case-insensitive):
-
-- `Error`, `Exception`, `Critical`, `Fatal`
-- `Test .* not passed`, `failed`, `assert`, `Assertion`
-- `due to`, `Reason`, `Stack`
-
-Block extraction pattern:
-
-1. Find the line with the marker.
-2. Capture the next `0..15` lines until encountering:
-   - an empty line, or
-   - a new technical entry (timestamp/level prefix).
-
-### Scenario 3: TDD cycle
-
-**Steps:**
-
-1. Write a test for the new feature (expect a failure).
-2. Run `run_tests` — confirm it fails (`failed > 0`).
-3. Implement the minimal logic to pass the test.
-4. Run `run_tests` — expect `success = true`.
-5. Refactor if needed, then rerun.
-
-### Scenario 4: Full run before commit
-
-**Steps:**
-
-1. Run `build_project` — clean build.
-2. Run `run_tests` with `scope: "all"` — every test in the project.
-3. Fix any failures before committing.
-4. Optionally run `check_syntax` as a final sanity check.
-
----
-
-## Results interpretation
-
-| Field | Meaning | Action |
-|------|---------|--------|
-| `success` | `true` | All tests passed. |
-| `success` | `false` | There are failures — analyze `errors`. |
-| `totalTests` | N | Total tests (legacy synonym `total` might appear). |
-| `passedTests` | N | Passed tests (legacy synonym `passed` might appear). |
-| `failedTests` | N | Failed tests (legacy synonym `failed` might appear). If `failedTests > 0` — extract reasons from logs per Scenario 2.1. |
-| `errors` | `[{module, test, message}]` | Details of each failure. |
-| `duration` | ms | Execution time. |
-
----
+Legacy synonyms: `total`/`totalTests`, `passed`/`passedTests`, `failed`/`failedTests`.
 
 ## Capabilities
 
 | Capability | Purpose |
 |------------|---------|
-| `run_tests` | Execute YaxUnit tests |
-| `build_project` | Build before tests (clean build) |
-| `navigate_symbol` | Jump to the failing test and the code under test |
-| `check_syntax` | Syntax check before/after changes |
+| `run_tests` | Run YaxUnit tests |
+| `build_project` | Build before tests |
+| `navigate_symbol` | Jump to the test and the tested code |
+| `check_syntax` | Check syntax |
 
----
+## Common mistakes
 
-## Common pitfalls and workarounds
-
-| Problem | Workaround |
-|--------|-------------|
-| Build failure before tests | Run `build_project` first; if the build fails — run `check_syntax` and fix compilation errors. |
-| `run_tests` unavailable | The capability depends on the test runner; document the skipped reason and notify the user. |
-| Module not found | Verify the module name (`scope`); ensure the tests reside in the correct sourceSet. |
-| Tests fail because of database data | Tests may depend on test data; clarify database settings with the user; use a separate test database if needed. |
-| Full test run takes too long | Run tests for a specific module (`scope: "ModuleName"`) during iterative development. |
-| Failure is unreproducible | Check test order and isolation; run `run_tests` with a narrow scope to reproduce. |
+| Mistake | Workaround |
+|---------|------------|
+| Build failure | `build_project` → `check_syntax` → fix |
+| `run_tests` unavailable | Record the reason, inform the user |
+| Module not found | Check `scope`, sourceSet |
+| Failures caused by database data | Clarify settings; use a separate test database |
+| Long execution | `scope: "ModuleName"` during iterative development |
 
 ---
 depends_on:

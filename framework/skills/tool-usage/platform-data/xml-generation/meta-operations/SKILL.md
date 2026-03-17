@@ -126,13 +126,7 @@ xml-gen meta remove <configDir> <Type.Name> [--dry-run] [--keep-files] [--force]
 
 ## Русские синонимы типов
 
-В shorthand можно использовать русские имена:
-Справочник → Catalog, Документ → Document, Перечисление → Enum, Регистр сведений → InformationRegister и т.д.
-
-## См. также
-
-- [config-operations](../config-operations/) — работа с конфигурацией
-- [xml-gen-cli](../xml-gen-cli/) — validate и edit-команды
+В shorthand можно использовать русские имена: Справочник → Catalog, Документ → Document, Перечисление → Enum, РегистрСведений → InformationRegister и т.д.
 
 ---
 depends_on: []

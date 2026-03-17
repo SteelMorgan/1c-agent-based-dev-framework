@@ -117,38 +117,6 @@ xml-gen mxl decompile <Template.xml> <output.json>
 
 `font`, `horizontalAlignment` (Left/Center/Right), `verticalAlignment`, `border` (all/top/bottom/left/right), `borderWidth` (thin/thick), `textPlacement` (Wrap/Block), `format` (ЧДЦ=2, ДФ=dd.MM.yyyy)
 
-## Полный пример
-
-```json
-{
-  "fonts": {
-    "HeaderFont": {"face": "Arial", "size": 14, "bold": true},
-    "BodyFont": {"face": "Arial", "size": 10}
-  },
-  "styles": {
-    "HeaderStyle": {
-      "font": "HeaderFont",
-      "horizontalAlignment": "Center",
-      "border": "all"
-    },
-    "NumberStyle": {
-      "font": "BodyFont",
-      "horizontalAlignment": "Right",
-      "format": "ЧДЦ=2"
-    }
-  },
-  "areas": [
-    {"name": "Header", "rows": [{"cells": [{"text": "Отчёт по продажам", "style": "HeaderStyle", "span": 3}]}]},
-    {"name": "TableHeader", "rows": [{"cells": [{"text": "Наименование", "style": "HeaderStyle"}, {"text": "Сумма", "style": "HeaderStyle"}]}]},
-    {"name": "Row", "rows": [{"cells": [{"text": "[Наименование]"}, {"text": "[Сумма]", "style": "NumberStyle"}]}]}
-  ],
-  "parameters": [
-    {"name": "Наименование", "type": "string"},
-    {"name": "Сумма", "type": "number(15,2)"}
-  ]
-}
-```
-
 ## Правильно / Неправильно
 
 ```json
@@ -160,18 +128,6 @@ xml-gen mxl decompile <Template.xml> <output.json>
 ```
 
 > 1С ищет `[Имя]` в тексте области и подставляет значение из параметров при выводе. Без скобок — статический текст.
-
-```json
-// ❌ Неправильно — style ссылается на несуществующий шрифт
-"styles": {"HeaderStyle": {"font": "MyFont"}}
-// fonts не содержит MyFont
-
-// ✅ Правильно — font должен быть в fonts
-"fonts": {"HeaderFont": {"face": "Arial", "size": 14, "bold": true}},
-"styles": {"HeaderStyle": {"font": "HeaderFont"}}
-```
-
-> Стиль ссылается на шрифт по имени. Если шрифта нет — ошибка при генерации.
 
 ## Использование областей в BSL-коде
 
@@ -199,10 +155,6 @@ xml-gen mxl decompile <Template.xml> <output.json>
 
 > Имена параметров областей (`Параметры.Наименование`) должны совпадать с ключами из DSL-поля `"params"` соответствующей области.
 
-## См. также
-
-- [xml-generation](../xml-generation/) — общее описание
-- [epf-operations](../epf-operations/) — создание обработок
 
 ---
 depends_on: []

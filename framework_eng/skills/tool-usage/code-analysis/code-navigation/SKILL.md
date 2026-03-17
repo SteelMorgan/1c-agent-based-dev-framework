@@ -1,163 +1,77 @@
 ---
 name: code-navigation
-description: Code Navigation. The skill teaches the agent to **navigate BSL code efficiently** using LSP (Language Server Protocol).
+description: Code navigation (Code Navigation). The skill teaches the agent to **effectively move through BSL code** using LSP (Language Server Protocol).
 ---
 
 # Code Navigation (Code Navigation)
 
-## Purpose
+Don’t guess where the code is — use LSP. Precise results from the project index.
 
-The skill trains the agent to **navigate BSL code efficiently** using LSP (Language Server Protocol). Navigation is the foundation of understanding the codebase, refactoring, and finding the root causes of bugs.
-
-**Principle:** Do not guess where the code lives — use structured search. LSP delivers precise results from the project index.
-
----
-
-## When to apply
+## When to use
 
 | Trigger | Action |
 |---------|--------|
-| Finding a procedure/function definition | `navigate_symbol` operation `definition` |
-| Finding all calls to function X | `navigate_symbol` operation `search` or `get_call_graph` direction `incoming` |
-| Understand who a function calls | `get_call_graph` direction `outgoing` |
-| Renaming a symbol across the project | `rename_symbol` (start with `preview: true`) |
-| Quick fixes suggested by LSP | `get_code_actions` |
-| Diagnosing the current file | `get_diagnostics` |
-| Exploring unknown code | Chain: `navigate_symbol` → `get_call_graph` → hover |
-| Error “method not found” / “wrong parameters” on a platform type | `getMembers` / `getMember` / `getConstructors` — verify the API |
+| Finding the definition of a procedure/function | `navigate_symbol` operation `definition` |
+| All calls to function X | `navigate_symbol` `search` or `get_call_graph` `incoming` |
+| Who a function calls | `get_call_graph` `outgoing` |
+| Project-wide rename | `rename_symbol` (start with `preview: true`) |
+| Quick Fixes | `get_code_actions` |
+| File diagnostics | `get_diagnostics` |
+| Exploring unknown code | `navigate_symbol` → `get_call_graph` → hover |
+| “method not found” error on a platform type | `getMembers` / `getMember` / `getConstructors` |
 
----
+## Algorithms
 
-## Use cases
+### Find all calls to a function
 
-### Use case 1: Find every caller of a function
+1. `navigate_symbol(query: "ИмяФункции", operation: "search")` → get `uri`, `line`, `character`
+2. `get_call_graph(uri, line, character, direction: "incoming")`
 
-**Steps:**
+### Project-wide rename
 
-1. `navigate_symbol` with `query: "ПолучитьОстатки"`, `operation: "search"` — locate the definition.
-2. Capture the definition's `uri`, `line`, `character`.
-3. `get_call_graph` with `uri`, `line`, `character`, `direction: "incoming"` — who is calling it.
-4. Alternatively use `navigate_symbol` with `operation: "search"` on the name and filter by the “references” kind.
+1. `navigate_symbol` → `uri`, `line`, `character`
+2. `rename_symbol(..., preview: true)` → verify `changes`
+3. `rename_symbol(..., preview: false)`
+4. `check_syntax`
 
-**Example:** Find every call to `ПолучитьОстатки()`.
+### Quick Fixes
 
-```
-1. navigate_symbol(query: "ПолучитьОстатки", operation: "search")
-2. Get the first result — definition
-3. get_call_graph(uri: "...", line: N, character: M, direction: "incoming")
-```
+1. `get_diagnostics(uri)` → list of diagnostics
+2. `get_code_actions(uri, range, diagnostic)` → apply
 
-### Use case 2: Rename a symbol across the project
+### Platform API verification after an error
 
-**Steps:**
+**Trigger:** “Object method not found” / “Wrong number of parameters” on a platform type. Don’t guess repeatedly — verify.
 
-1. `navigate_symbol` — find the symbol and get its `uri`, `line`, `character`.
-2. `rename_symbol` with `preview: true` — preview changes in every file.
-3. Review `changes` — ensure replacements are correct.
-4. If everything looks good, rerun `rename_symbol` with `preview: false` to apply.
-5. `check_syntax` — validate after renaming.
+1. `search_syntax_reference(query: "ТипОбъекта")` → confirm the name, get `id`
+2. `getMembers(typeId)` → exact list of methods/properties
+3. `getMember(typeId, member)` → signature of the specific method
+4. `getConstructors(typeId)` → if the error mentions parameters of `Новый`
 
-**Example:** Rename `ОбработатьДанные` to `ЗагрузитьДанные`.
-
-```
-1. navigate_symbol(query: "ОбработатьДанные", operation: "search")
-2. rename_symbol(uri: "...", line: N, character: M, new_name: "ЗагрузитьДанные", preview: true)
-3. Analyze changes
-4. rename_symbol(..., preview: false)
-5. check_syntax(...)
-```
-
-### Use case 3: Explore unknown code
-
-**Steps:**
-
-1. `navigate_symbol` (operation `search`) — find the symbol by name.
-2. `navigate_symbol` (operation `hover`) — inspect documentation and type.
-3. `get_call_graph` — understand incoming and outgoing calls.
-4. Recursively traverse related symbols.
-
-**Strategy:** `navigate_symbol` → `get_call_graph` → hover for the details.
-
-### Use case 4: Quick fixes
-
-**Steps:**
-
-1. `get_diagnostics` for the file — gather diagnostics.
-2. For each diagnostic with a `range`, call `get_code_actions` with `uri`, `range`, `diagnostic`.
-3. Apply the suggested fix if it fits.
-
-### Use case 5: Jump to definition from a usage site
-
-**Steps:**
-
-1. Start from known `uri`, `line`, `character` of the call site.
-2. Call `navigate_symbol` with `operation: "definition"`, `uri`, `line`, `character`.
-3. Result — `symbols` containing the definition (uri, range).
-
-### Use case 6: Verify platform API after an error
-
-**When:** code failed with “Method of object not found”, “Incorrect number of parameters”, “Field not found on object” — and the error points to a call on a *platform* type (not project BSL code).
-
-**Do not guess again — verify.**
-
-**Steps:**
-
-1. Identify the object type from the error (for example, `ТабличныйДокумент`, `ДвоичныеДанные`, `HTTPСоединение`).
-2. `search_syntax_reference(query: "ТабличныйДокумент")` — confirm the type name and obtain its `id`.
-3. `getMembers(typeId: "...")` — get the precise list of methods and properties.
-4. If you need a specific entry — `getMember(typeId: "...", member: "ЗаписатьPDF")`.
-5. If the error complains about parameters — `getConstructors(typeId: "...")` for `Новый`-created types.
-6. Fix the call based on the current signature.
-
-**Example:** Error “Method of object not found (СохранитьВФайл)” on `ТабличныйДокумент`.
-```
-1. getMembers(typeId: "ТабличныйДокумент")
-   → Locate writing methods: "Записать", "ЗаписатьPDF", "НапечататьМакет"
-2. getMember(typeId: "ТабличныйДокумент", member: "Записать")
-   → Signature: Записать(ИмяФайла, ТипФайлаТабличногоДокумента)
-3. Correct the call
-```
-
-**Important:** This scenario addresses an error — not a preventive search. Do not call `getMembers` for every type while coding; only when the platform explicitly reported an issue.
-
----
-
-## Search strategy for unknown code
-
-| Step | Capability | Goal |
-|-----|------------|------|
-| 1 | `navigate_symbol` (search) | Find the symbol by name |
-| 2 | `get_call_graph` | Understand call chains |
-| 3 | `navigate_symbol` (hover) | Details: type, documentation, signature |
-
----
+**Note:** Only react when an error occurs, not as a preventive search.
 
 ## Capabilities
 
 | Capability | Purpose |
 |------------|---------|
-| `navigate_symbol` | Symbol search, go-to-definition, hover |
+| `navigate_symbol` | Symbol search, definition, hover |
 | `get_call_graph` | Call graph (incoming/outgoing) |
-| `rename_symbol` | Safe project-wide rename |
-| `get_diagnostics` | LSP diagnostics for the file |
-| `get_code_actions` | Quick fixes |
-| `search_syntax_reference` | Locate a platform type by name (for verification after an error) |
-| `getMembers` | List of all methods and properties for a platform type |
-| `getMember` | Signature of a specific method/property |
-| `getConstructors` | Constructors for a type (parameters for `Новый`) |
+| `rename_symbol` | Project-wide rename |
+| `get_diagnostics` | LSP file diagnostics |
+| `get_code_actions` | Quick Fixes |
+| `search_syntax_reference` | Platform type lookup |
+| `getMembers` / `getMember` | Methods/properties of a platform type |
+| `getConstructors` | Constructors of the type (`Новый`) |
 
----
-
-## Common issues and workarounds
+## Common issues
 
 | Issue | Workaround |
-|--------|-------------|
-| LSP server not connected | Capability `unavailable`; check `lsp_status` (if available); inform the user to start the BSL Language Server. |
-| Symbol not found | Verify the name (case, language); try fuzzy search via `ask_ai_assistant`; ensure the file is in the project scope. |
-| `get_call_graph` timeout | Reduce `depth`; inspect the graph in segments. |
-| `rename_symbol` not applicable | Verify cursor position (symbol must be in the rename range); the symbol could be in a protected area; fall back to manual editing. |
-| File not indexed | Wait until LSP indexing completes; `get_diagnostics` may return nothing until then. |
-| `get_code_actions` empty | Not all diagnostics come with fixes; resolve manually based on the diagnostic `message`. |
+|--------|-----------|
+| LSP is not connected | Check `lsp_status`; start the BSL Language Server |
+| Symbol not found | Verify the name (case, language); fuzzy search via `ask_ai_assistant` |
+| `get_call_graph` timeout | Reduce `depth` |
+| `rename_symbol` not applicable | Check the cursor position; protected area → edit manually |
+| File not indexed | Wait for the LSP indexing |
 
 ---
 depends_on: []

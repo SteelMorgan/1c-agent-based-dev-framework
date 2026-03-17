@@ -10,15 +10,15 @@ description: >
 
 # Agent Development — 1C BSL Framework Extension
 
-- **Base skill:** `agent-development` (Anthropic).
-> Read the base skill first — it contains general principles for creating agents.
-> This file adds **only** the 1C-specific aspects and adapts them for our framework.
+> **Base skill:** `agent-development` (Anthropic).
+> Read the base skill first — it contains the general principles for creating agents.
+> This file adds **only** 1C-specific details and adapts them for our framework.
 
 ---
 
 ## 1. Universal Framework Agent Format
 
-One `.md` file works in both Cursor and Claude Code without transformation.
+A single `.md` file works for both Cursor and Claude Code without transformation.
 
 ### Frontmatter
 
@@ -36,9 +36,9 @@ description: >
   <<commentary>>...<</commentary>>
   <</example>>
 
-model: sonnet              # haiku | sonnet | opus (alias, CLI will substitute specific model for Cursor)
-readonly: true             # true for read-only agents (analyst, explorer, reviewer)
-skills:                    # Claude Code will preload automatically; Cursor ignores
+model: sonnet              # haiku | sonnet | opus (алиас, CLI подставит конкретную модель для Cursor)
+readonly: true             # true для read-only агентов (analyst, explorer, reviewer)
+skills:                    # Claude Code подгрузит автоматически; Cursor проигнорирует
   - spec-standard
   - search-before-write
 ---
@@ -53,7 +53,7 @@ You are [role] specializing in [domain] for 1C:Enterprise (BSL).
 
 **Skills and Rules (for Cursor):**
 - `skill-name` — short purpose
-- `rule-name` — short description
+- `rule-name` — short purpose
 
 **Your Core Responsibilities:**
 1. [Responsibility 1]
@@ -77,9 +77,7 @@ You are [role] specializing in [domain] for 1C:Enterprise (BSL).
 - [What the agent DOES NOT do]
 ```
 
-### Why include the "Skills and Rules" section in the body?
-
-Claude Code loads skills from frontmatter automatically. Cursor ignores the `skills` field entirely, so we duplicate **only the names and one-line descriptions** in the body so the Cursor agent knows which skills are relevant and can locate them.
+The "Skills and Rules" section in the body is needed for Cursor — it ignores the `skills` field in frontmatter. We duplicate only the names and a brief purpose there.
 
 ---
 
@@ -89,78 +87,48 @@ Claude Code loads skills from frontmatter automatically. Cursor ignores the `ski
 
 | Role | model | readonly | Rationale |
 |------|-------|----------|-----------|
-| explorer | haiku | true | Deterministic work, tools provide precise answers |
-| analyst | sonnet | true | Requirements analysis, specification writing |
-| tester | sonnet | false | Writing and running tests |
-| architect | sonnet | true | Technical decisions, trade-offs |
-| developer | sonnet | false | Implementing code, TDD |
-| reviewer | opus | true | Critical role — evaluating artifacts, tier ≥ author |
+| explorer | haiku | true | Deterministic work, tools deliver precise answers |
+| analyst | sonnet | true | Requirements analysis and specification writing |
+| tester | sonnet | false | Writing and executing tests |
+| architect | sonnet | true | Technical decisions and trade-offs |
+| developer | sonnet | false | Implementing code, following TDD |
+| reviewer | opus | true | Critical role — assessing artifacts, tier ≥ author |
 
 ### Reviewer Rule
 
-The reviewer `model` MUST be ≥ the author’s model. If the author uses `sonnet`, the reviewer must be `sonnet` or `opus`.
+The reviewer `model` MUST be at least the author’s model. If the author is `sonnet`, the reviewer must be `sonnet` or `opus`.
 
-### CLI: Interactive Model Selection
+### CLI: Model Mapping
 
-When running `python tools/install.py` the user selects a specific model for each agent (or accepts the defaults).
-
-**Defaults** live in `tools/model-defaults.json` — per IDE:
-
-```json
-{
-  "cursor": {
-    "haiku":  "claude-4.5-haiku",
-    "sonnet": "claude-4.5-sonnet-thinking",
-    "opus":   "claude-4.6-opus-high-thinking"
-  }
-}
-```
-
-The user can:
-- Edit `model-defaults.json` for their own set of models
-- Choose a model per agent during installation (mode `[a]`)
-- Use non-Anthropic models (gpt, gemini, grok — anything the IDE exposes)
+Defaults live in `tools/model-defaults.json`. When running `python tools/install.py`, the user can accept defaults, pick per-agent (mode `[a]`), or use non-Anthropic models.
 
 ---
 
-## 3. Cursor vs Claude Code Format Details
+## 3. Cursor / Claude Code Compatibility
 
 | Field | Claude Code | Cursor |
-|-------|-------------|--------|
-| `name` | ✓ agent identifier | ✓ rule identifier |
-| `description` | ✓ trigger description with examples | ✓ used as the rule `description` |
-| `model` | ✓ native: haiku/sonnet/opus | ✓ CLI writes the concrete model into the agent file |
-| `readonly` | — (tools/disallowedTools are used instead) | ✓ natively supported |
-| `skills` | ✓ preloads skills into the context | ✗ ignored (skills live in the body) |
-| `color` | ✓ visual identifier | ✗ not supported |
-| `tools` | ✓ tool restrictions | ✗ not supported |
+|------|-------------|--------|
+| `name` | ✓ | ✓ |
+| `description` | ✓ trigger + examples | ✓ description as the rule text |
+| `model` | ✓ alias | ✓ CLI writes the concrete model |
+| `readonly` | — (tools/disallowedTools) | ✓ supported natively |
+| `skills` | ✓ preloads | ✗ ignored → mirror names in the body |
+| `color` / `tools` | ✓ | ✗ |
 
-**Compatibility strategy:**
-- Fields the IDE does not understand are simply ignored — that is not an error
-- `readonly: true` is native to Cursor; in Claude Code it can be replaced by `tools` in the adapter layer
-- In the body we mirror the skill names — cheap insurance for Cursor
+Unknown fields are simply ignored — not an error.
 
 ---
 
 ## 4. 1C BSL Domain: Context for the System Prompt
 
-When you craft the system prompt for a 1C agent, keep the following context in mind:
+When writing the system prompt for 1C agents, keep these points in mind:
 
-### Key Platform Constraints
-- The agent **DOES NOT create metadata objects** (Справочники, Документы, регистры) — only code in `.bsl` modules
-- Metadata are managed by the Configurator or EDT, not by code
-- BSL is server and client code with compilation directives (`&НаСервере`, `&НаКлиенте`)
-
-### Tools via MCP
-- The agent sees tools through MCP (`tools/list`) — this is the ground truth
-- The "Used capability" section in the agent file is **not needed** — the agent discovers tools dynamically
-- Skills under `tool-usage/*` contain hints about when and how to use specific MCP tools
-
-### Standards and Patterns
-- MADR 4.0 — specification format
-- RFC 2119 — obligation levels (MUST/SHOULD/MAY)
-- YaxUnit — testing framework
-- БСП (BSL Subsystem Library) — standard subsystem patterns
+### Key Constraints
+- The agent **DOES NOT create metadata objects** — only code in `.bsl` modules.
+- BSL spans server and client modules with compilation directives (`&НаСервере`, `&НаКлиенте`).
+- Tools are discovered through MCP (`tools/list`); the "capability" section is not needed in the agent file.
+- Skills under `tool-usage/*` explain when and how to use specific MCP tools.
+- Standards: MADR 4.0, RFC 2119, YaxUnit, БСП.
 
 ---
 
@@ -174,8 +142,8 @@ When you craft the system prompt for a 1C agent, keep the following context in m
 6. [ ] Body — system prompt in second person (You are...)
 7. [ ] In the body — a "Skills and Rules" section with names and purposes
 8. [ ] In the body — Core Responsibilities, Protocol, Quality Standards, Boundaries
-9. [ ] No "Used capability" section — tools come through MCP
-10. [ ] No separate "Input/Output" tables — inline them in the body
+9. [ ] No "capability" section — tools come through MCP
+10. [ ] No separate "Input/Output" tables — keep them inline
 
 ---
 depends_on: []

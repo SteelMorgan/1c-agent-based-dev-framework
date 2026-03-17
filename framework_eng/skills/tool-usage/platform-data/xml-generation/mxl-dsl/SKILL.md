@@ -1,22 +1,22 @@
 ---
 name: mxl-dsl
-description: JSON DSL for generating 1C tabular documents (MXL) with areas, cells, fonts, and styles. Use with mxl compile for print forms.
+description: JSON DSL for generating 1С tabular documents (MXL) with areas, cells, fonts, and styles. Use it when running mxl compile for print forms.
 ---
 
 # MXL DSL
 
-JSON DSL for generating 1C tabular documents (SpreadsheetDocument).
+JSON DSL for generating 1С tabular documents (SpreadsheetDocument).
 
 ## When to use
 
 | Trigger | Action |
 |---------|--------|
 | Need to create a print form (tabular document) | `mxl compile` with JSON DSL |
-| Need to add an area to the template | Describe in `areas`, then recompile |
-| Need to use parameters in cells | `parameters` + `[ParameterName]` in text |
+| Need to add an area to the template | Describe it in `areas`, then recompile |
+| Need to use parameters in cells | `parameters` + `[ParameterName]` in the text |
 | Need to apply styles | `fonts` + `styles` + `style` in the cell |
 | Need to analyze an existing layout | `mxl info <Template.xml>` |
-| Need reverse XML → JSON conversion | `mxl decompile <Template.xml> <output.json>` |
+| Need a reverse XML → JSON conversion | `mxl decompile <Template.xml> <output.json>` |
 
 ## Compile command
 
@@ -24,7 +24,7 @@ JSON DSL for generating 1C tabular documents (SpreadsheetDocument).
 xml-gen mxl compile [--format designer|edt] <input.json> <output.xml>
 ```
 
-**output.xml** — path to Template.xml or layout in EPF: `.../Templates/<Name>/Ext/Template.xml`
+**output.xml** — path to Template.xml or a layout inside an EPF: `.../Templates/<Name>/Ext/Template.xml`
 
 ## Info command
 
@@ -36,7 +36,7 @@ xml-gen mxl info <Template.xml>
 
 ## Decompile command
 
-Reverse conversion from Template.xml to JSON DSL.
+The reverse conversion from Template.xml to JSON DSL.
 
 ```bash
 xml-gen mxl decompile <Template.xml> <output.json>
@@ -117,65 +117,21 @@ Usage in cells: `{"text": "[Организация]"}`
 
 `font`, `horizontalAlignment` (Left/Center/Right), `verticalAlignment`, `border` (all/top/bottom/left/right), `borderWidth` (thin/thick), `textPlacement` (Wrap/Block), `format` (ЧДЦ=2, ДФ=dd.MM.yyyy)
 
-## Full example
-
-```json
-{
-  "fonts": {
-    "HeaderFont": {"face": "Arial", "size": 14, "bold": true},
-    "BodyFont": {"face": "Arial", "size": 10}
-  },
-  "styles": {
-    "HeaderStyle": {
-      "font": "HeaderFont",
-      "horizontalAlignment": "Center",
-      "border": "all"
-    },
-    "NumberStyle": {
-      "font": "BodyFont",
-      "horizontalAlignment": "Right",
-      "format": "ЧДЦ=2"
-    }
-  },
-  "areas": [
-    {"name": "Header", "rows": [{"cells": [{"text": "Отчёт по продажам", "style": "HeaderStyle", "span": 3}]}]},
-    {"name": "TableHeader", "rows": [{"cells": [{"text": "Наименование", "style": "HeaderStyle"}, {"text": "Сумма", "style": "HeaderStyle"}]}]},
-    {"name": "Row", "rows": [{"cells": [{"text": "[Наименование]"}, {"text": "[Сумма]", "style": "NumberStyle"}]}]}
-  ],
-  "parameters": [
-    {"name": "Наименование", "type": "string"},
-    {"name": "Сумма", "type": "number(15,2)"}
-  ]
-}
-```
-
 ## Correct / Incorrect
 
 ```json
-// ❌ Incorrect — parameter in a cell without brackets (won't be substituted when rendered)
+// ❌ Неправильно — параметр в ячейке без скобок (не подставится при выводе)
 {"cells": [{"text": "Организация"}]}
 
-// ✅ Correct — `[ParameterName]` for substitution
+// ✅ Правильно — [ИмяПараметра] для подстановки
 {"cells": [{"text": "[Организация]"}]}
 ```
 
 > 1С looks for `[Name]` in the area text and substitutes the value from parameters during rendering. Without brackets — static text.
 
-```json
-// ❌ Incorrect — style references a non-existing font
-"styles": {"HeaderStyle": {"font": "MyFont"}}
-// fonts does not contain MyFont
-
-// ✅ Correct — font must exist in fonts
-"fonts": {"HeaderFont": {"face": "Arial", "size": 14, "bold": true}},
-"styles": {"HeaderStyle": {"font": "HeaderFont"}}
-```
-
-> A style references a font by name. If the font is missing — generation fails.
-
 ## Using areas in BSL code
 
-Area names from the DSL (the `"name"` field) are used directly in BSL when rendering the print form:
+Area names from the DSL (the field "name") are used directly in BSL when rendering the print form:
 
 ```bsl
 // ПечатнаяФорма — имя макета в обработке (соответствует name в epf add-template)
@@ -198,11 +154,6 @@ Area names from the DSL (the `"name"` field) are used directly in BSL when rende
 ```
 
 > Area parameter names (`Параметры.Наименование`) must match the keys from the DSL `"params"` field of the corresponding area.
-
-## See also
-
-- [xml-generation](../xml-generation/) — general overview
-- [epf-operations](../epf-operations/) — creating documents
 
 ---
 depends_on: []

@@ -90,39 +90,14 @@ xml-gen epf add-tabular-section --name <Name> [--synonym <Synonym>] <EpfRoot.xml
 xml-gen epf add-attribute --name Employee --type CatalogRef.Сотрудники --synonym "Сотрудник" output/MyProcessor.xml
 ```
 
-## Структура EPF (Designer)
+## Ключевые пути (Designer)
 
-```
-MyProcessor/
-├── MyProcessor.xml              # Корневой файл метаданных
-├── Ext/
-│   └── ObjectModule.bsl         # Модуль объекта
-├── Forms/
-│   └── MainForm/
-│       ├── Form.xml             # Метаданные формы
-│       └── Ext/
-│           └── Form/
-│               └── Module.bsl    # Модуль формы
-└── Templates/
-    └── PrintForm/
-        ├── Template.xml
-        └── Ext/
-            └── Template.mxl     # Табличный документ
-```
+- Корневой XML: `output/MyProcessor.xml`
+- Модуль объекта: `output/MyProcessor/Ext/ObjectModule.bsl`
+- Form.xml: `output/MyProcessor/Forms/<FormName>/Ext/Form.xml`
+- Template: `output/MyProcessor/Templates/<Name>/Ext/Template.xml`
 
-## Интеграция с form compile и mxl compile
-
-После создания формы:
-
-```bash
-xml-gen form compile form.json output/MyProcessor/Forms/MainForm/Ext/Form.xml
-```
-
-После создания шаблона:
-
-```bash
-xml-gen mxl compile template.json output/MyProcessor/Templates/PrintForm/Ext/Template.xml
-```
+Интеграция: `form compile form.json <Form.xml path>`, `mxl compile template.json <Template path>`.
 
 ## Правильно / Неправильно
 
@@ -146,12 +121,6 @@ xml-gen epf add-attribute --name Employee --type CatalogRef.Сотрудники
 
 > `epf add-attribute` добавляет реквизит в **обработку**, а не в форму. Для формы используй `form add-attribute` с Form.xml.
 
-## См. также
-
-- [xml-generation](../xml-generation/) — общее описание
-- [form-dsl](../form-dsl/) — генерация содержимого форм
-- [mxl-dsl](../mxl-dsl/) — генерация табличных документов
-- [xml-gen-cli](../xml-gen-cli/) — validate и edit-команды
 
 ---
 depends_on: []

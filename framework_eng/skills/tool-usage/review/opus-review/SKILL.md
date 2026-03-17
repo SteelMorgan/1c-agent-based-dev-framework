@@ -1,26 +1,11 @@
 ---
 name: opus-review
-description: Review through a second independent Opus instance. The skill teaches the agent to launch an independent review of artifacts via a Task subagent with an isolated context. Use it when invoking /review-opus, /review-all, or when the user requests an independent check of a plan, specification, code, or architecture with the same model's perspective.
+description: Independent review via a second Opus instance. The skill teaches the agent to launch an independent artifact review through the Task subagent with an isolated context. Use when invoking /review-opus, /review-all, or when the user asks to check a plan, specification, code, or architecture with another independent view from the same model.
 ---
 
-# Review through a second independent Opus instance
+# Review via a second independent Opus instance
 
-## Purpose
-
-The skill teaches the agent to obtain an **independent review** of artifacts from a second Opus instance with a clean context. The reviewer does not know the decisions made in the current session, sees only what is passed in the prompt, and reads the project files on its own.
-
-**Principle:** Claude Code (the orchestrator) constructs the task and launches a subagent via the Task tool. The subagent receives an isolated context, reads files with the standard tools (Read, Glob, Grep, Bash), and returns a structured review.
-
-**Why a second Opus finds issues:**
-- Each request is an independent context without the current session's "blind spots"
-- Generation mode vs. critique mode - different cognitive setups
-- The prompt explicitly defines the role of a strict reviewer with concrete criteria
-
-**How it differs from GPT review:**
-- No need for external CLI (Codex) - it works directly via the Task tool
-- Instant start, no background process or monitoring
-- The result is returned synchronously in the Task response
-- But: the same model - Opus. GPT catches a different class of problems (different architecture). Opus review and GPT review complement each other.
+Independent review through the Task tool (a subagent with an isolated context). The result is synchronous—no monitoring required. The difference from `codex-review`: it does not require the CLI, starts instantly, but uses the same model—Opus and GPT complement each other.
 
 ---
 
@@ -28,21 +13,21 @@ The skill teaches the agent to obtain an **independent review** of artifacts fro
 
 | Trigger | Action |
 |---------|--------|
-| The user invokes `/review-opus` | Launch the review via a Task subagent |
-| The user invokes `/review-all` | Start the Opus review in parallel with GPT |
-| The user asks for a "second opinion" | Offer `/review-opus` as a quick option |
-| Complex architecture, > 5 files | Recommend a review |
-| Before implementing a specification | Suggest reviewing the plan |
+| The user invokes `/review-opus` | Launch review through the Task subagent |
+| The user invokes `/review-all` | Run Opus review in parallel with GPT |
+| The user asks for a “second opinion” | Suggest `/review-opus` as a quick option |
+| Complex architecture, more than 5 files | Recommend a review |
+| Before implementing a specification | Offer a plan review |
 
 ---
 
-## Prompt building
+## Prompt construction
 
 The prompt for the reviewer consists of three mandatory blocks. Detailed template: [references/prompt-template.md](references/prompt-template.md).
 
 ### Block 1: Role and task
 
-The role must be stated explicitly - this is critically important for the quality of the review:
+The role must be stated explicitly—this is critical for review quality:
 
 ```
 Ты — старший ревьюер 1С BSL с опытом 10+ лет. Ревьюишь независимо от автора.
@@ -54,20 +39,20 @@ The role must be stated explicitly - this is critically important for the qualit
 
 ### Block 2: Artifact
 
-The specific object under review. **Always provide file paths - the reviewer reads them on its own. Never paste file contents into the prompt.**
+The specific object under review. **Always pass file paths—the reviewer reads them independently. Never insert file contents into the prompt.**
 
-Guidelines by type:
+Rules by type:
 
-- **Specification** - the path to the specification file plus paths to the source materials (task, analysis)
-- **Code** - the rationale for the changes (spec or task) plus a hint to use `git diff --name-only HEAD~1` plus the key files
-- **Tests** - the path to the test files/directory plus the module under test plus the rationale (spec)
-- **Form** - the path to the form module plus the rationale for the changes
-- **Architecture** - the path to the architecture document plus the key implementation files
-- **If there are no files** (the artifact is only in chat) - send it as text as an exception
+- **Specification** — path to the specification file + paths to source materials (task, analysis)
+- **Code** — the basis of changes (spec or task) + a hint to use `git diff --name-only HEAD~1` + key files
+- **Tests** — path to the test files/directory + the module under test + the basis (spec)
+- **Form** — path to the form module + the basis of changes
+- **Architecture** — path to the architectural document + key implementation files
+- **If there are no files** (artifact only in chat) — provide the text as an exception
 
 ### Block 3: Skills (review criteria)
 
-Paths to `SKILL.md` files that the reviewer will read on its own:
+Paths to the `SKILL.md` files that the reviewer will read themselves:
 
 | Artifact type | Skills |
 |---------------|--------|
@@ -85,7 +70,7 @@ framework/skills/spec-writing/<name>/SKILL.md
 
 ### Block 4: Response format (mandatory)
 
-You must explicitly specify the format for the subagent - otherwise the response may become arbitrary:
+You must explicitly specify the format for the subagent—otherwise the reply can be arbitrary:
 
 ```
 ## Формат ответа
@@ -106,7 +91,7 @@ You must explicitly specify the format for the subagent - otherwise the response
 
 ---
 
-## Calling the subagent
+## Subagent invocation
 
 ### Command
 
@@ -115,24 +100,24 @@ Use the Task tool with `subagent_type: "general-purpose"`:
 ```
 Task(
   subagent_type: "general-purpose",
-  description: "Независимое ревью <тип> через Opus",
-  prompt: "<сформированный промпт>"
+  description: "Independent review <тип> via Opus",
+  prompt: "<constructed prompt>"
 )
 ```
 
-### Particularities
+### Nuances
 
-- **Synchronous call** - the result is returned directly, no background monitoring is needed
-- **Isolated context** - the subagent does not see the history of the current session, only what is in the prompt
-- **File access** - the subagent uses the same tools (Read, Glob, Grep, Bash) and sees the whole project
-- **Parallel execution** - you can run several Task instances at once (in a single message)
+- **Synchronous call** — the result is returned directly, no background monitoring is needed
+- **Isolated context** — the subagent does not see the current session history, only what is in the prompt
+- **File access** — the subagent uses the same tools (Read, Glob, Grep, Bash) and sees the entire project
+- **Parallel execution** — you can launch multiple Tasks simultaneously (in one message)
 
-### Example call
+### Invocation example
 
 ```
 Task(
   subagent_type: "general-purpose",
-  description: "Ревью спецификации резервирования товаров",
+  description: "Review of the goods reservation specification",
   prompt: """
 Ты — старший ревьюер 1С BSL с опытом 10+ лет. Ревьюишь независимо от автора.
 Находишь реальные проблемы, а не придираешься к мелочам.
@@ -162,15 +147,9 @@ Task(
 
 ---
 
-## Obtaining and presenting the result
+## Receiving the result
 
-The Task tool returns the result synchronously - no monitoring is needed.
-
-1. Wait for the Task to finish
-2. Read the returned text - that is the reviewer’s feedback
-3. Show it to the user
-4. If there are BLOCK findings - strongly suggest fixing them
-5. The feedback is an opinion; the final decision is up to the user
+Task returns the feedback synchronously. Show it to the user. If there are BLOCK remarks—suggest fixing them. Final decision is up to the user.
 
 ---
 
@@ -178,30 +157,26 @@ The Task tool returns the result synchronously - no monitoring is needed.
 
 | Situation | Action |
 |----------|--------|
-| Task returned an empty result | Retry with a clearer prompt - add "Start the review right now" |
-| The subagent couldn’t find the artifact file | Check the path, provide the correct path relative to the project root |
-| The subagent writes vague generalities without tying them to the code | Clarify the prompt: "Tie each remark to a specific file and line" |
-| The subagent refuses to criticize | Strengthen the role in the prompt: "You must find problems - if there are none, explain why" |
+| Task returned an empty result | Repeat with a clearer prompt—add “Start the review right now” |
+| The subagent could not find the artifact file | Check the path, provide the correct path relative to the project root |
+| The subagent writes general statements without tying to code | Clarify the prompt: “Tie every remark to a specific file and line” |
+| The subagent refuses to criticize | Strengthen the role in the prompt: “You must find problems—if there are none, explain why” |
 
 ---
 
-## Common mistakes
+## Typical mistakes
 
-| Mistake | Consequence | How to avoid it |
-|--------|-------------|------------------|
-| Not defining the reviewer role | The subagent behaves as an assistant rather than a critic | Always start with the "Role" block |
-| Not defining the response format | Arbitrary structure that is hard to read | Always include the "Response format" block |
-| Sending the skill contents instead of paths | The prompt balloons | Send only the paths - the subagent reads the files itself |
-| Providing the artifact without a task | The subagent lacks context | Always describe the purpose of the review |
-| Expecting the subagent to know the session context | The subagent is isolated - it knows nothing beyond the prompt | Include all necessary paths and context explicitly |
+| Mistake | Consequence |
+|--------|-------------|
+| No reviewer role in the prompt | The subagent behaves like an assistant instead of a critic |
+| No “Response format” block | Arbitrary structure |
+| Skill contents instead of paths | Bloating the prompt—pass only paths |
+| Artifact without task description | The subagent does not understand the context |
+| Expecting session context | The subagent is isolated—include all paths explicitly |
 
 ---
 
-## Related resources
-
-- [Prompt template](references/prompt-template.md) - a detailed template with examples
-- [codex-review skill](../codex-review/SKILL.md) - review through GPT (Codex CLI)
-- [Subagent reviewer](../../../subagents/reviewer.md) - the framework’s internal reviewer (a different scenario)
+Prompt template: `references/prompt-template.md`. GPT review: `codex-review`.
 
 ---
 depends_on:
@@ -212,3 +187,4 @@ depends_on:
   - framework/skills/bsl-practices/form-patterns/SKILL.md
   - framework/skills/bsl-practices/form-visual-requirements/SKILL.md
   - framework/skills/spec-writing/spec-standard/SKILL.md
+---

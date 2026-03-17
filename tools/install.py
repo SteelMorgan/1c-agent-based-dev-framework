@@ -305,7 +305,7 @@ def parse_frontmatter(filepath: Path) -> Optional[dict]:
 
     data = _parse_simple_yaml_block(front.group(1))
 
-    TECHNICAL_KEYS = {"depends_on", "metadata", "category", "version"}
+    TECHNICAL_KEYS = {"depends_on", "requires", "metadata", "category", "version"}
     body = text[front.end():]
 
     # Позиция 1: блок сразу после frontmatter (до первого заголовка)
@@ -335,10 +335,12 @@ def parse_frontmatter(filepath: Path) -> Optional[dict]:
 class Component:
     """Один компонент фреймворка (файл .md с frontmatter)."""
 
-    def __init__(self, id: str, type: str, depends_on: List[str], filepath: Path):
+    def __init__(self, id: str, type: str, depends_on: List[str], filepath: Path,
+                 requires: Optional[List[str]] = None):
         self.id = id
         self.type = type
         self.depends_on = depends_on
+        self.requires = requires or []
         self.filepath = filepath
 
     @property
@@ -445,6 +447,11 @@ class FrameworkGraph:
             if isinstance(depends, str):
                 depends = [depends] if depends else []
 
+            # Ресурсные зависимости (requires: [tools])
+            requires = fm.get("requires", [])
+            if isinstance(requires, str):
+                requires = [requires] if requires else []
+
             if comp_type == "template":
                 continue
 
@@ -453,6 +460,7 @@ class FrameworkGraph:
                 type=comp_type,
                 depends_on=depends,
                 filepath=md_file,
+                requires=requires,
             )
     
     def _find_skill_path(self, skill_name: str) -> str:
@@ -515,9 +523,17 @@ class FrameworkGraph:
         return [c for c in self.get_installable() if not self.is_framework_meta_skill(c.id)]
     
     def is_framework_meta_skill(self, comp_id: str) -> bool:
-        """Проверяет, является ли навык служебным (framework-meta)."""
+        """Проверяет, является ли навык служебным (framework-meta).
+
+        Навыки с ``installable: true`` в frontmatter не считаются служебными
+        и доступны для установки в проекты пользователей.
+        """
         comp = self.components.get(comp_id)
         if not comp or comp.type != "skill":
+            return False
+        # installable: true — явное разрешение на установку в проект
+        fm = parse_frontmatter(comp.filepath)
+        if fm and str(fm.get("installable", "")).lower() == "true":
             return False
         # Проверяем, что путь содержит framework-meta
         rel_path = str(comp.filepath.relative_to(self.framework_dir.parent))
@@ -1489,17 +1505,46 @@ def write_session_log(
     installed: int,
     skipped: int,
     removed: int,
+    graph: Optional["FrameworkGraph"] = None,
 ) -> None:
     """Записывает лог выбора в .install-session.json для верификации."""
     log_path = project_dir / ".install-session.json"
+
+    # Карта компонентов: comp_id → {type, ru_path, en_path}
+    # Позволяет агенту, работающему в проекте, быстро найти RU-источник для редактирования.
+    component_map: Dict[str, dict] = {}
+    if graph:
+        fw_dir = graph.framework_dir.resolve()
+        mirror_dir = graph.mirror_dir.resolve() if graph.mirror_dir else None
+        resolved_ids = graph.resolve_dependencies(selected)
+        for comp_id in sorted(resolved_ids):
+            comp = graph.components.get(comp_id)
+            if not comp:
+                continue
+            ru_path = str(comp.filepath.resolve())
+            entry: dict = {"type": comp.type, "ru_path": ru_path}
+            # Строим EN-путь: framework/x/y → framework_eng/x/y
+            if mirror_dir:
+                try:
+                    rel = comp.filepath.resolve().relative_to(fw_dir)
+                    en_candidate = mirror_dir / rel
+                    if en_candidate.exists():
+                        entry["en_path"] = str(en_candidate)
+                except ValueError:
+                    pass
+            component_map[comp_id] = entry
+
     data = {
         "timestamp": datetime.now().isoformat(),
         "ide": ide_key,
         "project_dir": str(project_dir.resolve()),
+        "framework_dir": str(graph.framework_dir.resolve()) if graph else None,
+        "sync_script": str((graph.framework_dir.parent / "tools" / "sync-skill.py").resolve()) if graph else None,
         "selected_components": sorted(selected),
         "model_map": dict(sorted(model_map.items())) if model_map else {},
         "use_symlinks": use_symlinks,
         "result": {"installed": installed, "skipped": skipped, "removed": removed},
+        "component_map": component_map,
     }
     try:
         log_path.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
@@ -1871,6 +1916,13 @@ def relink(project_dir: Path):
             print(yellow(f"  Сломан: {p} → {os.readlink(p)}"))
             # Пока только диагностика; реальный relink требует знания оригинала
 
+    # Проверяем симлинки каталогов (capabilities/, tools/)
+    for dir_name in ("capabilities", "tools"):
+        dir_link = project_dir / dir_name
+        if dir_link.is_symlink() and not dir_link.exists():
+            broken += 1
+            print(yellow(f"  Сломан: {dir_link} → {os.readlink(dir_link)}"))
+
     if broken == 0:
         print(green("  Все симлинки в порядке."))
     else:
@@ -1913,6 +1965,59 @@ def _tool_usage_selected(all_ids: Set[str], graph: "FrameworkGraph") -> bool:
             except ValueError:
                 pass
     return False
+
+
+def _tools_required(all_ids: Set[str], graph: "FrameworkGraph") -> bool:
+    """Возвращает True, если среди выбранных компонентов есть requires: [tools]."""
+    for comp_id in all_ids:
+        comp = graph.components.get(comp_id)
+        if comp and "tools" in comp.requires:
+            return True
+    return False
+
+
+def install_tools_symlink(
+    framework_dir: Path,
+    project_dir: Path,
+    use_symlinks: bool = True,
+    dry_run: bool = False,
+) -> bool:
+    """Создаёт tools/ в корне проекта → tools/ фреймворка.
+
+    Возвращает True если создан/уже существует, False при ошибке или конфликте.
+    """
+    src = framework_dir.parent / "tools"
+    if not src.exists():
+        return False
+
+    target = project_dir / "tools"
+
+    if target.exists() or target.is_symlink():
+        if target.is_symlink():
+            if target.resolve() == src.resolve():
+                return True  # уже корректный симлинк
+            # Сломанный/неверный симлинк — пересоздаём
+            if not dry_run:
+                target.unlink()
+        else:
+            # Реальный каталог — НЕ трогаем, предупреждаем пользователя
+            print(yellow(f"  ⚠ tools/ уже существует в проекте как каталог — симлинк не создан."))
+            print(yellow(f"    Переименуйте или удалите его, затем перезапустите установку."))
+            return False
+
+    if dry_run:
+        print(f"  → (symlink) {target}  →  {src}")
+        return True
+
+    try:
+        if use_symlinks:
+            target.symlink_to(src)
+        else:
+            shutil.copytree(str(src), str(target))
+        return True
+    except Exception as e:
+        print(red(f"  ✗ tools/: {e}"))
+        return False
 
 
 def install_capabilities_symlink(
@@ -2503,6 +2608,7 @@ def main():
                 installed=installed,
                 skipped=skipped,
                 removed=removed,
+                graph=graph,
             )
 
     # Post-install: xml-gen CLI (один раз, если выбраны навыки xml-generation)
@@ -2522,6 +2628,17 @@ def main():
         )
         if cap_ok and not args.dry_run:
             print(green(f"  ✓ capabilities/ → framework/capabilities/"))
+
+    # Post-install: tools/ симлинк (если есть компоненты с requires: [tools])
+    if _tools_required(all_resolved, graph):
+        tools_ok = install_tools_symlink(
+            framework_dir=graph.framework_dir,
+            project_dir=project_dir,
+            use_symlinks=use_symlinks,
+            dry_run=args.dry_run,
+        )
+        if tools_ok and not args.dry_run:
+            print(green(f"  ✓ tools/ → {graph.framework_dir.parent / 'tools'}/"))
 
     # Подсказка по проектным навыкам (для первой IDE)
     ide_cfg = IDE_CONFIGS[ide_key]

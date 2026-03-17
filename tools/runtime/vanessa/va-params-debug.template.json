@@ -1,7 +1,7 @@
 {
   "КаталогПроекта": "$workspaceRoot",
   "КаталогИнструментов": "/opt/onescript/2.0.0/lib/add",
-  "ВыводитьСообщенияВФайл": "$workspaceRoot/build/vanessa/logs/vanessa-messages.log",
+  "ВыводитьСообщенияВФайл": "$workspaceRoot/vanessa-tests/logs/vanessa-messages.log",
   "КаталогФич": "$workspaceRoot/vanessa-tests/features/smoke",
   "КаталогиБиблиотек": [
     "$instrumentsRoot/./features/libraries"
@@ -17,15 +17,15 @@
   "ДелатьОтчетВФорматеCucumberJson": "Истина",
   "ДелатьЛогВыполненияСценариевВТекстовыйФайл": "Истина",
   "ВыводитьВЛогВыполнениеШагов": "Истина",
-  "КаталогOutputAllureБазовый": "$workspaceRoot/build/vanessa/reports/allure",
-  "КаталогOutputjUnit": "$workspaceRoot/build/vanessa/reports/junit",
-  "КаталогOutputCucumberJson": "$workspaceRoot/build/vanessa/reports/cucumber",
+  "КаталогOutputAllureБазовый": "$workspaceRoot/vanessa-tests/reports/allure",
+  "КаталогOutputjUnit": "$workspaceRoot/vanessa-tests/reports/junit",
+  "КаталогOutputCucumberJson": "$workspaceRoot/vanessa-tests/reports/cucumber",
   "СоздаватьПодкаталогВКаталогеAllureДляЭтойСборки": "Ложь",
   "ДелатьСкриншотПриВозникновенииОшибки": "Истина",
-  "КаталогOutputСкриншоты": "$workspaceRoot/build/vanessa/screenshots",
-  "ИмяФайлаЛогВыполненияСценариев": "$workspaceRoot/build/vanessa/logs/vanessa-execution.log",
+  "КаталогOutputСкриншоты": "$workspaceRoot/vanessa-tests/screenshots",
+  "ИмяФайлаЛогВыполненияСценариев": "$workspaceRoot/vanessa-tests/logs/vanessa-execution.log",
   "ВыгружатьСтатусВыполненияСценариевВФайл": "Истина",
-  "ПутьКФайлуДляВыгрузкиСтатусаВыполненияСценариев": "$workspaceRoot/build/vanessa/reports/va-status.json",
+  "ПутьКФайлуДляВыгрузкиСтатусаВыполненияСценариев": "$workspaceRoot/vanessa-tests/reports/va-status.json",
   "ИспользоватьКомпонентуVanessaExt": "Ложь",
   "ИспользоватьПарсерGherkinИзКомпонентыVanessaExt": "Ложь",
   "ИспользоватьВнешнююКомпонентуДляСкриншотов": "Ложь"

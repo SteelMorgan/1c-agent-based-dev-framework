@@ -9,19 +9,7 @@ description: >
 
 # skills-i18n-sync — синхронизация RU→EN навыков
 
-## Архитектура
-
-Все навыки фреймворка существуют в двух экземплярах:
-
-| Каталог | Язык | Кто редактирует |
-|---------|------|-----------------|
-| `framework/` | Русский | Люди и агенты (источник правды) |
-| `framework_eng/` | Английский | **Только автоматически** через этот навык |
-
-Симлинки в `.claude/skills/` и `.cursor/skills/` указывают на `framework_eng/`.
-Агенты работают с английскими версиями — они занимают меньше токенов.
-
-**Никогда не редактируй `framework_eng/` напрямую** — изменения будут перезаписаны при следующей синхронизации.
+`framework/` (RU, источник правды) → `framework_eng/` (EN, автоматическое зеркало). Симлинки IDE указывают на `framework_eng/`. **Никогда не редактируй `framework_eng/` напрямую.**
 
 ---
 
@@ -117,41 +105,16 @@ sync-skill.py вызывает Claude Haiku CLI для перевода кажд
 
 ## Реестр синхронизации
 
-Файл `.skills-sync-state.json` в корне репо — источник правды о состоянии синхронизации:
-
-```json
-{
-  "version": 1,
-  "rules": {
-    "watch_dir": "framework/",
-    "mirror_dir": "framework_eng/",
-    "exclude": ["README.md"]
-  },
-  "files": {
-    "framework/skills/bsl-practices/coding-standards/SKILL.md": {
-      "ru_hash": "sha256:abc...",
-      "en_hash": "sha256:def...",
-      "synced_at": "2026-03-02T10:00:00Z",
-      "status": "synced"
-    }
-  }
-}
-```
+Файл `.skills-sync-state.json` в корне репо — статусы и хэши каждого файла.
 
 ---
 
 ## Установка хука на новой машине
 
-Хук хранится в `.git/hooks/` — он **не попадает в git** автоматически.
-При клонировании репо нужно установить хук вручную:
-
 ```bash
 cp tools/hooks/pre-commit .git/hooks/pre-commit
 chmod +x .git/hooks/pre-commit
 ```
-
-> Источник хука для распространения: `tools/hooks/pre-commit`
-> (симлинк или копия `.git/hooks/pre-commit`)
 
 ---
 depends_on: []

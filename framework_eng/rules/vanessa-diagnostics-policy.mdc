@@ -1,23 +1,19 @@
 ---
 name: vanessa-diagnostics-policy
-description: Vanessa Automation diagnostics policy. The primary source is the event log; the tech log is used only as a last fallback.
+description: Vanessa Automation diagnostics policy. The main source is the event log; the technical log is used only as the last fallback.
 ---
 
 # Vanessa Automation Diagnostics Policy
 
-> RULES — mandatory source priorities for diagnostics after a failed scenario run.
-
-## Purpose
-
-This rule states that the agent must use Vanessa Automation's event log as the main diagnostics source and identifies which sources should not be substituted with heavier tools without necessity.
+> Priorities of diagnostics sources after an unsuccessful scenario run.
 
 ## MUST
 
 | Requirement | Description |
 |------------|-------------|
-| Event Log first | The primary error source is the registration log (`event-log`) |
-| Tech log last | Use the technical log only if the `event-log` and visual diagnostics did not provide an answer |
-| Account for timezone drift | Do not rely blindly on local time windows: ClickHouse and local time may differ |
+| Event Log first | The primary source of errors is the registration log (`event-log`) |
+| Tech log last | Use the technical log only if `event-log` and visual diagnostics did not provide an answer |
+| Account for timezone drift | Do not rely blindly on local time windows: ClickHouse and local time may diverge |
 
 ---
 depends_on:

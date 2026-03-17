@@ -1,77 +1,30 @@
 ---
 name: query-execution
-description: Query execution (Query Execution). The skill teaches the agent to **check and execute queries in the 1C query language** — syntax validation before execution, fetching data from the database.
+description: Query execution. The skill teaches the agent to **validate and execute queries in the 1C query language** — syntax validation before execution, retrieving data from the database.
 ---
 
 # Query Execution (Query Execution)
 
-## Purpose
+**Справочник syntax reference:** [`references/query-syntax-cheatsheet.md`](references/query-syntax-cheatsheet.md)
 
-The skill teaches the agent to **work with queries in the 1C query language** — validate syntax without execution and retrieve data from the database. It is used for data analysis, diagnostics, and verifying data completion.
+## Workflow
 
-**Principle:** Before execution — `validate_query`. Not sure about table or field names — `get_metadata_structure`.
+1. **Metadata** (if you are unsure about the names): `list_metadata_objects` → `get_metadata_structure`
+2. **Build the query** with precise object and field names
+3. **Validation:** `validate_query`
+4. **Execution:** `execute_query`
 
-**Syntax reference and query examples:** [`references/query-syntax-cheatsheet.md`](references/query-syntax-cheatsheet.md)
-
----
-
-## CRITICAL: Metadata validation
-
-**Never guess object or field names.** 1C configurations differ — names are unique for each database.
-
-Before building a query, if you are not sure about the exact names:
-1. `list_metadata_objects` — find the object by metaType and nameMask
-2. `get_metadata_structure` — get the attributes, tabular parts, dimensions, and resources
-
-**Workflow:** metadata → confirm names → build the query → `validate_query` → `execute_query`
-
-A query with an incorrect object or field name will fail. One metadata call is cheaper than debugging a failed query.
+Never guess names — 1C configurations differ. One metadata call is cheaper than debugging a failed query.
 
 ---
 
-## When to apply
+## Critical MCP constraints
 
-| Trigger | Action |
-|---------|--------|
-| Need to run a query against a 1C database | `validate_query` → `execute_query` |
-| User asks to check a query | `validate_query` |
-| Data analysis, diagnostics of data filling | `get_metadata_structure` (if the structure is unknown) → `execute_query` |
-| Iterative analysis — the model reviews results and issues follow-up queries | `execute_query` with the refined query |
-
----
-
-## Use cases
-
-### Scenario 1: Query validation and execution
-
-**Steps:**
-
-1. `validate_query` — check syntax without execution.
-2. If there are no errors — `execute_query` to retrieve data.
-3. On validation errors — fix the query and retry.
-
-### Scenario 2: Query against an unknown structure
-
-**Steps:**
-
-1. `list_metadata_objects` — locate the object (if the name is unknown).
-2. `get_metadata_structure` — obtain table, field, dimension, and resource names.
-3. Build the query with correct names.
-4. `validate_query` → `execute_query`.
-
-### Scenario 3: Limiting the result set
-
-With large datasets — use `ВЫБРАТЬ ПЕРВЫЕ N` or filter conditions so the answer remains manageable.
-
----
-
-## Critical MCP limitations
-
-When running queries through `execute_query` (HTTP/MCP without parameters) values must be supplied **explicitly in the query text**. Parameters `&Имя` might not be supported.
+When running queries through `execute_query` (HTTP/MCP without parameters) values must be provided **explicitly in the query text**. `&Имя` parameters might not be supported.
 
 ### 1. Limit the result set with ПЕРВЫЕ N
 
-For queries returning rows of data, always limit the number of records:
+For queries that return data rows, always limit the number of records:
 
 ```sql
 ВЫБРАТЬ ПЕРВЫЕ 100
@@ -84,8 +37,8 @@ For queries returning rows of data, always limit the number of records:
 **Exceptions — `ПЕРВЫЕ N` is unnecessary and can be harmful:**
 
 | Case | Why it is unnecessary |
-|------|----------------------|
-| Aggregate queries (`КОЛИЧЕСТВО`, `СУММА`, `МАКСИМУМ`) | They return a single row; `ПЕРВЫЕ 1` is redundant and can yield incorrect results when grouping |
+|------|-----------------------|
+| Aggregate queries (`КОЛИЧЕСТВО`, `СУММА`, `МАКСИМУМ`) | They return a single row; `ПЕРВЫЕ 1` is redundant and can give incorrect results when grouping |
 | Existence check (`ВЫБРАТЬ ПЕРВЫЕ 1 Ссылка ИЗ ... ГДЕ ...`) | `ПЕРВЫЕ 1` is appropriate here and already limits the output |
 | `ОБЪЕДИНИТЬ ВСЕ` in subqueries | The limit is applied at the outer level |
 
@@ -96,15 +49,15 @@ For queries returning rows of data, always limit the number of records:
 ГДЕ Товар = &Товар
 ```
 
-✅ **CORRECT** (comparison through primitive attributes):
+✅ **CORRECT** (comparison via primitive attributes):
 ```sql
 ГДЕ Товар.Наименование = "iPhone 17 Pro Max"
 ГДЕ Контрагент.ИНН = "7707083893"
 ```
 
-### 3. Comparing reference fields — only via primitives
+### 3. Comparing reference fields — only through primitives
 
-`execute_query` over HTTP/MCP does not support `&Ссылка` parameters, so comparing reference fields directly is impossible — use primitive attributes of the object instead.
+`execute_query` over HTTP/MCP does not support `&Ссылка` parameters, so you cannot compare reference fields directly — use primitive attributes of the referenced object instead.
 
 ❌ **INCORRECT** (comparing references directly):
 ```sql
@@ -119,12 +72,12 @@ For queries returning rows of data, always limit the number of records:
 ```
 
 > ⚠️ **Important — risk of ambiguity.** Наименование and Код do not guarantee uniqueness:
-> - `Наименование` can repeat in different folders or duplicates
+> - `Наименование` can repeat across different folders or duplicates
 > - `Код` is unique within the catalog, so it is preferable
-> - `ИНН`, `Артикул`, and other business identifiers — use them if they are unique in this configuration
+> - `ИНН`, `Артикул`, and other business identifiers — use them when they are unique in this configuration
 >
 > When acceptable: diagnostics, data analysis, one-off queries where duplicates are unlikely.
-> When unacceptable: critically important selections where a false match by name would yield incorrect results — in that case, clarify the exact identifier with the user or use `ПОДОБНО` while warning about possible duplicates.
+> When unacceptable: critically important selections where a false match by name would yield an incorrect result — in that case, clarify the exact identifier with the user or use `ПОДОБНО` and warn about potential duplicates.
 
 ### 4. Working with dates — the ДАТАВРЕМЯ function
 
@@ -144,29 +97,13 @@ For queries returning rows of data, always limit the number of records:
 
 ---
 
-## Capabilities
+## Typical mistakes
 
-| Capability | Purpose |
-|------------|---------|
-| `validate_query` | Syntax validation of a 1C query language statement without execution |
-| `execute_query` | Execute the query and fetch data from the 1C database |
-| `get_metadata_structure` | Retrieve the structure of the object before building the query (if you are unsure about the names) |
-
----
-
-## Common mistakes and workarounds
-
-| Mistake | Workaround |
-|---------|------------|
-| Validation error in `validate_query` | Verify table/field names via `get_metadata_structure`. |
-| “Parameter not found” | `&Параметр` is not supported — use explicit values in the query text. |
-| Error when comparing references | `&Ссылка` is not supported over MCP — compare via `.Код` (preferred), `.Наименование`, or `.ИНН`. Код is unique; Наименование can yield duplicates — account for that in critical queries. |
-| Too much data / timeout | For row selection use `ПЕРВЫЕ N`; for aggregates (`КОЛИЧЕСТВО`, `СУММА`) `ПЕРВЫЕ` is not needed. |
-| NULL in calculations | Use `ЕСТЬNULL(Field, DefaultValue)` with LEFT JOIN. |
-| `execute_query` returns nothing | Check the filter conditions and whether the data exists. |
-| Unknown object name | `list_metadata_objects` before building the query. |
-| Slow query with OR | Replace with `В (...)` or split into `ОБЪЕДИНИТЬ ВСЕ`. |
-| Slow query against a Registrar | Use `ВЫРАЗИТЬ(Регистратор КАК Документ.Имя)` and `ССЫЛКА` in WHERE. |
+| Mistake | Solution |
+|---------|----------|
+| NULL in calculations | Use `ЕСТЬNULL(Field, DefaultValue)` with LEFT JOIN |
+| Slow query with OR | Replace with `В (...)` or `ОБЪЕДИНИТЬ ВСЕ` |
+| Slow query against a Registrar | `ВЫРАЗИТЬ(Регистратор КАК Документ.Имя)` + `ССЫЛКА` in WHERE |
 
 ---
 depends_on: []

@@ -119,37 +119,7 @@ xml-gen skd info <Schema.xml>
 }
 ```
 
-## Полный пример
-
-```json
-{
-  "dataSets": [{
-    "name": "Продажи",
-    "query": "ВЫБРАТЬ Организация, Номенклатура, Количество, Сумма ИЗ РегистрНакопления.Продажи",
-    "fields": [
-      {"dataPath": "Организация", "title": "Организация"},
-      {"dataPath": "Номенклатура", "title": "Номенклатура"},
-      {"dataPath": "Количество", "title": "Количество", "type": "number(15,2)"},
-      {"dataPath": "Сумма", "title": "Сумма", "type": "number(15,2)"}
-    ]
-  }],
-  "totalFields": [
-    {"dataPath": "Количество", "expression": "Сумма(Количество)"},
-    {"dataPath": "Сумма", "expression": "Сумма(Сумма)"}
-  ],
-  "settingsVariants": [{
-    "name": "Основной",
-    "settings": {
-      "selection": ["Организация", "Номенклатура", "Количество", "Сумма"],
-      "filter": ["Количество > 0"],
-      "order": ["Сумма desc"],
-      "structure": [{"type": "group", "groupBy": ["Организация"], "selection": ["Auto"]}]
-    }
-  }]
-}
-```
-
-## Ограничения (15%)
+## Ограничения
 
 - Только DataSetQuery (DataSetObject/Union не поддерживаются)
 - Нет CalculatedFields
@@ -167,22 +137,8 @@ xml-gen skd info <Schema.xml>
 
 > Парсер filter ожидает операторы из фиксированного списка. `больше` не распознаётся.
 
-```json
-// ❌ Неправильно — dataPath в selection не из dataSets
-"settings": {"selection": ["НесуществующееПоле"]}
+Поля в selection, order, filter, structure должны существовать в dataSets — иначе СКД не скомпонуется.
 
-// ✅ Правильно — selection только из полей dataSets
-"fields": [{"dataPath": "Сумма", "title": "Сумма"}],
-"settings": {"selection": ["Сумма"]}
-```
-
-> Поля в selection, order, filter, structure должны существовать в dataSets. Иначе СКД не скомпонуется.
-
-## См. также
-
-- [xml-generation](../xml-generation/) — общее описание
-- [xml-gen-cli](../xml-gen-cli/) — add-parameter, add-field
-- [epf-operations](../epf-operations/) — создание обработок
 
 ---
 depends_on: []

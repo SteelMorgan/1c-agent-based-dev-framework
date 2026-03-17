@@ -5,15 +5,6 @@ description: Политика расположения project-specific feature-
 
 # Расположение project-specific сценариев Vanessa
 
-> RULES — обязательное соглашение о том, где хранить feature-файлы проекта и как ссылаться на них из документации задач.
-
-## Назначение
-
-Это правило разделяет:
-
-- универсальные библиотечные шаги и runtime templates Vanessa;
-- project-specific сценарии конкретной базы/проекта.
-
 ## MUST
 
 | Требование | Описание |
@@ -41,4 +32,6 @@ description: Политика расположения project-specific feature-
 
 ---
 depends_on: []
+requires:
+  - tools
 ---

@@ -1,23 +1,23 @@
 ---
 name: subsystem-operations
-description: Subsystem and 1С command interface operations — compile, info, edit, validate. Use when creating subsystems, managing their contents, or configuring CommandInterface.
+description: Operations with 1C subsystems and the command interface — compile, info, edit, validate. Use when creating subsystems, controlling their content, and configuring CommandInterface.
 ---
 
 # Subsystem + Interface Operations
 
-Working with 1С subsystems and the command interface.
+Working with 1C subsystems and the command interface.
 
-## When to Apply
+## When to apply
 
 | Trigger | Action |
-|---------|----------|
+|---------|--------|
 | Need to create a subsystem | `subsystem compile subsystem.json <output_dir>` |
 | Need to inspect subsystem contents | `subsystem info <subsystemPath>` |
 | Need to add an object to a subsystem | `subsystem edit <path> --op add-content --value "Catalog.Товары"` |
 | Need to validate a subsystem | `subsystem validate <subsystemPath>` |
-| Need to configure command visibility | `interface edit <ciPath> --op hide --value "..."` |
-| Need to validate CommandInterface.xml | `interface validate <ciPath>` |
-| Need to inspect the subsystem tree | `subsystem info --mode tree <subsystemPath>` |
+| Need to adjust command visibility | `interface edit <ciPath> --op hide --value "..."` |
+| Need to check CommandInterface.xml | `interface validate <ciPath>` |
+| Need to view the subsystem tree | `subsystem info --mode tree <subsystemPath>` |
 
 ## Subsystem Commands
 
@@ -31,7 +31,7 @@ xml-gen subsystem compile <subsystem.json> <output_dir>
 
 ### subsystem info
 
-Analyze the subsystem (5 modes: brief, overview, full, tree, ci).
+Analyze a subsystem (5 modes: brief, overview, full, tree, ci).
 
 ```bash
 xml-gen subsystem info [--mode brief|overview|full|tree|ci] <subsystemPath>
@@ -70,7 +70,7 @@ xml-gen interface edit <ciPath> --op <operation> --value <value>
 - `hide` — hide a command: `"Catalog.Товары.StandardCommand.Create"`
 - `show` — show a command
 - `place` — place a command in a group: `"command=... group=NavigationPanelImportant"`
-- `set-order` — order of commands within a group
+- `set-order` — order of commands inside a group
 - `set-subsystem-order` — order of subsystems
 - `set-group-order` — order of groups
 
@@ -82,17 +82,13 @@ xml-gen interface edit <ciPath> --op <operation> --value <value>
 xml-gen interface validate <ciPath>
 ```
 
-## Command Link Format
+## Command link format
 
-- `CommonCommand.ИмяКоманды` — general command
+- `CommonCommand.ИмяКоманды` — common command
 - `Catalog.Товары.StandardCommand.Create` — standard command
 - `Catalog.Товары.Command.ПечатьЭтикетки` — object command
-- `0:<uuid>` — UUID link
+- `0:<uuid>` — UUID reference
 
-## See Also
-
-- [config-operations](../config-operations/) — configuration (ChildObjects <-> subsystems)
-- [meta-operations](../meta-operations/) — metadata objects
 
 ---
 depends_on: []

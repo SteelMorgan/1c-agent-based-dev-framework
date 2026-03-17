@@ -89,10 +89,6 @@ xml-gen interface validate <ciPath>
 - `Catalog.Товары.Command.ПечатьЭтикетки` — команда объекта
 - `0:<uuid>` — UUID-ссылка
 
-## См. также
-
-- [config-operations](../config-operations/) — конфигурация (ChildObjects <-> подсистемы)
-- [meta-operations](../meta-operations/) — объекты метаданных
 
 ---
 depends_on: []

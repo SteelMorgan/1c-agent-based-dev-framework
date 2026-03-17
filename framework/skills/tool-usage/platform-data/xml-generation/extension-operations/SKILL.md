@@ -111,11 +111,6 @@ xml-gen extension validate <extensionPath>
 
 Справочник → Catalog, Документ → Document, РегистрСведений → InformationRegister, ОбщийМодуль → CommonModule и др. (25 маппингов).
 
-## См. также
-
-- [config-operations](../config-operations/) — работа с базовой конфигурацией
-- [meta-operations](../meta-operations/) — объекты метаданных
-
 ---
 depends_on: []
 metadata:

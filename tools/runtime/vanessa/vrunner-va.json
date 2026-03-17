@@ -7,7 +7,7 @@
     "--workspace": ".",
     "--root": ".",
     "--nocacheuse": true,
-    "--debuglogfile": "build/vanessa/logs/vrunner-debug.log"
+    "--debuglogfile": "vanessa-tests/logs/vrunner-debug.log"
   },
   "vanessa": {
     "--workspace": ".",
