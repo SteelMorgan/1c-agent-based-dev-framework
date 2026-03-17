@@ -59,6 +59,8 @@ Date: YYYY-MM-DD
 
 ## Test Plan (TDD)
 
+## Acceptance Scenarios (BDD)
+
 ## Open Questions
 
 ## Decision Log (ADR)
@@ -111,6 +113,7 @@ Date: YYYY-MM-DD
 - [ ] Между разделами нет противоречий.
 - [ ] Требования сформулированы через RFC 2119 (MUST/SHOULD/MAY/MUST NOT).
 - [ ] Есть ссылка/выжимка по отдельному Task Breakdown JSON.
+- [ ] Acceptance Scenarios содержат Gherkin-сценарии бизнес-уровня (Given/When/Then) для MUST-требований.
 
 ---
 
@@ -128,8 +131,8 @@ Date: YYYY-MM-DD
 
 ## 8. Связанные навыки
 
-- `framework/skills/spec-writing/task-breakdown-subagent/SKILL.md` — декомпозиция задач для сабагентного режима (cross-review, BLOCK-цикл).
-- `framework/skills/spec-writing/task-breakdown-linear/SKILL.md` — декомпозиция задач для линейного single-agent режима (self-check).
+- `task-breakdown-subagent` — декомпозиция задач для сабагентного режима (cross-review, BLOCK-цикл).
+- `task-breakdown-linear` — декомпозиция задач для линейного single-agent режима (self-check).
 
 ---
 depends_on: []

@@ -30,6 +30,10 @@ FRAMEWORK_DIR = REPO_ROOT / "framework"
 MIRROR_DIR = REPO_ROOT / "framework_eng"
 EXCLUDE_NAMES = {"README.md"}
 
+# Расширения файлов, которые переводятся через Codex
+TRANSLATABLE_EXTS = {".md", ".mdc"}
+# Всё остальное копируется as-is (бинарники, скрипты, JSON, YAML и т.д.)
+
 CODEX_PROFILE = "cx_gpt-5-codex-mini"
 CODEX_DONE_MARKER = "OK"
 CODEX_POLL_INTERVAL = 3   # секунды между проверками файла -o
@@ -107,6 +111,25 @@ def relative(path: Path) -> str:
 
 def is_excluded(path: Path) -> bool:
     return path.name in EXCLUDE_NAMES
+
+
+def is_translatable(path: Path) -> bool:
+    """True если файл нужно переводить; False — копировать as-is."""
+    return path.suffix.lower() in TRANSLATABLE_EXTS
+
+
+def copy_file(ru_path: Path, en_path: Path) -> bool:
+    """Копирует файл as-is (для бинарников, скриптов, JSON, YAML и т.д.)."""
+    import shutil
+    en_path.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        shutil.copy2(ru_path, en_path)
+        print(f"  → Copied {relative(ru_path)} ... OK")
+        return True
+    except OSError as e:
+        print(f"  → Copied {relative(ru_path)} ... ERROR")
+        print(f"    ✗ {e}")
+        return False
 
 
 # ─── Перевод через Codex CLI ──────────────────────────────────────────────────
@@ -287,7 +310,10 @@ def cmd_sync(file_args: list[str], *, check_hashes: bool = True) -> int:
                 continue
 
         en_path = ru_to_en_path(ru_path)
-        ok = translate_file(ru_path, en_path)
+        if is_translatable(ru_path):
+            ok = translate_file(ru_path, en_path)
+        else:
+            ok = copy_file(ru_path, en_path)
 
         if ok:
             en_hash = sha256_file(en_path)
@@ -344,14 +370,18 @@ def cmd_init_all() -> int:
 # ─── Обновление реестра для новых/удалённых файлов ────────────────────────────
 
 def sync_registry_with_disk() -> None:
-    """Добавить в state новые файлы, пометить изменённые как dirty."""
+    """Добавить новые файлы, пометить изменённые как dirty, удалить записи для удалённых файлов."""
     state = load_state()
     known = set(state["files"].keys())
+
+    # Собираем актуальные файлы на диске
+    disk_files: set[str] = set()
 
     # Новые файлы и проверка хэшей существующих
     for ru_path in sorted(FRAMEWORK_DIR.rglob("*")):
         if ru_path.is_file() and not is_excluded(ru_path):
             rel = relative(ru_path)
+            disk_files.add(rel)
             current_hash = sha256_file(ru_path)
             if rel not in known:
                 state["files"][rel] = {
@@ -368,6 +398,12 @@ def sync_registry_with_disk() -> None:
                     info["ru_hash"] = current_hash
                     info["status"] = "dirty"
                     print(f"  ~ Marked dirty: {rel}")
+
+    # Удаляем записи для файлов, которых больше нет на диске
+    stale = known - disk_files
+    for rel in sorted(stale):
+        del state["files"][rel]
+        print(f"  - Pruned stale entry: {rel}")
 
     save_state(state)
 

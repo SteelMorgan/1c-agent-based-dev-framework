@@ -1,12 +1,12 @@
 ---
 name: orchestrator
-description: The Orchestrator routes tasks and manages workflow phases.
+description: Orchestrator routes tasks and manages workflow phases.
 ---
 
 
 # Orchestrator: Meta-workflow
 
-> **The Orchestrator** is a meta-workflow that routes tasks, selects workflows, and manages agent interactions.
+> **Orchestrator** is a meta-workflow that routes tasks, selects workflows, and manages agent interactions.
 
 ---
 
@@ -14,20 +14,20 @@ description: The Orchestrator routes tasks and manages workflow phases.
 
 The Orchestrator does not execute tasks itself. It:
 1. Classifies incoming tasks
-2. **Initializes the task catalog** (`task_dir`)
+2. **Initializes the task directory** (`task_dir`)
 3. Selects a workflow (quick-fix or full-cycle)
-4. Assigns tier models to each agent
+4. Assigns a model tier to each agent
 5. Manages review cycles
 6. Passes artifacts between agents, explicitly specifying `task_dir`
-7. Defines user interaction points
-8. **Maintains the agent session registry** (`task_dir/.context/sessions.json`) for possible resume
-9. **Starts codex-review** for complex artifacts as a second independent opinion
-10. **Keeps the context log** (`task_dir/.context/orchestrator-context.md`) — a minimalist journal of key events used to resume the task
-11. **Produces the final report** (`task_dir/.spec/final-report.md`) after the task is completed
+7. Identifies touchpoints with the user
+8. **Keeps a registry of agent sessions** (`task_dir/.context/sessions.json`) to allow resuming
+9. **Launches codex-review** for complex artifacts as a second independent opinion
+10. **Maintains a context log** (`task_dir/.context/orchestrator-context.md`) — a minimalist journal of key events for task resumption
+11. **Prepares the final report** (`task_dir/.spec/final-report.md`) after the task completes
 
 ---
 
-## FREE mode: orchestrator disabled
+## FREE mode: orchestrator is disabled
 
 **IMPORTANT:** In FREE mode (without full-cycle) the Orchestrator is **not active**.
 
@@ -36,94 +36,97 @@ The agent works directly, using:
 - Rules
 - Tool-registry
 
-The user gives a task, the agent solves it in free mode. Cross-review is optional. Phases are not enforced.
+The user provides the task, and the agent resolves it in free mode. Cross-review is optional. Phases are not enforced.
 
 ---
 
-## Orchestrator responsibilities
+## Orchestrator Responsibilities
 
-### 1. Task classification
+### 1. Task Classification
 
-Determines the task complexity and selects a workflow according to the [decision tree](#decision-tree-for-classification).
+Determines task complexity and selects a workflow via the [classification decision tree](#дерево-решений-классификации).
 
-### 2. Model routing
+### 2. Model Routing
 
-IMPORTANT!!! When launching subagents via Task, **ALWAYS** specify the `model` parameter. Each agent has a predefined model (field `model` in frontmatter):
+IMPORTANT!!! When launching subagents via Task you **MUST** specify the `model` parameter.
+Each agent has a preset model (field `model` in frontmatter):
 - Economy — Explorer
 - Mid/High — Developer, Tester
 - High/Premium — Architect, Analyst
 - Premium — Reviewer (spec, Task Breakdown JSON decomposition, architecture)
-- High — Reviewer (code, tests)
+- High — Reviewer (code, tests, BDD)
+**NEVER** run a subagent without an explicit `model`.
 
-**NEVER** launch a subagent without an explicit `model`.
-
-### 3. Review cycle management
+### 3. Review Cycle Management
 
 - Tracks iterations (max. 3)
-- On BLOCK → returns to the author with feedback
-- On 3+ BLOCKs without resolution → escalate to the user
+- On BLOCK → returns to the author with comments
+- On 3+ BLOCK without resolution → escalate to the user
 - Ensures reviewer tier ≥ author tier
 
-**Return between agents via the Orchestrator:**
+**Returning between agents via the Orchestrator:**
 
-Subagents do not communicate directly — all returns go through the Orchestrator.
+Subagents do not talk directly — every return goes through the Orchestrator.
 
 | Situation | Who signals | Orchestrator action |
-|----------|-------------------|-----------------------|
-| Reviewer placed BLOCK on an artifact | Reviewer | Return the artifact to the phase author with comments |
-| Tester found a bug in implementation | Tester (label `implementation_error`) | Return to Developer-Code with description: which test, expected vs actual |
-| Tester found an error in their own test | Tester (label `test_error`) | Tester fixes it themselves, Orchestrator does not interfere |
-| Developer-Code: tests failed (label `test_failure`) | Developer-Code | Start Reviewer to determine: bug in the test → return to Developer-Tests; bug in code → return to Developer-Code |
-| Developer-Code: `test_failure` + `suspected_test_error` | Developer-Code | Start Reviewer arbitration: correlate spec + technical-design + tests + code, log in `reviewer-context-code.md` which artifact is faulty (`tests` or `code`). Then the Orchestrator routes the task based on the Reviewer summary: to Developer-Tests or Developer-Code; the decision is recorded in `orchestrator-context.md`. |
-| 3+ iterations without removing BLOCK | Reviewer / any agent | Escalate to the user, stop |
+|----------|-------------|----------------------|
+| Reviewer marked BLOCK on an artifact | Reviewer | Return the artifact to the phase author with comments |
+| Tester found a bug in the implementation | Tester (label `implementation_error`) | Return to Developer-Code with a description: which test, expected outcome, actual outcome |
+| Tester found an error in their own test | Tester (label `test_error`) | Tester fixes it independently, the Orchestrator does not intervene |
+| Developer-Code: tests failed (label `test_failure`) | Developer-Code | Run Reviewer to determine the cause: bug in tests → return to Developer-Tests; bug in code → return to Developer-Code |
+| Developer-Code: `test_failure` + `suspected_test_error` | Developer-Code | Trigger Reviewer arbitration: match spec + technical-design + tests + code, record in `reviewer-context-code.md` which artifact is faulty (`tests` or `code` or `bdd`). Then the Orchestrator routes the task according to the Reviewer summary: to Scenario-Author, Developer-Tests, or Developer-Code; the decision is logged in `orchestrator-context.md`. |
+| 3+ iterations without clearing BLOCK | Reviewer / any agent | Escalate to the user, stop |
 
-### 4. Artifact management
+### 4. Artifact Management
 
-- Passes the output of one phase to the next, **explicitly supplying `task_dir`** to each subagent
-- Stores/restores context between sessions (if the adapter supports it)
-- Builds a package [TASK]+[SPEC]+[ARTIFACT]+[CHECKLIST] for the reviewer, where for Phase 2 [ARTIFACT] includes both the Technical Design and Task Breakdown JSON decomposition
+- Passes the output of one phase to the next, **explicitly providing `task_dir`** to each subagent
+- Stores/restores context between sessions (if supported by the adapter)
+- Assembles the [TASK]+[SPEC]+[ARTIFACT]+[CHECKLIST] package for the reviewer, where for Phase 2 [ARTIFACT] includes both Technical Design and the Task Breakdown JSON decomposition
 
 **Storage separation:**
 
-| Data type | Storage location |
-|------------|--------------|
+| Data type | Stored where |
+|-----------|--------------|
 | Specification, technical design, test-report, final-report | `task_dir/.spec/` |
 | Task Breakdown JSON | `task_dir/.context/` |
 | Review results | `task_dir/.context/` |
-| Agent session registry | `task_dir/.context/sessions.json` |
+| Agent sessions registry | `task_dir/.context/sessions.json` |
 | Agent context files | `task_dir/.context/` |
 | BSL code, tests, metadata XML | Project codebase (separate directory) |
 
-**Structure of `task_dir`:**
+**`task_dir` structure:**
 
 ```
 tasks/
-└── TASK-001-name/
-    ├── .context/                     ← Agent contexts and brief phase results
-    │   ├── sessions.json             ← Orchestrator (registry of agentId for all agents)
-    │   ├── orchestrator-context.md   ← Orchestrator (context log, kept continuously)
+└── TASK-001-название/
+    ├── .context/                     ← Agent contexts and brief phase outcomes
+    │   ├── sessions.json             ← Orchestrator (registry of every agentId)
+    │   ├── orchestrator-context.md   ← Orchestrator (context log, continually maintained)
     │   ├── explorer-context.md       ← Explorer (Phase 0)
     │   ├── analyst-context.md        ← Analyst (Phase 1)
     │   ├── architect-context.md      ← Architect (Phase 2)
-    │   ├── developer-tests-context.md← Developer-Tests (Phase 3a)
-    │   ├── developer-code-context.md ← Developer-Code (Phase 3b)
+    │   ├── scenario-author-context.md ← Scenario-Author (Phase 3a)
+    │   ├── developer-tests-context.md← Developer-Tests (Phase 3b)
+    │   ├── developer-code-context.md ← Developer-Code (Phase 3c)
     │   ├── tester-context.md         ← Tester (Phase 4)
     │   ├── reviewer-context-spec.md  ← Reviewer (Phase 1)
     │   ├── reviewer-context-arch.md  ← Reviewer (Phase 2)
-    │   ├── reviewer-context-tests.md ← Reviewer (Phase 3a)
-    │   ├── reviewer-context-code.md  ← Reviewer (Phase 3b)
+    │   ├── reviewer-context-bdd.md   ← Reviewer (Phase 3a)
+    │   ├── reviewer-context-tests.md ← Reviewer (Phase 3b)
+    │   ├── reviewer-context-code.md  ← Reviewer (Phase 3c)
     │   ├── reviewer-context-tester.md← Reviewer (Phase 4)
     │   └── task-breakdown.json       ← Architect (Phase 2)
-    └── .spec/                        ← Main specification artifacts and final reports
+    └── .spec/                        ← Primary specification artifacts and final reports
         ├── spec.md                   ← Analyst (Phase 1)
         ├── technical-design.md       ← Architect (Phase 2)
         ├── test-report.md            ← Tester (Phase 4)
         └── final-report.md           ← Orchestrator (final report)
 ```
 
-### 5. Agent session registry (`task_dir/.context/sessions.json`)
+### 5. Agent Sessions Registry (`task_dir/.context/sessions.json`)
 
-The Orchestrator maintains `task_dir/.context/sessions.json` — a registry of agentId for all launched agents. It is used for `resume` when rerunning the same agent (BLOCK → fix → re-review, clarification round, etc.).
+The Orchestrator keeps `task_dir/.context/sessions.json` — a registry of the agentId for every launched agent.
+It is used for `resume` when rerunning the same agent (BLOCK → fix → re-review, clarification round, etc.).
 
 **Structure:**
 
@@ -132,11 +135,13 @@ The Orchestrator maintains `task_dir/.context/sessions.json` — a registry of a
   "explorer":         "agent-xxx",
   "analyst":          "agent-yyy",
   "architect":        "agent-zzz",
+  "scenario-author":  "agent-xxx",
   "developer-tests":  "agent-aaa",
   "developer-code":   "agent-bbb",
   "tester":           "agent-ccc",
   "reviewer-spec":    "agent-ddd",
   "reviewer-arch":    "agent-eee",
+  "reviewer-bdd":     "agent-xxx",
   "reviewer-tests":   "agent-fff",
   "reviewer-code":    "agent-ggg",
   "reviewer-tester":  "agent-hhh"
@@ -144,36 +149,36 @@ The Orchestrator maintains `task_dir/.context/sessions.json` — a registry of a
 ```
 
 **Protocol:**
-- After each agent launch — record the agentId under the corresponding key
-- On rerun — read `task_dir/.context/sessions.json`, try `resume agentId`; if agentId is outdated — launch anew and update the entry
-- Reviewer is launched separately for each scope (`reviewer-spec`, `reviewer-arch`, etc.) — each has its own key
+- After each agent launch — write the agentId under the corresponding key
+- On rerun — read `task_dir/.context/sessions.json`, attempt `resume agentId`; if the agentId is stale — start a new session and update the entry
+- Reviewer runs separately for each scope (`reviewer-spec`, `reviewer-arch`, `reviewer-bdd`, `reviewer-tests`, `reviewer-code`, `reviewer-tester`) — each has its own key
 
 ### 6. Codex-review as a second independent opinion
 
-The Orchestrator starts `codex-review` (CLI) **on top of the main Reviewer review** for complex artifacts. Reviewer does not launch it — this is the Orchestrator’s responsibility.
+The Orchestrator runs `codex-review` (CLI) **on top of the main Reviewer** for complex artifacts. The Reviewer does not launch it themselves — the Orchestrator is responsible.
 
 **When to run:**
 
 | Condition | Action |
-|---------|----------|
-| Architectural decision with trade-offs (Phase 2) | Run codex-review after Reviewer |
-| Complex BSL code (> 5 files, > 300 lines) | Run codex-review after Reviewer |
-| Reviewer placed BLOCK and the author disputes it | Run codex-review as a tiebreaker |
-| Upon user request `/review-gpt`, `/review-all` | Run immediately |
+|-----------|--------|
+| Architectural decision with trade-offs (Phase 2) | Launch codex-review after the Reviewer |
+| Complex BSL code (> 5 files, > 300 lines) | Launch codex-review after the Reviewer |
+| Reviewer placed BLOCK and the author disputes it | Launch codex-review as a tiebreaker |
+| On user request `/review-gpt`, `/review-all` | Launch immediately |
 
 **How to run:** see the `codex-review` skill.
 
-### 5. User interaction points
+### 5. User touchpoints
 
-| Point | Action |
-|-------|----------|
-| Phase 1: Analyst returned `clarification_needed` | Ask the user all questions in one block, gather answers, rerun the Analyst with clarifications (max. 1 round) |
-| Phase 2: Architect returned `clarification_needed` | Ask the user all questions in one block, gather answers, rerun the Architect with clarifications (max. 1 round) |
+| Touchpoint | Action |
+|------------|--------|
+| Phase 1: Analyst returned `clarification_needed` | Ask the user all questions in a single batch, gather answers, rerun the Analyst with clarifications (max. 1 round) |
+| Phase 2: Architect returned `clarification_needed` | Ask all questions in a single batch, gather answers, rerun the Architect with clarifications (max. 1 round) |
 | Phase 2 (architecture) | Approval gate — wait for user confirmation |
-| Escalation (3 BLOCKs) | Request a decision from the user |
-| New metadata object | Protocol “agent → user”: instruction → wait for creation → verification |
+| Escalation (3 BLOCK) | Request a decision from the user |
+| New metadata object | Agent → user protocol: instruction → wait for creation → verification |
 
-**Clarification protocol (clarification round):**
+**Clarification round protocol:**
 
 ```
 Agent → clarification_needed
@@ -182,76 +187,79 @@ Agent → clarification_needed
 Orchestrator reads task_dir/.context/{role}-context.md → asks questions to the user
   │
   ▼
-User answers
+User replies
   │
   ▼
-Orchestrator records answers in the User Answers section of task_dir/.context/{role}-context.md
+Orchestrator records answers in task_dir/.context/{role}-context.md → User Answers
   │
-  ├── is agentId still valid? → resume (optimization, same session)
-  └── agentId outdated?  → relaunch the agent with task_dir
-                           (agent reads the context at step 1)
+  ├── agentId still valid? → resume (optimization, same session)
+  └── agentId outdated?  → start the agent anew with task_dir
+                           (agent reads the context itself at step 1)
   │
   ▼
-Agent continues with preserved context, without redoing exploration
+Agent continues with the saved context, without repeating exploration
   │
   ▼
 Specification / technical design ready
-(if clarification_needed appears again → escalate to the user,
- not a third round — the agent MUST write the artifact with assumptions)
+(if clarification_needed again → escalate to the user,
+ no third round — agent MUST write the artifact with assumptions)
 ```
 
 ---
 
 ## Orchestrator protocol
 
-### Action sequence
+### Sequence of actions
 
 ```
 1. Receive the task from the user
    ↓
 2. Initialize task_dir:
    - If a task number/path is provided → use the existing directory
-   - Otherwise → create tasks/TASK-XXX-name/
+   - Otherwise → create tasks/TASK-XXX-название/
    - Create/read task_dir/.context/sessions.json
-   - Create/update task_dir/.context/orchestrator-context.md: write the START event with date-time and task text
+   - Create/append task_dir/.context/orchestrator-context.md: log the START event with timestamp and the task text
    ↓
-3. Launch Explorer to explore the codebase
-   - Explorer returns: list of affected modules, call graphs (incoming + outgoing),
-     dependency depth, number of call sites
-   - Save the Explorer artifact in `task_dir/.context/explorer-context.md`
-   - Record Explorer agentId in `task_dir/.context/sessions.json` → key "explorer"
-   - Based on this data, classify the task (simple / medium / complex)
+3. Launch Explorer to inspect the codebase
+   - Explorer returns: list of impacted modules, call graphs (incoming + outgoing),
+     dependency depth, number of call points
+   - Save the Explorer artifact to `task_dir/.context/explorer-context.md`
+   - Record Explorer's agentId in `task_dir/.context/sessions.json` → key "explorer"
+   - Classify the task based on these data (simple / medium / complex)
    ↓
-4. Choose a workflow based on the classification:
+4. Choose a workflow based on classification:
    - Simple → quick-fix.md
    - Medium/Complex → full-cycle.md
    ↓
-5. For each phase of the chosen workflow:
-   a. Launch the agent (model defined in agent frontmatter)
-      - Optimization: read `task_dir/.context/sessions.json`; if an agentId exists for this role → try to resume
-      - After launch: record the agentId in `task_dir/.context/sessions.json` → the agent role key
-   b. Provide input plus explicit task_dir
+5. For each phase of the selected workflow:
+   a. Launch the agent (model specified in agent frontmatter)
+      - Optimization: read `task_dir/.context/sessions.json`; if the agentId for this role exists → try resume
+      - After launch: record the agentId in `task_dir/.context/sessions.json` → key for the agent role
+   b. Pass inputs + explicitly task_dir
       - **For Phase 1 (Analyst):** task + `task_dir/.context/explorer-context.md` (module list, call graphs)
       - **For Phase 2 (Architect):** approved spec + `task_dir/.context/explorer-context.md` (call graphs, dependencies)
-   c. Collect the output artifact → save it in task_dir
-      - Write to `task_dir/.context/orchestrator-context.md`: phase completion event (agent, result — OK / BLOCK / clarification_needed)
+      - **For Phase 3a (Scenario-Author):** spec + technical-design + task-breakdown.json (runs in parallel with Phase 3b)
+      - **For Phase 3b (Developer-Tests):** spec + technical-design + task-breakdown.json (runs in parallel with Phase 3a)
+      - **For Phase 3c (Developer-Code):** spec + technical-design + task-breakdown.json + test modules from Phase 3b + `.feature` files from Phase 3a
+   c. Collect the output artifact → save it to task_dir
+      - Record in `task_dir/.context/orchestrator-context.md`: phase completion event (agent, result — OK / BLOCK / clarification_needed)
    d. If review is required:
       - Launch Reviewer with [TASK]+[SPEC]+[ARTIFACT]+[CHECKLIST]+[review_scope]
-      - Pass `review_scope` explicitly: "spec" | "arch" | "tests" | "code" | "tester"
-      - For Phase 2, ensure [ARTIFACT] includes `task_dir/.spec/technical-design.md` + `task_dir/.context/task-breakdown.json`
-      - Record Reviewer agentId in `task_dir/.context/sessions.json` → key "reviewer-{scope}"
-      - Save review results in `task_dir/.context/reviewer-context-{scope}.md`
-      - Handle the outcome (pass / iterate / escalate)
-      - If necessary: start codex-review as a second opinion (see section 6)
+      - Pass `review_scope` explicitly: "spec" | "arch" | "bdd" | "tests" | "code" | "tester"
+      - For Phase 2, [ARTIFACT] must include `task_dir/.spec/technical-design.md` + `task_dir/.context/task-breakdown.json`
+      - Record the Reviewer agentId in `task_dir/.context/sessions.json` → key "reviewer-{scope}"
+      - Save the review result in `task_dir/.context/reviewer-context-{scope}.md`
+      - Process the outcome (pass / iterate / escalate)
+      - If needed: run codex-review as a second opinion (see section 6)
    e. If the agent returned `clarification_needed` (Phase 1 — Analyst, Phase 2 — Architect):
-      - Read `task_dir/.context/{role}-context.md` — it contains the question list
-      - Ask ALL questions to the user in one block
+      - Read `task_dir/.context/{role}-context.md` — this file contains the list of questions
+      - Ask ALL questions to the user in one batch
       - Wait for answers
-      - Record answers in the User Answers section of `task_dir/.context/{role}-context.md`
+      - Record the answers in the `User Answers` section of `task_dir/.context/{role}-context.md`
       - Rerun the agent with the original task + task_dir
         (the agent will read the context and answers at startup)
-      - Optimization: if the agentId from the previous run is still valid —
-        use resume instead of a fresh launch
+      - Optimization: if the agentId from the previous run is current —
+        use resume instead of a new launch
       - If clarification_needed occurs again → escalate to the user (do not repeat)
    f. Pass the artifact to the next phase
    ↓
@@ -261,20 +269,60 @@ Specification / technical design ready
 7. Deliver the result to the user
 ```
 
-### Step 4d details (review handling)
+### Detailing step 4d (review handling)
 
 | Review result | Action |
-|-----------------|----------|
-| OK (no BLOCK) | Proceed to the next phase. WARN/INFO — at the author’s discretion (can fix later). |
+|---------------|--------|
+| OK (no BLOCK) | Move to the next phase. WARN/INFO — optional for the author (can fix later). |
 | BLOCK, iteration ≤ 3 | Return the artifact to the author with comments. Repeat the cycle. The same iteration rules apply to Task Breakdown JSON. |
-| BLOCK, iteration > 3 | Escalate to the user. Stop. For Task Breakdown JSON: more than 3 iterations is forbidden; user decision is required. |
-| Phase 2: OK | Stop. Ask the user for confirmation. After confirmation — Phase 3. |
+| BLOCK, iteration > 3 | Escalate to the user. Stop. For Task Breakdown JSON: more than 3 iterations is prohibited; a user decision is required. |
+| Phase 2: OK | Stop. Ask the user for confirmation. After confirmation — Phase 3 (parallel launch of 3a + 3b). |
+
+### Parallel launch of Phase 3a and Phase 3b
+
+After user confirmation of Phase 2, the Orchestrator launches **both simultaneously**:
+
+- **Phase 3a — Scenario-Author (BDD):** writes `.feature` scenario files based on spec + technical-design + task-breakdown.json
+- **Phase 3b — Developer-Tests:** writes unit test modules based on spec + technical-design + task-breakdown.json
+
+**Parallel launch rules:**
+
+1. Phase 3a and Phase 3b are **independent** — they do not depend on each other’s artifacts, both receive: spec + technical-design + task-breakdown.json.
+2. The Orchestrator **waits for both** to finish (including each review) before starting Phase 3c.
+3. **Phase 3c (Developer-Code)** receives the complete set: spec + technical-design + task-breakdown.json + test modules from Phase 3b + `.feature` files from Phase 3a.
+4. If one agent (3a or 3b) returned `clarification_needed` or got a BLOCK from a reviewer — handle them **independently**, without blocking the other parallel agent.
+5. If one completes earlier — wait for the other; the first result is stored in `task_dir/.context/`.
+
+**Diagram:**
+
+```
+Phase 2 OK + User Approval
+         │
+    ┌────┴────┐
+    ▼         ▼
+ Phase 3a  Phase 3b
+ (Scenario  (Developer
+  -Author)   -Tests)
+    │         │
+    ▼         ▼
+ Review    Review
+ (bdd)     (tests)
+    │         │
+    └────┬────┘
+         │  (waiting for both)
+         ▼
+      Phase 3c
+   (Developer-Code)
+         │
+         ▼
+      Review (code)
+```
 
 ---
 
 ## Context log (`task_dir/.context/orchestrator-context.md`)
 
-A minimalist journal of key events. Maintained continuously — allows resuming the task from the same point when the Orchestrator stops.
+A minimalist journal of key events. It is maintained continuously — enabling task resumption from the same point if the Orchestrator stops.
 
 **Entry format:**
 ```
@@ -283,15 +331,15 @@ A minimalist journal of key events. Maintained continuously — allows resuming 
 
 **Key events to record:**
 
-| Event | When to log |
-|---------|-------------|
-| `START` | Task start, task text in one line |
-| `PHASE` | Launch of each phase (Explorer, Analyst, Architect, Developer, Tester, Reviewer) |
-| `DONE_PHASE` | Phase completion, outcome (OK / BLOCK / clarification_needed) |
-| `CLARIFICATION` | Request for clarification from the user |
-| `USER_INPUT` | User response received |
+| Event | When to write |
+|-------|---------------|
+| `START` | Task start, the task text in one line |
+| `PHASE` | Launch of each phase (Explorer, Analyst, Architect, Scenario-Author, Developer, Tester, Reviewer) |
+| `DONE_PHASE` | Phase completion, result (OK / BLOCK / clarification_needed) |
+| `CLARIFICATION` | Clarification requested from the user |
+| `USER_INPUT` | User answer received |
 | `REVIEW_BLOCK` | Reviewer placed BLOCK, iteration number |
-| `ESCALATE` | Escalate to the user |
+| `ESCALATE` | Escalation to the user |
 | `RESUME` | Resuming the task after a stop |
 | `DONE` | Task completed |
 
@@ -299,12 +347,12 @@ A minimalist journal of key events. Maintained continuously — allows resuming 
 ```
 [2026-03-02 10:15] START: Add attribute "ДатаОтгрузки" to document Реализация
 [2026-03-02 10:16] PHASE: Explorer — codebase exploration
-[2026-03-02 10:18] DONE_PHASE: Explorer — OK, task classified as MEDIUM
+[2026-03-02 10:18] DONE_PHASE: Explorer — OK, the task was classified as MEDIUM
 [2026-03-02 10:18] PHASE: Analyst — specification creation
 [2026-03-02 10:22] DONE_PHASE: Analyst — clarification_needed
 [2026-03-02 10:23] CLARIFICATION: Asked the user: is the attribute type Date or DateTime?
 [2026-03-02 10:25] USER_INPUT: Date
-[2026-03-02 10:28] DONE_PHASE: Analyst — OK, task_dir/.spec/spec.md generated
+[2026-03-02 10:28] DONE_PHASE: Analyst — OK, task_dir/.spec/spec.md created
 [2026-03-02 10:29] PHASE: Reviewer (scope: spec)
 [2026-03-02 10:31] DONE_PHASE: Reviewer spec — OK
 ...
@@ -312,20 +360,20 @@ A minimalist journal of key events. Maintained continuously — allows resuming 
 ```
 
 **Rules:**
-- Do not duplicate artifact contents — only record the event occurrence.
+- Do not duplicate artifact contents — only note the event.
 - One line per event maximum.
-- When resuming the task — append to the existing log, do not overwrite.
+- When resuming the task — append to the existing log instead of overwriting.
 
 ---
 
 ## Final report (`task_dir/.spec/final-report.md`)
 
-Compiled by the Orchestrator after all task phases are complete.
+The Orchestrator generates this after all phases are complete.
 
 **Format:**
 
 ```markdown
-# Report: TASK-XXX-name
+# Report: TASK-XXX-название
 
 ## New metadata objects
 - Справочник.НовыйСправочник
@@ -333,7 +381,7 @@ Compiled by the Orchestrator after all task phases are complete.
 
 ## Modified objects
 <!-- Objects listed under "New" should not be repeated here -->
-- Документ.Реализация — added attribute ДатаОтгрузки
+- Документ.Реализация — added the attribute ДатаОтгрузки
 - РегистрНакопления.ТоварыНаСкладах — added a new filter
 - ОбщийМодуль.РаботаСДокументами — updated the procedure ПровестиДокумент
 
@@ -342,96 +390,7 @@ A brief semantic description in free form — what was implemented, which busine
 ```
 
 **Rules:**
-- If an object appears in “New” — it **must not be duplicated** under “Modified.”
-- Metadata objects must be specified in the 1С notation: `Type.Name` (e.g., `Справочник.Контрагенты`).
-- Sub-objects (forms, attributes, tabular sections) should be indicated using dots: `Документ.Реализация.Форма.ФормаДокумента`.
+- If an object appears under “New” — it must **not** be duplicated under “Modified”.
+- List metadata objects in the 1C notation `Type.Name` (for example `Справочник.Контрагенты`).
+- Sub-objects (forms, attributes, tabular sections) are listed with dots: `Документ.Реализация.Форма.ФормаДокумента`.
 - The “What was done” section is free text, 3–7 sentences.
-
----
-
-## Decision tree for classification
-
-```
-Задача от пользователя
-         │
-         ├─► Требуются новые объекты метаданных?
-         │        Да → СЛОЖНАЯ → full-cycle
-         │
-         ├─► Изменяется поток данных / архитектура?
-         │        Да → СЛОЖНАЯ → full-cycle
-         │
-         ├─► Исправление бага в одном файле?
-         │        Да → ПРОСТАЯ → quick-fix
-         │
-         ├─► Всё остальное
-         │        → СРЕДНЯЯ → full-cycle
-         │
-         └─► (По умолчанию при неопределённости)
-                   → СРЕДНЯЯ → full-cycle
-```
-
-### Tree rules
-
-| Question | “Yes” answer | Complexity |
-|--------|------------|------------|
-| Are new metadata objects required (directories, documents, registers, forms)? | Yes | Complex |
-| Does the data flow or architecture of the solution change? | Yes | Complex |
-| Is this a bug fix in a single file? | Yes | Simple |
-| Everything else | — | Medium |
-
-**In case of uncertainty:** treat it as medium and use full-cycle.
-
----
-
-## Orchestrator diagram
-
-```
-  ┌──────────┐
-  │  Задача  │
-  └─────┬────┘
-        ▼
-  ┌──────────────────────┐
-  │ Explorer (Economy)   │
-  │ классификация задачи │
-  └──────────┬───────────┘
-             │
-     ┌───────┴────────┐
-     ▼                ▼
- [Простая]     [Средняя/Сложная]
-     │                │
-     ▼                ▼
-┌──────────┐   ┌─────────────────────────────────────────┐
-│quick-fix │   │              full-cycle                  │
-│          │   │                                          │
-│ 1. Найти │   │  Analyst ──► Review ──► Architect ──►    │
-│ 2. Fixить│   │  Review ──► ⏸ User OK? ──► Developer    │
-│ 3. Check │   │  ──► Review ──► Tester ──► Review ──►   │
-│          │   │  Formatter                               │
-└─────┬────┘   └───────────────────┬─────────────────────┘
-      │                            │
-      └────────────┬───────────────┘
-                   ▼
-            ┌────────────┐
-            │  Результат │
-            └────────────┘
-```
-
----
-
-## Related resources
-
-| Resource | Relation |
-|--------|-------|
-| [full-cycle.md](./full-cycle.md) | Deterministic workflow |
-| [quick-fix.md](./quick-fix.md) | Lightweight workflow |
-| [cross-review-policy.md](../rules/cross-review-policy.md) | Review protocol |
-| [docs/SPEC-001-framework-architecture.md](../../docs/SPEC-001-framework-architecture.md) | Framework architecture |
-
----
-depends_on:
-  - framework/workflows/full-cycle.md
-  - framework/workflows/quick-fix.md
-  - framework/rules/cross-review-policy.md
-  - framework/rules/agent-context-protocol.md
-  - framework/skills/tool-usage/codex-review/SKILL.md
----

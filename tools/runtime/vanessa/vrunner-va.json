@@ -11,6 +11,6 @@
   },
   "vanessa": {
     "--workspace": ".",
-    "--vanessasettings": "framework/runtime/vanessa/va-params.template.json"
+    "--vanessasettings": "tools/runtime/vanessa/va-params.template.json"
   }
 }

@@ -1,18 +1,19 @@
 ---
 name: full-cycle
-description: Full development cycle with mandatory cross-review at every phase.
+description: Full development cycle with mandatory cross-review on every phase.
 ---
 
 
-# Workflow: Full Cycle Development (Full Cycle)
 
-> **DETERMINISTIC** workflow. Cross-review at every step. Used for medium- and high-complexity tasks.
+# Workflow: Full development cycle (Full Cycle)
+
+> **DETERMINISTIC** workflow. Cross-review at every step. Used for medium and high complexity tasks.
 
 ---
 
 ## Purpose
 
-Full cycle development is a tightly structured process with mandatory artifact verification at every phase. Each output of one agent is reviewed by the next agent (reviewer) following a checklist. Ensures quality and predictability of the result.
+The full development cycle is a strictly structured process with mandatory artifact verification at each phase. Every output from one agent is reviewed by the next agent (reviewer) against a checklist. Ensures quality and predictability of the result.
 
 ---
 
@@ -20,49 +21,61 @@ Full cycle development is a tightly structured process with mandatory artifact v
 
 ```
   ┌──────────────────┐
-  │ User task        │
+  │ Задача от        │
+  │ пользователя     │
   └────────┬─────────┘
            ▼
 ╔══════════════════════════╗
-║  Phase 0: Classification ║
+║  Phase 0: Классификация  ║
 ║  Explorer (Economy)      ║
 ╚════════════╤═════════════╝
              │
      ┌───────┴───────┐
      ▼               ▼
- [Simple]    [Medium/Complex]
+ [Простая]    [Средняя/Сложная]
      │               │
      ▼               ▼
 ┌─────────┐  ╔═══════════════════════════════════════╗
-│quick-fix│  ║  Phase 1: Analysis                     ║
-│ 3 steps │  ║  Analyst (Mid/High) ──► Reviewer (P)  ║
+│quick-fix│  ║  Phase 1: Анализ                      ║
+│ 3 шага  │  ║  Analyst (Mid/High) ──► Reviewer (P)  ║
 └────┬────┘  ║       ▲ BLOCK ◄──────────┘            ║
      │       ╚══════════════════╤════════════════════╝
      │                          ▼
      │       ╔═══════════════════════════════════════╗
-     │       ║  Phase 2: Architecture               ║
+     │       ║  Phase 2: Архитектура                 ║
      │       ║  Architect (High) ──► Reviewer (P)    ║
      │       ║       ▲ BLOCK ◄──────────┘            ║
      │       ╠═══════════════════════════════════════╣
-     │       ║  ⏸  STOP: awaiting OK from user       ║
+     │       ║  ⏸  STOP: ждём ОК от пользователя    ║
      │       ╚══════════════════╤════════════════════╝
      │                          ▼
      │       ╔═══════════════════════════════════════╗
-     │       ║  Phase 3a: Tests                     ║
-     │       ║  Developer-Tests (High) ──► Reviewer  ║
-     │       ║       ▲ BLOCK ◄──────────┘            ║
+     │       ║  Phase 3a + 3b: ПАРАЛЛЕЛЬНО           ║
+     │       ║                                       ║
+     │       ║  ┌─────────────────────────────────┐  ║
+     │       ║  │ 3a: BDD-сценарии                │  ║
+     │       ║  │ Scenario-Author ──► Reviewer     │  ║
+     │       ║  │     ▲ BLOCK ◄──────────┘         │  ║
+     │       ║  └─────────────────────────────────┘  ║
+     │       ║  ┌─────────────────────────────────┐  ║
+     │       ║  │ 3b: Unit-тесты                  │  ║
+     │       ║  │ Developer-Tests ──► Reviewer     │  ║
+     │       ║  │     ▲ BLOCK ◄──────────┘         │  ║
+     │       ║  └─────────────────────────────────┘  ║
+     │       ║                                       ║
+     │       ║  Оба MUST завершиться перед Phase 3c  ║
      │       ╚══════════════════╤════════════════════╝
      │                          ▼
      │       ╔═══════════════════════════════════════╗
-     │       ║  Phase 3b: Implementation            ║
+     │       ║  Phase 3c: Реализация                 ║
      │       ║  Developer-Code (High) ──► Reviewer   ║
      │       ║       ▲ BLOCK ◄──────────┘            ║
-     │       ║  test_failure → Reviewer → root cause ║
-     │       ║  → returns to the appropriate agent  ║
+     │       ║  test_failure → Reviewer → причина    ║
+     │       ║  → возврат нужному агенту             ║
      │       ╚══════════════════╤════════════════════╝
      │                          ▼
      │       ╔═══════════════════════════════════════╗
-     │       ║  Phase 4: Coverage and regression     ║
+     │       ║  Phase 4: Покрытие и регрессия        ║
      │       ║  Tester (Mid/High) ──► Reviewer (H)   ║
      │       ║       ▲ BLOCK ◄──────────┘            ║
      │       ╚══════════════════╤════════════════════╝
@@ -70,12 +83,12 @@ Full cycle development is a tightly structured process with mandatory artifact v
      └──────────┬───────────────┘
                 ▼
   ┌──────────────────────┐
-  │ Result               │
-  │ to the user          │
+  │ Результат            │
+  │ пользователю         │
   └──────────────────────┘
 
-  Legend: (P) = Premium tier, (H) = High tier
-           BLOCK = return to author, max 3 iterations
+  Легенда: (P) = Premium tier, (H) = High tier
+           BLOCK = возврат автору, макс. 3 итерации
 ```
 
 ---
@@ -86,10 +99,10 @@ Full cycle development is a tightly structured process with mandatory artifact v
 
 | Element | Description |
 |---------|-------------|
-| **Input** | User task |
-| **Action** | Explorer investigates the codebase: identifies affected modules, builds call graphs (incoming + outgoing), uncovers transitive dependencies |
+| **Input** | Task from the user |
+| **Action** | Explorer inspects the codebase: locates affected modules, builds call graphs (incoming + outgoing), identifies transitive dependencies |
 | **Output** | List of affected modules + call graphs + factual data (dependency depth, number of call sites) |
-| **Routing** | The orchestrator classifies the task using Explorer data: Simple → `quick-fix.md`; Medium/Complex → Phase 1 |
+| **Routing** | Orchestrator classifies the task based on Explorer data: Simple → `quick-fix.md`; Medium/Complex → Phase 1 |
 
 > Explorer artifacts (`task_dir/.context/explorer-context.md`) are passed by the orchestrator to both Phase 1 (Analyst) and Phase 2 (Architect) as context for the affected modules and dependencies.
 
@@ -102,10 +115,10 @@ Full cycle development is a tightly structured process with mandatory artifact v
 | Element | Description |
 |---------|-------------|
 | **Input** | Task + `task_dir/.context/explorer-context.md` (list of affected modules, call graphs) |
-| **Action** | Analyst creates a specification in MADR 4.0 format + RFC 2119 |
+| **Action** | Analyst creates a specification using MADR 4.0 + RFC 2119 |
 | **Output** | `task_dir/.spec/spec.md` (SPEC document) |
-| **Review** | Reviewer (Premium) checks the specification against the specification checklist |
-| **Iterations** | Maximum 3, then escalate to the user |
+| **Review** | Reviewer (Premium) verifies the spec against the specification checklist |
+| **Iterations** | Up to 3, then escalate to the user |
 
 **Review checklist:** [cross-review-policy.md](../rules/cross-review-policy.md) → Specification checklist
 
@@ -115,40 +128,55 @@ Full cycle development is a tightly structured process with mandatory artifact v
 
 | Element | Description |
 |---------|-------------|
-| **Input** | Approved `task_dir/.spec/spec.md` + `task_dir/.context/explorer-context.md` (call graphs, dependencies of the affected modules) |
-| **Action** | Architect designs the solution (Technical Design) and decomposes the specification into a Task Breakdown JSON (tasks, dependencies, task types, links to specification sections) |
-| **Output** | `task_dir/.spec/technical-design.md` + `task_dir/.context/task-breakdown.json` + link/summary of the JSON in `task_dir/.spec/spec.md` |
-| **Review** | Reviewer (Premium) checks the architecture and Task Breakdown JSON against checklists |
-| **STOP** | Awaiting explicit confirmation from the user before Phase 3 |
+| **Input** | Approved `task_dir/.spec/spec.md` + `task_dir/.context/explorer-context.md` (call graphs, dependencies of affected modules) |
+| **Action** | Architect designs the solution (Technical Design) and decomposes the spec into a Task Breakdown JSON (tasks, dependencies, task types, references to spec sections) |
+| **Output** | `task_dir/.spec/technical-design.md` + `task_dir/.context/task-breakdown.json` + a link/summary of the JSON inside `task_dir/.spec/spec.md` |
+| **Review** | Reviewer (Premium) checks the architecture and Task Breakdown JSON against the checklists |
+| **STOP** | Await user confirmation before Phase 3 |
 
-**Important:** The phase is blocked until the user explicitly approves. This is the control point for architectural decisions.
+**Important:** The phase is blocked until explicit user approval. This is the control point for architectural decisions.
 
 ---
 
-### Phase 3a: Writing tests (Developer-Tests → High)
+### Phase 3a: BDD scenarios (Scenario-Author → Mid/High)
+
+| Element | Description |
+|---------|-------------|
+| **Input** | Approved `task_dir/.spec/spec.md` with the Acceptance Scenarios section + `task_dir` |
+| **Action** | Scenario-Author converts intent scenarios from the specification into executable Vanessa Automation `.feature` files. Intent scenarios are formalized requirements, NOT templates. |
+| **Output** | `.feature` files in `<project_root>/vanessa-tests/features/` |
+| **Review** | Reviewer (scope=bdd) verifies: coverage of scenarios from the spec, correct Gherkin, proper use of the step library |
+
+> Phase 3a runs **IN PARALLEL** with Phase 3b. They are independent.
+
+---
+
+### Phase 3b: Writing unit tests (Developer-Tests → High)
 
 | Element | Description |
 |---------|-------------|
 | **Input** | Approved `task_dir/.spec/spec.md` + Test Plan + `task_dir` |
-| **Action** | Developer-Tests writes YaxUnit unit tests for ALL MUST scenarios from the Test Plan — strictly according to the spec, without implementation. Tests MUST fail (Red). |
-| **Output** | Test modules (.bsl) — tests fail (implementation is not yet present) |
-| **Review** | Reviewer (Premium) checks the tests: coverage completeness for MUST scenarios, correctness of assertions |
+| **Action** | Developer-Tests writes YaxUnit unit tests for ALL MUST scenarios from the Test Plan — strictly following the spec, without implementation. Tests MUST fail (Red). |
+| **Output** | Test modules (.bsl) — tests do not pass (implementation is absent) |
+| **Review** | Reviewer (Premium) checks the tests: coverage of MUST scenarios, correctness of assertions |
 
-> Developer-Tests DOES NOT see or influence the implementation. Conflict of interest is excluded.
+> Developer-Tests DOES NOT see or modify the implementation. Conflict of interest is excluded.
+> Phase 3b runs **IN PARALLEL** with Phase 3a. They are independent.
 
 ---
 
-### Phase 3b: Implementation (Developer-Code → High)
+### Phase 3c: Implementation (Developer-Code → High)
 
 | Element | Description |
 |---------|-------------|
-| **Input** | `task_dir/.spec/spec.md` + `task_dir/.spec/technical-design.md` + `task_dir/.context/task-breakdown.json` + test modules from Phase 3a + `task_dir` |
-| **Action** | Developer-Code writes BSL code so that the tests from Phase 3a pass (Green). Does NOT write or modify tests. Runs only Phase 3a tests (targeted run), not the full regression suite. |
-| **Output** | BSL modules + XML metadata — all Phase 3a tests pass |
-| **Review** | Reviewer (Premium) checks the code against the BSL checklist |
-| **test_failure** | If the tests fail → Developer-Code notifies the orchestrator with the `test_failure` tag. If the `suspected_test_error` flag is set, the orchestrator initiates Reviewer arbitration: compare spec + technical design + tests + code and determine which artifact is incorrect (tests or code). Based on the Reviewer summary, the orchestrator routes: to Developer-Tests or back to Developer-Code. |
+| **Input** | `task_dir/.spec/spec.md` + `task_dir/.spec/technical-design.md` + `task_dir/.context/task-breakdown.json` + test modules from Phase 3b + `.feature` files from Phase 3a + `task_dir` |
+| **Action** | Developer-Code writes BSL code so that the tests from Phase 3b pass (Green). Does NOT write or modify the tests. Runs only the Phase 3b tests (targeted run), not the full regression suite. |
+| **Output** | BSL modules + metadata XML — all Phase 3b tests pass |
+| **Review** | Reviewer (Premium) checks the code using the BSL checklist |
+| **test_failure** | If tests fail → Developer-Code signals the orchestrator with the `test_failure` tag. If the `suspected_test_error` flag is set, the orchestrator triggers Reviewer arbitration: align spec + technical-design + tests + code and record which artifact is wrong (tests or code). Based on the reviewer summary the orchestrator routes back to Developer-Tests or Developer-Code. |
 
-**The TDD rule is enforced by the orchestrator:** Phase 3a ALWAYS precedes Phase 3b. See [tdd-policy.md](../rules/tdd-policy.md)
+**TDD+BDD rule is enforced by the orchestrator:** Phase 3a (BDD) and Phase 3b (unit tests) run in parallel. Phase 3c starts ONLY after both have completed and passed review.
+See [tdd-policy.md](../rules/tdd-policy.md)
 
 ---
 
@@ -156,40 +184,102 @@ Full cycle development is a tightly structured process with mandatory artifact v
 
 | Element | Description |
 |---------|-------------|
-| **Input** | Code + tests from Phase 3 + test plan from `task_dir/.spec/spec.md` |
-| **Action** | Tester verifies coverage of the test plan, adds missing tests (edge cases, integration, regression), runs the full run |
-| **Output** | Full set of tests (unit + regression) + run results + `task_dir/.spec/test-report.md` |
-| **Review** | Reviewer (High) checks the tests against the testing checklist |
+| **Input** | Code from Phase 3c + unit tests from Phase 3b + `.feature` files from Phase 3a + the test plan from `task_dir/.spec/spec.md` |
+| **Action** | Tester runs all tests (unit + BDD), verifies coverage, adds missing tests (edge cases, integration, regression), and runs the full pass |
+| **Output** | Full test suite (unit + BDD + regression) + run results + `task_dir/.spec/test-report.md` |
+| **Review** | Reviewer (High) checks the tests using the test checklist |
 
-**Important:** Phase 4 DOES NOT duplicate Phase 3. Developer writes unit tests following TDD. Tester supplements coverage: edge cases, negative scenarios, integration tests, regression.
+**Important:** Phase 4 does NOT duplicate Phase 3. Developers write unit tests via TDD. Tester supplements coverage: edge cases, negative scenarios, integration tests, regression.
 
 **Tools:** `run_tests`, `check_syntax`, `get_diagnostics`
 
 ---
 
-## Artifact handover between phases
+## Artifact handoff between phases
 
-### Handover rules
+### Handoff rules
 
 | From phase | To phase | Artifact | Format |
 |------------|----------|----------|--------|
 | Phase 0 | Phase 1 | List of affected modules + call graphs (incoming/outgoing) + dependency depth | `task_dir/.context/explorer-context.md` |
-| Phase 0 | Phase 2 | Same Explorer artifacts — orchestrator forwards them again | `task_dir/.context/explorer-context.md` |
+| Phase 0 | Phase 2 | Same Explorer artifacts — orchestrator reuses them | `task_dir/.context/explorer-context.md` |
 | Phase 0 | quick-fix | Classification + list of modules | `task_dir/.context/explorer-context.md` |
 | Phase 1 | Phase 2 | `task_dir/.spec/spec.md` | Markdown, MADR 4.0 |
-| Phase 2 | Phase 3a | `task_dir/.spec/spec.md` + `task_dir/.spec/technical-design.md` + `task_dir/.context/task-breakdown.json` | Markdown + JSON |
-| Phase 3a | Phase 3b | Test modules (.bsl) — failing tests | .bsl files |
-| Phase 3b | Phase 4 | BSL modules + all tests green | .bsl files |
-| Phase 4 | User | Entire set of artifacts | Folder/task bundle |
+| Phase 2 | Phase 3a | `task_dir/.spec/spec.md` (Acceptance Scenarios) + `task_dir` | Markdown |
+| Phase 2 | Phase 3b | `task_dir/.spec/spec.md` + `task_dir/.spec/technical-design.md` + `task_dir/.context/task-breakdown.json` | Markdown + JSON |
+| Phase 3a | Phase 3c | `.feature` files (Vanessa BDD scenarios) | `.feature` |
+| Phase 3b | Phase 3c | Test modules (.bsl) — failing unit tests | `.bsl` files |
+| Phase 3c | Phase 4 | BSL modules + `.feature` + all unit tests green | `.bsl` + `.feature` |
+| Phase 4 | user | Entire set of artifacts | Folder/task bundle |
 
-### Mandatory fields in artifacts
+### Required fields in artifacts
 
 - **Specification:** Context, Requirements (RFC 2119), Scope, Test Plan, Acceptance Criteria
-- **Technical Design (`task_dir/.spec/technical-design.md`):** Components, interfaces, division of responsibilities (user/agent)
-- **Task Breakdown JSON (`task_dir/.context/task-breakdown.json`):** A separate `.json` file in the "template + example" format (without JSON Schema); required fields: task identifiers (`task_id`), task types (`task_type`), dependencies (`depends_on`), links to specification sections (`spec_refs`), completion criteria
+- **Technical Design (`task_dir/.spec/technical-design.md`):** Components, interfaces, division of responsibility (user/agent)
+- **Task Breakdown JSON (`task_dir/.context/task-breakdown.json`):** Separate `.json` file in a “template + example” format (without JSON Schema); required identifiers for tasks (`task_id`), task types (`task_type`), dependencies (`depends_on`), references to spec sections (`spec_refs`), completion criteria
 - **Code:** File path, compliance with coding standards
-- **Tests:** Link to MUST scenarios from `task_dir/.spec/spec.md`
+- **Tests:** Link to MUST scenarios inside `task_dir/.spec/spec.md`
 
-### Handover channels
+### Channels for handoff
 
-- **Within a single session:** Transfer through the orchestrator context
+- **Within a single session:** Handoff via orchestrator context
+- **Between sessions:** Store in `.tasks/task-[name]/` or in the project configuration
+
+---
+
+## Error handling
+
+### Review blocks (BLOCK)
+
+| Situation | Action |
+|-----------|--------|
+| Reviewer placed BLOCK | Artifact author resolves issues according to the comments |
+| Iteration ≤ 3 | Resubmit for review |
+| Iteration > 3 | **Escalate to the user.** Work stops. The user decides: fix manually, cancel, or remove the BLOCK with justification |
+
+### User rejection
+
+| Rejection point | Action |
+|-----------------|--------|
+| Phase 2 (architecture) | Architect reworks the design based on user feedback. Return to architecture review. |
+| Any phase | The user may request rollback to the previous phase. Context is preserved. |
+
+### Tests failed
+
+| Situation | Action |
+|-----------|--------|
+| `run_tests` produced errors in Phase 3c | **Developer-Code** analyzes the cause. If the issue is in the code → fix the implementation and rerun the Phase 3b targeted tests. If the issue is suspected in the test → set `test_failure` + `suspected_test_error` and finish. The orchestrator starts Reviewer arbitration and, based on the summary, routes the task to Developer-Tests or Developer-Code. |
+| `run_tests` produced errors in Phase 4 | **Tester** determines the cause: incorrect test → fix the test; implementation bug → **return to Developer** with the issue description (Tester DOES NOT fix the implementation code). |
+| Failure during `check_syntax` | Developer fixes the syntax. Mandatory check before review. |
+| Tests do not cover MUST scenarios from the spec | Reviewer places BLOCK per the test checklist. Tester adds tests. |
+
+### Capability unavailable
+
+| Situation | Action |
+|-----------|--------|
+| MCP tool is unavailable | Agent records the reason for skipping (see mandatory-tools escape hatch). Continues with limitations or escalates to the user. |
+
+---
+
+## Related resources
+
+| Resource | Relation |
+|----------|----------|
+| [quick-fix.md](./quick-fix.md) | Route for simple tasks |
+| [orchestrator.md](./orchestrator.md) | Orchestration protocol |
+| [cross-review-policy.md](../rules/cross-review-policy.md) | Review protocol, checklists |
+| [docs/SPEC-001-framework-architecture.md](../../docs/SPEC-001-framework-architecture.md) | Overall architecture |
+
+---
+depends_on:
+  - framework/workflows/quick-fix.md
+  - framework/subagents/explorer.md
+  - framework/subagents/analyst.md
+  - framework/subagents/architect.md
+  - framework/subagents/scenario-author.md
+  - framework/subagents/developer-tests.md
+  - framework/subagents/developer-code.md
+  - framework/subagents/tester.md
+  - framework/subagents/reviewer.md
+  - framework/rules/tdd-policy.md
+---

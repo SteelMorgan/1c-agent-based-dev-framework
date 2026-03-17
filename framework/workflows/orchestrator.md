@@ -55,7 +55,7 @@ description: Оркестратор маршрутизирует задачи и
 - Mid/High — Developer, Tester
 - High/Premium — Architect, Analyst
 - Premium — Reviewer (спека, Task Breakdown JSON-декомпозиция, архитектура)
-- High — Reviewer (код, тесты)
+- High — Reviewer (код, тесты, BDD)
 **НИКОГДА** не запускай сабагента без явного `model`.
 
 ### 3. Управление циклом ревью
@@ -75,7 +75,7 @@ description: Оркестратор маршрутизирует задачи и
 | Tester обнаружил баг в реализации | Tester (метка `implementation_error`) | Вернуть Developer-Code с описанием: какой тест, что ожидалось, что получено |
 | Tester обнаружил ошибку в своём тесте | Tester (метка `test_error`) | Tester исправляет сам, оркестратор не вмешивается |
 | Developer-Code: тесты упали (метка `test_failure`) | Developer-Code | Запустить Reviewer для определения причины: баг в тесте → вернуть Developer-Tests; баг в коде → вернуть Developer-Code |
-| Developer-Code: `test_failure` + `suspected_test_error` | Developer-Code | Запустить Reviewer-арбитраж: сопоставить spec + technical-design + тесты + код, зафиксировать в `reviewer-context-code.md` какой артефакт ошибочен (`tests` или `code`). Далее оркестратор по резюме Reviewer маршрутизирует задачу: в Developer-Tests или в Developer-Code; решение фиксируется в `orchestrator-context.md`. |
+| Developer-Code: `test_failure` + `suspected_test_error` | Developer-Code | Запустить Reviewer-арбитраж: сопоставить spec + technical-design + тесты + код, зафиксировать в `reviewer-context-code.md` какой артефакт ошибочен (`tests` или `code` или `bdd`). Далее оркестратор по резюме Reviewer маршрутизирует задачу: в Scenario-Author, Developer-Tests или в Developer-Code; решение фиксируется в `orchestrator-context.md`. |
 | 3+ итерации без снятия BLOCK | Reviewer / любой агент | Эскалация пользователю, остановка |
 
 ### 4. Управление артефактами
@@ -106,13 +106,15 @@ tasks/
     │   ├── explorer-context.md       ← Explorer (Phase 0)
     │   ├── analyst-context.md        ← Analyst (Phase 1)
     │   ├── architect-context.md      ← Architect (Phase 2)
-    │   ├── developer-tests-context.md← Developer-Tests (Phase 3a)
-    │   ├── developer-code-context.md ← Developer-Code (Phase 3b)
+    │   ├── scenario-author-context.md ← Scenario-Author (Phase 3a)
+    │   ├── developer-tests-context.md← Developer-Tests (Phase 3b)
+    │   ├── developer-code-context.md ← Developer-Code (Phase 3c)
     │   ├── tester-context.md         ← Tester (Phase 4)
     │   ├── reviewer-context-spec.md  ← Reviewer (Phase 1)
     │   ├── reviewer-context-arch.md  ← Reviewer (Phase 2)
-    │   ├── reviewer-context-tests.md ← Reviewer (Phase 3a)
-    │   ├── reviewer-context-code.md  ← Reviewer (Phase 3b)
+    │   ├── reviewer-context-bdd.md   ← Reviewer (Phase 3a)
+    │   ├── reviewer-context-tests.md ← Reviewer (Phase 3b)
+    │   ├── reviewer-context-code.md  ← Reviewer (Phase 3c)
     │   ├── reviewer-context-tester.md← Reviewer (Phase 4)
     │   └── task-breakdown.json       ← Architect (Phase 2)
     └── .spec/                        ← Основные артефакты спецификации и итоговые отчёты
@@ -134,11 +136,13 @@ tasks/
   "explorer":         "agent-xxx",
   "analyst":          "agent-yyy",
   "architect":        "agent-zzz",
+  "scenario-author":  "agent-xxx",
   "developer-tests":  "agent-aaa",
   "developer-code":   "agent-bbb",
   "tester":           "agent-ccc",
   "reviewer-spec":    "agent-ddd",
   "reviewer-arch":    "agent-eee",
+  "reviewer-bdd":     "agent-xxx",
   "reviewer-tests":   "agent-fff",
   "reviewer-code":    "agent-ggg",
   "reviewer-tester":  "agent-hhh"
@@ -148,7 +152,7 @@ tasks/
 **Протокол:**
 - После каждого запуска агента — записать agentId в соответствующий ключ
 - При повторном запуске — прочитать `task_dir/.context/sessions.json`, попробовать `resume agentId`; если agentId устарел — новый запуск, обновить запись
-- Reviewer запускается отдельно для каждого scope (`reviewer-spec`, `reviewer-arch` и т.д.) — у каждого свой ключ
+- Reviewer запускается отдельно для каждого scope (`reviewer-spec`, `reviewer-arch`, `reviewer-bdd`, `reviewer-tests`, `reviewer-code`, `reviewer-tester`) — у каждого свой ключ
 
 ### 6. Codex-review как второе независимое мнение
 
@@ -235,11 +239,14 @@ tasks/
    b. Передать входные данные + явно task_dir
       - **Для Phase 1 (Analyst):** задача + `task_dir/.context/explorer-context.md` (список модулей, графы вызовов)
       - **Для Phase 2 (Architect):** утверждённая спека + `task_dir/.context/explorer-context.md` (графы вызовов, зависимости)
+      - **Для Phase 3a (Scenario-Author):** spec + technical-design + task-breakdown.json (запуск параллельно с Phase 3b)
+      - **Для Phase 3b (Developer-Tests):** spec + technical-design + task-breakdown.json (запуск параллельно с Phase 3a)
+      - **Для Phase 3c (Developer-Code):** spec + technical-design + task-breakdown.json + тест-модули из Phase 3b + `.feature`-файлы из Phase 3a
    c. Собрать выходной артефакт → сохранить в task_dir
       - Записать в `task_dir/.context/orchestrator-context.md`: событие завершения фазы (агент, результат — OK / BLOCK / clarification_needed)
    d. Если требуется ревью:
       - Запустить Reviewer с [TASK]+[SPEC]+[ARTIFACT]+[CHECKLIST]+[review_scope]
-      - Передать `review_scope` явно: "spec" | "arch" | "tests" | "code" | "tester"
+      - Передать `review_scope` явно: "spec" | "arch" | "bdd" | "tests" | "code" | "tester"
       - Для Phase 2 в [ARTIFACT] обязательно включить `task_dir/.spec/technical-design.md` + `task_dir/.context/task-breakdown.json`
       - Записать agentId Reviewer в `task_dir/.context/sessions.json` → ключ "reviewer-{scope}"
       - Сохранить результат ревью в `task_dir/.context/reviewer-context-{scope}.md`
@@ -270,7 +277,47 @@ tasks/
 | OK (нет BLOCK) | Перейти к следующей фазе. WARN/INFO — по усмотрению автора (можно исправить позже). |
 | BLOCK, итерация ≤ 3 | Вернуть артефакт автору с замечаниями. Повторный цикл. Для Task Breakdown JSON применяются те же правила итераций. |
 | BLOCK, итерация > 3 | Эскалация пользователю. Остановка. Для Task Breakdown JSON: >3 итераций запрещено, требуется решение пользователя. |
-| Phase 2: OK | Остановка. Запрос подтверждения пользователя. После подтверждения — Phase 3. |
+| Phase 2: OK | Остановка. Запрос подтверждения пользователя. После подтверждения — Phase 3 (параллельный запуск 3a + 3b). |
+
+### Параллельный запуск Phase 3a и Phase 3b
+
+После подтверждения пользователем результатов Phase 2 оркестратор запускает **одновременно**:
+
+- **Phase 3a — Scenario-Author (BDD):** пишет `.feature`-файлы сценариев на основе spec + technical-design + task-breakdown.json
+- **Phase 3b — Developer-Tests:** пишет unit-тест-модули на основе spec + technical-design + task-breakdown.json
+
+**Правила параллельного запуска:**
+
+1. Phase 3a и Phase 3b **независимы** — им не нужны артефакты друг друга, оба получают на вход: spec + technical-design + task-breakdown.json.
+2. Оркестратор **ожидает завершения обоих** (включая прохождение ревью каждого) перед запуском Phase 3c.
+3. **Phase 3c (Developer-Code)** получает полный набор: spec + technical-design + task-breakdown.json + тест-модули из Phase 3b + `.feature`-файлы из Phase 3a.
+4. Если один из агентов (3a или 3b) вернул `clarification_needed` или получил BLOCK от ревьюера — обрабатывать **независимо**, не блокируя второй параллельный агент.
+5. Если один завершился раньше — ждать второго; результат первого сохраняется в `task_dir/.context/`.
+
+**Схема:**
+
+```
+Phase 2 OK + User Approval
+         │
+    ┌────┴────┐
+    ▼         ▼
+ Phase 3a  Phase 3b
+ (Scenario  (Developer
+  -Author)   -Tests)
+    │         │
+    ▼         ▼
+ Review    Review
+ (bdd)     (tests)
+    │         │
+    └────┬────┘
+         │  (ждём обоих)
+         ▼
+      Phase 3c
+   (Developer-Code)
+         │
+         ▼
+      Review (code)
+```
 
 ---
 
@@ -288,7 +335,7 @@ tasks/
 | Событие | Когда писать |
 |---------|-------------|
 | `START` | Начало задачи, текст задачи одной строкой |
-| `PHASE` | Запуск каждой фазы (Explorer, Analyst, Architect, Developer, Tester, Reviewer) |
+| `PHASE` | Запуск каждой фазы (Explorer, Analyst, Architect, Scenario-Author, Developer, Tester, Reviewer) |
 | `DONE_PHASE` | Завершение фазы, результат (OK / BLOCK / clarification_needed) |
 | `CLARIFICATION` | Запрос уточнений у пользователя |
 | `USER_INPUT` | Получен ответ пользователя |
@@ -407,9 +454,11 @@ tasks/
 │quick-fix │   │              full-cycle                  │
 │          │   │                                          │
 │ 1. Найти │   │  Analyst ──► Review ──► Architect ──►    │
-│ 2. Fixить│   │  Review ──► ⏸ User OK? ──► Developer    │
-│ 3. Check │   │  ──► Review ──► Tester ──► Review ──►   │
-│          │   │  Formatter                               │
+│ 2. Fixить│   │  Review ──► ⏸ User OK? ──►              │
+│ 3. Check │   │  ┌ Scenario-Author(3a) ─► Review ─┐     │
+│          │   │  └ Developer-Tests(3b) ─► Review ──┘     │
+│          │   │  ──► Developer-Code(3c) ──► Review       │
+│          │   │  ──► Tester ──► Review ──► Formatter     │
 └─────┬────┘   └───────────────────┬─────────────────────┘
       │                            │
       └────────────┬───────────────┘
@@ -434,7 +483,7 @@ tasks/
 depends_on:
   - framework/workflows/full-cycle.md
   - framework/workflows/quick-fix.md
-  - framework/rules/cross-review-policy.md
   - framework/rules/agent-context-protocol.md
-  - framework/skills/tool-usage/codex-review/SKILL.md
+  - framework/skills/tool-usage/review/codex-review/SKILL.md
+  - framework/subagents/scenario-author.md
 ---

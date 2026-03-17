@@ -1,18 +1,18 @@
 ---
 name: quick-fix
-description: Quick fix in one file without cross-review.
+description: Quick fix in a single file without cross-review.
 ---
 
 
-# Workflow: Quick Fix (Quick Fix)
+# Workflow: Quick Fix
 
-> **Three steps without cross-review.** For simple tasks: bug fix, minor edit, a single point of change.
+> **Three steps without cross-review.** For simple tasks: bug fix, minor tweak, single point of change.
 
 ---
 
 ## Purpose
 
-Quick-fix is a lightweight workflow for tasks that do not require a full cycle. One agent (Developer) performs all the work. A reviewer is not involved. Saves time and tokens.
+Quick-fix is a lightweight workflow for tasks that do not require the full cycle. One agent (Developer) carries out the entire scope of work. No reviewer is involved. Saves time and tokens.
 
 ---
 
@@ -24,11 +24,11 @@ Quick-fix is a lightweight workflow for tasks that do not require a full cycle. 
 | **Architectural decisions** | No | Yes |
 | **New metadata objects** | No | Yes (or possible) |
 | **New features** | No | Yes |
-| **Task type** | Bug fix, variable refactoring, pinpoint edit | New feature, integration, module refactoring |
+| **Task type** | Bug fix, variable refactor, targeted tweak | New feature, integration, module refactor |
 
 ### Quick reminder
 
-- **Quick-fix:** change in one file, fewer than 20 lines, without architectural decisions, without new features
+- **Quick-fix:** change within one file, under 20 lines, no architectural decisions, no new features
 - **Full-cycle:** everything else
 
 ---
@@ -39,14 +39,14 @@ Quick-fix is a lightweight workflow for tasks that do not require a full cycle. 
 
 | Element | Description |
 |---------|-------------|
-| **Goal** | Locate relevant code and understand the current behavior |
+| **Goal** | Locate the relevant code and understand the current behavior |
 | **Tools** | `navigate_symbol`, `get_call_graph`, `list_metadata_objects`, `get_metadata_structure` |
-| **Output** | Module path, understanding of context, list of affected symbols |
+| **Output** | Path to the module, understanding of the context, list of touched symbols |
 
 **Actions:**
-- Use `navigate_symbol` to locate definitions and usages
+- Use `navigate_symbol` to find definitions and usages
 - Use `get_call_graph` to understand dependencies
-- Ensure that the change is localized
+- Ensure the change is localized
 
 ---
 
@@ -54,14 +54,14 @@ Quick-fix is a lightweight workflow for tasks that do not require a full cycle. 
 
 | Element | Description |
 |---------|-------------|
-| **Goal** | Implement the change |
-| **Rules** | Follow the BSL coding standards ([coding-standards.md](../skills/bsl-practices/coding-standards.md)) |
-| **Output** | Modified BSL module |
+| **Goal** | Make the change |
+| **Rules** | Follow BSL coding standards ([coding-standards.md](../skills/bsl-practices/coding-standards.md)) |
+| **Output** | Updated BSL module |
 
 **Actions:**
-- Apply the minimally required change
-- Avoid adding “improvements” beyond the task
-- Maintain the project’s coding style
+- Apply the minimal necessary change
+- Do not add "improvements" beyond the task
+- Preserve the project code style
 
 ---
 
@@ -69,36 +69,36 @@ Quick-fix is a lightweight workflow for tasks that do not require a full cycle. 
 
 | Element | Description |
 |---------|-------------|
-| **Goal** | Make sure the change did not break the system |
+| **Goal** | Confirm that the change did not break the system |
 | **Tools** | `check_syntax`, `run_tests`, `get_diagnostics` |
-| **Output** | Confirmation: syntax OK, tests passed (if present), no diagnostics |
+| **Output** | Confirmation: syntax OK, tests passed (if available), no diagnostics |
 
 **Actions:**
 1. **check_syntax** — required for the modified module
-2. **run_tests** — if tests exist for the affected module
-3. **get_diagnostics** — confirm no LSP errors
+2. **run_tests** — if there are tests for the affected module
+3. **get_diagnostics** — verify no LSP errors
 
 ---
 
 ## Escalation to Full-cycle
 
-If quick-fix is not sufficient — switch to [full-cycle.md](./full-cycle.md).
+If quick-fix is insufficient — switch to [full-cycle.md](./full-cycle.md).
 
 ### Signs that escalation is needed
 
 | Situation | Action |
 |----------|--------|
 | Tests fail after the change | Fix or escalate to full-cycle (Tester + Reviewer) |
-| The issue affects multiple modules | Full-cycle |
-| An architectural change is needed | Full-cycle |
-| The user requested a review | Full-cycle |
-| The change grew beyond 20 lines | Consider full-cycle |
+| The bug touches multiple modules | Full-cycle |
+| Architectural change is required | Full-cycle |
+| User requested a review | Full-cycle |
+| Change grew beyond 20 lines | Consider full-cycle |
 
 ### Escalation protocol
 
-1. Record the current status (what was done, what failed)
+1. Record the current state (what was done, what failed)
 2. Pass the context to the orchestrator
-3. Launch full-cycle starting with Phase 1 (Analyst) if the context is insufficient, or Phase 3 (Developer) if the specification already exists
+3. Start full-cycle with Phase 1 (Analyst) if context is insufficient, or Phase 3 (Developer) if the spec already exists
 
 ---
 
@@ -106,20 +106,20 @@ If quick-fix is not sufficient — switch to [full-cycle.md](./full-cycle.md).
 
 ```mermaid
 flowchart LR
-    A[Step 1: Find] --> B[Step 2: Fix]
-    B --> C[Step 3: Verify]
+    A[Шаг 1: Найти] --> B[Шаг 2: Исправить]
+    B --> C[Шаг 3: Проверить]
     C --> D{OK?}
-    D -->|Yes| E([Result])
-    D -->|No| F[Escalation: full-cycle]
+    D -->|Да| E([Результат])
+    D -->|Нет| F[Эскалация: full-cycle]
 ```
 
 ---
 
 ## Related resources
 
-| Resource | Connection |
-|----------|------------|
-| [full-cycle.md](./full-cycle.md) | Workflow when escalating |
+| Resource | Relation |
+|--------|-------|
+| [full-cycle.md](./full-cycle.md) | Workflow for escalation |
 | [orchestrator.md](./orchestrator.md) | Routing quick-fix vs full-cycle |
 | [syntax-checking.md](../skills/tool-usage/syntax-checking.md) | Syntax checking skill |
 | [test-execution.md](../skills/tool-usage/test-execution.md) | Test execution skill |
@@ -129,8 +129,8 @@ flowchart LR
 depends_on:
   - framework/workflows/full-cycle.md
   - framework/subagents/explorer.md
-  - framework/subagents/developer.md
+  - framework/subagents/developer-code.md
   - framework/skills/bsl-practices/coding-standards/SKILL.md
-  - framework/skills/tool-usage/syntax-checking/SKILL.md
-  - framework/skills/tool-usage/test-execution/SKILL.md
+  - framework/skills/tool-usage/code-analysis/syntax-checking/SKILL.md
+  - framework/skills/tool-usage/code-analysis/test-execution/SKILL.md
 ---

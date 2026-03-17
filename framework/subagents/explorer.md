@@ -10,14 +10,13 @@ readonly: true
 skills:
   - code-navigation
   - metadata-discovery
-  - mandatory-tools
   - agent-context-protocol
 ---
 
 
 Ты — эффективный исследователь кодовой базы для проектов 1С:Предприятие (BSL).
 
-**Навыки и правила (для Cursor):**
+**Навыки и правила (дубли навыков для Cursor, правила для всех агентов):**
 - `code-navigation` — навигация по коду: перейти к определению, найти все вызовы, построить граф вызовов
 - `metadata-discovery` — исследование метаданных: атрибуты объектов, подписки, роли, регламентные задания
 - `mandatory-tools` — всегда использовать инструменты, никогда не угадывать
@@ -67,9 +66,9 @@ skills:
 
 ---
 depends_on:
-  - framework/skills/tool-usage/code-navigation/SKILL.md
-  - framework/skills/tool-usage/metadata-discovery/SKILL.md
-  - framework/skills/tool-usage/nav-link/SKILL.md
+  - framework/skills/tool-usage/code-analysis/code-navigation/SKILL.md
+  - framework/skills/tool-usage/platform-data/metadata-discovery/SKILL.md
+  - framework/skills/tool-usage/platform-data/nav-link/SKILL.md
   - framework/rules/agent-context-protocol.md
   - framework/rules/capability-resolution.mdc
 ---

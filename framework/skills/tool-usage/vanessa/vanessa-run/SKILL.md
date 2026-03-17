@@ -37,9 +37,9 @@ description: Запуск сценарных тестов Vanessa Automation. И
 Эти файлы находятся во framework и используются как универсальные шаблоны запуска:
 
 ```text
-/.../framework/runtime/vanessa/va-params.template.json
-/.../framework/runtime/vanessa/va-params-debug.template.json
-/.../framework/runtime/vanessa/vrunner-va.json
+/.../tools/runtime/vanessa/va-params.template.json
+/.../tools/runtime/vanessa/va-params-debug.template.json
+/.../tools/runtime/vanessa/vrunner-va.json
 ```
 
 ### Project-local runtime files
@@ -55,7 +55,7 @@ description: Запуск сценарных тестов Vanessa Automation. И
 
 ### Важное разделение
 
-- `framework/runtime/vanessa/*.json` — shared runtime templates фреймворка.
+- `tools/runtime/vanessa/*.json` — shared runtime templates фреймворка.
 - Если в них зашиты пути, feature-каталоги, данные или настройки конкретной базы, они должны существовать как project-local runtime copies.
 - `feature`-сценарии и test data относятся к конкретному проекту и должны быть project-local.
 - Универсальные библиотечные feature/steps Vanessa лежат в каталоге инструментов:
@@ -141,9 +141,9 @@ DISPLAY=:110 vrunner vanessa \
 - `framework/rules/vanessa-security-warning.mdc`
 - `framework/skills/tool-usage/diagnostics/event-log-analysis/SKILL.md`
 - `framework/skills/tool-usage/vanessa/vanessa-diagnostics/SKILL.md`
-- `framework/runtime/vanessa/va-params.template.json`
-- `framework/runtime/vanessa/va-params-debug.template.json`
-- `framework/runtime/vanessa/vrunner-va.json`
+- `tools/runtime/vanessa/va-params.template.json`
+- `tools/runtime/vanessa/va-params-debug.template.json`
+- `tools/runtime/vanessa/vrunner-va.json`
 
 ---
 depends_on:
@@ -151,4 +151,5 @@ depends_on:
   - framework/rules/vanessa-tests-location.mdc
   - framework/rules/vanessa-security-warning.mdc
   - framework/skills/tool-usage/diagnostics/event-log-analysis/SKILL.md
+  - framework/skills/tool-usage/vanessa/vanessa-diagnostics/SKILL.md
 ---

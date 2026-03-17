@@ -181,5 +181,6 @@ errors: [{ module: "УправлениеСкладом", test: "ТестПолу
 | Падение не воспроизводится | Проверить порядок тестов, изоляцию; использовать `run_tests` с узким scope для воспроизведения. |
 
 ---
-depends_on: [test-writing]
+depends_on:
+  - framework/skills/bsl-practices/test-writing/SKILL.md
 ---

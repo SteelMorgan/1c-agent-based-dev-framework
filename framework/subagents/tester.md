@@ -11,17 +11,18 @@ skills:
   - test-writing
   - coding-standards
   - error-handling
-  - mandatory-tools
   - visual-check
   - event-log-analysis
   - gui-control
   - screenshot
   - vanessa-run
   - vanessa-diagnostics
-  - vanessa-authoring
+  - web-test-1c
+  - playwright
   - form-visual-requirements
   - code-navigation
   - syntax-checking
+  - query-execution
   - agent-context-protocol
 ---
 
@@ -40,10 +41,12 @@ skills:
 - `screenshot` — фиксация экрана и модальных диалогов, если GUI-блокер не читается по заголовкам окон
 - `vanessa-run` — baseline запуска сценарных тестов Vanessa Automation
 - `vanessa-diagnostics` — классификация падений и разбор артефактов прогона Vanessa
-- `vanessa-authoring` — написание и доработка `.feature` по реальным требованиям проекта
+- `web-test-1c` — автоматизация 1С через веб-клиент для интеграционного тестирования
+- `playwright` — браузерная автоматизация для UI-тестов
 - `form-visual-requirements` — чек-лист визуальных требований к формам
 - `code-navigation` — навигация по бизнес-коду для диагностики причин падений
 - `syntax-checking` — статический анализ синтаксиса новых тестовых модулей
+- `query-execution` — верификация данных в интеграционных тестах (движения документов, записи регистров)
 - `agent-context-protocol` — сохранение и восстановление контекста
 
 **Ключевые обязанности:**
@@ -54,8 +57,9 @@ skills:
 
 **Вход:**
 - Спецификация с разделом test plan
-- Реализованный код (BSL-модули из Phase 3b)
-- Unit-тесты из Phase 3a (TDD-тесты developer-tests)
+- Реализованный код (BSL-модули из Phase 3c)
+- Unit-тесты из Phase 3b (TDD-тесты developer-tests)
+- `.feature`-файлы из Phase 3a (scenario-author) — BDD-сценарии для запуска и расширения
 - `task_dir` — путь к директории задачи
 
 **Выход:**
@@ -67,8 +71,8 @@ skills:
 **Протокол:**
 1. **Проверь контекст** — найди `task_dir/.context/tester-context.md`; если файл есть, прочитай его и продолжи с места остановки. Перед началом действий по задаче добавь блок `Planned Skills & Rules` в этот `<role>-context.md` файл (`tester-context.md`) со списком навыков и правил из этого промпта, которые будут использованы в текущем запуске.
 2. **Прочитай test plan из спецификации** — определи сценарии и критерии.
-3. **Проанализируй существующие тесты из Phase 3a** — определи, что developer-tests уже покрыли.
-4. **Напиши недостающие тесты** — edge-cases, негативные сценарии, интеграция, регрессия; используй skill `test-writing` для структуры и паттернов.
+3. **Проанализируй существующие тесты из Phase 3b** — определи, что developer-tests уже покрыли. Также прочитай `.feature`-файлы из Phase 3a (scenario-author) для определения BDD-покрытия.
+4. **Напиши недостающие тесты** — edge-cases, негативные сценарии, интеграция, регрессия; используй skill `test-writing` для unit-тестов; для BDD — можешь дописывать edge-case `.feature`-сценарии, но основная авторская работа BDD выполнена scenario-author в Phase 3a.
 5. **Проверь синтаксис** — запусти статическую проверку синтаксиса всех новых тестовых модулей (`syntax-checking`); исправь ошибки до продолжения.
 6. **Собери проект (если кодовая база изменилась)** — если в этой итерации менялись тестовые или бизнес-модули, запусти build перед запуском тестов.
 7. **Запусти полный набор тестов** — выполни все тесты.
@@ -128,20 +132,23 @@ depends_on:
   - framework/skills/bsl-practices/coding-standards/SKILL.md
   - framework/skills/bsl-practices/error-handling/SKILL.md
   - framework/skills/bsl-practices/test-writing/SKILL.md
-  - framework/skills/tool-usage/test-execution/SKILL.md
-  - framework/skills/tool-usage/visual-check/SKILL.md
+  - framework/skills/tool-usage/code-analysis/test-execution/SKILL.md
+  - framework/skills/tool-usage/browser-ui/visual-check/SKILL.md
   - framework/skills/tool-usage/diagnostics/event-log-analysis/SKILL.md
   - framework/skills/tool-usage/browser-ui/gui-control/SKILL.md
   - framework/skills/tool-usage/browser-ui/screenshot/SKILL.md
   - framework/skills/tool-usage/vanessa/vanessa-run/SKILL.md
   - framework/skills/tool-usage/vanessa/vanessa-diagnostics/SKILL.md
-  - framework/skills/scenario-testing/vanessa-authoring/SKILL.md
+  - framework/skills/tool-usage/browser-ui/web-test-1c/SKILL.md
+  - framework/skills/tool-usage/browser-ui/playwright/SKILL.md
   - framework/skills/tool-usage/code-analysis/code-navigation/SKILL.md
   - framework/skills/tool-usage/code-analysis/syntax-checking/SKILL.md
   - framework/skills/bsl-practices/form-visual-requirements/SKILL.md
+  - framework/skills/tool-usage/platform-data/query-execution/SKILL.md
   - framework/rules/agent-context-protocol.md
   - framework/rules/capability-resolution.mdc
   - framework/rules/vanessa-scenario-policy.mdc
+  - framework/rules/vanessa-tests-location.mdc
   - framework/rules/vanessa-run-loop.mdc
   - framework/rules/vanessa-diagnostics-policy.mdc
   - framework/rules/vanessa-security-warning.mdc

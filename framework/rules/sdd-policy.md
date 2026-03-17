@@ -69,6 +69,7 @@ description: Политика SDD (Spec-Driven Development) — специфик
 6. Отправить архитектуру и Task Breakdown JSON на ревью
 7. Итерировать до отсутствия BLOCK-замечаний по архитектуре и JSON
 8. Получить одобрение пользователя (для средних/сложных задач)
+8a. Спецификация SHOULD содержать раздел Acceptance Scenarios с Gherkin-сценариями бизнес-уровня для MUST-требований
 9. Реализовать согласно спецификации и утверждённой JSON-декомпозиции
 10. Проверить соответствие реализации спецификации и JSON-декомпозиции
 ```
@@ -119,7 +120,6 @@ description: Политика SDD (Spec-Driven Development) — специфик
 
 ---
 depends_on:
-  - framework/rules/cross-review-policy.md
   - framework/rules/tdd-policy.md
   - framework/skills/spec-writing/spec-standard/SKILL.md
 ---

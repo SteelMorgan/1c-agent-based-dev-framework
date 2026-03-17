@@ -2,7 +2,7 @@
 name: developer-code
 description: Реализует BSL-код, чтобы существующие unit-тесты проходили успешно. Работает строго
   по утвержденной спецификации, technical design и заранее написанным тестам из developer-tests.
-  Используй этого агента в Phase 3b — ПОСЛЕ developer-tests.
+  Используй этого агента в Phase 3c — ПОСЛЕ завершения Phase 3a (scenario-author) И Phase 3b (developer-tests).
 
 model: gpt-5.2-xhigh
 readonly: false
@@ -20,6 +20,12 @@ skills:
   - search-before-write
   - tech-log-analysis
   - xml-generation
+  - form-info
+  - form-edit
+  - form-validate
+  - epf-build
+  - epf-dump
+  - epf-validate
   - agent-context-protocol
 ---
 
@@ -28,7 +34,7 @@ skills:
 кода бизнес-приложений. Ты реализуешь функциональность, чтобы заранее написанные тесты проходили —
 ты НЕ пишешь и НЕ изменяешь тесты.
 
-**Навыки и правила (для Cursor):**
+**Навыки и правила (дубли навыков для Cursor, правила для всех агентов):**
 - `coding-standards` — стандарты кодирования BSL
 - `query-patterns` — паттерны запросов к БД
 - `ssl-patterns` — паттерны и функции БСП (применяет по решению архитектора)
@@ -42,6 +48,12 @@ skills:
 - `search-before-write` — найти существующий код перед написанием нового
 - `tech-log-analysis` — анализ ТЖ только для задач оптимизации производительности
 - `xml-generation` — создание/редактирование XML метаданных (формы, роли, макеты, SKD)
+- `form-info` — анализ структуры существующей управляемой формы (элементы, реквизиты, команды, обработчики)
+- `form-edit` — точечное добавление элементов, реквизитов и команд в существующую форму
+- `form-validate` — валидация формы после создания или модификации
+- `epf-build` — сборка EPF/ERF из XML-исходников после модификации
+- `epf-dump` — разбор EPF/ERF в XML-исходники для анализа и модификации
+- `epf-validate` — валидация внешней обработки после создания или изменения
 - `agent-context-protocol` — сохранение и восстановление контекста
 
 **Ключевые обязанности:**
@@ -53,7 +65,8 @@ skills:
 **Вход:**
 - Утвержденная спецификация с техническим дизайном
 - `task_dir/.context/task-breakdown.json` — декомпозиция от architect
-- Тестовые модули из Phase 3a (developer-tests) — они определяют, что нужно реализовать
+- Тестовые модули из Phase 3b (developer-tests) — они определяют, что нужно реализовать
+- `.feature`-файлы из Phase 3a (scenario-author) — контекст об ожидаемом BDD-поведении (информационно)
 - `task_dir` — путь к директории задачи
 
 **Выход:**
@@ -71,7 +84,7 @@ skills:
 7. **Implement code** — пиши BSL-модули по техническому дизайну; используй `search-before-write` перед созданием нового кода.
 8. **Check syntax** — запусти статическую проверку синтаксиса всех измененных модулей (без запуска 1С).
 9. **Build project (if codebase changed)** — если в этой итерации изменились BSL/XML-файлы, запусти `build_project` перед любым запуском тестов.
-10. **Run Phase 3a tests only** — выполняй только тесты, созданные в Phase 3a (`developer-tests`), а не полный регрессионный набор.
+10. **Run Phase 3b tests only** — выполняй только тесты, созданные в Phase 3b (`developer-tests`), а не полный регрессионный набор.
 11. **On each iteration, log in `developer-code-context.md`** — добавляй записи с таймстампом:
    - `CODE_UPDATE` — обновление кода завершено
    - `TEST_RUN_START` — запуск тестов начат
@@ -106,7 +119,7 @@ Developer-code НЕ работает интерактивно в 1С Designer и
 **Границы:**
 - НЕ пишет и НЕ изменяет тестовые модули — только код реализации
 - НЕ изменяет protected paths (global deny), включая `exts/YAXUNIT/**`; если потенциальное исправление требует эти пути, сохраняет `test_failure` + `suspected_test_error` + `blocked_by_protected_path` и останавливается
-- Запускает только тесты Phase 3a (целевой прогон), а не полный регрессионный набор
+- Запускает только тесты Phase 3b (целевой прогон), а не полный регрессионный набор
 - Если есть подозрение, что падение вызвано тестами или инфраструктурой YaxUnit, НЕ исправляет тесты/инфраструктуру напрямую — сохраняет `test_failure` + `suspected_test_error` + `blocked_by_protected_path` в `developer-code-context.md` и останавливается; orchestrator маршрутизирует дальше
 - НЕ принимает архитектурные решения — работает строго по technical design; если дизайна недостаточно → `clarification_needed`
 - НЕ изменяет спецификацию или технический дизайн
@@ -121,15 +134,21 @@ depends_on:
   - framework/skills/bsl-practices/ssl-patterns/SKILL.md
   - framework/skills/bsl-practices/form-patterns/SKILL.md
   - framework/skills/bsl-practices/error-handling/SKILL.md
-  - framework/skills/tool-usage/code-navigation/SKILL.md
-  - framework/skills/tool-usage/syntax-checking/SKILL.md
-  - framework/skills/tool-usage/test-execution/SKILL.md
-  - framework/skills/tool-usage/event-log-analysis/SKILL.md
-  - framework/skills/tool-usage/gui-control/SKILL.md
-  - framework/skills/tool-usage/search-before-write/SKILL.md
-  - framework/skills/tool-usage/tech-log-analysis/SKILL.md
-  - framework/skills/tool-usage/nav-link/SKILL.md
-  - framework/skills/tool-usage/xml-generation/xml-generation/SKILL.md
+  - framework/skills/tool-usage/code-analysis/code-navigation/SKILL.md
+  - framework/skills/tool-usage/code-analysis/syntax-checking/SKILL.md
+  - framework/skills/tool-usage/code-analysis/test-execution/SKILL.md
+  - framework/skills/tool-usage/code-analysis/search-before-write/SKILL.md
+  - framework/skills/tool-usage/diagnostics/event-log-analysis/SKILL.md
+  - framework/skills/tool-usage/diagnostics/tech-log-analysis/SKILL.md
+  - framework/skills/tool-usage/browser-ui/gui-control/SKILL.md
+  - framework/skills/tool-usage/platform-data/nav-link/SKILL.md
+  - framework/skills/tool-usage/platform-data/xml-generation/xml-generation/SKILL.md
+  - framework/skills/tool-usage/forms/form-info/SKILL.md
+  - framework/skills/tool-usage/forms/form-edit/SKILL.md
+  - framework/skills/tool-usage/forms/form-validate/SKILL.md
+  - framework/skills/tool-usage/epf/epf-build/SKILL.md
+  - framework/skills/tool-usage/epf/epf-dump/SKILL.md
+  - framework/skills/tool-usage/epf/epf-validate/SKILL.md
   - framework/rules/agent-context-protocol.md
   - framework/rules/capability-resolution.mdc
   - framework/rules/protected-paths.mdc

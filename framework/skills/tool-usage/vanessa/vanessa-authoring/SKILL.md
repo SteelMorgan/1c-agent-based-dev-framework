@@ -87,7 +87,7 @@ Project-local сценарии:
 Shared templates могут жить отдельно:
 
 ```text
-/.../framework/runtime/vanessa/
+/.../tools/runtime/vanessa/
 ```
 
 Если проект использует shared template, он может создавать project-local runtime copy на его основе. Но сами сценарии проекта должны оставаться project-local.
@@ -117,4 +117,6 @@ depends_on:
   - framework/rules/vanessa-scenario-policy.mdc
   - framework/rules/vanessa-tests-location.mdc
   - framework/rules/vanessa-run-loop.mdc
+  - framework/skills/tool-usage/vanessa/vanessa-run/SKILL.md
+  - framework/skills/tool-usage/vanessa/vanessa-diagnostics/SKILL.md
 ---

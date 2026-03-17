@@ -143,9 +143,10 @@ description: Декомпозиция задач для линейного singl
 
 ## Связанные навыки
 
-- `framework/skills/spec-writing/spec-standard/SKILL.md` — базовый универсальный стандарт спецификации.
-- `framework/skills/spec-writing/task-breakdown-subagent/SKILL.md` — процесс для режима с cross-review.
+- `spec-standard` — базовый универсальный стандарт спецификации.
+- `task-breakdown-subagent` — процесс для режима с cross-review.
 
 ---
-depends_on: []
+depends_on:
+  - framework/skills/spec-writing/spec-standard/SKILL.md
 ---

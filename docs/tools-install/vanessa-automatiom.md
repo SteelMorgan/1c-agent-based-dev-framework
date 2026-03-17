@@ -136,9 +136,9 @@ vrunner в PATH
 Во фреймворке уже лежат универсальные runtime templates:
 
 ```text
-framework/runtime/vanessa/vrunner-va.json
-framework/runtime/vanessa/va-params.template.json
-framework/runtime/vanessa/va-params-debug.template.json
+tools/runtime/vanessa/vrunner-va.json
+tools/runtime/vanessa/va-params.template.json
+tools/runtime/vanessa/va-params-debug.template.json
 ```
 
 Они используют:
@@ -237,9 +237,9 @@ test -x /opt/1cv8/x86_64/8.3.27.1719/1cv8c
 Во framework уже есть шаблоны:
 
 ```text
-framework/runtime/vanessa/vrunner-va.json
-framework/runtime/vanessa/va-params.template.json
-framework/runtime/vanessa/va-params-debug.template.json
+tools/runtime/vanessa/vrunner-va.json
+tools/runtime/vanessa/va-params.template.json
+tools/runtime/vanessa/va-params-debug.template.json
 ```
 
 Есть два допустимых режима:
@@ -272,7 +272,7 @@ framework/runtime/vanessa/va-params-debug.template.json
 <project_root>/tools/json/vrunner-va.json
 ```
 
-Источник для таких файлов — templates из `framework/runtime/vanessa/`.
+Источник для таких файлов — templates из `tools/runtime/vanessa/`.
 
 ### Что обязательно документировать в задаче
 

@@ -50,13 +50,24 @@ description: Полный цикл разработки с обязательн�
      │       ╚══════════════════╤════════════════════╝
      │                          ▼
      │       ╔═══════════════════════════════════════╗
-     │       ║  Phase 3a: Тесты                      ║
-     │       ║  Developer-Tests (High) ──► Reviewer  ║
-     │       ║       ▲ BLOCK ◄──────────┘            ║
+     │       ║  Phase 3a + 3b: ПАРАЛЛЕЛЬНО           ║
+     │       ║                                       ║
+     │       ║  ┌─────────────────────────────────┐  ║
+     │       ║  │ 3a: BDD-сценарии                │  ║
+     │       ║  │ Scenario-Author ──► Reviewer     │  ║
+     │       ║  │     ▲ BLOCK ◄──────────┘         │  ║
+     │       ║  └─────────────────────────────────┘  ║
+     │       ║  ┌─────────────────────────────────┐  ║
+     │       ║  │ 3b: Unit-тесты                  │  ║
+     │       ║  │ Developer-Tests ──► Reviewer     │  ║
+     │       ║  │     ▲ BLOCK ◄──────────┘         │  ║
+     │       ║  └─────────────────────────────────┘  ║
+     │       ║                                       ║
+     │       ║  Оба MUST завершиться перед Phase 3c  ║
      │       ╚══════════════════╤════════════════════╝
      │                          ▼
      │       ╔═══════════════════════════════════════╗
-     │       ║  Phase 3b: Реализация                 ║
+     │       ║  Phase 3c: Реализация                 ║
      │       ║  Developer-Code (High) ──► Reviewer   ║
      │       ║       ▲ BLOCK ◄──────────┘            ║
      │       ║  test_failure → Reviewer → причина    ║
@@ -127,7 +138,20 @@ description: Полный цикл разработки с обязательн�
 
 ---
 
-### Phase 3a: Написание тестов (Developer-Tests → High)
+### Phase 3a: BDD-сценарии (Scenario-Author → Mid/High)
+
+| Элемент | Описание |
+|---------|----------|
+| **Вход** | Утверждённая `task_dir/.spec/spec.md` с разделом Acceptance Scenarios + `task_dir` |
+| **Действие** | Scenario-Author конвертирует intent-сценарии из спецификации в исполняемые `.feature`-файлы Vanessa Automation. Intent-сценарии — формализованные требования, НЕ шаблоны. |
+| **Выход** | `.feature`-файлы в `<project_root>/vanessa-tests/features/` |
+| **Ревью** | Reviewer (scope=bdd) проверяет: покрытие сценариев из спеки, корректность Gherkin, использование библиотеки шагов |
+
+> Phase 3a выполняется **ПАРАЛЛЕЛЬНО** с Phase 3b. Они независимы.
+
+---
+
+### Phase 3b: Написание unit-тестов (Developer-Tests → High)
 
 | Элемент | Описание |
 |---------|----------|
@@ -137,20 +161,21 @@ description: Полный цикл разработки с обязательн�
 | **Ревью** | Reviewer (Premium) проверяет тесты: полнота покрытия MUST-сценариев, корректность утверждений |
 
 > Developer-Tests НЕ видит и НЕ влияет на реализацию. Конфликт интересов исключён.
+> Phase 3b выполняется **ПАРАЛЛЕЛЬНО** с Phase 3a. Они независимы.
 
 ---
 
-### Phase 3b: Реализация (Developer-Code → High)
+### Phase 3c: Реализация (Developer-Code → High)
 
 | Элемент | Описание |
 |---------|----------|
-| **Вход** | `task_dir/.spec/spec.md` + `task_dir/.spec/technical-design.md` + `task_dir/.context/task-breakdown.json` + test-модули из Phase 3a + `task_dir` |
-| **Действие** | Developer-Code пишет BSL-код чтобы тесты из Phase 3a прошли (Green). НЕ пишет и НЕ модифицирует тесты. Запускает только тесты Phase 3a (целевой прогон), не полный regression-suite. |
-| **Выход** | BSL-модули + XML метаданных — все тесты из Phase 3a проходят |
+| **Вход** | `task_dir/.spec/spec.md` + `task_dir/.spec/technical-design.md` + `task_dir/.context/task-breakdown.json` + test-модули из Phase 3b + `.feature` из Phase 3a + `task_dir` |
+| **Действие** | Developer-Code пишет BSL-код чтобы тесты из Phase 3b прошли (Green). НЕ пишет и НЕ модифицирует тесты. Запускает только тесты Phase 3b (целевой прогон), не полный regression-suite. |
+| **Выход** | BSL-модули + XML метаданных — все тесты из Phase 3b проходят |
 | **Ревью** | Reviewer (Premium) проверяет код по BSL-чек-листу |
 | **test_failure** | Если тесты упали → Developer-Code сигнализирует оркестратору с меткой `test_failure`. Если выставлен флаг `suspected_test_error`, оркестратор запускает Reviewer-арбитраж: сопоставить spec + technical-design + тесты + код и зафиксировать, какой артефакт ошибочен (tests или code). По резюме Reviewer оркестратор маршрутизирует: в Developer-Tests или обратно в Developer-Code. |
 
-**Правило TDD обеспечивается оркестратором:** Phase 3a ВСЕГДА предшествует Phase 3b.
+**Правило TDD+BDD обеспечивается оркестратором:** Phase 3a (BDD) и Phase 3b (unit tests) выполняются параллельно. Phase 3c начинается ТОЛЬКО после завершения и прохождения ревью обоих.
 См. [tdd-policy.md](../rules/tdd-policy.md)
 
 ---
@@ -159,9 +184,9 @@ description: Полный цикл разработки с обязательн�
 
 | Элемент | Описание |
 |---------|----------|
-| **Вход** | Код + тесты из Phase 3 + тест-план из `task_dir/.spec/spec.md` |
-| **Действие** | Tester проверяет покрытие тест-плана, дописывает недостающие тесты (edge-cases, интеграционные, регрессионные), запускает полный прогон |
-| **Выход** | Полный набор тестов (unit + регрессия) + результаты прогона + `task_dir/.spec/test-report.md` |
+| **Вход** | Код из Phase 3c + unit-тесты из Phase 3b + `.feature` из Phase 3a + тест-план из `task_dir/.spec/spec.md` |
+| **Действие** | Tester запускает все тесты (unit + BDD), проверяет покрытие, дописывает недостающие (edge-cases, интеграционные, регрессионные), запускает полный прогон |
+| **Выход** | Полный набор тестов (unit + BDD + регрессия) + результаты прогона + `task_dir/.spec/test-report.md` |
 | **Ревью** | Reviewer (High) проверяет тесты по чек-листу тестов |
 
 **Важно:** Phase 4 НЕ дублирует Phase 3. Developer пишет unit-тесты по TDD. Tester дополняет покрытие: edge-cases, негативные сценарии, интеграционные тесты, регрессия.
@@ -182,9 +207,11 @@ description: Полный цикл разработки с обязательн�
 | Phase 0 | Phase 2 | Те же артефакты Explorer — оркестратор передаёт повторно | `task_dir/.context/explorer-context.md` |
 | Phase 0 | quick-fix | Классификация + список модулей | `task_dir/.context/explorer-context.md` |
 | Phase 1 | Phase 2 | `task_dir/.spec/spec.md` | Markdown, MADR 4.0 |
-| Phase 2 | Phase 3a | `task_dir/.spec/spec.md` + `task_dir/.spec/technical-design.md` + `task_dir/.context/task-breakdown.json` | Markdown + JSON |
-| Phase 3a | Phase 3b | Test-модули (.bsl) — падающие тесты | Файлы .bsl |
-| Phase 3b | Phase 4 | BSL-модули + все тесты зелёные | Файлы .bsl |
+| Phase 2 | Phase 3a | `task_dir/.spec/spec.md` (Acceptance Scenarios) + `task_dir` | Markdown |
+| Phase 2 | Phase 3b | `task_dir/.spec/spec.md` + `task_dir/.spec/technical-design.md` + `task_dir/.context/task-breakdown.json` | Markdown + JSON |
+| Phase 3a | Phase 3c | `.feature`-файлы (BDD-сценарии Vanessa) | `.feature` |
+| Phase 3b | Phase 3c | Test-модули (.bsl) — падающие unit-тесты | Файлы .bsl |
+| Phase 3c | Phase 4 | BSL-модули + `.feature` + все unit-тесты зелёные | Файлы .bsl + `.feature` |
 | Phase 4 | пользователь | Весь набор артефактов | Папка/task bundle |
 
 ### Обязательные поля в артефакте
@@ -223,7 +250,7 @@ description: Полный цикл разработки с обязательн�
 
 | Ситуация | Действие |
 |----------|----------|
-| `run_tests` вернул ошибки в Phase 3 | **Developer-Code** анализирует причину. Если ошибка в коде → исправить реализацию и повторить целевой прогон тестов Phase 3a. Если считает, что ошибка в тесте → фиксирует `test_failure` + `suspected_test_error` и завершает. Оркестратор запускает Reviewer-арбитраж и по его резюме решает, куда маршрутизировать задачу: Developer-Tests или Developer-Code. |
+| `run_tests` вернул ошибки в Phase 3c | **Developer-Code** анализирует причину. Если ошибка в коде → исправить реализацию и повторить целевой прогон тестов Phase 3b. Если считает, что ошибка в тесте → фиксирует `test_failure` + `suspected_test_error` и завершает. Оркестратор запускает Reviewer-арбитраж и по его резюме решает, куда маршрутизировать задачу: Developer-Tests или Developer-Code. |
 | `run_tests` вернул ошибки в Phase 4 | **Tester** определяет причину: некорректный тест → исправить тест; ошибка в реализации → **вернуть Developer** с описанием проблемы (Tester НЕ правит код реализации). |
 | Падение при `check_syntax` | Developer исправляет синтаксис. Обязательная проверка перед ревью. |
 | Тесты не покрывают MUST из спеки | Ревьюер ставит BLOCK по чек-листу тестов. Tester дописывает тесты. |
@@ -251,11 +278,10 @@ depends_on:
   - framework/subagents/explorer.md
   - framework/subagents/analyst.md
   - framework/subagents/architect.md
+  - framework/subagents/scenario-author.md
   - framework/subagents/developer-tests.md
   - framework/subagents/developer-code.md
   - framework/subagents/tester.md
   - framework/subagents/reviewer.md
-  - framework/rules/cross-review-policy.md
   - framework/rules/tdd-policy.md
-  - framework/rules/mandatory-tools.md
 ---

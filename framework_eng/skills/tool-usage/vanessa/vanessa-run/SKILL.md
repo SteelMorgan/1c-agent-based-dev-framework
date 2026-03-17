@@ -1,15 +1,15 @@
 ---
 name: vanessa-run
-description: Running Vanessa Automation scenario tests. Use this skill when you need to execute a feature scenario, verify the run baseline, inspect run artifacts, or understand how to run Vanessa within the project.
+description: Running Vanessa Automation scenario tests. Use when you need to execute a feature scenario, check the run baseline, read run artifacts, or understand how to run Vanessa in a project.
 ---
 
 # Running Vanessa Automation
 
 ## Purpose
 
-This skill records exactly how to run Vanessa Automation scenario tests, where to look for the run baseline, and which artifacts count as the run result.
+This skill documents exactly how to launch Vanessa Automation scenario tests, where to look for the run baseline, and which artifacts count as the results of a run.
 
-The main goal is not to reinvent the run command each session and avoid wasting time hunting for the baseline.
+The main goal is to avoid reinventing the run command in every session and wasting time tracking down the baseline.
 
 ---
 
@@ -18,15 +18,15 @@ The main goal is not to reinvent the run command each session and avoid wasting 
 | Trigger | Action |
 |---------|--------|
 | Need to run Vanessa `.feature` scenarios | Use this skill as the run baseline |
-| Need to understand where settings and artifacts live | Determine which files are shared and which are project-local |
-| Need to check whether a run succeeded | Inspect `va-status.json` and `vanessa-execution.log` |
-| Need to switch between direct run and `vrunner` | Use the commands from this skill |
+| Need to understand where settings and artifacts are located | Determine which files are shared and which are project-local |
+| Need to verify whether the run succeeded | Check `va-status.json` and `vanessa-execution.log` |
+| Need to switch between a direct run and `vrunner` | Use the commands from this skill |
 
 ---
 
-## Shared vs project-local files
+## Shared and project-local files
 
-### Universal EPF baseline
+### Shared baseline EPF
 
 ```text
 /opt/onescript/2.0.0/lib/add/bddRunner.epf
@@ -34,12 +34,12 @@ The main goal is not to reinvent the run command each session and avoid wasting 
 
 ### Shared runtime templates
 
-These files live in framework and serve as the universal run templates:
+These files live inside the framework and serve as universal runtime templates:
 
 ```text
-/.../framework/runtime/vanessa/va-params.template.json
-/.../framework/runtime/vanessa/va-params-debug.template.json
-/.../framework/runtime/vanessa/vrunner-va.json
+/.../tools/runtime/vanessa/va-params.template.json
+/.../tools/runtime/vanessa/va-params-debug.template.json
+/.../tools/runtime/vanessa/vrunner-va.json
 ```
 
 ### Project-local runtime files
@@ -55,10 +55,10 @@ These files live in framework and serve as the universal run templates:
 
 ### Important separation
 
-- `framework/runtime/vanessa/*.json` — shared runtime templates of the framework.
-- If they embed paths, feature catalogs, data, or settings specific to a base, those must exist as project-local runtime copies.
+- `tools/runtime/vanessa/*.json` — shared runtime templates of the framework.
+- If they embed paths, feature directories, data, or settings for a specific infobase, those files must exist as project-local runtime copies.
 - `feature` scenarios and test data belong to the specific project and must be project-local.
-- Universal library feature/steps for Vanessa live in the tools directory:
+- Shared library feature/steps for Vanessa are stored in the tools directory:
 
 ```text
 /opt/onescript/2.0.0/lib/add/features/libraries
@@ -100,9 +100,9 @@ DISPLAY=:110 vrunner vanessa \
 
 ---
 
-## Sign of success
+## Signs of success
 
-The run is successful only if:
+A run counts as successful only if:
 
 1. the file `<project_root>/build/vanessa/reports/va-status.json` exists;
 2. its value is `0`;
@@ -112,25 +112,25 @@ The run is successful only if:
 
 ## If the run failed
 
-1. Check whether a DISPLAY is alive.
-2. Inspect `va-status.json`.
-3. Inspect `vanessa-execution.log`.
+1. Check whether there is a live `DISPLAY`.
+2. Check `va-status.json`.
+3. Check `vanessa-execution.log`.
 4. Move to diagnostics via:
    - `event-log-analysis`
    - `gui-control`
    - `screenshot`
-   - `tech-log-analysis` only last
+   - `tech-log-analysis` only as the last step
 
 ---
 
 ## Common errors
 
-| Error | Action |
-|-------|--------|
-| `va-status.json` was not created | Check X11/GUI, then `event-log` |
-| `DISPLAY` is not up | Bring up/use a working X11 display |
-| Runner finished but there are no artifacts | Treat the run as invalid and proceed to diagnostics |
-| `Предупреждение безопасности` appeared | Apply the `vanessa-security-warning` rule |
+| Error | What to do |
+|-------|------------|
+| `va-status.json` is not created | Check X11/GUI, then `event-log` |
+| `DISPLAY` is not set up | Bring up/use a working X11 display |
+| Runner finished but there are no artifacts | Consider the run invalid and go to diagnostics |
+| A `Security warning` appeared | Apply the `vanessa-security-warning` rule |
 
 ---
 
@@ -141,9 +141,9 @@ The run is successful only if:
 - `framework/rules/vanessa-security-warning.mdc`
 - `framework/skills/tool-usage/diagnostics/event-log-analysis/SKILL.md`
 - `framework/skills/tool-usage/vanessa/vanessa-diagnostics/SKILL.md`
-- `framework/runtime/vanessa/va-params.template.json`
-- `framework/runtime/vanessa/va-params-debug.template.json`
-- `framework/runtime/vanessa/vrunner-va.json`
+- `tools/runtime/vanessa/va-params.template.json`
+- `tools/runtime/vanessa/va-params-debug.template.json`
+- `tools/runtime/vanessa/vrunner-va.json`
 
 ---
 depends_on:
@@ -151,4 +151,5 @@ depends_on:
   - framework/rules/vanessa-tests-location.mdc
   - framework/rules/vanessa-security-warning.mdc
   - framework/skills/tool-usage/diagnostics/event-log-analysis/SKILL.md
+  - framework/skills/tool-usage/vanessa/vanessa-diagnostics/SKILL.md
 ---

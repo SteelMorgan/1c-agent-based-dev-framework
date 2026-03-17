@@ -133,9 +133,10 @@ description: Декомпозиция задач для сабагентного
 
 ## Связанные навыки
 
-- `framework/skills/spec-writing/spec-standard/SKILL.md` — базовый универсальный стандарт спецификации.
-- `framework/skills/spec-writing/task-breakdown-linear/SKILL.md` — альтернативный процесс для linear single-agent режима.
+- `spec-standard` — базовый универсальный стандарт спецификации.
+- `task-breakdown-linear` — альтернативный процесс для linear single-agent режима.
 
 ---
-depends_on: []
+depends_on:
+  - framework/skills/spec-writing/spec-standard/SKILL.md
 ---

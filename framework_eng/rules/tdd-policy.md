@@ -1,6 +1,6 @@
 ---
 name: tdd-policy
-description: TDD Policy — tests are written before implementation and recorded in the specification.
+description: TDD policy — tests are written before implementation and captured in the specification.
 ---
 
 
@@ -13,27 +13,28 @@ description: TDD Policy — tests are written before implementation and recorded
 
 ## Purpose
 
-This rule ensures code quality and predictability through TDD discipline.
+This rule ensures code quality and predictability through the discipline of TDD.
 
-**Key principle:** tests and implementation are written by **different agents** in **different phases**. The phase order (tests first, code second) is enforced by the **orchestrator**, not by the agents themselves. This eliminates conflicts of interest: the test author does not know the implementation, and the code author does not modify the tests.
+**Key principle:** tests and implementation are written by **different agents** in **different phases**. The phase order (tests first, code second) is enforced by the **orchestrator**, not the agents themselves. This prevents conflicts of interest: the test author does not know the implementation, and the code author does not modify the tests.
 
 ```
 Оркестратор управляет порядком:
-  Phase 3a: Developer-Tests → пишет тесты по спеке (Red)
-  Phase 3b: Developer-Code  → пишет код чтобы тесты прошли (Green)
-  Phase 4:  Tester          → дополняет edge cases и регрессию
+  Phase 3a: Scenario-Author  → конвертирует intent-сценарии в .feature (BDD)  ┐ параллельно
+  Phase 3b: Developer-Tests  → пишет тесты по спеке (Red)                    ┘
+  Phase 3c: Developer-Code   → пишет код чтобы тесты прошли (Green)
+  Phase 4:  Tester           → запускает все тесты (unit + BDD), дополняет edge cases
 ```
 
 ---
 
-## Trigger conditions
+## Trigger Conditions
 
-The rule applies when an agent:
+This rule applies when the agent:
 
 - Implements new functionality with business logic
-- Makes changes to already tested modules
+- Makes changes to tested modules
 - Fixes bugs in code that already has tests
-- Works in a full-cycle workflow with an approved specification
+- Works within a full-cycle workflow with an approved specification
 
 ---
 
@@ -43,19 +44,19 @@ The rule applies when an agent:
 
 | Requirement | Description |
 |------------|-------------|
-| Test plan in the specification | The test plan MUST be described in the specification BEFORE the code is written |
-| Tests before implementation | YaxUnit tests for MUST scenarios MUST be written BEFORE the business logic is implemented |
-| Red → Green → Refactor cycle | Follow the order: first RED (test fails), then GREEN (minimal code), then Refactor |
-| Test review | Tests MUST be reviewed by another agent (coverage against the specification) |
-| Re-run after fixes | After review comments are fixed, run ALL impacted tests |
+| Test plan in the specification | The test plan MUST be described in the specification BEFORE writing code |
+| Tests before implementation | YaxUnit tests for MUST-scenarios MUST be written BEFORE implementing the business logic |
+| Red → Green → Refactor cycle | Follow the order: RED (test fails), then GREEN (minimal code), then Refactor |
+| Test review | Tests MUST be reviewed by another agent (coverage vs specification) |
+| Rerun after fixes | After addressing review comments — run ALL impacted tests |
 
-### SHOULD (strongly recommended)
+### SHOULD (strong recommendation)
 
 | Requirement | Description |
 |------------|-------------|
 | Tests for SHOULD scenarios | Tests for SHOULD-priority scenarios SHOULD be written after the basic implementation |
 
-### MAY (optional)
+### MAY (acceptable exceptions)
 
 | Situation | Description |
 |----------|-------------|
@@ -79,50 +80,74 @@ The rule applies when an agent:
 
 ---
 
-## Test requirements
+## Test Requirements
 
-- Tests MUST invoke `run_tests` after changes
+- Tests MUST call `run_tests` after changes
 - The test MUST fail before implementation (Red) — otherwise the scenario is already covered or the test is incorrect
-- After review comments are fixed — ALL impacted tests MUST be rerun
-- The reviewer checks: alignment of tests with the Test Plan, coverage of MUST scenarios, boundary cases
+- After fixing review comments — MUST rerun all impacted tests
+- Reviewer checks: alignment of tests with the Test Plan, coverage of MUST-scenarios, edge cases
 
 ---
 
 ## Exceptions
 
-- UI-only changes (forms, styling) — tests are not required
-- Configuration changes (attributes, metadata without code) — tests are not required
-- Documentation, comments — tests are not required
-- Quick-fix for simple issues — it is acceptable to write the test after the fix if time is critical (with a note in the report)
+- UI-only changes (forms, styling) — tests are optional
+- Configuration changes (attributes, metadata without code) — tests are optional
+- Documentation, comments — tests are optional
+- Quick-fix for simple tasks — it is acceptable to write the test after the fix if time is critical (with a note in the report)
 
 ---
 
-## Responsibility boundary: Developer vs Tester
+## BDD Integration
 
-Developer and Tester are not in competition — they cover **different layers** of testing.
+BDD scenarios (Vanessa Automation, Phase 3a) are a **parallel acceptance layer**, not part of the Red/Green TDD cycle. They verify observable behavior through the UI, not the correctness of implementation at the method level.
 
-### Developer writes tests **from within** (knows the implementation)
+| Layer | Phase | Agent | What it verifies |
+|-------|-------|-------|------------------|
+| BDD (acceptance) | Phase 3a | Scenario-Author | User-facing behavior |
+| TDD (unit) | Phase 3b | Developer-Tests | Correctness of public methods |
+| TDD (green) | Phase 3c | Developer-Code | Implementation that passes unit tests |
+| Coverage | Phase 4 | Tester | Edge cases, regression, running BDD + unit |
+
+Phase 3a and Phase 3b run **in parallel** — they are independent. Phase 3c starts only after both finish.
+
+---
+
+## Responsibility boundary: Scenario-Author vs Developer vs Tester
+
+Agents do not compete — they cover **different testing layers**.
+
+### Scenario-Author writes BDD scenarios **per the specification** (Phase 3a)
 
 | What is covered | Description |
 |-----------------|-------------|
-| Unit tests for each public method | Red→Green→Refactor for every implemented method |
-| MUST scenarios from the Test Plan | Primary positive paths described in the specification |
-| Basic negative cases | Obvious input errors anticipated by the specification |
+| Acceptance scenarios | Converts intent from the specification into executable `.feature` files |
+| Observable behavior | One scenario equals one user-level behavior via the UI |
 
-Developer **is not required** to cover: combinatorial edge cases, integration scenarios between modules, regression across adjacent subsystems — that is Tester’s area.
+Scenario-Author **does not write** unit tests, **does not run** scenarios, and **does not expand** beyond the specification.
+
+### Developer writes unit tests **per the specification** (Phase 3b, understands implementation in Phase 3c)
+
+| What is covered | Description |
+|-----------------|-------------|
+| Unit tests for each public method | Red→Green→Refactor for every method being implemented |
+| MUST-scenarios from the Test Plan | Primary positive flows described in the specification |
+| Basic negative cases | Obvious bad inputs foreseen by the specification |
+
+Developer is **not required** to cover: combinatorial edge cases, integration flows between modules, regression across adjacent subsystems — that is Tester’s domain.
 
 ### Tester writes tests **from outside** (knows only the specification)
 
 | What is covered | Description |
 |-----------------|-------------|
 | Edge cases | Boundary values, atypical input combinations |
-| Negative scenarios | Invalid data, violations of business rules |
-| Integration tests | Interaction between modules and subsystems |
-| Regression tests | Protection against breaking adjacent functionality |
+| Negative scenarios | Invalid data, business-rule violations |
+| Integration tests | Interactions between modules and subsystems |
+| Regression tests | Protection against breakage in adjacent functionality |
 
-Tester **does not duplicate** Developer tests — first analyzes what is already covered, then supplements it.
+Tester **does not duplicate** Developer tests — first analyzes what is already covered, then fills in gaps.
 
-### Rule when Tester encounters a failing test
+### Rule when a Tester test fails
 
 ```
 Тест упал
@@ -139,7 +164,7 @@ Tester **does not duplicate** Developer tests — first analyzes what is already
 ```
 
 > Subagents do not communicate directly. Tester does not call Developer —
-> they finish their work with the `implementation_error` tag, and the orchestrator
+> it finishes with the label `implementation_error`, and the orchestrator
 > decides whether to rerun Developer.
 > See [orchestrator.md](../workflows/orchestrator.md) → section 3.
 
@@ -158,8 +183,6 @@ Tester **does not duplicate** Developer tests — first analyzes what is already
 ---
 depends_on:
   - framework/rules/sdd-policy.md
-  - framework/rules/cross-review-policy.md
-  - framework/rules/mandatory-tools.md
-  - framework/skills/tool-usage/test-execution/SKILL.md
+  - framework/skills/tool-usage/code-analysis/test-execution/SKILL.md
   - framework/skills/spec-writing/spec-standard/SKILL.md
 ---

@@ -27,7 +27,7 @@ description: Политика расположения project-specific feature-
 
 ### Shared / universal
 
-- `framework/runtime/vanessa/*.json`
+- `tools/runtime/vanessa/*.json`
 - библиотечные шаги Vanessa в каталоге инструментов
 
 ### Project-local

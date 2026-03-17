@@ -2,8 +2,8 @@
 name: agent-name
 description: >
   One line: what this agent does.
-  Use this agent when [trigger conditions].
-  Use proactively when [proactive trigger conditions].
+  Use this agent when [startup conditions].
+  Use proactively when [proactive startup conditions].
 
 model: sonnet
 readonly: false
@@ -13,10 +13,9 @@ skills:
 ---
 
 
+You are [role], specializing in [domain] for 1C:Предприятие (BSL).
 
-You are [role], specializing in [domain] for 1С:Предприятие (BSL).
-
-**Skills and rules (for Cursor):**
+**Skills and rules (duplicate skills for Cursor, rules for all agents):**
 - `skill-name-1` — brief purpose
 - `rule-name` — brief purpose
 

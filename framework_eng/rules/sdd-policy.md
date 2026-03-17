@@ -1,28 +1,29 @@
 ---
 name: sdd-policy
-description: SDD (Spec-Driven Development) policy — the specification is created before implementation and serves as a contract.
+description: SDD Policy (Spec-Driven Development) — the specification is created before implementation and serves as a contract.
 ---
 
 
-# SDD (Spec-Driven Development) Policy
 
-> RULES — mandatory policies that constrain agent behavior. The specification is created before implementation and serves as a contract.
+# SDD Policy (Spec-Driven Development)
+
+> RULES — mandatory policies that constrain the agent's behavior. The specification is created before implementation and serves as a contract.
 
 ---
 
 ## Purpose
 
-This rule ensures scope management and quality of decisions through SDD: the specification is created before code, reviewed before implementation, and the implementation must not deviate from the approved spec without updating it.
+This rule ensures scope control and solution quality through SDD: the specification is created before the code, reviewed before implementation, and implementation must not deviate from the approved spec without updating it.
 
 ---
 
-## Trigger Conditions
+## Trigger conditions
 
 The rule applies when the agent:
 
-- Receives a task for implementation
+- Receives an implementation task
 - Classifies the task by complexity (simple / medium / complex)
-- Creates or modifies a specification
+- Creates or modifies the specification
 - Implements functionality according to the specification
 
 ---
@@ -33,22 +34,22 @@ The rule applies when the agent:
 
 | Requirement | Description |
 |------------|-------------|
-| Specification for new features | The specification MUST be created for new features, architectural changes, and complex bug fixes |
+| Spec for new features | The specification MUST be created for new features, architectural changes, and complex bug fixes |
 | Specification format | The specification MUST follow the format from `skills/spec-writing/spec-standard.md` |
 | Review before implementation | The specification MUST be reviewed before implementation begins |
-| Task Breakdown JSON before implementation | The architectural Task Breakdown JSON decomposition MUST be created as a separate `.json` file after the spec review and before implementation begins |
-| Review of JSON before implementation | The Task Breakdown JSON MUST undergo cross-review before implementation begins |
-| Implementation compliance | Implementation MUST NOT deviate from the approved specification and Task Breakdown JSON without updating and repeating the review |
-| Review when the spec changes | Changes to the approved specification require a repeat review |
-| Review when the JSON changes | Changes to the approved Task Breakdown JSON decomposition require a repeat review |
+| Task Breakdown JSON before implementation | An architectural Task Breakdown JSON decomposition MUST be created as a separate `.json` file after the spec review and before implementation starts |
+| JSON review before implementation | The Task Breakdown JSON MUST undergo cross-review before implementation begins |
+| Alignment with implementation | The implementation MUST NOT diverge from the approved specification and Task Breakdown JSON without updating and re-reviewing them |
+| Review when spec changes | Changes to the approved specification require a repeat review |
+| Review when JSON changes | Changes to the approved Task Breakdown JSON decomposition require a repeat review |
 
 ### SHOULD (strongly recommended)
 
 | Requirement | Description |
 |------------|-------------|
-| Specification for refactoring | The specification SHOULD be created for large refactoring and moderate changes |
+| Spec for refactoring | A specification SHOULD be created for major refactoring and moderate changes |
 
-### MAY (permissible)
+### MAY (optional)
 
 | Situation | Description |
 |----------|-------------|
@@ -68,32 +69,33 @@ The rule applies when the agent:
 6. Отправить архитектуру и Task Breakdown JSON на ревью
 7. Итерировать до отсутствия BLOCK-замечаний по архитектуре и JSON
 8. Получить одобрение пользователя (для средних/сложных задач)
+8a. Спецификация SHOULD содержать раздел Acceptance Scenarios с Gherkin-сценариями бизнес-уровня для MUST-требований
 9. Реализовать согласно спецификации и утверждённой JSON-декомпозиции
 10. Проверить соответствие реализации спецификации и JSON-декомпозиции
 ```
 
 ---
 
-## Complexity Classification
+## Complexity classification
 
 | Task type | Spec required | Rationale |
 |-----------|---------------|-----------|
-| New functionality | MUST | Captures scope, requirements, alternatives |
-| Architectural changes | MUST | Structural change requires justification |
+| New functionality | MUST | Records scope, requirements, alternatives |
+| Architectural changes | MUST | Structural changes demand justification |
 | Complex bug fix | MUST | Impacts architecture or behavior |
-| Refactoring | SHOULD | Recommended for large refactoring |
+| Refactoring | SHOULD | Recommended for major refactoring |
 | Simple bug fix | MAY | Local change, can be done without a spec |
 | Formatting, typos | MAY | Not required |
 
 ---
 
-## Deviation from the Specification
+## Departing from the spec
 
-If a deviation from the specification is discovered during implementation:
+If the implementation requires deviation from the specification:
 
-1. Stop the implementation
+1. Halt implementation
 2. Update the specification (changes, justification)
-3. Submit the updated specification for review
+3. Send the updated specification for review
 4. Obtain approval (if required)
 5. Continue implementation according to the updated specification
 
@@ -101,16 +103,16 @@ If a deviation from the specification is discovered during implementation:
 
 ## Exceptions
 
-- Simple tasks (formatting, typos, obvious fixes) — a specification is not required
-- The user may explicitly request implementation without a specification for prototyping
-- In flexible mode (without full-cycle) creating a specification is advisory, not mandatory
+- Simple tasks (formatting, typos, obvious fixes) — the specification is not required
+- The user can explicitly request implementation without a specification for prototyping
+- In free mode (without full-cycle) creating a specification is advisory, not mandatory
 
 ---
 
-## Related skills and rules
+## Related skills and policies
 
 | Resource | Relationship |
-|----------|--------------|
+|--------|--------------|
 | [cross-review-policy.md](./cross-review-policy.md) | The specification is reviewed before implementation |
 | [tdd-policy.md](./tdd-policy.md) | The test plan is part of the specification |
 | [skills/spec-writing/spec-standard.md](../skills/spec-writing/spec-standard.md) | Specification format and structure |
@@ -118,7 +120,6 @@ If a deviation from the specification is discovered during implementation:
 
 ---
 depends_on:
-  - framework/rules/cross-review-policy.md
   - framework/rules/tdd-policy.md
   - framework/skills/spec-writing/spec-standard/SKILL.md
 ---

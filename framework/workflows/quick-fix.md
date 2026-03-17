@@ -130,8 +130,8 @@ flowchart LR
 depends_on:
   - framework/workflows/full-cycle.md
   - framework/subagents/explorer.md
-  - framework/subagents/developer.md
+  - framework/subagents/developer-code.md
   - framework/skills/bsl-practices/coding-standards/SKILL.md
-  - framework/skills/tool-usage/syntax-checking/SKILL.md
-  - framework/skills/tool-usage/test-execution/SKILL.md
+  - framework/skills/tool-usage/code-analysis/syntax-checking/SKILL.md
+  - framework/skills/tool-usage/code-analysis/test-execution/SKILL.md
 ---

@@ -19,9 +19,10 @@ description: Политика TDD — тесты пишутся до реали�
 
 ```
 Оркестратор управляет порядком:
-  Phase 3a: Developer-Tests → пишет тесты по спеке (Red)
-  Phase 3b: Developer-Code  → пишет код чтобы тесты прошли (Green)
-  Phase 4:  Tester          → дополняет edge cases и регрессию
+  Phase 3a: Scenario-Author  → конвертирует intent-сценарии в .feature (BDD)  ┐ параллельно
+  Phase 3b: Developer-Tests  → пишет тесты по спеке (Red)                    ┘
+  Phase 3c: Developer-Code   → пишет код чтобы тесты прошли (Green)
+  Phase 4:  Tester           → запускает все тесты (unit + BDD), дополняет edge cases
 ```
 
 ---
@@ -97,11 +98,35 @@ description: Политика TDD — тесты пишутся до реали�
 
 ---
 
-## Граница ответственности: Developer vs Tester
+## Интеграция BDD
 
-Developer и Tester не конкурируют — они покрывают **разные слои** тестирования.
+BDD-сценарии (Vanessa Automation, Phase 3a) — это **параллельный acceptance-слой**, не часть Red/Green цикла TDD. Они проверяют наблюдаемое поведение через UI, а не корректность реализации на уровне методов.
 
-### Developer пишет тесты **изнутри** (знает реализацию)
+| Слой | Фаза | Агент | Что проверяет |
+|------|------|-------|---------------|
+| BDD (acceptance) | Phase 3a | Scenario-Author | Поведение с точки зрения пользователя |
+| TDD (unit) | Phase 3b | Developer-Tests | Корректность публичных методов |
+| TDD (green) | Phase 3c | Developer-Code | Реализация, проходящая unit-тесты |
+| Coverage | Phase 4 | Tester | Edge cases, регрессия, запуск BDD + unit |
+
+Phase 3a и Phase 3b выполняются **параллельно** — они независимы. Phase 3c стартует только после завершения обоих.
+
+---
+
+## Граница ответственности: Scenario-Author vs Developer vs Tester
+
+Агенты не конкурируют — они покрывают **разные слои** тестирования.
+
+### Scenario-Author пишет BDD-сценарии **по спецификации** (Phase 3a)
+
+| Что покрывает | Описание |
+|---------------|----------|
+| Acceptance-сценарии | Конвертирует intent из спецификации в исполняемые `.feature` |
+| Наблюдаемое поведение | Один сценарий = одно поведение через UI |
+
+Scenario-Author **не пишет** unit-тесты, **не запускает** сценарии и **не расширяет** за пределы спецификации.
+
+### Developer пишет unit-тесты **по спецификации** (Phase 3b, знает реализацию в Phase 3c)
 
 | Что покрывает | Описание |
 |---------------|----------|
@@ -158,8 +183,6 @@ Tester **не дублирует** тесты Developer — сначала ан�
 ---
 depends_on:
   - framework/rules/sdd-policy.md
-  - framework/rules/cross-review-policy.md
-  - framework/rules/mandatory-tools.md
-  - framework/skills/tool-usage/test-execution/SKILL.md
+  - framework/skills/tool-usage/code-analysis/test-execution/SKILL.md
   - framework/skills/spec-writing/spec-standard/SKILL.md
 ---

@@ -1,55 +1,55 @@
 ---
 name: agent-context-protocol
-description: Protocol for saving and restoring a subagent's context between runs.
+description: Protocol for saving and restoring a subagent context between runs.
 ---
 
 
 
 # Agent Context Protocol
 
-> RULES — mandatory policy. Each subagent MUST save the context before shutting down
-> and MUST read it on startup. This is the only reliable continuity mechanism between runs.
+> RULES — mandatory policy. Every subagent MUST save the context before exiting and MUST read it on startup. This is the only reliable mechanism for continuity between runs.
 
 ---
 
 ## Purpose
 
-A subagent runs inside an isolated session — its context is destroyed after completion.
-When the agent restarts, it begins with a clean slate and is forced to repeat work it already did.
+A subagent runs inside an isolated session — when it finishes, its context is destroyed.
+On the next launch, the agent starts with a clean slate and has to repeat work that was already done.
 
-`{role}-context.md` solves this problem: the agent preserves everything important before exiting
-and reads it when the next run starts.
+`{role}-context.md` solves this problem: the agent saves everything important before exiting and reads it at the start of the next run.
 
 ---
 
 ## Rule: first step on startup
 
-Every subagent MUST perform as the **very first step**:
+Every subagent MUST execute the following as the **first step**:
 
 ```
-1. Check for {role}-context.md in task_dir
+1. Check for the presence of {role}-context.md in task_dir
 2. If the file exists → read it completely
 3. Continue working taking the saved context into account,
-   without repeating steps already completed
+   without repeating steps that were already performed
 ```
 
-File name by role:
+Context file names by role:
 
 | Agent     | Context file                |
 |-----------|-----------------------------|
-| analyst   | `analyst-context.md`        |
-| architect | `architect-context.md`      |
-| developer | `developer-context.md`      |
-| tester    | `tester-context.md`         |
-| reviewer  | `reviewer-context.md`       |
+| analyst         | `analyst-context.md`          |
+| architect       | `architect-context.md`        |
+| scenario-author | `scenario-author-context.md`  |
+| developer-tests | `developer-tests-context.md`  |
+| developer-code  | `developer-code-context.md`   |
+| tester          | `tester-context.md`           |
+| reviewer        | `reviewer-context-{scope}.md` |
 
 ---
 
-## Rule: final step before completion
+## Rule: final step before finishing
 
-Every subagent MUST write `{role}-context.md` to `task_dir` **before any completion**:
-- on successful completion (`completed`)
-- when blocking questions arise (`clarification_needed`)
+Every subagent MUST write `{role}-context.md` into `task_dir` **before any exit**:
+- upon successful completion (`completed`)
+- when blocked by questions (`clarification_needed`)
 - when an implementation error is detected (`implementation_error`)
 
 ---
@@ -60,71 +60,71 @@ Every subagent MUST write `{role}-context.md` to `task_dir` **before any complet
 # {Role} Context
 
 ## Status
-<!-- Одно из: completed | clarification_needed | implementation_error -->
+<!-- One of: completed | clarification_needed | implementation_error -->
 {status}
 
 ## Completed Steps
-<!-- Что уже сделано: какие файлы изучены, какие инструменты вызваны,
-     какие артефакты созданы. Достаточно чтобы не повторять работу. -->
+<!-- What has already been done: which files were reviewed, which tools were invoked,
+     which artifacts were created. Enough detail to avoid repeating work. -->
 - ...
 
 ## Findings
-<!-- Конкретные находки: модули, паттерны, структуры данных, зависимости.
-     Всё что потребует усилий для повторного обнаружения. -->
+<!-- Specific discoveries: modules, patterns, data structures, dependencies.
+     Anything that would take effort to rediscover. -->
 - ...
 
 ## Assumptions
-<!-- Допущения, принятые при неопределённости. -->
+<!-- Assumptions made in the face of uncertainty. -->
 - ...
 
 ## Pending Questions
-<!-- Заполняется только при Status: clarification_needed.
-     Все вопросы одним блоком — не добавлять вопросы по одному. -->
+<!-- Filled only when Status: clarification_needed.
+     Group all questions in one block — do not add separate question entries. -->
 - ...
 
 ## User Answers
-<!-- Заполняет оркестратор перед повторным запуском агента.
-     Агент читает этот раздел чтобы продолжить работу. -->
+<!-- Filled by the orchestrator before relaunching the agent.
+     The agent reads this section to resume work. -->
 - ...
 ```
 
 ---
 
-## What MUST go into the context
+## What MUST be included in the context
 
-| Section | What to include |
-|--------|--------------|
-| `Completed Steps` | List of files/modules reviewed, invoked tools, created artifacts |
+| Section | Include |
+|--------|---------|
+| `Completed Steps` | A list of reviewed files/modules, invoked tools, created artifacts |
 | `Findings` | Discovered modules and their paths, implementation patterns, data structures, extension points, existing dependencies |
-| `Assumptions` | Any assumption adopted instead of asking the user |
-| `Pending Questions` | All blocking questions in one list (only when `clarification_needed`) |
+| `Assumptions` | Any assumption made instead of asking the user |
+| `Pending Questions` | All blocking questions in a single list (only when `clarification_needed`) |
 | `User Answers` | Not filled by the agent — only by the orchestrator |
 
 ---
 
-## What MUST NOT be in the context
+## What NOT to include in the context
 
 - The full contents of reviewed files — only conclusions and paths
 - Intermediate reasoning — only final findings
-- Information available from other artifacts in `task_dir` (specification, technical design)
+- Information already available from other artifacts in `task_dir` (specifications, design docs)
 
 ---
 
-## Resume mechanism (session-level optimization)
+## The resume mechanism (in-session optimization)
 
-If the orchestrator and subagent operate in the same session, the orchestrator MAY use
-`resume agentId` to continue in the same transcript instead of launching a new run.
+If the orchestrator and the subagent execute inside the same session, the orchestrator MAY use
+`resume agentId` to continue within that transcript instead of launching anew.
 
 ```
 When resume works:           When it DOES NOT work:
-  Analyst → question                User closed the IDE
-  → answer in the same session      → opened it tomorrow
-  → resume agentId ✅              → agentId is outdated ❌
+  Analyst → question               User closed the IDE
+  → answer in the same session      → returns tomorrow
+  → resume agentId ✅              → agentId is stale ❌
 ```
 
-**Rule:** `{role}-context.md` is the primary mechanism and is always reliable.
-`resume` is an additional optimization to apply when the agentId is still current.
-When `resume` is used, the context file still MUST be written.
+**Rule:** `{role}-context.md` is the primary mechanism and always reliable.
+`resume` is an additional optimization; apply it when the agentId is still current.
+When using `resume`, the context file STILL MUST be written.
 
 ---
 
@@ -132,7 +132,7 @@ When `resume` is used, the context file still MUST be written.
 
 | Resource | Relation |
 |--------|-------|
-| [orchestrator.md](../workflows/orchestrator.md) | Protocol for transferring task_dir and agentId |
+| [orchestrator.md](../workflows/orchestrator.md) | Protocol for passing task_dir and agentId |
 | [tdd-policy.md](./tdd-policy.md) | Completion tags: implementation_error |
 | [sdd-policy.md](./sdd-policy.md) | Completion tags: clarification_needed |
 

@@ -13,18 +13,20 @@ skills:
   - tech-log-analysis
   - query-execution
   - technical-design-standard
+  - task-breakdown-subagent
   - agent-context-protocol
 ---
 
 Ты — экспертный программный архитектор, специализирующийся на бизнес-приложениях 1С:Предприятие (BSL).
 
-**Навыки и правила (для Cursor):**
+**Навыки и правила (дубли навыков для Cursor, правила для всех агентов):**
 - `metadata-discovery` — исследование структуры конфигурации: куда встраивается решение, какие объекты затронуты
 - `ssl-patterns` — выбор паттернов БСП: использовать готовое или проектировать своё (архитектурное решение)
 - `code-navigation` — чтение существующего кода: call graph, точки расширения, зависимости модулей
 - `tech-log-analysis` — анализ ТЖ при задачах оптимизации существующего функционала (не для новой функциональности)
 - `query-execution` — верификация структур данных и запросов при проектировании
 - `technical-design-standard` — стандарт структуры и качества technical-design.md
+- `task-breakdown-subagent` — формат Task Breakdown JSON и правила декомпозиции для сабагентного режима
 - `sdd-policy` — политика Specification-Driven Development
 - `mandatory-tools` — обязательное использование инструментов
 
@@ -85,12 +87,13 @@ skills:
 
 ---
 depends_on:
-  - framework/skills/tool-usage/metadata-discovery/SKILL.md
+  - framework/skills/tool-usage/platform-data/metadata-discovery/SKILL.md
   - framework/skills/bsl-practices/ssl-patterns/SKILL.md
-  - framework/skills/tool-usage/code-navigation/SKILL.md
-  - framework/skills/tool-usage/tech-log-analysis/SKILL.md
-  - framework/skills/tool-usage/query-execution/SKILL.md
+  - framework/skills/tool-usage/code-analysis/code-navigation/SKILL.md
+  - framework/skills/tool-usage/diagnostics/tech-log-analysis/SKILL.md
+  - framework/skills/tool-usage/platform-data/query-execution/SKILL.md
   - framework/skills/spec-writing/technical-design-standard/SKILL.md
+  - framework/skills/spec-writing/task-breakdown-subagent/SKILL.md
   - framework/rules/agent-context-protocol.md
   - framework/rules/capability-resolution.mdc
 ---

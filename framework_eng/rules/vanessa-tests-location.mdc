@@ -3,13 +3,13 @@ name: vanessa-tests-location
 description: Policy for the placement of project-specific Vanessa Automation feature files and references to them in task documentation.
 ---
 
-# Location of project-specific Vanessa scenarios
+# Placement of project-specific Vanessa scenarios
 
-> RULES — mandatory agreement on where to store a project's feature files and how to reference them from task documentation.
+> RULES — the mandatory agreement on where to store project feature files and how to reference them from task documentation.
 
 ## Purpose
 
-This rule separates:
+This rule distinguishes between:
 
 - universal library steps and Vanessa runtime templates;
 - project-specific scenarios for a particular database/project.
@@ -17,17 +17,17 @@ This rule separates:
 ## MUST
 
 | Requirement | Description |
-|------------|-------------|
+|------------|----------|
 | Project feature files in `vanessa-tests/` | Project-specific scenarios MUST be stored in `<project_root>/vanessa-tests/features` |
 | Project support files nearby | Project-specific support/fixtures MUST be stored in `<project_root>/vanessa-tests/support` |
-| Links in task documentation | If a feature file was created or modified within a task, the task documentation MUST include a link to that file |
-| Don’t mix with shared templates | Project-specific scenarios must not be stored in the shared runtime/template directory of the framework |
+| Links in task documentation | If a feature file is created or updated as part of a task, the task documentation MUST include a link to that file |
+| Do not mix with shared templates | Project-specific scenarios must not be stored in the shared runtime/template directory of the framework |
 
 ## Separation
 
 ### Shared / universal
 
-- `framework/runtime/vanessa/*.json`
+- `tools/runtime/vanessa/*.json`
 - Vanessa library steps in the tools directory
 
 ### Project-local
@@ -37,7 +37,7 @@ This rule separates:
 
 ## What counts as a link in task documentation
 
-A direct link or an explicit path to the created/updated `.feature` file is sufficient so the next agent can quickly open the scenario without re-searching.
+A direct link or explicit path to the created/updated `.feature` file is sufficient so the next agent can quickly open the scenario without searching again.
 
 ---
 depends_on: []

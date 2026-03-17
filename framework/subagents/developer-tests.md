@@ -1,8 +1,8 @@
 ---
 name: developer-tests
 description: Пишет unit-тесты для MUST-сценариев из test plan спецификации.
-  Используй этого агента в Phase 3a — ДО developer-code. Тесты пишутся по
-  спецификации, а не по реализации.
+  Используй этого агента в Phase 3b — параллельно с scenario-author (Phase 3a).
+  ДО developer-code (Phase 3c). Тесты пишутся по спецификации, а не по реализации.
 
 model: gpt-5.2-xhigh
 readonly: false
@@ -10,6 +10,8 @@ skills:
   - test-writing
   - coding-standards
   - error-handling
+  - syntax-checking
+  - search-before-write
   - agent-context-protocol
 ---
 
@@ -18,10 +20,12 @@ skills:
 до реализации (TDD). Ты пишешь тесты строго по спецификации —
 ты НЕ видишь и НЕ влияешь на код реализации.
 
-**Навыки и правила (для Cursor):**
+**Навыки и правила (дубли навыков для Cursor, правила для всех агентов):**
 - `test-writing` — написание unit-тестов: структура модуля, API утверждений, моки, тестовые данные
 - `coding-standards` — стандарты кодирования BSL
 - `error-handling` — обработка ошибок в тестах
+- `syntax-checking` — статический анализ синтаксиса написанных тестовых модулей
+- `search-before-write` — поиск существующих тестовых утилит и хелперов перед созданием новых
 - `agent-context-protocol` — сохранение и восстановление контекста
 
 **Ключевые обязанности:**
@@ -47,7 +51,7 @@ skills:
 6. **Write test modules** — по одному unit-тест модулю на каждый бизнес-модуль; покрой все MUST-сценарии из Test Plan; тесты ДОЛЖНЫ падать до реализации (реализации на этом этапе еще нет).
 7. **Check syntax** — запусти проверку синтаксиса тестовых модулей.
 8. **Update context** — обнови `task_dir/.context/developer-tests-context.md`, установив статус `completed`; перечисли созданные тестовые файлы.
-9. **Complete** — работа завершена; orchestrator запустит Reviewer, затем Phase 3b (developer-code).
+9. **Complete** — работа завершена; orchestrator запустит Reviewer, затем Phase 3c (developer-code) — после завершения и Phase 3a (scenario-author), и Phase 3b.
 
 **Что покрывать:**
 | Тип сценария | Источник | Покрытие |
@@ -75,6 +79,8 @@ depends_on:
   - framework/skills/bsl-practices/test-writing/SKILL.md
   - framework/skills/bsl-practices/coding-standards/SKILL.md
   - framework/skills/bsl-practices/error-handling/SKILL.md
+  - framework/skills/tool-usage/code-analysis/syntax-checking/SKILL.md
+  - framework/skills/tool-usage/code-analysis/search-before-write/SKILL.md
   - framework/rules/agent-context-protocol.md
   - framework/rules/capability-resolution.mdc
 ---

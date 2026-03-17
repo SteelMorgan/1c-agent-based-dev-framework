@@ -37,11 +37,13 @@ description: Протокол сохранения и восстановлени
 
 | Агент     | Файл контекста              |
 |-----------|-----------------------------|
-| analyst   | `analyst-context.md`        |
-| architect | `architect-context.md`      |
-| developer | `developer-context.md`      |
-| tester    | `tester-context.md`         |
-| reviewer  | `reviewer-context.md`       |
+| analyst         | `analyst-context.md`          |
+| architect       | `architect-context.md`        |
+| scenario-author | `scenario-author-context.md`  |
+| developer-tests | `developer-tests-context.md`  |
+| developer-code  | `developer-code-context.md`   |
+| tester          | `tester-context.md`           |
+| reviewer        | `reviewer-context-{scope}.md` |
 
 ---
 

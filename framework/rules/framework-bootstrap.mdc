@@ -30,8 +30,6 @@ alwaysApply: true
 
 ---
 depends_on:
-- framework/rules/cross-review-policy.md
-- framework/rules/mandatory-tools.md
 - framework/workflows/quick-fix.md
 - framework/workflows/orchestrator.md
 - framework/rules/protected-paths.mdc
