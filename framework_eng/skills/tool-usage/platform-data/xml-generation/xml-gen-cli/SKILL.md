@@ -1,30 +1,30 @@
 ---
 name: xml-gen-cli
-description: Rules for working with XmlGen CLI — validate (form/role/skd/mxl/epf/config/subsystem/interface/meta/extension), edit commands and universal operations (form/template/help add/remove). Use during XML validation and when modifying existing Form, Role, EPF, SKD.
+description: Rules for working with XmlGen CLI — validate (form/role/skd/mxl/epf/config/subsystem/interface/meta/extension), edit commands, and universal operations (form/template/help add/remove). Use when validating XML or modifying existing Form, Role, EPF, SKD.
 ---
 
 # XmlGen CLI — validate and edit commands
 
-Rules for calling xml-gen to validate and modify existing XML files.
+Rules for invoking xml-gen to validate and modify existing XML files.
 
 ## When to apply
 
 | Trigger | Action |
 |---------|----------|
-| Need to check Form.xml before committing | `validate form Form.xml` |
+| Need to check Form.xml before commit | `validate form Form.xml` |
 | Need to check Rights.xml, Template.xml | `validate role <path>` or `validate skd <path>` |
 | Need to add an attribute to an existing form | `form add-attribute --name ... --type ... Form.xml` |
 | Need to add a UI element (field, button) | `form add-element --type ... --name ... [--path ...] [--parent ...] Form.xml` |
-| Need to add object rights to a role | `role add-object --name ... --rights ... Rights.xml` |
-| Need to add an attribute to a processing | `epf add-attribute --name ... <EpfRoot.xml>` |
+| Need to add rights for an object in a role | `role add-object --name ... --rights ... Rights.xml` |
+| Need to add an attribute to an EPF | `epf add-attribute --name ... <EpfRoot.xml>` |
 | Need to add a parameter/field to SKD | `skd add-parameter` or `skd add-field` |
-| Need to validate the configuration | `config validate` |
+| Need to validate configuration | `config validate` |
 | Need to validate a metadata object | `meta validate` |
 | Need to validate an extension | `extension validate` |
 | Need to add a form to a catalog/document | `form add` |
 | Need to add a template to an object | `template add` |
 | Need to add help | `help add` |
-| Before an edit command — check the current state | Run `validate` first, then edit |
+| Before edit command — inspect current state | Run `validate` first, then edit |
 
 ## Invocation
 
@@ -32,12 +32,12 @@ Rules for calling xml-gen to validate and modify existing XML files.
 xml-gen <command> [args...]
 ```
 
-> `xml-gen` installs automatically when the framework is installed (`python tools/1c-ai-agent-cli.py`).
-> If the command is unavailable — run: `python tools/1c-ai-agent-cli.py --install-xml-gen`
+> `xml-gen` is installed automatically when the framework is installed (`python tools/install.py`).
+> If the command is unavailable — run: `python tools/install.py --install-xml-gen`
 
 ## validate command
 
-Validation of 1C metadata XML files (Form, Role, SKD, MXL, EPF).
+Validate XML files of 1C metadata (Form, Role, SKD, MXL, EPF).
 
 **Syntax:**
 ```bash
@@ -52,7 +52,7 @@ xml-gen validate form Form.xml
 xml-gen validate role output/Roles/МояРоль/Ext/Rights.xml
 xml-gen validate --type skd --output json Template.xml
 
-# Validation of configuration, subsystem, interface, metadata object, extension
+# Validate configuration, subsystem, interface, metadata object, extension
 xml-gen config validate <configPath>
 xml-gen subsystem validate <subsystemPath>
 xml-gen interface validate <ciPath>
@@ -62,7 +62,7 @@ xml-gen extension validate <extensionPath>
 
 ## Universal operations
 
-Operations that apply to any metadata objects (Catalog, Document, EPF, etc.).
+Operations applicable to any metadata objects (Catalog, Document, EPF, etc.).
 
 ```bash
 # Add/remove a form (any object: Catalog, Document, EPF, etc.)
@@ -89,7 +89,7 @@ xml-gen form remove-element --name <Name> <Form.xml>
 xml-gen form move-element --name <Name> [--after <Name>] [--before <Name>] [--into <ParentName>] <Form.xml>
 ```
 
-**XmlType:** `InputField`, `CheckBoxField`, `Button`, `UsualGroup`, `Table`, `LabelDecoration`, `Page`, `Pages` etc.
+**XmlType:** `InputField`, `CheckBoxField`, `Button`, `UsualGroup`, `Table`, `LabelDecoration`, `Page`, `Pages`, etc.
 
 ### Role (Rights.xml)
 
@@ -98,7 +98,7 @@ xml-gen role add-object --name <ObjectName> --rights <Right1,Right2,...> <Rights
 xml-gen role add-right --object <ObjectName> --name <RightName> --value <true|false> <Rights.xml>
 ```
 
-**Rights:** `Read`, `Insert`, `Update`, `Delete`, `View`, `Edit`, `Posting`, `UndoPosting` etc.
+**Rights:** `Read`, `Insert`, `Update`, `Delete`, `View`, `Edit`, `Posting`, `UndoPosting`, etc.
 
 ### EPF (root XML)
 
@@ -116,54 +116,54 @@ xml-gen skd add-field --dataset <DataSetName> --name <FieldName> --path <DataPat
 
 ## Scenarios
 
-**Scenario: Add an attribute and an element to a form**
-1. `validate form Form.xml` — check the current state
+**Scenario: Add an attribute and element to a form**
+1. `validate form Form.xml` — check current state
 2. `form add-attribute --name IsFavorite --type boolean Form.xml`
-3. `form add-element --type CheckBoxField --name IsFavorite --path IsFavorite --parent ГруппаОсновное Form.xml`
-4. On "Parent element not found" error — verify the parent name in Form.xml (case-sensitive)
+3. `form add-element --type CheckBoxField --name IsFavorite --path IsFavorite --parent MainGroup Form.xml`
+4. If you get "Parent element not found" — verify the parent name in Form.xml (case matters)
 
 **Scenario: Add rights to a role**
 1. `validate role Rights.xml`
 2. `role add-object --name Catalog.Номенклатура --rights Read,Insert,Update Rights.xml`
-3. On "Object already exists" — use `role add-right` to change the existing object
+3. If you see "Object already exists" — use `role add-right` to adjust the existing object
 
 ## Workarounds
 
 | Problem | Cause | Solution |
 |----------|---------|---------|
-| "Parent element not found" | The parent name in `--parent` does not match the XML | Check the exact name in Form.xml (ChildItems, group) |
+| "Parent element not found" | The name in `--parent` does not match the XML | Check the exact name in Form.xml (ChildItems, group) |
 | "Object already exists" (role) | The object is already in Rights.xml | Use `role add-right` instead of `add-object` |
-| "DataSet not found" (skd) | The DataSet name in `--dataset` is incorrect | Check the data set name in Schema.xml |
-| "Validation failed after modification" | The edit command produced invalid XML | Rollback is automatic; fix the arguments and retry |
-| Exit code 2 from validate | There is a WARNING but no ERROR | Usually you can continue; review the output |
+| "DataSet not found" (skd) | The `--dataset` name is incorrect | Check the data set name in Schema.xml |
+| "Validation failed after modification" | The edit command produced invalid XML | Automatic rollback occurs; fix arguments and retry |
+| Exit code 2 from validate | There are WARNINGs but no ERRORs | Usually you can continue; inspect the output |
 
 ## Right / Wrong
 
 ```bash
-# ❌ Wrong — form add-element without --path for a data field (DataPath will not be created)
+# ❌ Wrong — form add-element without --path for a data-bound field (DataPath will not be created)
 xml-gen form add-element --type InputField --name Наименование Form.xml
 
-# ✅ Right — --path ties the element to the attribute
+# ✅ Right — --path links the element to the attribute
 xml-gen form add-element --type InputField --name Наименование --path Наименование Form.xml
 ```
 
-> Without `--path` the element will not render data. InputField, CheckBoxField, etc. require DataPath to bind to an attribute.
+> Without `--path` the element will not display data. InputField, CheckBoxField, etc. require DataPath to bind to an attribute.
 
 ```bash
 # ❌ Wrong — role add-object with preset "view" (CLI expects a comma-separated list: Read,View)
 xml-gen role add-object --name Catalog.Номенклатура --rights view Rights.xml
 
-# ✅ Right — rights comma-separated, casing from enum RoleRight
+# ✅ Right — rights via comma, matching the RoleRight enum casing
 xml-gen role add-object --name Catalog.Номенклатура --rights Read,View Rights.xml
 ```
 
-> CLI parses `--rights` as a string and splits by comma. Values must match the enum (Read, Insert, Update, Delete, View, Edit, etc.).
+> The CLI parses `--rights` as a string and splits on commas. The values must match the enum (Read, Insert, Update, Delete, View, Edit, etc.).
 
 ## Rules for the agent
 
-1. **Before modification** — run `validate` to check the current state.
-2. **After modification** — edit commands perform auto-validation; on error, changes are not saved (rollback).
-3. **File paths** — use absolute or relative paths to the specific file.
+1. **Before modifying** — run `validate` to inspect the current state.
+2. **After modifying** — edit commands perform auto-validation; if an error occurs the changes are not saved (rollback).
+3. **File paths** — use absolute or relative paths pointing to the exact file.
 4. **EPF** — root XML: `output/MyProcessor.xml`
 5. **Form in EPF** — path: `output/MyProcessor/Forms/MainForm/Ext/Form.xml`
 

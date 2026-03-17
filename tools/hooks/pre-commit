@@ -28,7 +28,21 @@ echo "│  Auto-translating to framework_eng/ via Claude Haiku... │"
 echo "└─────────────────────────────────────────────────────────┘"
 echo ""
 
-# ─── Запустить синхронизацию ──────────────────────────────────────────────────
+# ─── Синхронизация структуры каталогов ────────────────────────────────────────
+
+# Создать отсутствующие каталоги в framework_eng/, отчитаться об осиротевших
+STRUCT_OUTPUT=$(python3 "$SYNC_SCRIPT" --sync-structure 2>&1) || STRUCT_EXIT=$?
+STRUCT_EXIT=${STRUCT_EXIT:-0}
+
+if [ "$STRUCT_EXIT" -ne 0 ]; then
+    echo "$STRUCT_OUTPUT"
+    echo ""
+    echo "⚠ Directory structure mismatch detected (non-blocking)."
+    echo "  Run: python3 tools/sync-skill.py --sync-structure --clean"
+    echo ""
+fi
+
+# ─── Запустить синхронизацию файлов ──────────────────────────────────────────
 
 SYNC_OUTPUT=$(python3 "$SYNC_SCRIPT" $CHANGED 2>&1) || SYNC_EXIT=$?
 SYNC_EXIT=${SYNC_EXIT:-0}

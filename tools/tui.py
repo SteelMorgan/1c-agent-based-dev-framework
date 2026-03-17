@@ -1,5 +1,5 @@
 """
-Lightweight TUI primitives for 1c-ai-agent-cli.
+Lightweight TUI primitives for install.py.
 No external dependencies — uses ANSI escape codes + raw terminal input.
 Python 3.7+, cross-platform (Linux / macOS / Windows).
 """

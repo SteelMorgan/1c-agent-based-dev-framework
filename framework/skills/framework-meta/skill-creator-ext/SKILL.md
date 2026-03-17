@@ -78,7 +78,7 @@ description: >
 
 1. Добавить файл в нужный подкаталог `framework/skills/`
 2. Обновить `skills` в агентах, которые должны использовать навык
-3. `python tools/1c-ai-agent-cli.py --list` — убедиться что навык появился
+3. `python tools/install.py --list` — убедиться что навык появился
 
 ---
 
@@ -279,7 +279,7 @@ description: >
 ### Интеграция
 - [ ] Файл в правильном подкаталоге `framework/skills/`
 - [ ] Агенты обновлены (`skills` в frontmatter)
-- [ ] `python tools/1c-ai-agent-cli.py --list` показывает навык
+- [ ] `python tools/install.py --list` показывает навык
 
 ---
 depends_on: []

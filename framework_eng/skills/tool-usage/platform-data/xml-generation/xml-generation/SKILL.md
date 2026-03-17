@@ -1,6 +1,6 @@
 ---
 name: xml-generation
-description: Generation of 1С XML metadata from a compact JSON DSL. Supports 11 domains — EPF, Form, MXL, SKD, Role, Config, Subsystem, Interface, Meta (23 object types), Extension (CFE) + utilities (template, help). ~45 CLI operations in Designer format. Use when creating configurations, external processing modules, metadata objects, forms, roles, reports, print forms, extensions.
+description: Generation of 1С XML metadata from a compact JSON DSL. Supports 11 domains — EPF, Form, MXL, SKD, Role, Config, Subsystem, Interface, Meta (23 object types), Extension (CFE) + utilities (template, help). ~45 Designer-format CLI operations. Use when creating configurations, external processing modules, metadata objects, forms, roles, reports, print forms, extensions.
 ---
 
 # XML Generation Module
@@ -14,14 +14,14 @@ Module for generating 1С XML metadata from a compact JSON DSL. 11 domains, ~45 
 `xml-gen` installs automatically when you install the framework:
 
 ```bash
-python tools/1c-ai-agent-cli.py
+python tools/install.py
 ```
 
 The installer will build the JAR (requires JDK 17+) and create the `xml-gen` command in `~/.local/bin/`.
 
 If `xml-gen` is unavailable, reinstall manually:
 ```bash
-python tools/1c-ai-agent-cli.py --install-xml-gen
+python tools/install.py --install-xml-gen
 ```
 
 ### Usage
@@ -115,7 +115,7 @@ xml-gen help add output/Catalogs/Товары
 - **[role-dsl](../role-dsl/)** — JSON DSL for roles
 - **[config-operations](../config-operations/)** — operations for configurations (init, info, edit, validate)
 - **[subsystem-operations](../subsystem-operations/)** — subsystems and interfaces
-- **[meta-operations](../meta-operations/)** — metadata objects (23 types: справочники, документы, регистры, etc.)
+- **[meta-operations](../meta-operations/)** — metadata objects (23 types: справочники, документы, регистры и др.)
 - **[extension-operations](../extension-operations/)** — extensions (CFE): init, borrow, diff
 
 ## Usage scenarios

@@ -274,7 +274,7 @@ class FrameworkValidator:
         return result
     
     def export_cycles_to_json(self, output_file: str):
-        """Экспортирует взаимозависимости в JSON для использования в 1c-ai-agent-cli (tools/1c-ai-agent-cli.py)."""
+        """Экспортирует взаимозависимости в JSON для использования в install.py (tools/install.py)."""
         import json
         from datetime import datetime, timezone
         
@@ -395,7 +395,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--export-cycles",
         metavar="FILE",
-        help="Экспортировать взаимозависимости в JSON файл для использования в 1c-ai-agent-cli (tools/1c-ai-agent-cli.py)"
+        help="Экспортировать взаимозависимости в JSON файл для использования в install.py (tools/install.py)"
     )
     
     args = parser.parse_args()

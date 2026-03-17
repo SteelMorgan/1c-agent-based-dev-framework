@@ -1,4 +1,4 @@
-# Руководство по 1c-ai-agent-cli
+# Руководство по install.py
 
 CLI фреймворка (clone, install). Выбирает компоненты, настраивает модели агентов и размещает всё в каталоге проекта — симлинками (по умолчанию) или копиями.
 
@@ -10,22 +10,22 @@ CLI фреймворка (clone, install). Выбирает компоненты
 
 ```bash
 # Клонировать репозиторий
-python tools/1c-ai-agent-cli.py clone
+python tools/install.py clone
 
 # Интерактивный режим — TUI с навигацией стрелками
-python tools/1c-ai-agent-cli.py
+python tools/install.py
 
 # CLI — выбрать IDE и компоненты явно
-python tools/1c-ai-agent-cli.py --ide cursor --include agent/developer workflow/quick-fix
+python tools/install.py --ide cursor --include agent/developer workflow/quick-fix
 
 # Установить всё
-python tools/1c-ai-agent-cli.py --ide cursor --all
+python tools/install.py --ide cursor --all
 
 # Посмотреть дерево без установки
-python tools/1c-ai-agent-cli.py --ide cursor --list
+python tools/install.py --ide cursor --list
 
 # Пробный прогон
-python tools/1c-ai-agent-cli.py --ide cursor --all --dry-run
+python tools/install.py --ide cursor --all --dry-run
 ```
 
 ---
@@ -93,7 +93,7 @@ python tools/1c-ai-agent-cli.py --ide cursor --all --dry-run
 
 ```bash
 # Указать каталог явно
-python tools/1c-ai-agent-cli.py --ide cursor --all --project-dir /path/to/my-project
+python tools/install.py --ide cursor --all --project-dir /path/to/my-project
 ```
 
 Если `--project-dir` не указан и используется `--include` или `--all`, каталогом проекта будет текущая директория.
@@ -167,10 +167,10 @@ python tools/1c-ai-agent-cli.py --ide cursor --all --project-dir /path/to/my-pro
 
 ```bash
 # Конкретные компоненты — зависимости подтянутся
-python tools/1c-ai-agent-cli.py --ide cursor --include agent/developer agent/reviewer
+python tools/install.py --ide cursor --include agent/developer agent/reviewer
 
 # Всё сразу
-python tools/1c-ai-agent-cli.py --ide cursor --all
+python tools/install.py --ide cursor --all
 ```
 
 ---
@@ -278,7 +278,7 @@ python tools/1c-ai-agent-cli.py --ide cursor --all
 ### Пересоздание симлинков
 
 ```bash
-python tools/1c-ai-agent-cli.py --relink
+python tools/install.py --relink
 ```
 
 Проверяет все `.md`-симлинки в проекте и сообщает о сломанных (например, если `framework/` переместили).
@@ -288,7 +288,7 @@ python tools/1c-ai-agent-cli.py --relink
 ## Справочник CLI
 
 ```
-python tools/1c-ai-agent-cli.py [OPTIONS]
+python tools/install.py [OPTIONS]
 ```
 
 | Флаг                     | Описание                                         |
@@ -306,19 +306,19 @@ python tools/1c-ai-agent-cli.py [OPTIONS]
 
 ```bash
 # Минимальный набор для быстрого старта
-python tools/1c-ai-agent-cli.py --ide cursor --include agent/developer workflow/quick-fix
+python tools/install.py --ide cursor --include agent/developer workflow/quick-fix
 
 # Полный набор для Cursor с пробным прогоном
-python tools/1c-ai-agent-cli.py --ide cursor --all --dry-run
+python tools/install.py --ide cursor --all --dry-run
 
 # Claude Code — полный набор
-python tools/1c-ai-agent-cli.py --ide claude-code --all
+python tools/install.py --ide claude-code --all
 
 # Windsurf — конкретные компоненты
-python tools/1c-ai-agent-cli.py --ide windsurf --include agent/developer agent/reviewer rule/tdd-policy
+python tools/install.py --ide windsurf --include agent/developer agent/reviewer rule/tdd-policy
 
 # Показать что доступно
-python tools/1c-ai-agent-cli.py --ide cursor --list
+python tools/install.py --ide cursor --list
 ```
 
 ---
@@ -326,7 +326,7 @@ python tools/1c-ai-agent-cli.py --ide cursor --list
 ## Типичный сценарий
 
 ```
-1. python tools/1c-ai-agent-cli.py
+1. python tools/install.py
 2. ← Выбор IDE (стрелками)
 3. ← Каталог проекта (Enter — принять текущий, или ввести путь)
 4. ← Выбор компонентов (Space — toggle, Enter — готово)
@@ -375,4 +375,4 @@ python tools/1c-ai-agent-cli.py --ide cursor --list
 
 ### Добавить новую IDE
 
-Добавьте секцию в `model-defaults.json` и конфигурацию в `IDE_CONFIGS` внутри `tools/1c-ai-agent-cli.py`.
+Добавьте секцию в `model-defaults.json` и конфигурацию в `IDE_CONFIGS` внутри `tools/install.py`.

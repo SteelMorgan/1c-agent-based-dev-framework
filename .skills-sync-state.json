@@ -99,15 +99,15 @@
       "status": "synced"
     },
     "framework/skills/framework-meta/1c-ai-agent-cli/SKILL.md": {
-      "ru_hash": "sha256:84e62f0e5312cf604db1a14a0323a8cce5c018d42df9ada59d850d58b04379e6",
-      "en_hash": "sha256:eee10ea7b6801ea1a3b5c44ee664df9a8cd970242b501d5040ccdf5476267f5e",
-      "synced_at": "2026-03-02T19:39:15Z",
+      "ru_hash": "sha256:29c3e6d63ca6a6f860449f92fecdb6106c878b564ebad998811ea12fd288d759",
+      "en_hash": "sha256:a489cae2298ab40f95212cf7bc7413472a07022732b9ff306403301e4ea630cc",
+      "synced_at": "2026-03-17T10:12:00Z",
       "status": "synced"
     },
     "framework/skills/framework-meta/agent-development-ext/SKILL.md": {
-      "ru_hash": "sha256:672f14ff83a9359c6b818e865033191be69823b3eb0b1db20ceef1de94c1ed58",
-      "en_hash": "sha256:eae19ae4352903f5b28a5855c478561ee639980f897cbf9c1c4bee98e2bf7426",
-      "synced_at": "2026-03-02T19:39:15Z",
+      "ru_hash": "sha256:5d6411b2fad20c6c16bf70c222fb8e7b3278269063ec839d57335f4466cb7176",
+      "en_hash": "sha256:0860db505e0c2186f9789a6a27416e057e8fe52a715fe5e1fe86d2620ef61d74",
+      "synced_at": "2026-03-17T10:15:37Z",
       "status": "synced"
     },
     "framework/skills/framework-meta/agent-development/SKILL.md": {
@@ -117,9 +117,9 @@
       "status": "synced"
     },
     "framework/skills/framework-meta/skill-creator-ext/SKILL.md": {
-      "ru_hash": "sha256:c0e1e85b29384a169579b25a111fc139308bc27f664ec9a279267d1914ef649a",
-      "en_hash": "sha256:f1260fa8fbdea8b21fd2cd644d368d2f7df7b1448c0be25672398ffa44d464ee",
-      "synced_at": "2026-03-02T19:39:15Z",
+      "ru_hash": "sha256:871e6af1b3d504c8b26f569e5297eca2940fff0520e0c69facc4143853854ec5",
+      "en_hash": "sha256:0d001f0feab3fe54dbffea121d8ba1c18cbd02ffd14f0f862d4e04c502d47433",
+      "synced_at": "2026-03-17T10:14:34Z",
       "status": "synced"
     },
     "framework/skills/framework-meta/skill-creator/LICENSE.txt": {
@@ -795,15 +795,15 @@
       "status": "synced"
     },
     "framework/skills/tool-usage/platform-data/xml-generation/xml-gen-cli/SKILL.md": {
-      "ru_hash": "sha256:703f0936cfb1865e92f950a5755a4254d2677c2629d6cc1a5acca242b0409f5d",
-      "en_hash": "sha256:2acb1266a028d39cf2f363d7ed11d8cb07914b706594f5aa9a5dceeee5095a9e",
-      "synced_at": "2026-03-16T22:42:20Z",
+      "ru_hash": "sha256:ef150a66a74aa81588384429037547337655d1107ea9518be764d67a27d540b7",
+      "en_hash": "sha256:9f55c151b40f20038862ade00940f03793de317596a6a33350049ba2b41294d1",
+      "synced_at": "2026-03-17T10:13:49Z",
       "status": "synced"
     },
     "framework/skills/tool-usage/platform-data/xml-generation/xml-generation/SKILL.md": {
-      "ru_hash": "sha256:ae904c914f865a60218ea23b96c5f666486c9b13c2338b85366d5c90bd49df8d",
-      "en_hash": "sha256:b212ccc55b4c85075637558f874b1fcd3089b9eea5f129b4ad6878319ce1ac91",
-      "synced_at": "2026-03-16T22:49:05Z",
+      "ru_hash": "sha256:ab5cbd993e9906c67dd3dc0a36342debaa36db86a107abb74483baaa9fd9fbf6",
+      "en_hash": "sha256:03b12fdce8bc0e146963f210dacba372faedc6f8f1d3d03947a3c642c930cac6",
+      "synced_at": "2026-03-17T10:13:06Z",
       "status": "synced"
     },
     "framework/skills/tool-usage/review/codex-review/SKILL.md": {

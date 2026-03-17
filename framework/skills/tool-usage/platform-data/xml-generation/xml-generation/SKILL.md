@@ -14,14 +14,14 @@ description: Генерация XML метаданных 1С из компакт
 `xml-gen` устанавливается автоматически при установке фреймворка:
 
 ```bash
-python tools/1c-ai-agent-cli.py
+python tools/install.py
 ```
 
 Инсталлер соберёт JAR (требуется JDK 17+) и создаст команду `xml-gen` в `~/.local/bin/`.
 
 Если `xml-gen` недоступен — переустановить вручную:
 ```bash
-python tools/1c-ai-agent-cli.py --install-xml-gen
+python tools/install.py --install-xml-gen
 ```
 
 ### Использование

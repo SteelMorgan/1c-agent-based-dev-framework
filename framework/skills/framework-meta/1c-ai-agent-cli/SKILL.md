@@ -1,9 +1,9 @@
 ---
 name: 1c-ai-agent-cli
-description: CLI 1C BSL Agent Framework — tools/1c-ai-agent-cli.py (clone, install). Используй при клонировании репозитория, установке компонентов в проект, настройке IDE (Cursor, Claude Code, Windsurf, VS Code+Continue).
+description: CLI 1C BSL Agent Framework — tools/install.py (clone, install). Используй при клонировании репозитория, установке компонентов в проект, настройке IDE (Cursor, Claude Code, Windsurf, VS Code+Continue).
 ---
 
-# 1c-ai-agent CLI — 1c-ai-agent-cli.py
+# 1c-ai-agent CLI — install.py
 
 Правила работы с CLI 1C BSL Agent Framework. Команды: **clone** (получение репозитория) и **install** (установка компонентов в проект).
 
@@ -18,7 +18,7 @@ description: CLI 1C BSL Agent Framework — tools/1c-ai-agent-cli.py (clone, ins
 ### Базовое клонирование
 
 ```bash
-python tools/1c-ai-agent-cli.py clone
+python tools/install.py clone
 ```
 
 Клонирует в `./1c-agent-based-dev-framework` (текущая директория).
@@ -26,26 +26,26 @@ python tools/1c-ai-agent-cli.py clone
 ### С указанием целевой директории
 
 ```bash
-python tools/1c-ai-agent-cli.py clone -t ./my-framework
-python tools/1c-ai-agent-cli.py clone --target /path/to/dir
+python tools/install.py clone -t ./my-framework
+python tools/install.py clone --target /path/to/dir
 ```
 
 ### Shallow clone (быстрее, только последний коммит)
 
 ```bash
-python tools/1c-ai-agent-cli.py clone --depth 1
+python tools/install.py clone --depth 1
 ```
 
 ### Конкретная ветка
 
 ```bash
-python tools/1c-ai-agent-cli.py clone -b agent-framework-bootstrap-20260211
+python tools/install.py clone -b agent-framework-bootstrap-20260211
 ```
 
 ### Клонирование + установка
 
 ```bash
-python tools/1c-ai-agent-cli.py clone -t ./fw --install
+python tools/install.py clone -t ./fw --install
 ```
 
 После клонирования автоматически запускается установщик в интерактивном режиме.
@@ -53,7 +53,7 @@ python tools/1c-ai-agent-cli.py clone -t ./fw --install
 ### Справка по clone
 
 ```bash
-python tools/1c-ai-agent-cli.py clone --help
+python tools/install.py clone --help
 ```
 
 ---
@@ -65,7 +65,7 @@ python tools/1c-ai-agent-cli.py clone --help
 ```bash
 git clone https://github.com/SteelMorgan/1c-agent-based-dev-framework.git
 cd 1c-agent-based-dev-framework
-python tools/1c-ai-agent-cli.py
+python tools/install.py
 ```
 
 ZIP (без git): скачать архив с GitHub и распаковать.
@@ -79,28 +79,28 @@ ZIP (без git): скачать архив с GitHub и распаковать.
 **Запуск:** из корня репозитория фреймворка (или после `clone`):
 
 ```bash
-python tools/1c-ai-agent-cli.py [опции]
-python tools/1c-ai-agent-cli.py install [опции]   # явно
+python tools/install.py [опции]
+python tools/install.py install [опции]   # явно
 ```
 
 ### Базовый вызов
 
 | Команда | Описание |
 |---------|----------|
-| `python tools/1c-ai-agent-cli.py` | Интерактивный режим — выбор IDE, проекта, компонентов |
-| `python tools/1c-ai-agent-cli.py --ide cursor --list` | Показать дерево компонентов без установки |
-| `python tools/1c-ai-agent-cli.py --ide cursor --all` | Установить все компоненты |
-| `python tools/1c-ai-agent-cli.py --ide cursor --include agent/developer workflow/full-cycle` | Установить указанные компоненты (зависимости подтянутся автоматически) |
-| `python tools/1c-ai-agent-cli.py --ide cursor --include agent/developer --dry-run` | Показать, что будет сделано, без изменений |
-| `python tools/1c-ai-agent-cli.py --relink` | Проверить и пересоздать сломанные симлинки |
-| `python tools/1c-ai-agent-cli.py --ide cursor --all --sync` | Синхронизация: удалить симлинки снятых компонентов |
+| `python tools/install.py` | Интерактивный режим — выбор IDE, проекта, компонентов |
+| `python tools/install.py --ide cursor --list` | Показать дерево компонентов без установки |
+| `python tools/install.py --ide cursor --all` | Установить все компоненты |
+| `python tools/install.py --ide cursor --include agent/developer workflow/full-cycle` | Установить указанные компоненты (зависимости подтянутся автоматически) |
+| `python tools/install.py --ide cursor --include agent/developer --dry-run` | Показать, что будет сделано, без изменений |
+| `python tools/install.py --relink` | Проверить и пересоздать сломанные симлинки |
+| `python tools/install.py --ide cursor --all --sync` | Синхронизация: удалить симлинки снятых компонентов |
 
 ### Поддерживаемые IDE
 
 `--ide` принимает одно или несколько значений через пробел (установка сразу в несколько IDE):
 
 ```bash
-python tools/1c-ai-agent-cli.py --ide claude-code codex --all
+python tools/install.py --ide claude-code codex --all
 ```
 
 | `--ide` | Описание |
@@ -144,14 +144,14 @@ python tools/1c-ai-agent-cli.py --ide claude-code codex --all
 
 | Триггер | Действие |
 |---------|----------|
-| Пользователь хочет получить фреймворк | `python tools/1c-ai-agent-cli.py clone` или `git clone <URL>` |
-| Пользователь хочет установить фреймворк в проект | `python tools/1c-ai-agent-cli.py clone -t ./fw --install` или clone + install |
-| Нужно проверить доступные компоненты | `python tools/1c-ai-agent-cli.py --ide cursor --list` |
-| Пользователь спрашивает, как установить фреймворк | Дать `python tools/1c-ai-agent-cli.py clone` и `python tools/1c-ai-agent-cli.py` |
-| Пользователь просит установить конкретные агенты/правила | `python tools/1c-ai-agent-cli.py --ide cursor --include <id1> <id2>` |
-| Симлинки сломаны после перемещения framework/ | `python tools/1c-ai-agent-cli.py --relink` |
-| Нужно проверить, что будет установлено | `python tools/1c-ai-agent-cli.py --ide cursor --include ... --dry-run` |
-| Windows без Developer Mode (симлинки недоступны) | `python tools/1c-ai-agent-cli.py --ide cursor --copy --include ...` |
+| Пользователь хочет получить фреймворк | `python tools/install.py clone` или `git clone <URL>` |
+| Пользователь хочет установить фреймворк в проект | `python tools/install.py clone -t ./fw --install` или clone + install |
+| Нужно проверить доступные компоненты | `python tools/install.py --ide cursor --list` |
+| Пользователь спрашивает, как установить фреймворк | Дать `python tools/install.py clone` и `python tools/install.py` |
+| Пользователь просит установить конкретные агенты/правила | `python tools/install.py --ide cursor --include <id1> <id2>` |
+| Симлинки сломаны после перемещения framework/ | `python tools/install.py --relink` |
+| Нужно проверить, что будет установлено | `python tools/install.py --ide cursor --include ... --dry-run` |
+| Windows без Developer Mode (симлинки недоступны) | `python tools/install.py --ide cursor --copy --include ...` |
 
 ---
 
@@ -163,24 +163,24 @@ python tools/1c-ai-agent-cli.py --ide claude-code codex --all
 ```bash
 git clone https://github.com/SteelMorgan/1c-agent-based-dev-framework.git
 cd 1c-agent-based-dev-framework
-python tools/1c-ai-agent-cli.py   # интерактивно, или python tools/1c-ai-agent-cli.py --ide cursor --all
+python tools/install.py   # интерактивно, или python tools/install.py --ide cursor --all
 ```
 
 **Вариант B (уже есть репозиторий, клонировать в другой каталог):**
 ```bash
 cd 1c-agent-based-dev-framework
-python tools/1c-ai-agent-cli.py clone -t ../другой-проект/fw --install
+python tools/install.py clone -t ../другой-проект/fw --install
 ```
 
 **Вариант C (установка в текущий проект):**
 ```bash
-python tools/1c-ai-agent-cli.py --ide cursor --all
+python tools/install.py --ide cursor --all
 ```
 
 ### Сценарий 2: Установка в существующий проект
 
 1. Клонировать фреймворк в отдельную папку (или использовать уже существующую).
-2. Указать целевой проект: `python tools/1c-ai-agent-cli.py --ide cursor --project-dir /path/to/project --include agent/developer workflow/full-cycle`
+2. Указать целевой проект: `python tools/install.py --ide cursor --project-dir /path/to/project --include agent/developer workflow/full-cycle`
 3. При необходимости: `--dry-run` для проверки.
 
 ### Сценарий 3: Восстановление симлинков
@@ -189,7 +189,7 @@ python tools/1c-ai-agent-cli.py --ide cursor --all
 
 ```bash
 cd /path/to/project
-python /path/to/framework/tools/1c-ai-agent-cli.py --relink
+python /path/to/framework/tools/install.py --relink
 ```
 
 ---

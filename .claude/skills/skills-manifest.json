@@ -5,7 +5,7 @@
   "skills": [
     {
       "name": "1c-ai-agent-cli",
-      "description": "CLI 1C BSL Agent Framework — tools/1c-ai-agent-cli.py (clone, install). Используй при клонировании репозитория, установке компонентов в проект, настройке IDE (Cursor, Claude Code, Windsurf, VS Code+Continue).",
+      "description": "CLI 1C BSL Agent Framework — tools/install.py (clone, install). Используй при клонировании репозитория, установке компонентов в проект, настройке IDE (Cursor, Claude Code, Windsurf, VS Code+Continue).",
       "path": "/workspaces/work/repos/1C Framework/1c-agent-based-dev-framework/.cursor/skills/1c-ai-agent-cli/SKILL.md",
       "scope": "project",
       "capabilities": []

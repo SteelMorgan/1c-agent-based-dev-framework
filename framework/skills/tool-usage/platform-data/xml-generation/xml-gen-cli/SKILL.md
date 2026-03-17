@@ -32,8 +32,8 @@ description: Правила работы с XmlGen CLI — validate (form/role/s
 xml-gen <command> [args...]
 ```
 
-> `xml-gen` устанавливается автоматически при установке фреймворка (`python tools/1c-ai-agent-cli.py`).
-> Если команда недоступна — запустите: `python tools/1c-ai-agent-cli.py --install-xml-gen`
+> `xml-gen` устанавливается автоматически при установке фреймворка (`python tools/install.py`).
+> Если команда недоступна — запустите: `python tools/install.py --install-xml-gen`
 
 ## Команда validate
 

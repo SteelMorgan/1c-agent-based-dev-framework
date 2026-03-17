@@ -7,6 +7,8 @@ sync-skill.py — синхронизатор RU→EN для framework/ → frame
   python3 tools/sync-skill.py --check              # показать статусы без перевода
   python3 tools/sync-skill.py --all                # синхронизировать все pending/dirty файлы
   python3 tools/sync-skill.py --init-all           # первичная синхронизация всего framework/
+  python3 tools/sync-skill.py --sync-structure     # синхронизировать структуру каталогов
+  python3 tools/sync-skill.py --sync-structure --clean  # + удалить осиротевшие каталоги в framework_eng/
 
 Вызывается из pre-commit хука автоматически.
 """
@@ -342,16 +344,16 @@ def cmd_init_all() -> int:
 # ─── Обновление реестра для новых/удалённых файлов ────────────────────────────
 
 def sync_registry_with_disk() -> None:
-    """Добавить в state новые файлы, пометить удалённые."""
+    """Добавить в state новые файлы, пометить изменённые как dirty."""
     state = load_state()
     known = set(state["files"].keys())
 
-    # Новые файлы
+    # Новые файлы и проверка хэшей существующих
     for ru_path in sorted(FRAMEWORK_DIR.rglob("*")):
         if ru_path.is_file() and not is_excluded(ru_path):
             rel = relative(ru_path)
+            current_hash = sha256_file(ru_path)
             if rel not in known:
-                current_hash = sha256_file(ru_path)
                 state["files"][rel] = {
                     "ru_hash": current_hash,
                     "en_hash": None,
@@ -359,8 +361,109 @@ def sync_registry_with_disk() -> None:
                     "status": "pending",
                 }
                 print(f"  + Registered new file: {rel}")
+            else:
+                # Проверяем, изменился ли файл с момента последней синхронизации
+                info = state["files"][rel]
+                if info.get("status") == "synced" and info.get("ru_hash") != current_hash:
+                    info["ru_hash"] = current_hash
+                    info["status"] = "dirty"
+                    print(f"  ~ Marked dirty: {rel}")
 
     save_state(state)
+
+
+# ─── Синхронизация структуры каталогов ─────────────────────────────────────────
+
+def cmd_sync_structure(*, clean: bool = False) -> int:
+    """
+    Синхронизирует структуру каталогов framework/ → framework_eng/.
+
+    - Создаёт отсутствующие каталоги в framework_eng/
+    - Находит осиротевшие каталоги в framework_eng/ (нет соответствия в framework/)
+    - При clean=True удаляет осиротевшие каталоги
+    """
+    import shutil
+
+    ru_base = FRAMEWORK_DIR
+    en_base = MIRROR_DIR
+
+    if not ru_base.is_dir():
+        print(f"  ✗ Source directory not found: {ru_base}")
+        return 1
+
+    if not en_base.is_dir():
+        print(f"  Creating mirror root: {relative(en_base)}")
+        en_base.mkdir(parents=True, exist_ok=True)
+
+    # Collect all directories in framework/ (relative paths)
+    ru_dirs = set()
+    for p in sorted(ru_base.rglob("*")):
+        if p.is_dir():
+            ru_dirs.add(p.relative_to(ru_base))
+
+    # Collect all directories in framework_eng/ (relative paths)
+    en_dirs = set()
+    for p in sorted(en_base.rglob("*")):
+        if p.is_dir():
+            en_dirs.add(p.relative_to(en_base))
+
+    # Missing in EN (exist in RU but not in EN)
+    missing_in_en = sorted(ru_dirs - en_dirs)
+    # Orphaned in EN (exist in EN but not in RU)
+    orphaned_in_en = sorted(en_dirs - ru_dirs)
+
+    created = 0
+    removed = 0
+    issues = False
+
+    print("\n┌─────────────────────────────────────────────────────────┐")
+    print("│  Directory structure sync: framework/ → framework_eng/  │")
+    print("└─────────────────────────────────────────────────────────┘\n")
+
+    # Create missing directories
+    if missing_in_en:
+        print(f"  Missing directories in framework_eng/ ({len(missing_in_en)}):")
+        for rel_dir in missing_in_en:
+            en_dir = en_base / rel_dir
+            en_dir.mkdir(parents=True, exist_ok=True)
+            print(f"    + Created: framework_eng/{rel_dir}")
+            created += 1
+    else:
+        print("  ✓ No missing directories in framework_eng/")
+
+    # Report/remove orphaned directories
+    if orphaned_in_en:
+        print(f"\n  Orphaned directories in framework_eng/ ({len(orphaned_in_en)}):")
+        for rel_dir in orphaned_in_en:
+            en_dir = en_base / rel_dir
+            if clean:
+                if en_dir.exists():
+                    shutil.rmtree(en_dir, ignore_errors=True)
+                    print(f"    - Removed: framework_eng/{rel_dir}")
+                    removed += 1
+            else:
+                print(f"    ! Orphan: framework_eng/{rel_dir}")
+                issues = True
+    else:
+        print("  ✓ No orphaned directories in framework_eng/")
+
+    # Summary
+    print()
+    parts = []
+    if created:
+        parts.append(f"created: {created}")
+    if removed:
+        parts.append(f"removed: {removed}")
+    if issues:
+        orphan_count = len(orphaned_in_en)
+        parts.append(f"orphaned: {orphan_count} (use --clean to remove)")
+
+    if parts:
+        print(f"  Summary: {' | '.join(parts)}")
+    else:
+        print("  ✓ Directory structure is in sync.")
+
+    return 1 if issues else 0
 
 
 # ─── main ─────────────────────────────────────────────────────────────────────
@@ -373,13 +476,19 @@ def main() -> int:
     parser.add_argument("--check", action="store_true", help="Show sync status table, exit 1 if any dirty")
     parser.add_argument("--all", action="store_true", help="Sync all pending/dirty files")
     parser.add_argument("--init-all", action="store_true", help="Initial sync: translate everything missing")
+    parser.add_argument("--sync-structure", action="store_true",
+                        help="Sync directory structure: create missing dirs in framework_eng/, report orphans")
+    parser.add_argument("--clean", action="store_true",
+                        help="With --sync-structure: remove orphaned directories in framework_eng/")
 
     args = parser.parse_args()
 
     # Всегда обновляем реестр на случай новых файлов
     sync_registry_with_disk()
 
-    if args.check:
+    if args.sync_structure:
+        return cmd_sync_structure(clean=args.clean)
+    elif args.check:
         return cmd_check()
     elif args.init_all:
         return cmd_init_all()

@@ -7,12 +7,12 @@
   - install: установка компонентов в проект с учётом целевой IDE
 
 Использование:
-    python tools/1c-ai-agent-cli.py clone                    # Клонировать репозиторий
-    python tools/1c-ai-agent-cli.py clone -t ./fw --install  # Клонировать и установить
-    python tools/1c-ai-agent-cli.py                          # Интерактивный режим установки
-    python tools/1c-ai-agent-cli.py --ide cursor --list      # Показать дерево компонентов
-    python tools/1c-ai-agent-cli.py --ide cursor --all       # Установить всё
-    python tools/1c-ai-agent-cli.py --relink                 # Пересоздать симлинки
+    python tools/install.py clone                    # Клонировать репозиторий
+    python tools/install.py clone -t ./fw --install  # Клонировать и установить
+    python tools/install.py                          # Интерактивный режим установки
+    python tools/install.py --ide cursor --list      # Показать дерево компонентов
+    python tools/install.py --ide cursor --all       # Установить всё
+    python tools/install.py --relink                 # Пересоздать симлинки
 
 Требования: Python 3.7+, Git (для clone). Без внешних Python-зависимостей.
 """
@@ -1490,8 +1490,8 @@ def write_session_log(
     skipped: int,
     removed: int,
 ) -> None:
-    """Записывает лог выбора в .1c-ai-agent-cli-session.json для верификации."""
-    log_path = project_dir / ".1c-ai-agent-cli-session.json"
+    """Записывает лог выбора в .install-session.json для верификации."""
+    log_path = project_dir / ".install-session.json"
     data = {
         "timestamp": datetime.now().isoformat(),
         "ide": ide_key,
@@ -1875,7 +1875,7 @@ def relink(project_dir: Path):
         print(green("  Все симлинки в порядке."))
     else:
         print(f"\n  Найдено {red(str(broken))} сломанных симлинков.")
-        print(f"  Для исправления: переустановите фреймворк (python tools/1c-ai-agent-cli.py)")
+        print(f"  Для исправления: переустановите фреймворк (python tools/install.py)")
 
 
 # ─── xml-gen: сборка и установка ─────────────────────────────────────────────
@@ -2057,7 +2057,7 @@ def install_xml_gen(script_dir: Path, dry_run: bool = False) -> bool:
             else:
                 print(yellow("  ⚠ JDK 17+ не найден. Установите OpenJDK 17+ вручную,"))
                 print(yellow("    затем запустите: cd tools/xml-gen && ./gradlew shadowJar"))
-                print(yellow("    После сборки перезапустите: python tools/1c-ai-agent-cli.py --install-xml-gen"))
+                print(yellow("    После сборки перезапустите: python tools/install.py --install-xml-gen"))
                 return False
 
         # 3. Собираем JAR
@@ -2156,11 +2156,11 @@ def cmd_clone(args: argparse.Namespace) -> int:
     if args.install:
         print()
         print(bold("  Запуск установщика..."))
-        install_script = target / "tools" / "1c-ai-agent-cli.py"
+        install_script = target / "tools" / "install.py"
         if install_script.exists():
             subprocess.run([sys.executable, str(install_script)], cwd=str(target))
         else:
-            print(yellow(f"  CLI не найден в {target}. Запустите вручную: python tools/1c-ai-agent-cli.py"))
+            print(yellow(f"  CLI не найден в {target}. Запустите вручную: python tools/install.py"))
     return 0
 
 
@@ -2187,18 +2187,18 @@ def find_mirror_dir(framework_dir: Path) -> Optional[Path]:
 
 def main():
     parser = argparse.ArgumentParser(
-        prog="1c-ai-agent-cli",
+        prog="install",
         description="1C BSL Agent Framework — CLI (clone, install)",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Примеры:
-  python tools/1c-ai-agent-cli.py clone                       # Клонировать репозиторий
-  python tools/1c-ai-agent-cli.py clone -t ./my-fw --install  # Клонировать и установить
-  python tools/1c-ai-agent-cli.py install                     # Интерактивный режим
-  python tools/1c-ai-agent-cli.py --ide cursor --list           # Показать дерево
-  python tools/1c-ai-agent-cli.py --ide cursor --all          # Установить всё
-  python tools/1c-ai-agent-cli.py --ide cursor --include agent/developer workflow/full-cycle
-  python tools/1c-ai-agent-cli.py --relink                     # Проверить симлинки
+  python tools/install.py clone                       # Клонировать репозиторий
+  python tools/install.py clone -t ./my-fw --install  # Клонировать и установить
+  python tools/install.py install                     # Интерактивный режим
+  python tools/install.py --ide cursor --list           # Показать дерево
+  python tools/install.py --ide cursor --all          # Установить всё
+  python tools/install.py --ide cursor --include agent/developer workflow/full-cycle
+  python tools/install.py --relink                     # Проверить симлинки
         """,
     )
 
@@ -2529,7 +2529,7 @@ def main():
 
     if use_symlinks:
         print(f"\n  {dim('Симлинки привязаны к расположению фреймворка.')}")
-        print(f"  {dim('Если переместите framework/ — запустите: python tools/1c-ai-agent-cli.py --relink')}")
+        print(f"  {dim('Если переместите framework/ — запустите: python tools/install.py --relink')}")
 
     # Post-install: напоминания для IDE требующих ручного импорта правил
     if not args.dry_run:
