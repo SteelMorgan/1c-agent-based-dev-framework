@@ -10,20 +10,20 @@ Working with external data processors 1С (ExternalDataProcessor).
 ## When to use
 
 | Trigger | Action |
-|---------|----------|
-| Need to create a new external data processor | `epf init --name <Name> <output_dir>` |
-| Need to add a form to a processor | `epf add-form --epf <EpfName> --name <FormName> <output_dir>` |
-| Need to add a print template (tabular document) | `epf add-template --epf ... --name ... --type spreadsheet <output_dir>` |
-| Need to add an HTML/text template | `epf add-template --type html` or `--type text` |
-| Need to add an attribute to an existing processor | `epf add-attribute --name ... --type ... <EpfRoot.xml>` |
-| Need to create an external report (ERF) | `epf init --type report --name ... <output_dir>` |
-| Need to add a tabular section to an existing processor | `epf add-tabular-section --name ... <EpfRoot.xml>` |
+|---------|--------|
+| You need to create a new external data processor | `epf init --name <Name> <output_dir>` |
+| You need to add a form to the processor | `epf add-form --epf <EpfName> --name <FormName> <output_dir>` |
+| You need to add a print form (tabular document) | `epf add-template --epf ... --name ... --type spreadsheet <output_dir>` |
+| You need to add an HTML/text template | `epf add-template --type html` or `--type text` |
+| You need to add an attribute to an existing processor | `epf add-attribute --name ... --type ... <EpfRoot.xml>` |
+| You need to create an external report (ERF) | `epf init --type report --name ... <output_dir>` |
+| You need to add a tabular section to an existing processor | `epf add-tabular-section --name ... <EpfRoot.xml>` |
 
 ## Commands
 
 ### epf init
 
-Create a new external processor.
+Create a new external data processor.
 
 **Syntax:**
 ```bash
@@ -31,17 +31,17 @@ xml-gen epf init --name <Name> [--type processor|report] [--format designer|edt]
 ```
 
 **Parameters:**
-- `--name <Name>` — processor/report name (required)
+- `--name <Name>` — the processor/report name (required)
 - `--type processor|report` — type: `processor` (processor by default) or `report` (external report, ERF)
 - `--format designer|edt` — output format (default: designer)
 - `--synonym <Synonym>` — synonym (optional)
-- `<output_dir>` — output directory (required, positional argument)
+- `<output_dir>` — output directory (required positional argument)
 
 **Example:**
 ```bash
 xml-gen epf init --name MyProcessor output/
-xml-gen epf init --format designer --name DataImport --synonym "Data Import" .
-xml-gen epf init --type report --name SalesReport --synonym "Sales Report" output/
+xml-gen epf init --format designer --name DataImport --synonym "Импорт данных" .
+xml-gen epf init --type report --name SalesReport --synonym "Отчёт по продажам" output/
 ```
 
 ### epf add-form
@@ -87,27 +87,27 @@ xml-gen epf add-tabular-section --name <Name> [--synonym <Synonym>] <EpfRoot.xml
 
 **Example:**
 ```bash
-xml-gen epf add-attribute --name Employee --type CatalogRef.Сотрудники --synonym "Employee" output/MyProcessor.xml
+xml-gen epf add-attribute --name Employee --type CatalogRef.Сотрудники --synonym "Сотрудник" output/MyProcessor.xml
 ```
 
-## EPF Structure (Designer)
+## EPF structure (Designer)
 
 ```
 MyProcessor/
-├── MyProcessor.xml              # Root metadata file
+├── MyProcessor.xml              # Корневой файл метаданных
 ├── Ext/
-│   └── ObjectModule.bsl         # Object module
+│   └── ObjectModule.bsl         # Модуль объекта
 ├── Forms/
 │   └── MainForm/
-│       ├── Form.xml             # Form metadata
+│       ├── Form.xml             # Метаданные формы
 │       └── Ext/
 │           └── Form/
-│               └── Module.bsl    # Form module
+│               └── Module.bsl    # Модуль формы
 └── Templates/
     └── PrintForm/
         ├── Template.xml
         └── Ext/
-            └── Template.mxl     # Tabular document
+            └── Template.mxl     # Табличный документ
 ```
 
 ## Integration with form compile and mxl compile
@@ -130,27 +130,27 @@ xml-gen mxl compile template.json output/MyProcessor/Templates/PrintForm/Ext/Tem
 # ❌ Wrong — epf add-form with positional arguments (CLI expects --epf, --name)
 xml-gen epf add-form MyProcessor MainForm
 
-# ✅ Right — named arguments, output_dir at the end
+# ✅ Correct — named arguments, output_dir at the end
 xml-gen epf add-form --epf MyProcessor --name MainForm output/
 ```
 
-> The CLI only parses named arguments. `output_dir` is the last positional argument (the directory where `<EpfName>.xml` is located).
+> The CLI parses only named arguments. `output_dir` is the last positional argument (the folder containing `<EpfName>.xml`).
 
 ```bash
 # ❌ Wrong — epf add-attribute against Form.xml (add-attribute edits the processor root XML)
 xml-gen epf add-attribute --name Employee MyProcessor/Forms/MainForm/Ext/Form.xml
 
-# ✅ Right — path to the processor root XML (MyProcessor.xml)
+# ✅ Correct — path to processor root XML (MyProcessor.xml)
 xml-gen epf add-attribute --name Employee --type CatalogRef.Сотрудники output/MyProcessor.xml
 ```
 
-> `epf add-attribute` adds an attribute to the **processor**, not the form. Use `form add-attribute` with Form.xml for the form.
+> `epf add-attribute` adds an attribute to the **processor**, not to the form. For a form use `form add-attribute` with Form.xml.
 
 ## See also
 
 - [xml-generation](../xml-generation/) — general description
-- [form-dsl](../form-dsl/) — generating form content
-- [mxl-dsl](../mxl-dsl/) — generating tabular documents
+- [form-dsl](../form-dsl/) — form content generation
+- [mxl-dsl](../mxl-dsl/) — tabular document generation
 - [xml-gen-cli](../xml-gen-cli/) — validate and edit commands
 
 ---
@@ -158,4 +158,3 @@ depends_on: []
 metadata:
   category: 1c-development
   version: "1.0"
----

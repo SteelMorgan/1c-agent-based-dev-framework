@@ -766,32 +766,32 @@
     },
     "framework/skills/tool-usage/platform-data/xml-generation/epf-operations/SKILL.md": {
       "ru_hash": "sha256:487b4fa1116062a2ceeb3af7aa660b0e325f13f64bc6bdbae3991d6cefe02695",
-      "en_hash": "sha256:7969a5b7d8e93c2784e8a69850908e53ca1d511858d56c5d04433e8a2e7410e4",
-      "synced_at": "2026-03-17T09:55:17Z",
+      "en_hash": "sha256:f9d29e6c9e46ae02b89249ab9410604d9ac4589f78264e559cbf6f7cac66511c",
+      "synced_at": "2026-03-17T09:57:59Z",
       "status": "synced"
     },
     "framework/skills/tool-usage/platform-data/xml-generation/form-dsl/SKILL.md": {
       "ru_hash": "sha256:a811762755f4b840492d507a9d17bf6c6feb8a03092cbd5ccf901f055c071161",
-      "en_hash": "sha256:caec7c5ec4cf6f88d996ae59588ec2cc2f965a77e0dfa69fa80ded2d8d24df7f",
-      "synced_at": "2026-03-17T09:55:56Z",
+      "en_hash": "sha256:fab9b3911803dcbe6842b4b58073a9f04353011659a62e6ada33a913e559812b",
+      "synced_at": "2026-03-17T09:58:56Z",
       "status": "synced"
     },
     "framework/skills/tool-usage/platform-data/xml-generation/mxl-dsl/SKILL.md": {
       "ru_hash": "sha256:e586d70924119a6bc865b35437aa0b455cb9722e353eb149c4a8741b045f86c9",
-      "en_hash": "sha256:b1fc27fc51ba4e7414cf16faf8de066cfeaf10b070ba324aab4483431403525d",
-      "synced_at": "2026-03-17T09:56:29Z",
+      "en_hash": "sha256:0d9b1f048aa4b2a669fe300fdaec4d7a8384316a07ee1cf760af8c3e93099eed",
+      "synced_at": "2026-03-17T09:59:29Z",
       "status": "synced"
     },
     "framework/skills/tool-usage/platform-data/xml-generation/role-dsl/SKILL.md": {
       "ru_hash": "sha256:302e18611cde727d67e2ba00194ae2768b1815e634494570b43bab4a6b2a62e2",
-      "en_hash": "sha256:860c21fc4aa45263724becdacb1f9608767db0cc79246300935915cb0bad7bd1",
-      "synced_at": "2026-03-17T09:56:56Z",
+      "en_hash": "sha256:fb2afb5946793fd29672d753973cfb758ed76166eb92a87378e7daeb39fc15ca",
+      "synced_at": "2026-03-17T10:00:44Z",
       "status": "synced"
     },
     "framework/skills/tool-usage/platform-data/xml-generation/skd-dsl/SKILL.md": {
       "ru_hash": "sha256:f7faf08e82c3c4fc0d3a72391e39a52d1ae6d52cec0d3336e92e5ab76196beab",
-      "en_hash": "sha256:da5db6f0947dff7bdc239289571c9b8eb760675787d06e3b28405f73e66ad492",
-      "synced_at": "2026-03-17T09:57:29Z",
+      "en_hash": "sha256:c6aa2bbafe6a13c9762ea6a625af4af7715694c1f9578dfa9aefe78338d754c1",
+      "synced_at": "2026-03-17T10:01:20Z",
       "status": "synced"
     },
     "framework/skills/tool-usage/platform-data/xml-generation/xml-gen-cli/SKILL.md": {

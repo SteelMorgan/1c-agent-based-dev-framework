@@ -1,6 +1,6 @@
 ---
 name: form-dsl
-description: JSON DSL for generating 1C managed forms with UI elements, attributes, and commands. Use when form compiling or editing forms via xml-gen-cli.
+description: JSON DSL for generating 1C managed forms with UI elements, attributes, and commands. Use it when running form compile or editing forms via xml-gen-cli.
 ---
 
 # Form DSL
@@ -11,12 +11,12 @@ JSON DSL for generating 1C managed forms.
 
 | Trigger | Action |
 |---------|--------|
-| Need to create a form from scratch (attributes, elements, commands) | `form compile` with JSON DSL |
+| Need to create a form from scratch (attributes, elements, commands) | `form compile` with the JSON DSL |
 | Need to add an attribute to an existing form | `form add-attribute` → [xml-gen-cli](../xml-gen-cli/) |
 | Need to add a UI element (field, button, group) | `form add-element` → [xml-gen-cli](../xml-gen-cli/) |
 | Need to add a form command | `form add-command` → [xml-gen-cli](../xml-gen-cli/) |
-| Need to remove/move an element | `form remove-element`, `form move-element` → [xml-gen-cli](../xml-gen-cli/) |
-| Need to analyze the structure of an existing form | `form info <Form.xml>` |
+| Need to remove or move an element | `form remove-element`, `form move-element` → [xml-gen-cli](../xml-gen-cli/) |
+| Need to inspect the structure of an existing form | `form info <Form.xml>` |
 
 ## Compile command
 
@@ -126,18 +126,18 @@ xml-gen form info <Form.xml>
 ```
 
 > ⚠️ **Client/server context is critical for 1C.**
-> DSL only sets the **procedure name**; the compiler directive must be added manually in the form module:
+> The DSL only sets the **procedure name**; you must add the compiler directive manually in the form module:
 >
-> | DSL event | Procedure name | Directive in form module |
-> |-----------|----------------|--------------------------|
+> | DSL event | Procedure name | Directive in the form module |
+> |-----------|----------------|------------------------------|
 > | `onCreateAtServer` | `ПриСозданииНаСервере` | `&НаСервере` |
 > | `onOpen` | `ПриОткрытии` | `&НаКлиенте` |
 > | `onClose` | `ПриЗакрытии` | `&НаКлиенте` |
 > | `beforeClose` | `ПередЗакрытием` | `&НаКлиенте` |
 >
 > Initialization code for form data should be written in `ПриСозданииНаСервере` (`&НаСервере`).
-> UI-related code (showing notifications, navigation) belongs only in client handlers.
-> Mixing contexts will cause a compilation error or server objects becoming unavailable on the client.
+> UI-related code (showing notifications, navigation) should run only in client handlers.
+> Mixing up contexts will result in a compilation error or server objects being unavailable on the client.
 
 ## Full example
 
@@ -178,20 +178,20 @@ xml-gen form info <Form.xml>
 
 ## Automatic generation
 
-- UUID, ID, ContextMenu, ExtendedTooltip are generated automatically
+- UUID, ID, ContextMenu, ExtendedTooltip are created automatically
 - Arbitrary nesting is supported: group → group → input, pages → page → table
 
 ## Right / Wrong
 
 ```json
-// ❌ Wrong — dataPath does not match an attribute (the element will not display data)
+// ❌ Wrong — dataPath does not match an attribute (the element will not show data)
 {"attributes": [{"name": "Наименование", "type": "string(100)"}], "elements": [{"type": "input", "name": "Поле1", "dataPath": "Поле1"}]}
 
-// ✅ Correct — dataPath equals attribute name
+// ✅ Correct — dataPath equals the attribute name
 {"attributes": [{"name": "Наименование", "type": "string(100)"}], "elements": [{"type": "input", "name": "Наименование", "dataPath": "Наименование"}]}
 ```
 
-> `dataPath` must point to an existing attribute from `attributes` (or a table part field path, e.g., `Товары.Номенклатура`).
+> `dataPath` must reference an existing attribute from `attributes` (or a table part field path, e.g., `Товары.Номенклатура`).
 
 ```json
 // ❌ Wrong — page without a parent pages (page must be inside pages)
@@ -201,7 +201,7 @@ xml-gen form info <Form.xml>
 {"elements": [{"type": "pages", "name": "Страницы", "children": [{"type": "page", "name": "Страница1", "children": [...]}]}]}
 ```
 
-> In 1C, pages (Pages) are a container for tabs. Page must always be a child element of Pages.
+> In 1C, pages (Pages) act as a container for tabs. Page must always be a child element of Pages.
 
 ## See also
 
