@@ -1,13 +1,13 @@
 ---
 name: form-dsl
-description: JSON DSL for generating 1C managed forms with UI elements, attributes, and commands. Use it for `form compile` and editing forms via xml-gen-cli.
+description: JSON DSL for generating 1C managed forms with UI elements, attributes, and commands. Use when form compiling or editing forms via xml-gen-cli.
 ---
 
 # Form DSL
 
 JSON DSL for generating 1C managed forms.
 
-## When to apply
+## When to use
 
 | Trigger | Action |
 |---------|--------|
@@ -16,6 +16,7 @@ JSON DSL for generating 1C managed forms.
 | Need to add a UI element (field, button, group) | `form add-element` → [xml-gen-cli](../xml-gen-cli/) |
 | Need to add a form command | `form add-command` → [xml-gen-cli](../xml-gen-cli/) |
 | Need to remove/move an element | `form remove-element`, `form move-element` → [xml-gen-cli](../xml-gen-cli/) |
+| Need to analyze the structure of an existing form | `form info <Form.xml>` |
 
 ## Compile command
 
@@ -24,6 +25,14 @@ xml-gen form compile [--format designer|edt] <input.json> <output.xml>
 ```
 
 **Editing existing forms** (add-attribute, add-element, add-command, remove-element, move-element) — see [xml-gen-cli](../xml-gen-cli/)
+
+## Info command
+
+Parses Form.xml — elements, attributes, commands, events.
+
+```bash
+xml-gen form info <Form.xml>
+```
 
 ## DSL structure
 
@@ -53,7 +62,7 @@ xml-gen form compile [--format designer|edt] <input.json> <output.xml>
 | DSL type | XML type | Description |
 |----------|----------|-------------|
 | `input` | InputField | Input field |
-| `group` | UsualGroup | Usual group |
+| `group` | UsualGroup | Regular group |
 | `table` | Table | Table |
 | `button` | Button | Button |
 | `label` | LabelDecoration | Decoration label |
@@ -61,12 +70,12 @@ xml-gen form compile [--format designer|edt] <input.json> <output.xml>
 | `pages` | Pages | Pages |
 | `page` | Page | Page |
 
-**Example input:**
+**Input example:**
 ```json
 {"type": "input", "name": "Наименование", "dataPath": "Наименование", "title": "Наименование товара"}
 ```
 
-**Example group with children:**
+**Group example with children:**
 ```json
 {
   "type": "group",
@@ -79,7 +88,7 @@ xml-gen form compile [--format designer|edt] <input.json> <output.xml>
 }
 ```
 
-**Example table:**
+**Table example:**
 ```json
 {
   "type": "table",
@@ -117,18 +126,18 @@ xml-gen form compile [--format designer|edt] <input.json> <output.xml>
 ```
 
 > ⚠️ **Client/server context is critical for 1C.**
-> The DSL only specifies the **procedure name**; you must set the compiler directive manually in the form module:
+> DSL only sets the **procedure name**; the compiler directive must be added manually in the form module:
 >
-> | DSL event | Procedure name | Directive in the form module |
-> |-----------|----------------|----------------------------|
+> | DSL event | Procedure name | Directive in form module |
+> |-----------|----------------|--------------------------|
 > | `onCreateAtServer` | `ПриСозданииНаСервере` | `&НаСервере` |
 > | `onOpen` | `ПриОткрытии` | `&НаКлиенте` |
 > | `onClose` | `ПриЗакрытии` | `&НаКлиенте` |
 > | `beforeClose` | `ПередЗакрытием` | `&НаКлиенте` |
 >
-> Form data initialization code runs in `ПриСозданииНаСервере` (`&НаСервере`).
-> UI-related code (showing notifications, navigation) belongs only to client handlers.
-> Mixing contexts = compilation error or server objects unavailable on the client.
+> Initialization code for form data should be written in `ПриСозданииНаСервере` (`&НаСервере`).
+> UI-related code (showing notifications, navigation) belongs only in client handlers.
+> Mixing contexts will cause a compilation error or server objects becoming unavailable on the client.
 
 ## Full example
 
@@ -172,33 +181,33 @@ xml-gen form compile [--format designer|edt] <input.json> <output.xml>
 - UUID, ID, ContextMenu, ExtendedTooltip are generated automatically
 - Arbitrary nesting is supported: group → group → input, pages → page → table
 
-## Correct / Incorrect
+## Right / Wrong
 
 ```json
-// ❌ Неправильно — dataPath не совпадает с реквизитом (элемент не отобразит данные)
+// ❌ Wrong — dataPath does not match an attribute (the element will not display data)
 {"attributes": [{"name": "Наименование", "type": "string(100)"}], "elements": [{"type": "input", "name": "Поле1", "dataPath": "Поле1"}]}
 
-// ✅ Правильно — dataPath = name реквизита
+// ✅ Correct — dataPath equals attribute name
 {"attributes": [{"name": "Наименование", "type": "string(100)"}], "elements": [{"type": "input", "name": "Наименование", "dataPath": "Наименование"}]}
 ```
 
-> `dataPath` should point to an existing attribute from `attributes` (or to a tabular section field path, e.g. `Товары.Номенклатура`).
+> `dataPath` must point to an existing attribute from `attributes` (or a table part field path, e.g., `Товары.Номенклатура`).
 
 ```json
-// ❌ Неправильно — page без родителя pages (page должен быть внутри pages)
+// ❌ Wrong — page without a parent pages (page must be inside pages)
 {"elements": [{"type": "page", "name": "Страница1", "children": [...]}]}
 
-// ✅ Правильно — pages как контейнер, page внутри
+// ✅ Correct — pages as a container, page inside
 {"elements": [{"type": "pages", "name": "Страницы", "children": [{"type": "page", "name": "Страница1", "children": [...]}]}]}
 ```
 
-> In 1C pages (Pages) are a container for tabs. Page must always be a child element of Pages.
+> In 1C, pages (Pages) are a container for tabs. Page must always be a child element of Pages.
 
 ## See also
 
 - [xml-gen-cli](../xml-gen-cli/) — edit commands
 - [xml-generation](../xml-generation/) — general overview
-- [epf-operations](../epf-operations/) — creating external handlers
+- [epf-operations](../epf-operations/) — creating operations
 
 ---
 depends_on: []

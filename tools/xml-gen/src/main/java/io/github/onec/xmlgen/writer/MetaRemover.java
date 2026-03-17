@@ -273,6 +273,21 @@ public class MetaRemover {
             patterns.add("<MethodName>" + objName + ".");
         }
 
+        // ScheduledJob: MethodName references CommonModule.Proc
+        if ("ScheduledJob".equals(objType)) {
+            patterns.add("<MethodName>" + objName);
+        }
+
+        // EventSubscription: Handler references CommonModule.Proc
+        if ("EventSubscription".equals(objType)) {
+            patterns.add("<Handler>" + objName);
+        }
+
+        // DefinedType: type references
+        if ("DefinedType".equals(objType)) {
+            patterns.add("DefinedType." + objName);
+        }
+
         return patterns;
     }
 

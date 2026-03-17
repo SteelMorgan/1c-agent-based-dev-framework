@@ -15,6 +15,8 @@ JSON DSL для генерации табличных документов 1С (
 | Нужно добавить область в шаблон | Описать в `areas`, перекомпилировать |
 | Нужно использовать параметры в ячейках | `parameters` + `[ИмяПараметра]` в text |
 | Нужно применить стили | `fonts` + `styles` + `style` в ячейке |
+| Нужно анализировать существующий макет | `mxl info <Template.xml>` |
+| Нужно обратная конвертация XML → JSON | `mxl decompile <Template.xml> <output.json>` |
 
 ## Команда compile
 
@@ -23,6 +25,22 @@ xml-gen mxl compile [--format designer|edt] <input.json> <output.xml>
 ```
 
 **output.xml** — путь к Template.xml или макету в EPF: `.../Templates/<Name>/Ext/Template.xml`
+
+## Команда info
+
+Анализ структуры макета: области, параметры, колонки.
+
+```bash
+xml-gen mxl info <Template.xml>
+```
+
+## Команда decompile
+
+Обратная конвертация Template.xml → JSON DSL.
+
+```bash
+xml-gen mxl decompile <Template.xml> <output.json>
+```
 
 ## Структура DSL
 

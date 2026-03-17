@@ -14,6 +14,7 @@ JSON DSL для генерации ролей 1С с правами доступ
 | Нужно создать роль с нуля (права на объекты) | `role compile` с JSON DSL |
 | Нужно добавить права на объект в существующую роль | `role add-object` → [xml-gen-cli](../xml-gen-cli/) |
 | Нужно изменить право для существующего объекта | `role add-right` → [xml-gen-cli](../xml-gen-cli/) |
+| Нужно анализировать существующую роль | `role info <Rights.xml>` |
 
 ## Команда compile
 
@@ -22,6 +23,14 @@ xml-gen role compile [--format designer|edt] <input.json> <output_dir>
 ```
 
 **Результат (Designer):** создаётся `output_dir/Roles/<Name>.xml` и `output_dir/Roles/<Name>/Ext/Rights.xml`
+
+## Команда info
+
+Аудит прав роли: объекты, права, RLS, шаблоны.
+
+```bash
+xml-gen role info <Rights.xml>
+```
 
 **Пример:**
 ```bash

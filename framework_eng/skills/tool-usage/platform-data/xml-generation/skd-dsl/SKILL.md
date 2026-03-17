@@ -1,21 +1,22 @@
 ---
 name: skd-dsl
-description: JSON DSL for generating 1C Data Composition Schemas (SKD) with filters, sorting, and conditional formatting. Use it with skd compile for reports.
+description: JSON DSL for generating 1С Data Composition Schema (SKD) with filters, sorting, and conditional formatting. Use with skd compile for reports.
 ---
 
 # SKD DSL
 
-JSON DSL for generating 1C Data Composition Schemas (DataCompositionSchema).
+JSON DSL for generating 1С Data Composition Schema (DataCompositionSchema).
 
-## When to use
+## When to apply
 
 | Trigger | Action |
-|---------|----------|
-| Need to create a report (SKD) | `skd compile` with the JSON DSL |
+|---------|--------|
+| Need to create a report (СКД) | `skd compile` with JSON DSL |
 | Need to add a parameter to an existing schema | `skd add-parameter` → [xml-gen-cli](../xml-gen-cli/) |
-| Need to add a field to a DataSet | `skd add-field` → [xml-gen-cli](../xml-gen-cli/) |
+| Need to add a field to the DataSet | `skd add-field` → [xml-gen-cli](../xml-gen-cli/) |
 | Need a DataSetUnion | Workaround: DataSetQuery with UNION in the query |
-| Need calculated fields | Workaround: calculations in the SELECT part of the query |
+| Need calculated fields | Workaround: calculations inside the query SELECT |
+| Need to inspect an existing SKD | `skd info <Schema.xml>` |
 
 ## Compile command
 
@@ -24,6 +25,14 @@ xml-gen skd compile [--format designer|edt] <input.json> <output.xml>
 ```
 
 **Editing** (add-parameter, add-field) — see [xml-gen-cli](../xml-gen-cli/)
+
+## Info command
+
+Analyze SKD: data sets, fields, parameters, settings variants.
+
+```bash
+xml-gen skd info <Schema.xml>
+```
 
 ## DSL structure
 
@@ -142,38 +151,38 @@ xml-gen skd compile [--format designer|edt] <input.json> <output.xml>
 
 ## Limitations (15%)
 
-- Only DataSetQuery is supported (DataSetObject/Union are not supported)
+- Only DataSetQuery (DataSetObject/Union are not supported)
 - No CalculatedFields
-- Workaround: perform calculations inside queries
+- Workaround: use calculations inside queries
 
-## Right / Wrong
+## Correct / Incorrect
 
 ```json
-// ❌ Wrong — filter uses a Cyrillic operator (only Latin operators are supported)
+// ❌ Incorrect — filter uses Cyrillic operator (only Latin operators are supported)
 "filter": ["Сумма больше 0"]
 
-// ✅ Right — operators: =, <>, >, >=, <, <=, in, notIn, contains, filled, notFilled
+// ✅ Correct — operators: =, <>, >, >=, <, <=, in, notIn, contains, filled, notFilled
 "filter": ["Сумма > 0"]
 ```
 
-> The filter parser expects operators from a fixed list. `больше` is not recognized.
+> The filter parser expects operators from the fixed list. `больше` is not recognized.
 
 ```json
-// ❌ Wrong — dataPath in selection is not from the dataSets
+// ❌ Incorrect — dataPath in selection is not from dataSets
 "settings": {"selection": ["НесуществующееПоле"]}
 
-// ✅ Right — selection fields must be taken from the dataSets
+// ✅ Correct — selection only from dataSets fields
 "fields": [{"dataPath": "Сумма", "title": "Сумма"}],
 "settings": {"selection": ["Сумма"]}
 ```
 
-> Fields referenced in selection, order, filter, structure must exist in the dataSets. Otherwise the SKD cannot be composed.
+> Fields in selection, order, filter, structure must exist in the dataSets. Otherwise the SKD will not compile.
 
 ## See also
 
-- [xml-generation](../xml-generation/) — general description
+- [xml-generation](../xml-generation/) — general overview
 - [xml-gen-cli](../xml-gen-cli/) — add-parameter, add-field
-- [epf-operations](../epf-operations/) — creating external processing routines
+- [epf-operations](../epf-operations/) — creating tools
 
 ---
 depends_on: []

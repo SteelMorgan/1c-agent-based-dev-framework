@@ -203,13 +203,54 @@ public class InterfaceValidator {
 
     // --- Helpers ---
 
-    private void validateCommandRef(String ref, String section) {
-        if (ref.startsWith("0:")) return; // UUID reference
-        if (ref.startsWith("CommonCommand.")) return; // OK
+    /** Valid metadata type prefixes for command references. */
+    private static final Set<String> COMMAND_REF_TYPES = Set.of(
+            "Catalog", "Document", "Enum", "ChartOfAccounts",
+            "ChartOfCharacteristicTypes", "ChartOfCalculationTypes",
+            "ExchangePlan", "InformationRegister", "AccumulationRegister",
+            "AccountingRegister", "CalculationRegister", "BusinessProcess",
+            "Task", "Report", "DataProcessor", "Constant", "DocumentJournal",
+            "CommonForm", "SettingsStorage");
 
-        // Type.Object.StandardCommand.Op or Type.Object.Command.Name
+    /**
+     * Validate command reference format.
+     * 4 valid patterns:
+     * 1. "0:<uuid>" — UUID reference
+     * 2. "CommonCommand.<Name>" — common command (2 segments)
+     * 3. "Type.Object.StandardCommand.Op" — standard command (4 segments)
+     * 4. "Type.Object.Command.Name" — object command (4 segments)
+     */
+    private void validateCommandRef(String ref, String section) {
+        // Pattern 1: UUID reference
+        if (ref.startsWith("0:")) {
+            String uuid = ref.substring(2);
+            if (!uuid.matches("[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}")) {
+                warn(section + ": UUID reference '" + ref + "' has invalid UUID format");
+            }
+            return;
+        }
+
+        // Pattern 2: CommonCommand.Name
+        if (ref.startsWith("CommonCommand.")) {
+            if (ref.split("\\.").length != 2) {
+                warn(section + ": CommonCommand reference '" + ref
+                        + "' should have format CommonCommand.<Name>");
+            }
+            return;
+        }
+
+        // Patterns 3 & 4: Type.Object.StandardCommand.Op or Type.Object.Command.Name
         String[] parts = ref.split("\\.");
-        if (parts.length < 3) {
+        if (parts.length == 4) {
+            if (!COMMAND_REF_TYPES.contains(parts[0])) {
+                warn(section + ": command reference '" + ref
+                        + "' has unknown type prefix '" + parts[0] + "'");
+            }
+            if (!"StandardCommand".equals(parts[2]) && !"Command".equals(parts[2])) {
+                warn(section + ": command reference '" + ref
+                        + "' segment 3 should be 'StandardCommand' or 'Command', got '" + parts[2] + "'");
+            }
+        } else if (parts.length < 3) {
             warn(section + ": command reference '" + ref
                     + "' has unexpected format (expected Type.Object.Command.Name or CommonCommand.Name)");
         }

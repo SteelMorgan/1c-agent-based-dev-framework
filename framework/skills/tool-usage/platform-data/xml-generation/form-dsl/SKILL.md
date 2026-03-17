@@ -16,6 +16,7 @@ JSON DSL для генерации управляемых форм 1С.
 | Нужно добавить UI-элемент (поле, кнопку, группу) | `form add-element` → [xml-gen-cli](../xml-gen-cli/) |
 | Нужно добавить команду формы | `form add-command` → [xml-gen-cli](../xml-gen-cli/) |
 | Нужно удалить/переместить элемент | `form remove-element`, `form move-element` → [xml-gen-cli](../xml-gen-cli/) |
+| Нужно анализировать структуру существующей формы | `form info <Form.xml>` |
 
 ## Команда compile
 
@@ -24,6 +25,14 @@ xml-gen form compile [--format designer|edt] <input.json> <output.xml>
 ```
 
 **Редактирование существующих форм** (add-attribute, add-element, add-command, remove-element, move-element) — см. [xml-gen-cli](../xml-gen-cli/)
+
+## Команда info
+
+Парсинг Form.xml — элементы, реквизиты, команды, события.
+
+```bash
+xml-gen form info <Form.xml>
+```
 
 ## Структура DSL
 

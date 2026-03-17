@@ -9,6 +9,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -115,16 +116,58 @@ public class SubsystemEditor {
      * Поддерживает: Name, Comment, IncludeInCommandInterface, UseOneCommand,
      *               IncludeHelpInContents, Synonym, Explanation.
      */
+    private static final Set<String> BOOLEAN_PROPS = Set.of(
+            "IncludeInCommandInterface", "UseOneCommand", "IncludeHelpInContents");
+
+    private static final Set<String> LOCAL_STRING_PROPS = Set.of(
+            "Synonym", "Explanation");
+
     public void setProperty(String spec) {
         String[] kv = spec.split("=", 2);
         if (kv.length != 2) throw new IllegalArgumentException("Expected PropName=Value format: " + spec);
         String propName = kv[0].trim();
         String value = kv[1].trim();
 
-        if ("Synonym".equals(propName) || "Explanation".equals(propName)) {
+        if (LOCAL_STRING_PROPS.contains(propName)) {
             setLocalStringProperty(propName, value);
+        } else if (BOOLEAN_PROPS.contains(propName)) {
+            String normalized = normalizeBoolean(value);
+            setSimpleProperty(propName, normalized);
+        } else if ("Picture".equals(propName)) {
+            setPictureProperty(value);
         } else {
             setSimpleProperty(propName, value);
+        }
+    }
+
+    private String normalizeBoolean(String value) {
+        switch (value.toLowerCase()) {
+            case "true": case "да": case "1": case "yes": return "true";
+            case "false": case "нет": case "0": case "no": return "false";
+            default: return value;
+        }
+    }
+
+    private void setPictureProperty(String value) {
+        // Picture value: CommonPicture.Name or StdPicture.Name
+        String pictureBlock = "<Picture>\n"
+                + "\t\t\t\t<xr:Ref>" + escapeXml(value) + "</xr:Ref>\n"
+                + "\t\t\t</Picture>";
+
+        // Replace existing Picture block
+        Pattern existingPic = Pattern.compile(
+                "<Picture>.*?</Picture>", Pattern.DOTALL);
+        Matcher m = existingPic.matcher(content);
+        if (m.find()) {
+            content = m.replaceFirst(Matcher.quoteReplacement(pictureBlock));
+            return;
+        }
+
+        // Replace self-closing <Picture/>
+        Pattern selfClose = Pattern.compile("<Picture\\s*/>");
+        m = selfClose.matcher(content);
+        if (m.find()) {
+            content = m.replaceFirst(Matcher.quoteReplacement(pictureBlock));
         }
     }
 

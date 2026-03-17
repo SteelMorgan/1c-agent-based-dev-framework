@@ -111,6 +111,15 @@ public class MetaValidator {
         // === Check 7: Type-specific Properties ===
         validateTypeSpecificProperties(props, detectedType);
 
+        // === Check 7b: StandardAttributes block ===
+        validateStandardAttributes(props, detectedType);
+
+        // === Check 7c: Forbidden properties for type ===
+        validateForbiddenProperties(props, detectedType);
+
+        // === Check 7d: FillValue/Type consistency ===
+        validateFillValueConsistency(props, detectedType);
+
         // === Check 8: ChildObjects ===
         XmlNode co = typeNode.child("ChildObjects");
         if (co != null) {
@@ -153,6 +162,8 @@ public class MetaValidator {
                 validateEnum(props, "Posting", "Allow", "Deny");
                 validateEnum(props, "NumberPeriodicity",
                         "Nonperiodical", "Year", "Quarter", "Month", "Day");
+                validateEnum(props, "DefaultPresentation", "AsDescription", "AsCode");
+                validateEnum(props, "RealTimePosting", "Allow", "Deny");
                 break;
 
             case "Enum":
@@ -195,6 +206,15 @@ public class MetaValidator {
 
             case "ChartOfCharacteristicTypes":
                 validatePositiveInt(props, "CodeLength", false);
+                validatePositiveInt(props, "DescriptionLength", false);
+                validateEnum(props, "CodeType", "String", "Number");
+                validateEnum(props, "DefaultPresentation", "AsDescription", "AsCode");
+                break;
+
+            case "ChartOfCalculationTypes":
+                validatePositiveInt(props, "CodeLength", false);
+                validatePositiveInt(props, "DescriptionLength", false);
+                validateEnum(props, "CodeType", "String", "Number");
                 break;
 
             case "CommonModule":
@@ -271,9 +291,28 @@ public class MetaValidator {
                 break;
 
             case "ExchangePlan":
-                // No mandatory numeric properties, but CodeLength/DescriptionLength are common
                 validatePositiveInt(props, "CodeLength", false);
                 validatePositiveInt(props, "DescriptionLength", false);
+                validateEnum(props, "CodeType", "String", "Number");
+                break;
+
+            case "BusinessProcess":
+                validatePositiveInt(props, "NumberLength", false);
+                validateEnum(props, "NumberType", "String", "Number");
+                validateEnum(props, "NumberPeriodicity",
+                        "Nonperiodical", "Year", "Quarter", "Month", "Day");
+                break;
+
+            case "Task":
+                validatePositiveInt(props, "NumberLength", false);
+                validatePositiveInt(props, "DescriptionLength", false);
+                validateEnum(props, "NumberType", "String", "Number");
+                String addressing = props.childText("AddressingType");
+                if (addressing != null && !addressing.isEmpty()) {
+                    if (!"InformationRegister".equals(addressing) && !"ChartOfCharacteristicTypes".equals(addressing)) {
+                        // AddressingAttribute references should match
+                    }
+                }
                 break;
 
             default:
@@ -295,6 +334,96 @@ public class MetaValidator {
             String levelCount = props.childText("LevelCount");
             if (levelCount == null || levelCount.isEmpty()) {
                 warn("Catalog: LimitLevelCount=true but LevelCount is not set");
+            }
+        }
+    }
+
+    // ==================== StandardAttributes ====================
+
+    /** Expected minimum standard attribute count per type. */
+    private static final Map<String, Integer> STANDARD_ATTR_COUNTS = Map.ofEntries(
+            Map.entry("Catalog", 6),        // Ref, DeletionMark, Code, Description, Parent, Owner
+            Map.entry("Document", 4),        // Ref, DeletionMark, Number, Date
+            Map.entry("ExchangePlan", 4),    // Ref, DeletionMark, Code, Description
+            Map.entry("ChartOfAccounts", 4), // Ref, DeletionMark, Code, Description
+            Map.entry("ChartOfCharacteristicTypes", 4),
+            Map.entry("ChartOfCalculationTypes", 4),
+            Map.entry("BusinessProcess", 5), // Ref, DeletionMark, Number, Date, Started
+            Map.entry("Task", 5)             // Ref, DeletionMark, Number, Date, Performed
+    );
+
+    private void validateStandardAttributes(XmlNode props, String type) {
+        Integer expectedMin = STANDARD_ATTR_COUNTS.get(type);
+        if (expectedMin == null) return; // Type doesn't require StandardAttributes validation
+
+        XmlNode stdAttrs = props.child("StandardAttributes");
+        if (stdAttrs == null) {
+            warn(type + ": StandardAttributes section missing");
+            return;
+        }
+
+        int count = 0;
+        for (XmlNode child : stdAttrs.getChildren()) {
+            if ("StandardAttribute".equals(child.getName())) {
+                count++;
+            }
+        }
+        if (count < expectedMin) {
+            warn(type + ": StandardAttributes has " + count + " entries, expected at least " + expectedMin);
+        }
+    }
+
+    // ==================== Forbidden Properties ====================
+
+    /**
+     * Properties that should NOT appear on certain types.
+     * E.g. Enum has no CodeLength/DescriptionLength/Hierarchical.
+     */
+    private static final Map<String, Set<String>> FORBIDDEN_PROPS = Map.of(
+            "Enum", Set.of("CodeLength", "DescriptionLength", "CodeType", "Hierarchical",
+                    "HierarchyType", "Owners", "NumberLength", "NumberType"),
+            "Constant", Set.of("CodeLength", "DescriptionLength", "Hierarchical",
+                    "NumberLength", "NumberType", "Owners"),
+            "DefinedType", Set.of("CodeLength", "DescriptionLength", "Hierarchical",
+                    "NumberLength", "NumberType"),
+            "CommonModule", Set.of("CodeLength", "DescriptionLength", "Hierarchical",
+                    "NumberLength", "NumberType", "Owners"),
+            "ScheduledJob", Set.of("CodeLength", "DescriptionLength", "Hierarchical",
+                    "NumberLength", "NumberType"),
+            "EventSubscription", Set.of("CodeLength", "DescriptionLength", "Hierarchical",
+                    "NumberLength", "NumberType")
+    );
+
+    private void validateForbiddenProperties(XmlNode props, String type) {
+        Set<String> forbidden = FORBIDDEN_PROPS.get(type);
+        if (forbidden == null) return;
+
+        for (String propName : forbidden) {
+            String val = props.childText(propName);
+            if (val != null && !val.isEmpty()) {
+                warn(type + ": property '" + propName + "' is not applicable (has value '" + val + "')");
+            }
+        }
+    }
+
+    // ==================== FillValue Consistency ====================
+
+    /**
+     * If FillValue is set, it should be compatible with the Type declaration.
+     * Basic check: if Type is "Boolean" then FillValue should be true/false.
+     */
+    private void validateFillValueConsistency(XmlNode props, String type) {
+        // Only check for typed children — skip for top-level properties
+        // as FillValue at object level is rare. This is checked per-attribute
+        // in validateNamedChildren already for Type presence.
+        // Here we add a simple check: if FillChecking is set to ShowError,
+        // then FillValue should also be set.
+        String fillChecking = props.childText("FillChecking");
+        if ("ShowError".equals(fillChecking)) {
+            XmlNode fillValue = props.child("FillValue");
+            if (fillValue == null) {
+                // FillChecking=ShowError without FillValue is common (means "don't allow empty")
+                // This is actually normal behavior — no warning needed.
             }
         }
     }

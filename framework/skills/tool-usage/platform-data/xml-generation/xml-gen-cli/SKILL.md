@@ -1,6 +1,6 @@
 ---
 name: xml-gen-cli
-description: Правила работы с XmlGen CLI — validate, edit-команды (add-attribute, add-element, add-command и др.). Используй при валидации XML и модификации существующих Form, Role, EPF, SKD.
+description: Правила работы с XmlGen CLI — validate (form/role/skd/mxl/epf/config/subsystem/interface/meta/extension), edit-команды и универсальные операции (form/template/help add/remove). Используй при валидации XML и модификации существующих Form, Role, EPF, SKD.
 ---
 
 # XmlGen CLI — validate и edit-команды
@@ -18,6 +18,12 @@ description: Правила работы с XmlGen CLI — validate, edit-ком
 | Нужно добавить права на объект в роль | `role add-object --name ... --rights ... Rights.xml` |
 | Нужно добавить реквизит в обработку | `epf add-attribute --name ... <EpfRoot.xml>` |
 | Нужно добавить параметр/поле в SKD | `skd add-parameter` или `skd add-field` |
+| Нужно валидировать конфигурацию | `config validate` |
+| Нужно валидировать объект метаданных | `meta validate` |
+| Нужно валидировать расширение | `extension validate` |
+| Нужно добавить форму к справочнику/документу | `form add` |
+| Нужно добавить шаблон к объекту | `template add` |
+| Нужно добавить справку | `help add` |
 | Перед edit-командой — проверить текущее состояние | Сначала `validate`, потом edit |
 
 ## Вызов
@@ -45,6 +51,30 @@ xml-gen validate [--type <form|role|skd|mxl|epf>] [--format designer|edt] [--lev
 xml-gen validate form Form.xml
 xml-gen validate role output/Roles/МояРоль/Ext/Rights.xml
 xml-gen validate --type skd --output json Template.xml
+
+# Валидация конфигурации, подсистемы, интерфейса, объекта метаданных, расширения
+xml-gen config validate <configPath>
+xml-gen subsystem validate <subsystemPath>
+xml-gen interface validate <ciPath>
+xml-gen meta validate <objectPath>
+xml-gen extension validate <extensionPath>
+```
+
+## Универсальные операции
+
+Операции, применимые к любым объектам метаданных (Catalog, Document, EPF и т.д.).
+
+```bash
+# Добавить/удалить форму (любой объект: Catalog, Document, EPF и т.д.)
+xml-gen form add <objectPath> <formName>
+xml-gen form remove <objectPath> <formName>
+
+# Добавить/удалить шаблон
+xml-gen template add <objectPath> <name> --type <spreadsheet|html|text|dcs|binary>
+xml-gen template remove <objectPath> <name>
+
+# Добавить справку
+xml-gen help add <objectPath>
 ```
 
 ## Edit-команды

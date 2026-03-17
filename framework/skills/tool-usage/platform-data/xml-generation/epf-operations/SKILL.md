@@ -16,6 +16,7 @@ description: Операции с внешними обработками 1С (EP
 | Нужно добавить печатную форму (табличный документ) | `epf add-template --epf ... --name ... --type spreadsheet <output_dir>` |
 | Нужно добавить HTML/текстовый шаблон | `epf add-template --type html` или `--type text` |
 | Нужно добавить реквизит в существующую обработку | `epf add-attribute --name ... --type ... <EpfRoot.xml>` |
+| Нужно создать внешний отчёт (ERF) | `epf init --type report --name ... <output_dir>` |
 | Нужно добавить ТЧ в существующую обработку | `epf add-tabular-section --name ... <EpfRoot.xml>` |
 
 ## Команды
@@ -26,11 +27,12 @@ description: Операции с внешними обработками 1С (EP
 
 **Синтаксис:**
 ```bash
-xml-gen epf init --name <Name> [--format designer|edt] [--synonym <Synonym>] <output_dir>
+xml-gen epf init --name <Name> [--type processor|report] [--format designer|edt] [--synonym <Synonym>] <output_dir>
 ```
 
 **Параметры:**
-- `--name <Name>` — имя обработки (обязательно)
+- `--name <Name>` — имя обработки/отчёта (обязательно)
+- `--type processor|report` — тип: `processor` (обработка, по умолчанию) или `report` (внешний отчёт, ERF)
 - `--format designer|edt` — формат вывода (по умолчанию: designer)
 - `--synonym <Synonym>` — синоним (опционально)
 - `<output_dir>` — директория вывода (обязательно, позиционный аргумент)
@@ -39,6 +41,7 @@ xml-gen epf init --name <Name> [--format designer|edt] [--synonym <Synonym>] <ou
 ```bash
 xml-gen epf init --name MyProcessor output/
 xml-gen epf init --format designer --name DataImport --synonym "Импорт данных" .
+xml-gen epf init --type report --name SalesReport --synonym "Отчёт по продажам" output/
 ```
 
 ### epf add-form

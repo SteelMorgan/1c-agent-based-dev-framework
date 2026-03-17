@@ -1,19 +1,20 @@
 ---
 name: role-dsl
-description: JSON DSL for generating 1С roles with metadata object access rights. Use when role compile and editing Rights.xml via xml-gen-cli.
+description: JSON DSL for generating 1C roles with access rights to metadata objects. Use it for role compile and when editing Rights.xml via xml-gen-cli.
 ---
 
 # Role DSL
 
-JSON DSL for generating 1С roles with access rights.
+JSON DSL for generating 1C roles with access rights.
 
-## When to apply
+## When to use
 
 | Trigger | Action |
-|---------|--------|
+|---------|----------|
 | Need to create a role from scratch (object rights) | `role compile` with JSON DSL |
-| Need to add rights to an object in an existing role | `role add-object` → [xml-gen-cli](../xml-gen-cli/) |
+| Need to add rights for an object to an existing role | `role add-object` → [xml-gen-cli](../xml-gen-cli/) |
 | Need to change a right for an existing object | `role add-right` → [xml-gen-cli](../xml-gen-cli/) |
+| Need to analyze an existing role | `role info <Rights.xml>` |
 
 ## Compile command
 
@@ -21,7 +22,15 @@ JSON DSL for generating 1С roles with access rights.
 xml-gen role compile [--format designer|edt] <input.json> <output_dir>
 ```
 
-**Result (Designer):** `output_dir/Roles/<Name>.xml` and `output_dir/Roles/<Name>/Ext/Rights.xml` are created.
+**Result (Designer):** creates `output_dir/Roles/<Name>.xml` and `output_dir/Roles/<Name>/Ext/Rights.xml`
+
+## Info command
+
+Audit role rights: objects, rights, RLS, templates.
+
+```bash
+xml-gen role info <Rights.xml>
+```
 
 **Example:**
 ```bash
@@ -58,7 +67,7 @@ xml-gen role add-right --object <ObjectName> --name <RightName> --value <true|fa
 
 ## Role examples
 
-**Только чтение:**
+**Read-only:**
 ```json
 {
   "name": "ТолькоЧтение",
@@ -69,7 +78,7 @@ xml-gen role add-right --object <ObjectName> --name <RightName> --value <true|fa
 }
 ```
 
-**Менеджер продаж:**
+**Sales Manager:**
 ```json
 {
   "name": "МенеджерПродаж",
@@ -91,7 +100,7 @@ xml-gen role add-right --object <ObjectName> --name <RightName> --value <true|fa
 "rights": {"Catalog.Номенклатура": ["Read", "Insert"]}
 ```
 
-> The rights format is the enum RoleRight from mdclasses. Posting is for documents, View/Edit are for reports and data processors.
+> Permission format is the enum RoleRight from mdclasses. Posting is for documents, View/Edit is for reports and processors.
 
 ```json
 // ❌ Неправильно — формат объекта без точки (Catalog.Имя, Document.Имя)
@@ -101,13 +110,13 @@ xml-gen role add-right --object <ObjectName> --name <RightName> --value <true|fa
 "rights": {"Catalog.Номенклатура": ["Read"]}
 ```
 
-> The key is the full metadata object name. Without the type, the CLI cannot determine where the rights apply.
+> The key is the full name of the metadata object. Without the type the CLI cannot determine which rights apply.
 
 ## See also
 
-- [xml-generation](../xml-generation/) — general overview
+- [xml-generation](../xml-generation/) — general description
 - [xml-gen-cli](../xml-gen-cli/) — edit commands
-- [epf-operations](../epf-operations/) — creating data processors
+- [epf-operations](../epf-operations/) — creating processors
 
 ---
 depends_on: []

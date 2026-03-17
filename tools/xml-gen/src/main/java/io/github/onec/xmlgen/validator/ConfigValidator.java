@@ -7,8 +7,10 @@ import java.util.*;
 /**
  * Валидатор Configuration.xml конфигурации 1С.
  * <p>
- * 8 проверок:
+ * 10 проверок:
  * 1. XML well-formedness, MetaDataObject/Configuration, version
+ * 1a. Namespace validation (http://v8.1c.ru/8.3/MDClasses)
+ * 1b. UUID format on Configuration element
  * 2. InternalInfo: 7 ContainedObject, валидные ClassId
  * 3. Properties: Name, Synonym, DefaultLanguage, DefaultRunMode
  * 4. Enum-значения (11 свойств)
@@ -130,6 +132,25 @@ public class ConfigValidator {
         } else if (!"Configuration".equals(root.getName())) {
             error("Structure: root element must be <MetaDataObject> or <Configuration>, got <" + root.getName() + ">");
             return messages;
+        }
+
+        // Check 1a: Namespace (on MetaDataObject)
+        if ("MetaDataObject".equals(root.getName())) {
+            String xmlns = root.attr("xmlns");
+            if (xmlns != null && !xmlns.isEmpty()
+                    && !xmlns.contains("v8.1c.ru/8.3/MDClasses")
+                    && !xmlns.contains("v8.1c.ru/8.2/MDClasses")) {
+                warn("Namespace: unexpected xmlns '" + xmlns
+                        + "' (expected http://v8.1c.ru/8.3/MDClasses)");
+            }
+        }
+
+        // Check 1b: UUID on Configuration element
+        String cfgUuid = config.attr("uuid");
+        if (cfgUuid == null || cfgUuid.isEmpty()) {
+            error("Structure: uuid attribute missing on <Configuration>");
+        } else if (!isUuid(cfgUuid)) {
+            error("Structure: invalid uuid format '" + cfgUuid + "'");
         }
 
         // Check 2: InternalInfo
@@ -292,6 +313,10 @@ public class ConfigValidator {
                 "IntegrationService"
         );
         return order.indexOf(type);
+    }
+
+    private boolean isUuid(String s) {
+        return s != null && s.matches("[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}");
     }
 
     private void error(String msg) { messages.add(new ValidationMessage("ERROR", msg)); }

@@ -16,6 +16,7 @@ JSON DSL для генерации схем компоновки данных 1�
 | Нужно добавить поле в DataSet | `skd add-field` → [xml-gen-cli](../xml-gen-cli/) |
 | Нужен DataSetUnion | Workaround: DataSetQuery с UNION в запросе |
 | Нужны вычисляемые поля | Workaround: вычисления в SELECT запроса |
+| Нужно анализировать существующую СКД | `skd info <Schema.xml>` |
 
 ## Команда compile
 
@@ -24,6 +25,14 @@ xml-gen skd compile [--format designer|edt] <input.json> <output.xml>
 ```
 
 **Редактирование** (add-parameter, add-field) — см. [xml-gen-cli](../xml-gen-cli/)
+
+## Команда info
+
+Анализ СКД: наборы данных, поля, параметры, варианты настроек.
+
+```bash
+xml-gen skd info <Schema.xml>
+```
 
 ## Структура DSL
 

@@ -1,6 +1,6 @@
 ---
 name: xml-gen-cli
-description: Rules for working with XmlGen CLI — validate, edit commands (add-attribute, add-element, add-command, etc.). Use when validating XML and modifying existing Form, Role, EPF, SKD.
+description: Rules for working with XmlGen CLI — validate (form/role/skd/mxl/epf/config/subsystem/interface/meta/extension), edit commands and universal operations (form/template/help add/remove). Use during XML validation and when modifying existing Form, Role, EPF, SKD.
 ---
 
 # XmlGen CLI — validate and edit commands
@@ -18,6 +18,12 @@ Rules for calling xml-gen to validate and modify existing XML files.
 | Need to add object rights to a role | `role add-object --name ... --rights ... Rights.xml` |
 | Need to add an attribute to a processing | `epf add-attribute --name ... <EpfRoot.xml>` |
 | Need to add a parameter/field to SKD | `skd add-parameter` or `skd add-field` |
+| Need to validate the configuration | `config validate` |
+| Need to validate a metadata object | `meta validate` |
+| Need to validate an extension | `extension validate` |
+| Need to add a form to a catalog/document | `form add` |
+| Need to add a template to an object | `template add` |
+| Need to add help | `help add` |
 | Before an edit command — check the current state | Run `validate` first, then edit |
 
 ## Invocation
@@ -45,6 +51,30 @@ xml-gen validate [--type <form|role|skd|mxl|epf>] [--format designer|edt] [--lev
 xml-gen validate form Form.xml
 xml-gen validate role output/Roles/МояРоль/Ext/Rights.xml
 xml-gen validate --type skd --output json Template.xml
+
+# Validation of configuration, subsystem, interface, metadata object, extension
+xml-gen config validate <configPath>
+xml-gen subsystem validate <subsystemPath>
+xml-gen interface validate <ciPath>
+xml-gen meta validate <objectPath>
+xml-gen extension validate <extensionPath>
+```
+
+## Universal operations
+
+Operations that apply to any metadata objects (Catalog, Document, EPF, etc.).
+
+```bash
+# Add/remove a form (any object: Catalog, Document, EPF, etc.)
+xml-gen form add <objectPath> <formName>
+xml-gen form remove <objectPath> <formName>
+
+# Add/remove a template
+xml-gen template add <objectPath> <name> --type <spreadsheet|html|text|dcs|binary>
+xml-gen template remove <objectPath> <name>
+
+# Add help
+xml-gen help add <objectPath>
 ```
 
 ## Edit commands
@@ -95,7 +125,7 @@ xml-gen skd add-field --dataset <DataSetName> --name <FieldName> --path <DataPat
 **Scenario: Add rights to a role**
 1. `validate role Rights.xml`
 2. `role add-object --name Catalog.Номенклатура --rights Read,Insert,Update Rights.xml`
-3. On "Object already exists" — use `role add-right` to modify the existing object
+3. On "Object already exists" — use `role add-right` to change the existing object
 
 ## Workarounds
 
@@ -133,7 +163,7 @@ xml-gen role add-object --name Catalog.Номенклатура --rights Read,Vi
 
 1. **Before modification** — run `validate` to check the current state.
 2. **After modification** — edit commands perform auto-validation; on error, changes are not saved (rollback).
-3. **File paths** — use absolute or relative paths to the exact file.
+3. **File paths** — use absolute or relative paths to the specific file.
 4. **EPF** — root XML: `output/MyProcessor.xml`
 5. **Form in EPF** — path: `output/MyProcessor/Forms/MainForm/Ext/Form.xml`
 

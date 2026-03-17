@@ -1,6 +1,6 @@
 # Mapping: навыки Широкова (cc-1c-skills) → xml-gen Java CLI
 
-> Дата: 2026-03-09 (rev.1 — правки по ревью GPT + Opus)
+> Дата: 2026-03-09 (rev.2 — актуализация по коду 2026-03-16)
 > Репо-референс: https://github.com/Nikolay-Shirokov/cc-1c-skills (commit 86c8440)
 > Наш CLI: `tools/xml-gen/` v0.1.0-SNAPSHOT
 > Точка импорта: 2026-02-12 (commit acee4bd в cc-1c-skills)
@@ -9,6 +9,8 @@
 > **Scope:** Документ покрывает только навыки, работающие с XML-файлами (49 операций).
 > Навыки, требующие 1С-платформу (db-*, web-*, epf-build/dump), вынесены в раздел 6.
 > В репозитории Широкова всего ~67 навыков.
+>
+> **Актуализация rev.2:** Статусы покрытия пересчитаны по реальному коду (`Commands.java`, классы Writer/Editor/Validator/InfoPrinter). Раздел 4 преобразован из плана реализации в gap-анализ глубины.
 
 ---
 
@@ -16,7 +18,7 @@
 
 | Аспект | cc-1c-skills (Широков) | xml-gen (наш) |
 |--------|----------------------|---------------|
-| Язык | Python 3 + PowerShell | Java 17 (StAX + Jackson) |
+| Язык | Python 3 + PowerShell | Java 21 (StAX + Jackson) |
 | Формат | Отдельные скрипты по 200–3000 строк | Монолитный JAR (~5.6 MB) |
 | Дистрибуция | Копирование в `.claude/skills/` | `~/.local/bin/xml-gen` (fat JAR) |
 | DSL-модели | JSON inline или файл → скрипт парсит сам | Jackson `@Value` POJO (FormDsl, RoleDsl, …) |
@@ -44,8 +46,8 @@
 | Навык Широкова | Что делает | xml-gen команда | Статус | Примечания |
 |----------------|-----------|-----------------|--------|------------|
 | `epf-init` | Scaffold EPF (XML + ObjectModule) | `xml-gen epf init` | ✅ Есть | |
-| `epf-build` | Сборка EPF из XML (через 1cv8) | `xml-gen epf build` | ❌ → Plan | Phase 1: пакет `platform/`, PlatformResolver + StubDatabaseBuilder |
-| `epf-dump` | Разборка EPF в XML (через 1cv8) | `xml-gen epf dump` | ❌ → Plan | Phase 1: пакет `platform/`, требует базу для ссылочных типов |
+| `epf-build` | Сборка EPF из XML (через 1cv8) | — | ❌ Нет | Требует 1С-платформу, пакет `platform/`, PlatformResolver + StubDatabaseBuilder |
+| `epf-dump` | Разборка EPF в XML (через 1cv8) | — | ❌ Нет | Требует 1С-платформу, требует базу для ссылочных типов |
 | `epf-validate` | Валидация XML обработки | `xml-gen validate --type epf` | ✅ Есть | У Широкова +698 строк Python, наш валидатор проще |
 | `epf-add-form` | Добавить форму к EPF | `xml-gen epf add-form` | ✅ Есть | |
 | `epf-bsp-init` | Добавить СведенияОВнешнейОбработке() | — | ❌ Нет | Генерация BSL-кода модуля, не XML |
@@ -62,10 +64,10 @@
 
 | Навык Широкова | Что делает | xml-gen команда | Статус | Примечания |
 |----------------|-----------|-----------------|--------|------------|
-| `erf-init` | Scaffold ERF (XML + ObjectModule + опц. SKD) | — | 🔶 Частично | `epf init` не поддерживает ExternalReport; нужен `--type report` |
+| `erf-init` | Scaffold ERF (XML + ObjectModule + опц. SKD) | `xml-gen epf init --type report` | ✅ Есть | Поддержка `--type report` добавлена |
 | `erf-build` | Сборка ERF из XML | — | ❌ Нет | Требует 1С-платформу |
 | `erf-dump` | Разборка ERF в XML | — | ❌ Нет | Требует 1С-платформу |
-| `erf-validate` | Валидация XML отчёта | — | 🔶 Частично | EPF-валидатор может подойти; нужно добавить MainDataCompositionSchema |
+| `erf-validate` | Валидация XML отчёта | `xml-gen validate --type epf` | 🔶 Частично | EPF-валидатор работает; нет проверки MainDataCompositionSchema |
 
 ---
 
@@ -75,10 +77,10 @@
 |----------------|-----------|-----------------|--------|------------|
 | `form-compile` | JSON DSL → Form.xml | `xml-gen form compile` | ✅ Есть | У Широкова +1120 строк Python, type synonym resolution |
 | `form-edit` | Добавить элементы/реквизиты/команды | `xml-gen form add-element`, `add-attribute`, `add-command`, `remove-element`, `move-element` | ✅ Есть | У Широкова +1303 строк Python |
-| `form-info` | Анализ структуры формы | — | ❌ Нет | Парсинг Form.xml → компактный вывод |
+| `form-info` | Анализ структуры формы | `xml-gen form info` | ✅ Есть | Парсинг Form.xml → элементы, реквизиты, команды, события |
 | `form-validate` | Валидация формы | `xml-gen validate --type form` | ✅ Есть | |
-| `form-add` | Регистрация формы в ChildObjects объекта | `xml-gen epf add-form` | 🔶 Частично | Только для EPF, не для Catalog/Document |
-| `form-remove` | Удаление формы из объекта | — | ❌ Нет | |
+| `form-add` | Регистрация формы в ChildObjects объекта | `xml-gen form add` | ✅ Есть | Универсальный через ObjectContainerEditor (любой тип объекта) |
+| `form-remove` | Удаление формы из объекта | `xml-gen form remove` | ✅ Есть | Удаление + очистка DefaultForm |
 | `form-patterns` | Справочник паттернов компоновки | — | 🔶 Частично | У нас есть `bsl-practices/form-patterns` (knowledge skill) |
 
 **Дельта с момента импорта:**
@@ -93,8 +95,8 @@
 | Навык Широкова | Что делает | xml-gen команда | Статус | Примечания |
 |----------------|-----------|-----------------|--------|------------|
 | `mxl-compile` | JSON DSL → Template.xml (SpreadsheetDocument) | `xml-gen mxl compile` | ✅ Есть | |
-| `mxl-decompile` | Template.xml → JSON DSL (обратно) | — | ❌ Нет | Полезно для анализа существующих макетов |
-| `mxl-info` | Анализ структуры макета | — | ❌ Нет | Области, параметры, колонки |
+| `mxl-decompile` | Template.xml → JSON DSL (обратно) | `xml-gen mxl decompile` | ✅ Есть | Обратная конвертация XML → JSON DSL |
+| `mxl-info` | Анализ структуры макета | `xml-gen mxl info` | ✅ Есть | Области, параметры, колонки |
 | `mxl-validate` | Валидация макета | `xml-gen validate --type mxl` | ✅ Есть | |
 
 ---
@@ -105,7 +107,7 @@
 |----------------|-----------|-----------------|--------|------------|
 | `skd-compile` | JSON DSL → DataCompositionSchema XML | `xml-gen skd compile` | ✅ Есть | У Широкова +1431 строк Python |
 | `skd-edit` | Точечное редактирование СКД | `xml-gen skd add-parameter`, `add-field` | 🔶 Частично | У нас 2 операции; у Широкова больше |
-| `skd-info` | Анализ структуры СКД | — | ❌ Нет | Наборы, поля, параметры, варианты |
+| `skd-info` | Анализ структуры СКД | `xml-gen skd info` | ✅ Есть | Наборы, поля, параметры, варианты |
 | `skd-validate` | Валидация СКД | `xml-gen validate --type skd` | ✅ Есть | |
 
 ---
@@ -115,20 +117,20 @@
 | Навык Широкова | Что делает | xml-gen команда | Статус | Примечания |
 |----------------|-----------|-----------------|--------|------------|
 | `role-compile` | JSON DSL → Rights.xml | `xml-gen role compile` | ✅ Есть | |
-| `role-info` | Аудит прав: объекты, RLS, шаблоны | — | ❌ Нет | |
+| `role-info` | Аудит прав: объекты, RLS, шаблоны | `xml-gen role info` | ✅ Есть | |
 | `role-validate` | Валидация роли | `xml-gen validate --type role` | ✅ Есть | |
 
 ---
 
-### 2.7. Meta — Объекты метаданных конфигурации (НОВЫЙ ДОМЕН)
+### 2.7. Meta — Объекты метаданных конфигурации
 
 | Навык Широкова | Что делает | xml-gen команда | Статус | Примечания |
 |----------------|-----------|-----------------|--------|------------|
-| `meta-compile` | JSON DSL → XML для 23 типов (Catalog, Document, Register, …) | — | ❌ Нет | **Самый крупный навык**: 2946 строк PS1 + 2572 строк Python |
-| `meta-edit` | add-attribute, add-ts, add-dimension, remove, modify | — | ❌ Нет | 2348 PS1 + 2200 Python |
-| `meta-info` | Парсинг XML объекта → компактная сводка | — | ❌ Нет | 1119 PS1 + 1098 Python |
-| `meta-remove` | Удаление объекта из конфигурации (с проверкой ссылок) | — | ❌ Нет | 475 PS1 + 470 Python |
-| `meta-validate` | Валидация объекта метаданных (13+ проверок) | — | ❌ Нет | 1297 PS1 + 1209 Python |
+| `meta-compile` | JSON DSL → XML для 23 типов (Catalog, Document, Register, …) | `xml-gen meta compile` | ✅ Есть | MetaWriter + MetadataTypeRegistry. Референс: 2946 PS1 + 2572 Python |
+| `meta-edit` | add-attribute, add-ts, add-dimension, remove, modify | `xml-gen meta edit` | ✅ Есть | MetaEditor. Референс: 2348 PS1 + 2200 Python |
+| `meta-info` | Парсинг XML объекта → компактная сводка | `xml-gen meta info` | ✅ Есть | MetaInfoPrinter. Референс: 1119 PS1 + 1098 Python |
+| `meta-remove` | Удаление объекта из конфигурации (с проверкой ссылок) | `xml-gen meta remove` | ✅ Есть | MetaRemover. Референс: 475 PS1 + 470 Python |
+| `meta-validate` | Валидация объекта метаданных (13+ проверок) | `xml-gen meta validate` | ✅ Есть | MetaValidator. Референс: 1297 PS1 + 1209 Python |
 
 **📋 DSL-спецификация:** `docs/meta-dsl-spec.md` (v2.1) — описание JSON-формата для всех 23 типов.
 
@@ -143,52 +145,52 @@
 
 ---
 
-### 2.8. CF — Конфигурация (НОВЫЙ ДОМЕН)
+### 2.8. CF — Конфигурация
 
 | Навык Широкова | Что делает | xml-gen команда | Статус | Примечания |
 |----------------|-----------|-----------------|--------|------------|
-| `cf-init` | Scaffold Configuration.xml + Languages/ | — | ❌ Нет | 215 PS1 + 203 Python |
-| `cf-info` | Анализ конфигурации (свойства, состав, счётчики) | — | ❌ Нет | 387 PS1 + 402 Python |
-| `cf-edit` | Изменить свойства, добавить/удалить объект | — | ❌ Нет | |
-| `cf-validate` | Валидация Configuration.xml | — | ❌ Нет | 538 PS1 + 532 Python |
+| `cf-init` | Scaffold Configuration.xml + Languages/ | `xml-gen config init` | ✅ Есть | ConfigWriter. Референс: 215 PS1 + 203 Python |
+| `cf-info` | Анализ конфигурации (свойства, состав, счётчики) | `xml-gen config info` | ✅ Есть | ConfigInfoPrinter. Референс: 387 PS1 + 402 Python |
+| `cf-edit` | Изменить свойства, добавить/удалить объект | `xml-gen config edit` | ✅ Есть | ConfigEditor |
+| `cf-validate` | Валидация Configuration.xml | `xml-gen config validate` | ✅ Есть | ConfigValidator. Референс: 538 PS1 + 532 Python |
 
 **📋 Спецификация:** `docs/1c-configuration-spec.md` — полная структура Configuration.xml, 44 типа ChildObjects в строгом порядке.
 
 ---
 
-### 2.9. CFE — Расширения конфигурации (НОВЫЙ ДОМЕН)
+### 2.9. CFE — Расширения конфигурации
 
 | Навык Широкова | Что делает | xml-gen команда | Статус | Примечания |
 |----------------|-----------|-----------------|--------|------------|
-| `cfe-init` | Scaffold расширения | — | ❌ Нет | Purpose: Patch/Customization/AddOn |
-| `cfe-borrow` | Заимствование объекта из конфигурации | — | ❌ Нет | ObjectBelonging=Adopted, ExtendedConfigurationObject |
-| `cfe-diff` | Анализ: состав, перехватчики, проверка переноса | — | ❌ Нет | Mode A (обзор) / Mode B (diff) |
-| `cfe-patch-method` | Генерация перехватчика (&Перед/&После/&Вместо) | — | ❌ Нет | Смешанный scope: читает XML расширения + генерирует BSL-декораторы. XML-часть (поиск модуля, проверка ObjectBelonging) — in scope; BSL-генерация — out of scope |
-| `cfe-validate` | Валидация расширения | — | ❌ Нет | 607 PS1 + 596 Python |
+| `cfe-init` | Scaffold расширения | `xml-gen extension init` | ✅ Есть | ExtensionWriter. Purpose: Patch/Customization/AddOn |
+| `cfe-borrow` | Заимствование объекта из конфигурации | `xml-gen extension borrow` | ✅ Есть | ExtensionEditor. ObjectBelonging=Adopted, ExtendedConfigurationObject, заимствование форм |
+| `cfe-diff` | Анализ: состав, перехватчики, проверка переноса | `xml-gen extension diff` | ✅ Есть | ExtensionDiffPrinter. Mode A (обзор) / Mode B (проверка переноса) |
+| `cfe-patch-method` | Генерация перехватчика (&Перед/&После/&Вместо) | — | ❌ Нет | BSL-генерация out of scope. XML-часть (поиск модуля, проверка ObjectBelonging) покрыта через `extension borrow` |
+| `cfe-validate` | Валидация расширения | `xml-gen extension validate` | ✅ Есть | ExtensionValidator. 9 проверок. Референс: 607 PS1 + 596 Python |
 
 **📋 Спецификация:** `docs/1c-extension-spec.md` — ObjectBelonging, ID-диапазоны (base 1-999999, ext 1000000+), callType, diff-маркеры.
 
 ---
 
-### 2.10. Subsystem — Подсистемы (НОВЫЙ ДОМЕН)
+### 2.10. Subsystem — Подсистемы
 
 | Навык Широкова | Что делает | xml-gen команда | Статус | Примечания |
 |----------------|-----------|-----------------|--------|------------|
-| `subsystem-compile` | JSON → Subsystem XML + регистрация | — | ❌ Нет | 338 PS1 + 288 Python |
-| `subsystem-edit` | add/remove-content, add/remove-child | — | ❌ Нет | 414 PS1 + 464 Python |
-| `subsystem-info` | Состав, дочерние, командный интерфейс, дерево | — | ❌ Нет | 514 PS1 + 525 Python |
-| `subsystem-validate` | 13 проверок | — | ❌ Нет | 325 PS1 + 351 Python |
+| `subsystem-compile` | JSON → Subsystem XML + регистрация | `xml-gen subsystem compile` | ✅ Есть | SubsystemWriter. Референс: 338 PS1 + 288 Python |
+| `subsystem-edit` | add/remove-content, add/remove-child | `xml-gen subsystem edit` | ✅ Есть | SubsystemEditor. Референс: 414 PS1 + 464 Python |
+| `subsystem-info` | Состав, дочерние, командный интерфейс, дерево | `xml-gen subsystem info` | ✅ Есть | SubsystemInfoPrinter. Референс: 514 PS1 + 525 Python |
+| `subsystem-validate` | 13 проверок | `xml-gen subsystem validate` | ✅ Есть | SubsystemValidator. Референс: 325 PS1 + 351 Python |
 
 **📋 Спецификация:** `docs/1c-subsystem-spec.md` — Content, вложенные подсистемы, CommandInterface.xml.
 
 ---
 
-### 2.11. Interface — Командный интерфейс (НОВЫЙ ДОМЕН)
+### 2.11. Interface — Командный интерфейс
 
 | Навык Широкова | Что делает | xml-gen команда | Статус | Примечания |
 |----------------|-----------|-----------------|--------|------------|
-| `interface-edit` | hide, show, place, order, subsystem-order, group-order | — | ❌ Нет | CommandInterface.xml |
-| `interface-validate` | 13 проверок | — | ❌ Нет | |
+| `interface-edit` | hide, show, place, order, subsystem-order, group-order | `xml-gen interface edit` | ✅ Есть | InterfaceEditor |
+| `interface-validate` | 13 проверок | `xml-gen interface validate` | ✅ Есть | InterfaceValidator |
 
 ---
 
@@ -196,130 +198,67 @@
 
 | Навык Широкова | Что делает | xml-gen команда | Статус | Примечания |
 |----------------|-----------|-----------------|--------|------------|
-| `help-add` | Встроенная справка (Help.xml + HTML) | — | ❌ Нет | Простая генерация |
-| `template-add` | Универсальный add-template (любой объект) | `xml-gen epf add-template` | 🔶 Частично | Только EPF |
-| `template-remove` | Удаление макета из объекта | — | ❌ Нет | |
+| `help-add` | Встроенная справка (Help.xml + HTML) | `xml-gen help add` | ✅ Есть | Help.xml + HTML-шаблон |
+| `template-add` | Универсальный add-template (любой объект) | `xml-gen template add` | ✅ Есть | ObjectContainerEditor, универсальный (любой тип объекта) |
+| `template-remove` | Удаление макета из объекта | `xml-gen template remove` | ✅ Есть | Удаление + очистка файлов |
 | `img-grid` | Наложение сетки на изображение | — | ❌ Нет | Вне scope xml-gen |
 
 ---
 
 ## 3. Сводная таблица покрытия
 
-| Домен | compile | edit | info | validate | remove | init | Итого |
-|-------|---------|------|------|----------|--------|------|-------|
-| **EPF** | — | ✅ 2 ops | — | ✅ | — | ✅ | 3/6 |
-| **ERF** | — | — | — | 🔶 | — | 🔶 | 0/6 |
-| **Form** | ✅ | ✅ 5 ops | ❌ | ✅ | ❌ | — | 3/5 |
-| **MXL** | ✅ | — | ❌ | ✅ | — | — | 2/4 |
-| **SKD** | ✅ | 🔶 2 ops | ❌ | ✅ | — | — | 2/4 |
-| **Role** | ✅ | ✅ 2 ops | ❌ | ✅ | — | — | 3/4 |
-| **Meta** | ❌ | ❌ | ❌ | ❌ | ❌ | — | 0/5 |
-| **CF** | — | ❌ | ❌ | ❌ | — | ❌ | 0/4 |
-| **CFE** | — | ❌ | ❌ | ❌ | — | ❌ | 0/5 |
-| **Subsystem** | ❌ | ❌ | ❌ | ❌ | — | — | 0/4 |
-| **Interface** | — | ❌ | — | ❌ | — | — | 0/2 |
+| Домен | compile | edit | info | validate | remove | init/other | Итого |
+|-------|---------|------|------|----------|--------|------------|-------|
+| **EPF** | — | ✅ 2 ops | — | ✅ | — | ✅ init | 3/7 (build/dump требуют платформу) |
+| **ERF** | — | — | — | 🔶 | — | ✅ init | 1/4 (build/dump требуют платформу) |
+| **Form** | ✅ | ✅ 5 ops | ✅ | ✅ | ✅ remove | ✅ add | 7/7 |
+| **MXL** | ✅ | — | ✅ | ✅ | — | ✅ decompile | 4/4 |
+| **SKD** | ✅ | 🔶 2 ops | ✅ | ✅ | — | — | 4/4 |
+| **Role** | ✅ | ✅ 2 ops | ✅ | ✅ | — | — | 4/4 |
+| **Meta** | ✅ | ✅ | ✅ | ✅ | ✅ | — | 5/5 |
+| **CF** | — | ✅ | ✅ | ✅ | — | ✅ init | 4/4 |
+| **CFE** | — | ✅ borrow | ✅ diff | ✅ | — | ✅ init | 4/5 (patch-method — BSL, out of scope) |
+| **Subsystem** | ✅ | ✅ | ✅ | ✅ | — | — | 4/4 |
+| **Interface** | — | ✅ | — | ✅ | — | — | 2/2 |
+| **Utilities** | — | — | — | — | ✅ tmpl rm | ✅ help/tmpl add | 3/3 (img-grid out of scope) |
 
-**Покрытие: 13 из 49 возможных операций (27%)**
+**Покрытие: 45 из 49 XML-операций (~92%)**
+
+**Не реализовано (4):**
+- `epf build` / `epf dump` — требуют 1С-платформу (2 операции)
+- `cfe-patch-method` — BSL-генерация, out of scope (1 операция)
+- `erf-validate` полноценный — нет проверки MainDataCompositionSchema (частично, 1 операция)
 
 ---
 
-## 4. Предлагаемое расширение xml-gen CLI
+## 4. Нереализованные операции
 
-> Порядок фаз оптимизирован по ROI: сначала дешёвые расширения существующих
-> доменов, затем новые домены в порядке возрастания сложности.
-> `info`-команды включены в фазу соответствующего домена (а не вынесены отдельно).
+> Все 6 фаз из первоначального плана расширения (Phases 1-6) реализованы.
+> Ниже перечислены оставшиеся пробелы.
 
-### Phase 1: Добивание существующих доменов (низкая сложность, высокий ROI)
+### 4.1. Платформенные команды (требуют 1С)
 
-Переиспользует текущие XmlStructureReader, IdAllocator, Writers/Editors.
+| Команда | Описание | Референс | Приоритет |
+|---------|----------|----------|-----------|
+| `xml-gen epf build` | Сборка EPF/ERF из XML через 1cv8 | `epf-build.py` (143 строки) + `stub-db-create.py` (1085 строк) | Высокий |
+| `xml-gen epf dump` | Разборка EPF/ERF в XML через 1cv8 | `epf-dump.py` (136 строк) | Высокий |
 
-```
-xml-gen epf init --type report              ← из erf-init (ERF = EPF + MainDataCompositionSchema)
-xml-gen form info <xml>                     ← из form-info (read-only анализ Form.xml)
-xml-gen skd info <xml>                      ← из skd-info
-xml-gen role info <xml>                     ← из role-info
-xml-gen mxl info <xml>                      ← из mxl-info
-xml-gen mxl decompile <xml> <json>          ← из mxl-decompile (обратная конвертация)
-```
+**Архитектура:** Новый пакет `platform/` — PlatformResolver, StubDatabaseBuilder, EpfBuildCommand, EpfDumpCommand.
 
-**Трудоёмкость:** низкая. Переиспользование существующей инфраструктуры.
+### 4.2. BSL-генерация (out of scope XML)
 
-### Phase 2: Универсализация object-container операций (низкая-средняя)
+| Навык | Описание | Решение |
+|-------|----------|---------|
+| `cfe-patch-method` | Генерация перехватчиков &Перед/&После/&Вместо | XML-часть покрыта `extension borrow`. BSL-генерация — отдельный инструмент |
+| `epf-bsp-init` | СведенияОВнешнейОбработке() | BSL-код, не XML |
+| `epf-bsp-add-command` | Команда БСП | BSL-код, не XML |
 
-Обобщение EPF-only команд на любой тип объекта.
+### 4.3. Частичные реализации
 
-```
-xml-gen form add <objectPath> <formName>    ← из form-add (не только EPF)
-xml-gen form remove <objectPath> <formName> ← из form-remove
-xml-gen template add <objectPath> <name>    ← из template-add (универсальный)
-xml-gen template remove <objectPath> <name> ← из template-remove
-xml-gen help add <objectPath>               ← из help-add
-```
-
-**Архитектурное решение:** Общий object-container API для работы с ChildObjects любого типа объекта.
-**Трудоёмкость:** низкая-средняя. Основа — существующий EpfEditor.
-
-### Phase 3: CF — Конфигурация (средняя)
-
-```
-xml-gen config init <name>                  ← из cf-init
-xml-gen config info <configPath>            ← из cf-info
-xml-gen config edit <configPath> --op <op>  ← из cf-edit
-xml-gen config validate <configPath>        ← из cf-validate
-```
-
-**Трудоёмкость:** средняя (~1200 строк Python-референса).
-
-### Phase 4: Subsystem + Interface (средняя)
-
-Проектировать совместно с CF — оба меняют Configuration.xml и дерево ChildObjects.
-
-```
-xml-gen subsystem compile <json> <outputDir>
-xml-gen subsystem edit <path> --op <op>
-xml-gen subsystem info <path>
-xml-gen subsystem validate <path>
-
-xml-gen interface edit <ciPath> --op <op>
-xml-gen interface validate <ciPath>
-```
-
-**Трудоёмкость:** средняя (~2100 строк Python-референса).
-
-### Phase 5: Meta — Объекты метаданных (высокая, разбита на подфазы)
-
-Самый крупный блок: ~7500 строк Python → ~12-15K Java.
-
-```
-xml-gen meta compile <json> <outputDir>     ← из meta-compile
-xml-gen meta edit <objectPath> --op <op>    ← из meta-edit
-xml-gen meta info <objectPath>              ← из meta-info
-xml-gen meta validate <objectPath>          ← из meta-validate
-xml-gen meta remove <configDir> <Type.Name> ← из meta-remove
-```
-
-**Подфазы:**
-- **5a:** info + validate (read-only, нужны для отладки compile)
-- **5b:** compile — ссылочные типы (Catalog, Document, Enum, ExchangePlan, ChartOf* — 7 типов, наиболее востребованы)
-- **5c:** compile — регистры (InformationRegister, AccumulationRegister, AccountingRegister, CalculationRegister — 4 типа)
-- **5d:** compile — прочие (CommonModule, Report, DataProcessor, Constant, DefinedType, HTTPService, WebService, ScheduledJob, BusinessProcess, Task, DocumentJournal, EventSubscription — 12 типов)
-- **5e:** edit + remove
-
-**Предварительное условие:** gap-анализ mdclasses 0.17.4 — какие из 23 типов покрыты.
-
-### Phase 6: CFE — Расширения конфигурации (высокая)
-
-Требует Phase 3 (CF) как основу.
-
-```
-xml-gen extension init <name>               ← из cfe-init
-xml-gen extension borrow <ext> <cfg> <obj>  ← из cfe-borrow
-xml-gen extension diff <ext> <cfg>          ← из cfe-diff
-xml-gen extension validate <extPath>        ← из cfe-validate
-```
-
-**Специфика:** ObjectBelonging, ExtendedConfigurationObject, ID-диапазоны (base 1-999999, ext 1000000+).
-**Трудоёмкость:** высокая (~2800 строк Python-референса).
+| Команда | Что есть | Чего не хватает |
+|---------|----------|-----------------|
+| `erf-validate` | EPF-валидатор работает для ERF | Нет проверки MainDataCompositionSchema |
+| `skd edit` | add-parameter, add-field | У Широкова больше операций |
 
 ---
 
@@ -327,49 +266,49 @@ xml-gen extension validate <extPath>        ← из cfe-validate
 
 ### DSL-спецификации (формат входных данных)
 
-| Файл в cc-1c-skills | Цель | Фаза |
-|---------------------|------|------|
-| `docs/form-dsl-spec.md` | JSON DSL для form-compile | Existing+Info |
-| `docs/skd-dsl-spec.md` | JSON DSL для skd-compile | Existing+Info |
-| `docs/role-dsl-spec.md` | JSON DSL для role-compile | Existing+Info |
-| `docs/mxl-dsl-spec.md` | JSON DSL для mxl-compile | Existing+Info |
-| `docs/meta-dsl-spec.md` | JSON DSL для meta-compile (v2.1) | Meta |
-| `meta-compile/reference/types-*.md` | Справочник типов по категориям | Meta |
-| `meta-edit/json-dsl.md` | DSL для edit-операций | Meta |
-| `meta-edit/child-operations.md` | Операции над вложенными объектами | Meta |
-| `meta-edit/properties-reference.md` | Справочник свойств | Meta |
+| Файл в cc-1c-skills | Цель | Статус |
+|---------------------|------|--------|
+| `docs/form-dsl-spec.md` | JSON DSL для form-compile | Справочный |
+| `docs/skd-dsl-spec.md` | JSON DSL для skd-compile | Справочный |
+| `docs/role-dsl-spec.md` | JSON DSL для role-compile | Справочный |
+| `docs/mxl-dsl-spec.md` | JSON DSL для mxl-compile | Справочный |
+| `docs/meta-dsl-spec.md` | JSON DSL для meta-compile (v2.1) | Справочный |
+| `meta-compile/reference/types-*.md` | Справочник типов по категориям | Справочный |
+| `meta-edit/json-dsl.md` | DSL для edit-операций | Справочный |
+| `meta-edit/child-operations.md` | Операции над вложенными объектами | Справочный |
+| `meta-edit/properties-reference.md` | Справочник свойств | Справочный |
 
 ### XML-спецификации (структура выходных файлов)
 
-| Файл в cc-1c-skills | Цель | Фаза |
-|---------------------|------|------|
-| `docs/1c-epf-spec.md` | Структура EPF XML | Existing+ERF |
-| `docs/1c-erf-spec.md` | Структура ERF XML | Existing+ERF |
-| `docs/1c-form-spec.md` | Структура Form.xml | Existing+Info |
-| `docs/1c-role-spec.md` | Структура Rights.xml | Existing+Info |
-| `docs/1c-dcs-spec.md` | Структура DataCompositionSchema | Existing+Info |
-| `docs/1c-spreadsheet-spec.md` | Структура SpreadsheetDocument | Existing+Info |
-| `docs/1c-config-objects-spec.md` | XML-структуры 23 типов объектов | Meta |
-| `docs/1c-configuration-spec.md` | Configuration.xml | CF |
-| `docs/1c-extension-spec.md` | CFE-расширения | CFE |
-| `docs/1c-subsystem-spec.md` | Подсистемы | Subsystem |
-| `docs/1c-help-spec.md` | Структура Help.xml | Utilities |
-| `docs/1c-specs-index.md` | Мета-ссылка на все спецификации | Общий |
+| Файл в cc-1c-skills | Цель | Статус |
+|---------------------|------|--------|
+| `docs/1c-epf-spec.md` | Структура EPF XML | Справочный |
+| `docs/1c-erf-spec.md` | Структура ERF XML | Справочный |
+| `docs/1c-form-spec.md` | Структура Form.xml | Справочный |
+| `docs/1c-role-spec.md` | Структура Rights.xml | Справочный |
+| `docs/1c-dcs-spec.md` | Структура DataCompositionSchema | Справочный |
+| `docs/1c-spreadsheet-spec.md` | Структура SpreadsheetDocument | Справочный |
+| `docs/1c-config-objects-spec.md` | XML-структуры 23 типов объектов | Справочный |
+| `docs/1c-configuration-spec.md` | Configuration.xml | Справочный |
+| `docs/1c-extension-spec.md` | CFE-расширения | Справочный |
+| `docs/1c-subsystem-spec.md` | Подсистемы | Справочный |
+| `docs/1c-help-spec.md` | Структура Help.xml | Справочный |
+| `docs/1c-specs-index.md` | Мета-ссылка на все спецификации | Справочный |
 
 ### Guides (workflow, edge cases, порядок операций)
 
-| Файл в cc-1c-skills | Цель | Фаза |
-|---------------------|------|------|
-| `docs/epf-guide.md` | Workflow EPF: scaffold → формы → сборка | Existing+ERF |
-| `docs/form-guide.md` | Workflow форм, edge cases | Existing+Info |
-| `docs/skd-guide.md` | Workflow СКД | Existing+Info |
-| `docs/mxl-guide.md` | Workflow макетов | Existing+Info |
-| `docs/role-guide.md` | Workflow ролей | Existing+Info |
-| `docs/meta-guide.md` | Workflow метаданных, типичные сценарии | Meta |
-| `docs/cf-guide.md` | Workflow конфигурации | CF |
-| `docs/cfe-guide.md` | Workflow расширений | CFE |
-| `docs/subsystem-guide.md` | Workflow подсистем | Subsystem |
-| `docs/form-patterns.md` | Паттерны компоновки форм | Existing+Info |
+| Файл в cc-1c-skills | Цель | Статус |
+|---------------------|------|--------|
+| `docs/epf-guide.md` | Workflow EPF: scaffold → формы → сборка | Справочный |
+| `docs/form-guide.md` | Workflow форм, edge cases | Справочный |
+| `docs/skd-guide.md` | Workflow СКД | Справочный |
+| `docs/mxl-guide.md` | Workflow макетов | Справочный |
+| `docs/role-guide.md` | Workflow ролей | Справочный |
+| `docs/meta-guide.md` | Workflow метаданных, типичные сценарии | Справочный |
+| `docs/cf-guide.md` | Workflow конфигурации | Справочный |
+| `docs/cfe-guide.md` | Workflow расширений | Справочный |
+| `docs/subsystem-guide.md` | Workflow подсистем | Справочный |
+| `docs/form-patterns.md` | Паттерны компоновки форм | Справочный |
 
 ---
 
@@ -388,15 +327,16 @@ xml-gen extension validate <extPath>        ← из cfe-validate
 | `img-grid` | Обработка изображений — вне scope |
 | `form-patterns` | Knowledge skill — уже есть в `bsl-practices/` |
 
-## 7. Архитектурные риски
+## 7. Архитектурные риски и технический долг
 
-| Риск | Влияние | Статус | Митигация |
-|------|---------|--------|-----------|
-| ~~**mdclasses 0.17.4 не покрывает все 23 типа Meta**~~ | ~~Блокер Phase 5~~ | ✅ Снят | Gap-анализ проведён 2026-03-09: все 23 типа покрыты. `MDOType` enum содержит 75 констант, у каждого типа есть модельный класс с builder (Lombok). Дописывать библиотеку не нужно |
-| **TypeResolver не использует MDOType** | Дублирование логики, ручной string matching | ⚠️ Актуален | Переключить `TypeResolver` на `MDOType` enum из bsl-common-library вместо ручных строк. Сделать при Phase 5 (Meta) |
-| **Нет MetadataTypeRegistry** | Нет маппинга тип → каталог выгрузки → namespace → правила регистрации | ⚠️ Актуален | Создать интеграционный слой `MetadataTypeRegistry` поверх `MDOType`: тип → путь в файловой структуре, namespace, правила регистрации в Configuration.xml. Использовать данные из `1c-config-objects-spec.md` |
-| **Взрыв доменных моделей** | 23 типа → 23 DSL-класса? | ⚠️ Актуален | Использовать generic MetaDsl с Map<String,Object> + type-dispatch в MetaWriter, а не 23 отдельных POJO |
-| **Смешение уровней абстракции** | meta-compile пишет XML + правит Configuration.xml + создает модули | ⚠️ Актуален | Чёткое разделение: MetaWriter (XML), ConfigEditor (регистрация), ModuleWriter (BSL-шаблоны) |
-| **Версионность форматов 2.17/2.20** | Configuration/Subsystem/CFE имеют два формата | ⚠️ Актуален | Параметр `--platform-version`; по умолчанию 2.17 (8.3.20+) |
-| **Commands.java switchboard** | Текущий switchboard не масштабируется | ⚠️ Актуален | Перейти на registrable command model при Phase 3+ |
-| **ID/UUID/path consistency** | Между объектом, ChildObjects и вложенными файлами | ⚠️ Актуален | Централизованный UuidRegistry; unit-тесты на consistency |
+> Обновлено 2026-03-16: статусы проверены по текущему коду.
+
+| Риск / тех. долг | Влияние | Статус | Примечание |
+|------------------|---------|--------|------------|
+| ~~**mdclasses 0.17.4 не покрывает все 23 типа Meta**~~ | ~~Блокер~~ | ✅ Снят | Все 23 типа покрыты. `MDOType` enum: 75 констант |
+| **MetadataTypeRegistry** | Маппинг тип → каталог/namespace/правила регистрации | ✅ Реализован | Класс `MetadataTypeRegistry.java` создан |
+| **TypeResolver не использует MDOType** | Дублирование логики, ручной string matching | ⚠️ Тех. долг | Нужно переключить на `MDOType` enum |
+| **Commands.java switchboard** | ~2100 строк switch-case | ⚠️ Тех. долг | Работает, но не масштабируется. Рефакторинг в registrable command model |
+| **Версионность форматов 2.17/2.20** | Configuration/Subsystem/CFE имеют два формата | ⚠️ Тех. долг | Параметр `--platform-version` не реализован; всё на 2.17 |
+| **ID/UUID/path consistency** | Между объектом, ChildObjects и вложенными файлами | ⚠️ Тех. долг | Нет централизованного UuidRegistry |
+| **Глубина реализации vs Широков** | Наши реализации могут быть проще оригинала | ⚠️ Требует gap-анализ | См. раздел 4 expansion plan (отдельный документ) |

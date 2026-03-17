@@ -1,17 +1,17 @@
 ---
 name: xml-generation
-description: XML metadata generation for 1С from a compact JSON DSL. Supports EPF, Form, MXL, SKD, Role in Designer format. Use when creating external processors, forms, roles, reports, and print layouts.
+description: Generation of 1С XML metadata from a compact JSON DSL. Supports 11 domains — EPF, Form, MXL, SKD, Role, Config, Subsystem, Interface, Meta (23 object types), Extension (CFE) + utilities (template, help). ~45 CLI operations in Designer format. Use when creating configurations, external processing modules, metadata objects, forms, roles, reports, print forms, extensions.
 ---
 
 # XML Generation Module
 
-Module for generating XML metadata for 1С from a compact JSON DSL.
+Module for generating 1С XML metadata from a compact JSON DSL. 11 domains, ~45 operations.
 
-## Quick start
+## Quick Start
 
 ### Installation
 
-`xml-gen` installs automatically when installing the framework:
+`xml-gen` installs automatically when you install the framework:
 
 ```bash
 python tools/1c-ai-agent-cli.py
@@ -19,7 +19,7 @@ python tools/1c-ai-agent-cli.py
 
 The installer will build the JAR (requires JDK 17+) and create the `xml-gen` command in `~/.local/bin/`.
 
-If `xml-gen` is unavailable — reinstall manually:
+If `xml-gen` is unavailable, reinstall manually:
 ```bash
 python tools/1c-ai-agent-cli.py --install-xml-gen
 ```
@@ -27,70 +27,109 @@ python tools/1c-ai-agent-cli.py --install-xml-gen
 ### Usage
 
 ```bash
-# Create an external processor (--name and output_dir are required)
+# Создать внешнюю обработку (--name и output_dir обязательны)
 xml-gen epf init --name MyProcessor output/
 
-# Compile a form
+# Скомпилировать форму
 xml-gen form compile form.json Form.xml
 
-# Compile a tabular document
+# Скомпилировать табличный документ
 xml-gen mxl compile template.json Template.xml
 
-# Compile a data composition schema
+# Скомпилировать схему компоновки данных
 xml-gen skd compile schema.json Template.xml
 
-# Compile a role (creates Roles/<Name>/Ext/Rights.xml)
+# Скомпилировать роль (создаёт Roles/<Name>/Ext/Rights.xml)
 xml-gen role compile role.json output/
 
-# Validate XML
+# Валидация XML
 xml-gen validate form Form.xml
+
+# Конфигурация
+xml-gen config init --name МояКонфигурация output/
+xml-gen config info output/
+xml-gen config validate output/
+
+# Объекты метаданных (23 типа)
+xml-gen meta compile meta.json output/
+xml-gen meta info Catalogs/Товары
+xml-gen meta edit Catalogs/Товары --op add-attribute "Вес: Number(15,3)"
+
+# Подсистемы
+xml-gen subsystem compile subsystem.json output/
+xml-gen subsystem info Subsystems/Основное
+
+# Расширения (CFE)
+xml-gen extension init --name МоёРасширение --config output/ output_ext/
+xml-gen extension borrow output_ext/ output/ "Catalog.Товары"
+xml-gen extension diff output_ext/ output/
+
+# Универсальные операции
+xml-gen form add output/Catalogs/Товары MainForm
+xml-gen template add output/Catalogs/Товары PrintForm --type spreadsheet
+xml-gen help add output/Catalogs/Товары
 ```
 
 ## Supported metadata types
 
 | Type | Status | Skill |
 |-----|--------|-------|
-| External processor (EPF) | ✅ 100% | [epf-operations](../epf-operations/) |
-| Managed form (Form) | ✅ 100% | [form-dsl](../form-dsl/) |
-| Tabular document (MXL) | ✅ 100% | [mxl-dsl](../mxl-dsl/) |
-| Data composition schema (SKD) | ✅ 85% | [skd-dsl](../skd-dsl/) |
-| Role (Role) | ✅ 100% | [role-dsl](../role-dsl/) |
+| Внешняя обработка (EPF) | ✅ | [epf-operations](../epf-operations/) |
+| Управляемая форма (Form) | ✅ | [form-dsl](../form-dsl/) |
+| Табличный документ (MXL) | ✅ | [mxl-dsl](../mxl-dsl/) |
+| Схема компоновки данных (SKD) | ✅ | [skd-dsl](../skd-dsl/) |
+| Роль (Role) | ✅ | [role-dsl](../role-dsl/) |
+| Конфигурация (CF) | ✅ | [config-operations](../config-operations/) |
+| Подсистема (Subsystem) + Интерфейс | ✅ | [subsystem-operations](../subsystem-operations/) |
+| Объект метаданных (Meta, 23 типа) | ✅ | [meta-operations](../meta-operations/) |
+| Расширение (CFE) | ✅ | [extension-operations](../extension-operations/) |
+| Утилиты (template, help) | ✅ | [xml-gen-cli](../xml-gen-cli/) |
 
-## Usage scenarios
+## When to apply
 
 | Trigger | Action |
 |---------|----------|
-| Need to create an external processor | `epf init` → `epf add-form` → [epf-operations](../epf-operations/) |
+| Need to create an external processing module | `epf init` → `epf add-form` → [epf-operations](../epf-operations/) |
 | Need to create a form with UI elements | `form compile` with JSON DSL → [form-dsl](../form-dsl/) |
-| Need to create a print layout (tabular document) | `epf add-template --type spreadsheet` → `mxl compile` → [mxl-dsl](../mxl-dsl/) |
+| Need to create a print form (tabular document) | `epf add-template --type spreadsheet` → `mxl compile` → [mxl-dsl](../mxl-dsl/) |
 | Need to create a report (СКД) | `skd compile` with JSON DSL → [skd-dsl](../skd-dsl/) |
 | Need to create a role with rights | `role compile` with JSON DSL → [role-dsl](../role-dsl/) |
-| Need to modify existing XML (add attribute, element) | `form add-attribute`, `epf add-attribute`, etc. → [xml-gen-cli](../xml-gen-cli/) |
-| Need to verify XML correctness | `validate` → [xml-gen-cli](../xml-gen-cli/) |
+| Need to create/modify a configuration | `config init` / `config edit` → [config-operations](../config-operations/) |
+| Need to create a metadata object (Справочник, Документ, Регистр...) | `meta compile` → [meta-operations](../meta-operations/) |
+| Need to create/edit a subsystem | `subsystem compile` / `subsystem edit` → [subsystem-operations](../subsystem-operations/) |
+| Need to create an extension | `extension init` → [extension-operations](../extension-operations/) |
+| Need to borrow an object into an extension | `extension borrow` → [extension-operations](../extension-operations/) |
+| Need to add a form/template/help to any object | `form add` / `template add` / `help add` → [xml-gen-cli](../xml-gen-cli/) |
+| Need to modify existing XML (add attribute, element) | `form add-attribute`, `epf add-attribute` etc. → [xml-gen-cli](../xml-gen-cli/) |
+| Need to validate XML | `validate` → [xml-gen-cli](../xml-gen-cli/) |
 
-**Do not use** when EDT format is required (not supported yet), or DataSetUnion/CalculatedFields in SKD are needed (use a workaround in queries).
+**Do not use** when: EDT format is required (not supported yet), DataSetUnion/CalculatedFields are needed in SKD (use the workaround in queries).
 
 ## Detailed documentation
 
-- **[xml-gen-cli](../xml-gen-cli/)** — CLI: validate and edit commands (add-attribute, add-element, etc.)
-- **[epf-operations](../epf-operations/)** — operations for external processors
+- **[xml-gen-cli](../xml-gen-cli/)** — CLI: validate, edit commands, utilities (template, help)
+- **[epf-operations](../epf-operations/)** — operations for external processing modules
 - **[form-dsl](../form-dsl/)** — JSON DSL for forms
 - **[mxl-dsl](../mxl-dsl/)** — JSON DSL for tabular documents
 - **[skd-dsl](../skd-dsl/)** — JSON DSL for data composition schemas
 - **[role-dsl](../role-dsl/)** — JSON DSL for roles
+- **[config-operations](../config-operations/)** — operations for configurations (init, info, edit, validate)
+- **[subsystem-operations](../subsystem-operations/)** — subsystems and interfaces
+- **[meta-operations](../meta-operations/)** — metadata objects (23 types: справочники, документы, регистры, etc.)
+- **[extension-operations](../extension-operations/)** — extensions (CFE): init, borrow, diff
 
-## Usage walkthroughs
+## Usage scenarios
 
 ### Scenario 1: Processor with a form
 
 ```bash
-# 1. Create the processor
+# 1. Создать обработку
 xml-gen epf init --name DataImport output/
 
-# 2. Add a form
+# 2. Добавить форму
 xml-gen epf add-form --epf DataImport --name MainForm output/
 
-# 3. Create the JSON DSL for the form
+# 3. Создать JSON DSL для формы
 cat > form.json <<EOF
 {
   "attributes": [
@@ -102,14 +141,14 @@ cat > form.json <<EOF
 }
 EOF
 
-# 4. Generate Form.xml
+# 4. Сгенерировать Form.xml
 xml-gen form compile form.json output/DataImport/Forms/MainForm/Ext/Form.xml
 ```
 
 ### Scenario 2: Report (SKD)
 
 ```bash
-# Create the JSON DSL
+# Создать JSON DSL
 cat > report.json <<EOF
 {
   "dataSets": [{
@@ -131,7 +170,7 @@ cat > report.json <<EOF
 }
 EOF
 
-# Generate Template.xml
+# Сгенерировать Template.xml
 xml-gen skd compile report.json Template.xml
 ```
 
@@ -141,55 +180,21 @@ xml-gen skd compile report.json Template.xml
 io.github.onec.xmlgen/
 ├── cli/           # CLI commands
 ├── dsl/           # JSON DSL classes
-├── writer/        # XML generators
-├── model/         # Supporting models
+├── writer/        # XML generators (MetaWriter, ConfigWriter, SubsystemWriter, ExtensionWriter)
+├── editor/        # XML editors (ConfigEditor, SubsystemEditor, InterfaceEditor, ExtensionEditor, ObjectContainerEditor)
+├── validator/     # Validators (MetaValidator, ConfigValidator, SubsystemValidator, InterfaceValidator, ExtensionValidator)
+├── info/          # Info printers (MetaInfoPrinter, ConfigInfoPrinter, SubsystemInfoPrinter, ExtensionDiffPrinter, SkdInfoPrinter, FormInfoPrinter, MxlInfoPrinter, RoleInfoPrinter)
+├── model/         # Models (MetadataTypeRegistry, UuidGenerator)
 └── format/        # Output formats (Designer/EDT)
 ```
 
 ## Limitations
 
 1. **Designer format only** — EDT will be added later
-2. **SKD at 85%** — no DataSetObject/Union, CalculatedFields
-3. **No reference validation** — cross-object links are not checked
-4. **No reverse conversion** — JSON → XML only
+2. **SKD is 90% supported** — no DataSetObject/Union, CalculatedFields
+3. **No reference validation** — links between objects are not checked
 
 ### Workaround
 
 - **DataSetObject/Union** → use DataSetQuery with queries
 - **CalculatedFields** → use calculations in queries
-- **EDT format** → convert Designer → EDT via 1С
-
-## Right / Wrong
-
-```bash
-# ❌ Wrong — epf init without --name and output_dir (CLI returns "--name is required")
-xml-gen epf init MyProcessor
-
-# ✅ Right — --name and output_dir are required; CLI parses named arguments
-xml-gen epf init --name MyProcessor output/
-```
-
-> CLI requires explicit `--name` and positional `output_dir` because it does not support the old syntax with positional arguments.
-
-```bash
-# ❌ Wrong — role compile expecting a single output file (a directory structure is created)
-xml-gen role compile role.json Roles/МояРоль.xml
-
-# ✅ Right — output_dir, creates Roles/<Name>/Ext/Rights.xml
-xml-gen role compile role.json output/
-```
-
-> RoleWriter creates the full role structure (metadata + Rights.xml), not a single file.
-
----
-depends_on:
-  - framework/skills/tool-usage/platform-data/xml-generation/epf-operations/SKILL.md
-  - framework/skills/tool-usage/platform-data/xml-generation/form-dsl/SKILL.md
-  - framework/skills/tool-usage/platform-data/xml-generation/mxl-dsl/SKILL.md
-  - framework/skills/tool-usage/platform-data/xml-generation/role-dsl/SKILL.md
-  - framework/skills/tool-usage/platform-data/xml-generation/skd-dsl/SKILL.md
-  - framework/skills/tool-usage/platform-data/xml-generation/xml-gen-cli/SKILL.md
-metadata:
-  category: 1c-development
-  version: "1.0"
----

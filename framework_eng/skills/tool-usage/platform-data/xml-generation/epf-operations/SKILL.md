@@ -1,36 +1,38 @@
 ---
 name: epf-operations
-description: Operations with external 1C data processors (EPF) — creation, adding forms and templates. Use when running epf init, add-form, add-template, add-attribute, add-tabular-section.
+description: Operations with external data processors 1С (EPF) — creation, adding forms and templates. Use when epf init, add-form, add-template, add-attribute, add-tabular-section.
 ---
 
 # EPF Operations
 
-Working with external 1C data processors (ExternalDataProcessor).
+Working with external data processors 1С (ExternalDataProcessor).
 
-## When to apply
+## When to use
 
 | Trigger | Action |
 |---------|----------|
 | Need to create a new external data processor | `epf init --name <Name> <output_dir>` |
-| Need to add a form to the processor | `epf add-form --epf <EpfName> --name <FormName> <output_dir>` |
-| Need to add a print form (tabular document) | `epf add-template --epf ... --name ... --type spreadsheet <output_dir>` |
+| Need to add a form to a processor | `epf add-form --epf <EpfName> --name <FormName> <output_dir>` |
+| Need to add a print template (tabular document) | `epf add-template --epf ... --name ... --type spreadsheet <output_dir>` |
 | Need to add an HTML/text template | `epf add-template --type html` or `--type text` |
 | Need to add an attribute to an existing processor | `epf add-attribute --name ... --type ... <EpfRoot.xml>` |
+| Need to create an external report (ERF) | `epf init --type report --name ... <output_dir>` |
 | Need to add a tabular section to an existing processor | `epf add-tabular-section --name ... <EpfRoot.xml>` |
 
 ## Commands
 
 ### epf init
 
-Create a new external data processor.
+Create a new external processor.
 
 **Syntax:**
 ```bash
-xml-gen epf init --name <Name> [--format designer|edt] [--synonym <Synonym>] <output_dir>
+xml-gen epf init --name <Name> [--type processor|report] [--format designer|edt] [--synonym <Synonym>] <output_dir>
 ```
 
 **Parameters:**
-- `--name <Name>` — processor name (required)
+- `--name <Name>` — processor/report name (required)
+- `--type processor|report` — type: `processor` (processor by default) or `report` (external report, ERF)
 - `--format designer|edt` — output format (default: designer)
 - `--synonym <Synonym>` — synonym (optional)
 - `<output_dir>` — output directory (required, positional argument)
@@ -39,11 +41,12 @@ xml-gen epf init --name <Name> [--format designer|edt] [--synonym <Synonym>] <ou
 ```bash
 xml-gen epf init --name MyProcessor output/
 xml-gen epf init --format designer --name DataImport --synonym "Data Import" .
+xml-gen epf init --type report --name SalesReport --synonym "Sales Report" output/
 ```
 
 ### epf add-form
 
-Add a form to the processor.
+Add a form to a processor.
 
 **Syntax:**
 ```bash
@@ -58,7 +61,7 @@ xml-gen epf add-form --epf MyProcessor --name SettingsForm --default output/
 
 ### epf add-template
 
-Add a template to the processor.
+Add a template to a processor.
 
 **Syntax:**
 ```bash
@@ -75,7 +78,7 @@ xml-gen epf add-template --epf MyProcessor --name WebPage --type html output/
 
 ### epf add-attribute / add-tabular-section (editing)
 
-Modify an existing EPF (add attributes, tabular sections). Works with the processor root XML.
+Modifying an existing EPF (adding attributes, tabular sections). Works with the processor root XML.
 
 ```bash
 xml-gen epf add-attribute --name <Name> [--type <Type>] [--synonym <Synonym>] <EpfRoot.xml>
@@ -109,13 +112,13 @@ MyProcessor/
 
 ## Integration with form compile and mxl compile
 
-After creating the form:
+After creating a form:
 
 ```bash
 xml-gen form compile form.json output/MyProcessor/Forms/MainForm/Ext/Form.xml
 ```
 
-After creating the template:
+After creating a template:
 
 ```bash
 xml-gen mxl compile template.json output/MyProcessor/Templates/PrintForm/Ext/Template.xml
@@ -127,11 +130,11 @@ xml-gen mxl compile template.json output/MyProcessor/Templates/PrintForm/Ext/Tem
 # ❌ Wrong — epf add-form with positional arguments (CLI expects --epf, --name)
 xml-gen epf add-form MyProcessor MainForm
 
-# ✅ Right — named arguments, output_dir last
+# ✅ Right — named arguments, output_dir at the end
 xml-gen epf add-form --epf MyProcessor --name MainForm output/
 ```
 
-> The CLI only parses named arguments. `output_dir` is the final positional argument (the directory containing `<EpfName>.xml`).
+> The CLI only parses named arguments. `output_dir` is the last positional argument (the directory where `<EpfName>.xml` is located).
 
 ```bash
 # ❌ Wrong — epf add-attribute against Form.xml (add-attribute edits the processor root XML)
@@ -141,13 +144,13 @@ xml-gen epf add-attribute --name Employee MyProcessor/Forms/MainForm/Ext/Form.xm
 xml-gen epf add-attribute --name Employee --type CatalogRef.Сотрудники output/MyProcessor.xml
 ```
 
-> `epf add-attribute` adds an attribute to the **processor**, not the form. For a form use `form add-attribute` with Form.xml.
+> `epf add-attribute` adds an attribute to the **processor**, not the form. Use `form add-attribute` with Form.xml for the form.
 
 ## See also
 
-- [xml-generation](../xml-generation/) — general overview
-- [form-dsl](../form-dsl/) — form content generation
-- [mxl-dsl](../mxl-dsl/) — tabular document generation
+- [xml-generation](../xml-generation/) — general description
+- [form-dsl](../form-dsl/) — generating form content
+- [mxl-dsl](../mxl-dsl/) — generating tabular documents
 - [xml-gen-cli](../xml-gen-cli/) — validate and edit commands
 
 ---

@@ -161,6 +161,7 @@ public class MetaEditor {
             case "template" -> addSimpleChild(content, "Template", value);
             case "command" -> addSimpleChild(content, "Command", value);
             case "ts-attribute" -> addTsAttribute(content, objType, value);
+            case "property" -> addOrSetProperty(content, value);
             default -> {
                 warn("Unknown add target: " + target);
                 yield content;
@@ -634,6 +635,11 @@ public class MetaEditor {
     // ─── MODIFY operations ──────────────────────────────────────────────
 
     private String executeModify(String content, String objType, String target, String value) {
+        // Special case: modify-property handles root <Properties> of the object
+        if ("property".equals(target)) {
+            return modifyRootProperty(content, value);
+        }
+
         // Format: "ElementName: key=val, key=val"
         String xmlTag = switch (target) {
             case "attribute" -> "Attribute";
@@ -699,12 +705,11 @@ public class MetaEditor {
                 elemBlock = replaceTypeBlock(elemBlock, val);
                 info("Changed type of " + xmlTag + " '" + elemName + "': " + val);
                 modifyCount++;
-            } else if ("synonym".equals(key)) {
-                // Replace synonym content
-                elemBlock = elemBlock.replaceAll(
-                        "(<v8:content>)[^<]*(</v8:content>)",
-                        "$1" + esc(val) + "$2");
-                info("Changed synonym of " + xmlTag + " '" + elemName + "': " + val);
+            } else if ("synonym".equals(key) || "comment".equals(key)) {
+                // MLText editing: Synonym or Comment
+                String mlTag = "synonym".equals(key) ? "Synonym" : "Comment";
+                elemBlock = replaceMlTextProperty(elemBlock, mlTag, val);
+                info("Changed " + mlTag + " of " + xmlTag + " '" + elemName + "': " + val);
                 modifyCount++;
             } else {
                 // Scalar property: <Key>OldValue</Key> -> <Key>NewValue</Key>
@@ -1115,6 +1120,103 @@ public class MetaEditor {
         Matcher m = Pattern.compile("<Properties>\\s*<Name>([^<]+)</Name>", Pattern.DOTALL).matcher(content);
         if (m.find()) return m.group(1).trim();
         throw new IllegalStateException("Cannot detect object name from XML");
+    }
+
+    // ─── ROOT PROPERTY operations ────────────────────────────────────────
+
+    /**
+     * Add or set a root-level property in <Properties>.
+     * Format: "PropName=Value" or "PropName:LocalString=Value" (for MLText).
+     */
+    private String addOrSetProperty(String content, String value) {
+        int eqIdx = value.indexOf('=');
+        if (eqIdx <= 0) {
+            warn("Invalid add-property format (expected PropName=Value): " + value);
+            return content;
+        }
+        String propName = value.substring(0, eqIdx).trim();
+        String propValue = value.substring(eqIdx + 1).trim();
+
+        // Check if it's a LocalString type hint
+        boolean isLocalString = false;
+        if (propName.endsWith(":LocalString")) {
+            propName = propName.substring(0, propName.length() - ":LocalString".length());
+            isLocalString = true;
+        }
+
+        // Check for Synonym/Comment — always treat as MLText
+        if ("Synonym".equals(propName) || "Comment".equals(propName) || "Explanation".equals(propName)) {
+            isLocalString = true;
+        }
+
+        if (isLocalString) {
+            content = replaceMlTextProperty(content, propName, propValue);
+        } else {
+            // Simple scalar: replace existing or expand self-closing
+            String existing = "(<" + Pattern.quote(propName) + ">)[^<]*(</" + Pattern.quote(propName) + ">)";
+            if (content.matches("(?s).*" + existing + ".*")) {
+                content = content.replaceFirst(existing, "$1" + esc(propValue) + "$2");
+            } else {
+                // Try self-closing
+                String selfClose = "<" + Pattern.quote(propName) + "\\s*/>";
+                if (content.matches("(?s).*" + selfClose + ".*")) {
+                    content = content.replaceFirst(selfClose,
+                            "<" + propName + ">" + esc(propValue) + "</" + propName + ">");
+                } else {
+                    warn("Property '" + propName + "' not found in object");
+                    return content;
+                }
+            }
+        }
+        info("Set property " + propName + " = " + propValue);
+        modifyCount++;
+        return content;
+    }
+
+    /**
+     * Modify a root-level property.
+     * Format: "key=val, key=val" (multiple comma-separated).
+     */
+    private String modifyRootProperty(String content, String value) {
+        // Split by comma (top-level only, not inside quoted values)
+        String[] pairs = value.split(",(?=\\s*[A-Za-z])");
+        for (String pair : pairs) {
+            content = addOrSetProperty(content, pair.trim());
+        }
+        return content;
+    }
+
+    /**
+     * Replace or create MLText property (Synonym, Comment, Explanation) in an element block.
+     * Handles 3 cases: existing content, self-closing tag, or missing tag.
+     */
+    private String replaceMlTextProperty(String block, String propName, String newValue) {
+        // Case 1: has <v8:content> inside <PropName>
+        Pattern withContent = Pattern.compile(
+                "(<" + Pattern.quote(propName) + ">.*?<v8:content>)[^<]*(</v8:content>)",
+                Pattern.DOTALL);
+        Matcher m = withContent.matcher(block);
+        if (m.find()) {
+            return m.replaceFirst(Matcher.quoteReplacement(m.group(1))
+                    + esc(newValue)
+                    + Matcher.quoteReplacement(m.group(2)));
+        }
+
+        // Case 2: self-closing <PropName/>
+        String mlBlock = "<" + propName + ">\n"
+                + "\t\t\t\t\t<v8:item>\n"
+                + "\t\t\t\t\t\t<v8:lang>ru</v8:lang>\n"
+                + "\t\t\t\t\t\t<v8:content>" + esc(newValue) + "</v8:content>\n"
+                + "\t\t\t\t\t</v8:item>\n"
+                + "\t\t\t\t</" + propName + ">";
+        Pattern selfClose = Pattern.compile("<" + Pattern.quote(propName) + "\\s*/>");
+        m = selfClose.matcher(block);
+        if (m.find()) {
+            return m.replaceFirst(Matcher.quoteReplacement(mlBlock));
+        }
+
+        // Case 3: no such tag found — return unchanged
+        return block;
     }
 
     private void writeSynonym(StringBuilder sb, String indent, String text) {
