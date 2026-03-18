@@ -44,14 +44,44 @@ Project scenarios and test data are always project-local. Shared templates with 
 
 ---
 
+## Runtime config
+
+Before launching, prepare two files in `<project_root>/vanessa-tests/runtime/`:
+
+**`vrunner-va-run.json`** — vrunner config:
+```json
+{
+  "default": {
+    "--v8version": "<platform_version>",
+    "--language": "ru", "--locale": "ru_RU",
+    "--workspace": "<project_root>",
+    "--root": "<project_root>",
+    "--nocacheuse": true,
+    "--debuglogfile": "<project_root>/vanessa-tests/logs/vrunner-debug.log"
+  },
+  "vanessa": {
+    "--workspace": "<project_root>",
+    "--vanessasettings": "<project_root>/vanessa-tests/runtime/va-params-run.json"
+  }
+}
+```
+
+**`va-params-run.json`** — bddRunner settings. Take the template `tools/runtime/vanessa/va-params.template.json` and replace all `$workspaceRoot` with the absolute path to the project. `КаталогФич` points to the directory containing the `.feature` files to run.
+
+---
+
 ## Launch methods
 
 ### 1. Via `vrunner` (preferred)
 
+The `--ibconnection` format for a server base: `/S<server>\<base>` (no quotes — vrunner adds them internally).
+
+Convert the connection string from `yaxunit-runner.yml` (`Srvr='server';Ref='base';`) to `/Sserver\base`.
+
 ```bash
 DISPLAY=:99 vrunner vanessa \
-  --settings <runtime_vrunner_va_json> \
-  --ibconnection /S"<ib_connection>" \
+  --settings '<project_root>/vanessa-tests/runtime/vrunner-va-run.json' \
+  --ibconnection '/S<server>\<base>' \
   --db-user <db_user> \
   --db-pwd <db_pwd> \
   --pathvanessa "/opt/onescript/2.0.0/lib/add/bddRunner.epf"
@@ -59,14 +89,16 @@ DISPLAY=:99 vrunner vanessa \
 
 ### 2. Via `1cv8c` (fallback)
 
+Take the platform version from `configs/yaxunit-runner.yml`, field `platform-version`.
+
 ```bash
-DISPLAY=:99 /opt/1cv8/x86_64/8.3.27.1719/1cv8c ENTERPRISE \
-  /S"<ib_connection>" \
+DISPLAY=:99 /opt/1cv8/x86_64/<platform_version>/1cv8c ENTERPRISE \
+  /S"<server>\\<base>" \
   /N"<db_user>" \
   /P"<db_pwd>" \
   /Lru /VLru_RU \
   /DisableStartupMessages /DisableStartupDialogs \
-  /C"StartFeaturePlayer;workspaceRoot=<project_root>;VBParams=<runtime_va_params_json>" \
+  /C"StartFeaturePlayer;workspaceRoot=<project_root>;VBParams=<project_root>/vanessa-tests/runtime/va-params-run.json" \
   /out"/tmp/va-run.out" \
   /TESTMANAGER \
   /Execute"/opt/onescript/2.0.0/lib/add/bddRunner.epf"
@@ -99,6 +131,8 @@ Display `:99` is used by default. After the run completes close the display to f
 | `DISPLAY` is not up | Start/use a working X11 display |
 | Runner finished without artifacts | Treat as invalid and proceed to diagnostics |
 | `Предупреждение безопасности` | Rule `vanessa-security-warning` |
+| `Неопределена информационная база` | Wrong `--ibconnection` format; for server bases use `/Sserver\base` |
+| Scenario list empty (0 executed) | Check tags — the `@draft` tag excludes a scenario from the run |
 
 ---
 depends_on:

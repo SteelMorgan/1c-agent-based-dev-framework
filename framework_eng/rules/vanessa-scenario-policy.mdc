@@ -11,6 +11,7 @@ description: Policy for writing Vanessa Automation scenario tests. Scenarios sho
 - One scenario = one observable behavior
 - Before a new step, search for an existing one in the Vanessa library and the project scenarios
 - The first scenario for a new case should be a short smoke test
+- Scenario MUST run under a specific business user, not admin/AgentAI — exception only if the tested function is exclusively available to an administrator; determine the user from the task description, or **ask the human** if not specified
 
 ## SHOULD
 

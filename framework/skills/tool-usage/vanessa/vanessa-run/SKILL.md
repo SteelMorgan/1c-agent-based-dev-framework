@@ -44,14 +44,44 @@ description: Запуск сценарных тестов Vanessa Automation. И
 
 ---
 
+## Runtime-конфиг
+
+Перед запуском необходимо подготовить два файла в `<project_root>/vanessa-tests/runtime/`:
+
+**`vrunner-va-run.json`** — конфиг vrunner-а:
+```json
+{
+  "default": {
+    "--v8version": "<platform_version>",
+    "--language": "ru", "--locale": "ru_RU",
+    "--workspace": "<project_root>",
+    "--root": "<project_root>",
+    "--nocacheuse": true,
+    "--debuglogfile": "<project_root>/vanessa-tests/logs/vrunner-debug.log"
+  },
+  "vanessa": {
+    "--workspace": "<project_root>",
+    "--vanessasettings": "<project_root>/vanessa-tests/runtime/va-params-run.json"
+  }
+}
+```
+
+**`va-params-run.json`** — настройки bddRunner. Взять шаблон `tools/runtime/vanessa/va-params.template.json` и заменить все `$workspaceRoot` на абсолютный путь к проекту. `КаталогФич` указывает на нужный каталог с `.feature`-файлами.
+
+---
+
 ## Способы запуска
 
 ### 1. Через `vrunner` (предпочтительный)
 
+Формат `--ibconnection` для серверной базы: `/S<server>\<base>` (без кавычек — vrunner добавит их сам).
+
+Строку подключения из `yaxunit-runner.yml` (`Srvr='server';Ref='base';`) преобразуй в `/Sserver\base`.
+
 ```bash
 DISPLAY=:99 vrunner vanessa \
-  --settings <runtime_vrunner_va_json> \
-  --ibconnection /S"<ib_connection>" \
+  --settings '<project_root>/vanessa-tests/runtime/vrunner-va-run.json' \
+  --ibconnection '/S<server>\<base>' \
   --db-user <db_user> \
   --db-pwd <db_pwd> \
   --pathvanessa "/opt/onescript/2.0.0/lib/add/bddRunner.epf"
@@ -59,14 +89,16 @@ DISPLAY=:99 vrunner vanessa \
 
 ### 2. Через `1cv8c` (запасной)
 
+Версию платформы брать из `configs/yaxunit-runner.yml`, поле `platform-version`.
+
 ```bash
-DISPLAY=:99 /opt/1cv8/x86_64/8.3.27.1719/1cv8c ENTERPRISE \
-  /S"<ib_connection>" \
+DISPLAY=:99 /opt/1cv8/x86_64/<platform_version>/1cv8c ENTERPRISE \
+  /S"<server>\\<base>" \
   /N"<db_user>" \
   /P"<db_pwd>" \
   /Lru /VLru_RU \
   /DisableStartupMessages /DisableStartupDialogs \
-  /C"StartFeaturePlayer;workspaceRoot=<project_root>;VBParams=<runtime_va_params_json>" \
+  /C"StartFeaturePlayer;workspaceRoot=<project_root>;VBParams=<project_root>/vanessa-tests/runtime/va-params-run.json" \
   /out"/tmp/va-run.out" \
   /TESTMANAGER \
   /Execute"/opt/onescript/2.0.0/lib/add/bddRunner.epf"
@@ -99,6 +131,8 @@ DISPLAY=:99 /opt/1cv8/x86_64/8.3.27.1719/1cv8c ENTERPRISE \
 | `DISPLAY` не поднят | Поднять/использовать рабочий X11 display |
 | Runner завершился без артефактов | Считать невалидным, идти в диагностику |
 | `Предупреждение безопасности` | Правило `vanessa-security-warning` |
+| `Неопределена информационная база` | Неверный формат `--ibconnection`; для серверных баз — `/Sserver\base` |
+| Список сценариев пуст (0 выполнено) | Проверить теги — тег `@draft` исключает сценарий из прогона |
 
 ---
 depends_on:

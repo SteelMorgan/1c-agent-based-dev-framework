@@ -705,9 +705,9 @@
       "status": "synced"
     },
     "framework/rules/vanessa-scenario-policy.mdc": {
-      "ru_hash": "sha256:f0949ff0128ce1598fa242bc1c685e0f28f3cf96cdcf033150cc83ebaf971955",
-      "en_hash": "sha256:0723017376ca23fe96f9bc3a451719369dd1d5fb2628e64226b77358aa77d24f",
-      "synced_at": "2026-03-17T17:04:56Z",
+      "ru_hash": "sha256:54c3f3b42d508bd19e6b0d14541b62254d0eef45307eb6f46b8e709d87dffc40",
+      "en_hash": "sha256:1fc24c1644663ac0b9f92c6117876dfc9ed758db9799683fff1db5435f771ffb",
+      "synced_at": "2026-03-18T14:53:14Z",
       "status": "synced"
     },
     "framework/rules/vanessa-security-warning.mdc": {
@@ -723,21 +723,15 @@
       "status": "synced"
     },
     "framework/skills/tool-usage/vanessa/vanessa-authoring/SKILL.md": {
-      "ru_hash": "sha256:a4c5ced06ff5020015889fcb7a7572c1b1a7bda3389bf627805869778609b78f",
-      "en_hash": "sha256:e98870f5920f87386edf85796441edb854a64c09ea4c35ac2b18dfd1b99132bd",
-      "synced_at": "2026-03-17T17:05:11Z",
+      "ru_hash": "sha256:1ea87d0eb4e032266404d9d2e383a3f45a5352ffeaf9ea8205ec16136ba57883",
+      "en_hash": "sha256:d77b23a5a81428c476668d779e9b0e07e9472e172b91ab63b33dfc3f2ca88d20",
+      "synced_at": "2026-03-18T14:54:15Z",
       "status": "synced"
     },
     "framework/skills/tool-usage/vanessa/vanessa-diagnostics/SKILL.md": {
       "ru_hash": "sha256:1ec715bd63122f1103094d58747ba86c6ddc63ab4a4bfc41062c0ea001988a7b",
       "en_hash": "sha256:0e8c48e83a0faec8a5f68262ca8204eb70be024b65544c0f09daa97e57a5ef58",
       "synced_at": "2026-03-17T17:05:50Z",
-      "status": "synced"
-    },
-    "framework/skills/tool-usage/vanessa/vanessa-run/SKILL.md": {
-      "ru_hash": "sha256:dd2f2405fdbfc2f435616ecc7481e14771a10e6d9e72cb6aafaa35178d27017a",
-      "en_hash": "sha256:c67a7dc2b0d789a01f6b2c48c636d0d0fb4d84af18d46b03dfea3f47c827b26d",
-      "synced_at": "2026-03-17T17:05:41Z",
       "status": "synced"
     },
     "framework/skills/tool-usage/platform-data/xml-generation/config-operations/SKILL.md": {
@@ -798,6 +792,18 @@
       "ru_hash": "sha256:11cead9fcbe7c6769bdf40a0874ad01dd628199c6e2c3f60492b453d4f56f7d6",
       "en_hash": "sha256:bb61044713d245fc63ff1249d01e5377303ebd5876c6c4a6750c430546a507eb",
       "synced_at": "2026-03-17T17:06:23Z",
+      "status": "synced"
+    },
+    "framework/skills/tool-usage/vanessa/vanessa-run/SKILL.md": {
+      "ru_hash": "sha256:024c8f436c698bd26e2372fd3f6a3f2503c5ba3317f205f024682ed4f26df445",
+      "en_hash": "sha256:d39990dfcd63d0043217d71bf574e0b404d701289384038fd2b2f68be03517de",
+      "synced_at": "2026-03-18T13:10:00Z",
+      "status": "synced"
+    },
+    "framework/skills/tool-usage/vanessa/vanessa-authoring/references/steps-cheatsheet.md": {
+      "ru_hash": "sha256:217571eec3feefeeb7d88de436040b6b973081e9b81db6dbe64992bcb6c1e8f8",
+      "en_hash": "sha256:fa158a79a8e5a51a4b4f044987d59d034770785a91842ec876f24174cc51040c",
+      "synced_at": "2026-03-18T14:52:33Z",
       "status": "synced"
     }
   }
