@@ -98,6 +98,11 @@ Library: `/opt/onescript/2.0.0/lib/add/features/libraries/`
 
 Step cheatsheet with syntax → `references/steps-cheatsheet.md`.
 
+**Full step library:** `references/steps.json` (1116 steps). **Do not read the entire file** — use `grep` to search by keywords from the task. Each entry structure:
+- `ИмяШага` — example call with parameters
+- `ОписаниеШага` — what the step does
+- `ПолныйТипШага` — category (UI, Misc, Files, Variables, etc.)
+
 ---
 
 ## Tags
