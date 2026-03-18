@@ -795,15 +795,21 @@
       "status": "synced"
     },
     "framework/skills/tool-usage/vanessa/vanessa-run/SKILL.md": {
-      "ru_hash": "sha256:024c8f436c698bd26e2372fd3f6a3f2503c5ba3317f205f024682ed4f26df445",
-      "en_hash": "sha256:d39990dfcd63d0043217d71bf574e0b404d701289384038fd2b2f68be03517de",
-      "synced_at": "2026-03-18T13:10:00Z",
+      "ru_hash": "sha256:ed75001df3c57dbfa6dd37b922b61434c348f49cd4b8968b3e6a1b02530a9431",
+      "en_hash": "sha256:63def634c20c82eed1c6cf221df6c2289dbd8d0f915f069190c736598c8bfeae",
+      "synced_at": "2026-03-18T15:10:00Z",
       "status": "synced"
     },
     "framework/skills/tool-usage/vanessa/vanessa-authoring/references/steps-cheatsheet.md": {
       "ru_hash": "sha256:217571eec3feefeeb7d88de436040b6b973081e9b81db6dbe64992bcb6c1e8f8",
       "en_hash": "sha256:fa158a79a8e5a51a4b4f044987d59d034770785a91842ec876f24174cc51040c",
       "synced_at": "2026-03-18T14:52:33Z",
+      "status": "synced"
+    },
+    "framework/skills/tool-usage/platform-admin/rac-use/SKILL.md": {
+      "ru_hash": "sha256:163907897d21975d88479b3834b5a07aeb3afc3d68bc087445f5c5aa3b663b53",
+      "en_hash": "sha256:fd88942b6d1ad233db624acfcf2a9a32fcdd87044dc5cd5a2b8a9f246f70ce46",
+      "synced_at": "2026-03-18T15:10:00Z",
       "status": "synced"
     }
   }
