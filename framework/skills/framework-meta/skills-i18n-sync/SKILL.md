@@ -89,7 +89,7 @@ git commit
     ↓
 Вызывает: python3 tools/sync-skill.py <список файлов>
     ↓
-sync-skill.py вызывает Claude Haiku CLI для перевода каждого файла
+sync-skill.py вызывает Codex CLI (gpt-5.1-codex-mini) для перевода каждого файла
     ↓
 Записывает результат в framework_eng/ (зеркальный путь)
 Обновляет .skills-sync-state.json

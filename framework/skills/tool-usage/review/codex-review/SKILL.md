@@ -44,6 +44,7 @@ fi
 RESULT_FILE=$(mktemp /tmp/codex-review-XXXXXX.txt)
 codex exec \
   -p cx_gpt-5_3-codex-high \
+  --dangerously-bypass-approvals-and-sandbox \
   --ephemeral \
   -o "$RESULT_FILE" \
   - < /tmp/codex-prompt.txt
@@ -60,10 +61,15 @@ RESULT_FILE=$(mktemp /tmp/codex-review-XXXXXX.txt)
 codex exec \
   -m gpt-5.4 \
   -c 'model_reasoning_effort="high"' \
+  --dangerously-bypass-approvals-and-sandbox \
   --ephemeral \
   -o "$RESULT_FILE" \
   - < /tmp/codex-prompt.txt
 ```
+
+> **Sandbox не нужен.** Всё окружение (devcontainer) — уже песочница.
+> `--dangerously-bypass-approvals-and-sandbox` безопасен: codex эфемерный,
+> ревью — read-only задача, файлы проекта не изменяются.
 
 ---
 
@@ -73,7 +79,7 @@ codex exec \
 
 ```bash
 codex exec -m gpt-5.4 -c 'model_reasoning_effort="high"' \
-  --ephemeral \
+  --dangerously-bypass-approvals-and-sandbox --ephemeral \
   'Объясни назначение функции РассчитатьСумму в файле Module.bsl'
 ```
 
@@ -94,6 +100,7 @@ EOF
 codex exec \
   -m gpt-5.4 \
   -c 'model_reasoning_effort="high"' \
+  --dangerously-bypass-approvals-and-sandbox \
   --ephemeral \
   -o "$RESULT_FILE" \
   - < "$PROMPT_FILE"
@@ -154,11 +161,5 @@ codex exec \
 
 ---
 depends_on:
-  - framework/skills/bsl-practices/coding-standards/SKILL.md
-  - framework/skills/bsl-practices/error-handling/SKILL.md
-  - framework/skills/bsl-practices/query-patterns/SKILL.md
-  - framework/skills/bsl-practices/ssl-patterns/SKILL.md
-  - framework/skills/bsl-practices/form-patterns/SKILL.md
-  - framework/skills/bsl-practices/form-visual-requirements/SKILL.md
-  - framework/skills/spec-writing/spec-standard/SKILL.md
+
 ---

@@ -1,0 +1,78 @@
+---
+name: skill-learning-policy
+description: Knowledge accumulation policy. After an iteration cycle the agent extracts verified techniques and anti-techniques and records them in references/learned-patterns.md of the owning skill.
+---
+
+# Knowledge Accumulation Policy (Skill Learning)
+
+> The agent learns from its own iterations: what works (techniques) and what breaks (anti-techniques).
+> Knowledge is recorded in `references/learned-patterns.md` of the owning skill.
+
+## Two levels of knowledge
+
+| Level | File | What it stores |
+|-------|------|----------------|
+| Universal | `skill/references/learned-patterns.md` | Techniques that work in any 1С configuration |
+| Project | `{project}/.context/learned-patterns.md` | Techniques tied to a specific configuration/project |
+
+**Separation criterion:** if the entry mentions a specific metadata object, form name, attribute, or configuration peculiarity → project level. If it describes a general platform/framework pattern → universal level.
+
+## Using accumulated knowledge
+
+Before starting work with the skill:
+1. Check `references/learned-patterns.md` in the skill directory — universal techniques
+2. Check `{project}/.context/learned-patterns.md` — project techniques
+
+Treat `confirmed` entries as additional rules, `candidate` entries as hints.
+
+## When to run
+
+After completing a work cycle that included **≥2 iterations** (wrote → error → fixed → success). If the task is solved on the first attempt — no retrospective is needed.
+
+## Procedure
+
+1. **Reconstruct the iteration chain** — what was done → what failed → how it was fixed → what worked
+
+2. **For each nontrivial fix** formulate an entry:
+
+```
+status: candidate | confirmed
+область: <свободная формулировка>
+приём: <что делать — проверено успехом>
+антиприём: <что НЕ делать — проверено падением>
+почему: <что происходит при нарушении>
+шаги: <конкретные шаги/код, если применимо>
+источник: <задача, итерация>
+```
+
+Приём и антиприём — **одна запись**, две стороны одного открытия. Не дублировать.
+
+3. **Filter out** — exclude:
+   - Typos and accidental syntax errors
+   - One-off environment failures
+
+4. **Determine the level and owning skill:**
+   - Mentions a specific metadata object / configuration → **project** → `{project}/.context/learned-patterns.md`
+   - General platform/framework pattern → **universal** → `references/learned-patterns.md` of the owning skill
+   - Owning skill: the skill the technique belongs to based on the content.
+     Path to the RU version: `.install-session.json` → `component_map` → `skill/{name}` → `ru_path`.
+
+5. **Read existing entries** from the target file:
+   - A similar technique already exists → do not duplicate
+   - There is a `candidate` with the same area → promote it to `confirmed`
+
+6. **Append** the entry to the target file.
+   If the file does not exist — create it. Do not overwrite existing entries.
+
+## MUST
+
+| Requirement | Description |
+|-------------|-------------|
+| Do not change the skill body | Entries go only to `references/learned-patterns.md`, not to `SKILL.md` |
+| Do not duplicate | Read existing techniques before writing |
+| First occurrence = candidate | A single occurrence gets `status: candidate` |
+| Repeat = confirmed | For repeated similar situations, raise to `confirmed` |
+
+---
+depends_on: []
+---
