@@ -22,6 +22,9 @@ test-output/
 tools/fast-install/
 .claude/fast-install.mdc
 
+# Local rules (not shared)
+.claude/rules/CLAUDE.md
+
 # Agent session reports (transient artifacts)
 **/PHASE*-REPORT.md
 **/PHASE*-SUMMARY.md

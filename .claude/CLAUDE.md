@@ -81,3 +81,6 @@ python3 tools/sync-skill.py --init-all
 cp tools/hooks/pre-commit .git/hooks/pre-commit
 chmod +x .git/hooks/pre-commit
 ```
+
+## Simlinc Policy
+@.claude/rules/framework-meta-skill-symlink.mdc

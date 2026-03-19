@@ -1,5 +1,5 @@
 ---
-description: При создании навыка в framework-meta создавать симлинк в .cursor/skills
+description: При создании навыка в framework-meta создавать симлинк в .claude/skills
 globs: framework/skills/framework-meta/**/*
 ---
 

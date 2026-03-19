@@ -8,10 +8,10 @@ alwaysApply: true
 
 ## Invocation Rule
 
-1. The skill specifies capability — use `capabilities/registry.yaml` to select the server + tool.
+1. Skill specifies capability — use `capabilities/registry.yaml` to choose server + tool.
 2. Take the invocation schema (arguments) from the IDE tool list.
 3. If the capability is missing or the tool is unavailable — inform the user.
 
-## Replacing MCP tool
+## Replacing an MCP tool
 
 CLI: `python tools/capability-registry.py set <capability> --server <server> --tool <tool>`.

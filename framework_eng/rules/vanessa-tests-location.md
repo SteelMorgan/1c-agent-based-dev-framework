@@ -1,6 +1,6 @@
 ---
 name: vanessa-tests-location
-description: Policy for the location of project-specific Vanessa Automation feature files and references to them in task documentation.
+description: Policy for the placement of project-specific Vanessa Automation feature files and references to them in task documentation.
 ---
 
 # Location of project-specific Vanessa scenarios
@@ -11,8 +11,8 @@ description: Policy for the location of project-specific Vanessa Automation feat
 |------------|-------------|
 | Project feature files in `vanessa-tests/` | Project-specific scenarios MUST be stored in `<project_root>/vanessa-tests/features` |
 | Project support files nearby | Project-specific support/fixtures MUST be stored in `<project_root>/vanessa-tests/support` |
-| Links in task documentation | If a feature file is created or modified within a task, the task documentation MUST include a link to that file |
-| Do not mix with shared templates | Project-specific scenarios must not be stored in the shared runtime/template directory of the framework |
+| Links in task documentation | If a feature file is created or updated as part of a task, the task documentation MUST include a link to that file |
+| Do not mix with shared templates | Project-specific scenarios must not be stored in the framework shared runtime/template directory |
 
 ## Separation
 
@@ -26,9 +26,9 @@ description: Policy for the location of project-specific Vanessa Automation feat
 - `<project_root>/vanessa-tests/features`
 - `<project_root>/vanessa-tests/support`
 
-## What counts as a link in task documentation
+## What is considered a link in the task documentation
 
-A direct link or explicit path to the created/updated `.feature` is sufficient so that the next agent can quickly open the scenario without searching again.
+A direct link or an explicit path to the created/updated `.feature` is enough for the next agent to quickly open the scenario without searching again.
 
 ---
 depends_on: []
