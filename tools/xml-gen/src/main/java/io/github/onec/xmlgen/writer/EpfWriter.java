@@ -16,14 +16,43 @@ import java.util.HashMap;
 import java.util.Map;
 
 /**
- * Генератор XML для внешней обработки (EPF).
+ * Генератор XML для внешней обработки (EPF) и внешнего отчёта (ERF).
  */
 public class EpfWriter extends XmlWriter {
-    
+
+    private static final String EPF_CLASS_ID = "c3831ec8-d8d5-4f93-8a22-f9bfae07327f";
+    private static final String ERF_CLASS_ID = "e41aff26-25cf-4bb6-b6c1-3f478a75f374";
+
     private final OutputFormat format;
-    
+    private final boolean isReport;
+
     public EpfWriter(OutputFormat format) {
+        this(format, false);
+    }
+
+    public EpfWriter(OutputFormat format, boolean isReport) {
         this.format = format;
+        this.isReport = isReport;
+    }
+
+    private String rootElement() {
+        return isReport ? "ExternalReport" : "ExternalDataProcessor";
+    }
+
+    private String generatedTypeName(String name) {
+        return isReport ? "ExternalReportObject." + name : "ExternalDataProcessorObject." + name;
+    }
+
+    private String classId() {
+        return isReport ? ERF_CLASS_ID : EPF_CLASS_ID;
+    }
+
+    private String objectKind() {
+        return isReport ? "ERF" : "EPF";
+    }
+
+    private String edtSubdir() {
+        return isReport ? "ExternalReports" : "ExternalDataProcessors";
     }
     
     /**
@@ -80,9 +109,8 @@ public class EpfWriter extends XmlWriter {
         Path rootXml = DesignerLayout.createEpfStructure(outputDir, name);
         
         // Генерировать UUID
-        String[] uuids = UuidGenerator.generateEpfPair();
-        String objectId = uuids[0];
-        String classId = uuids[1];
+        String objectId = UuidGenerator.generate();
+        String classId = classId();
         
         String[] typeUuids = new String[] {UuidGenerator.generate(), UuidGenerator.generate()};
         
@@ -100,16 +128,16 @@ public class EpfWriter extends XmlWriter {
         rootAttrs.put("version", "2.17");
         writeRootElement("MetaDataObject", allNamespaces, rootAttrs);
         
-        // ExternalDataProcessor
+        // Root element (ExternalDataProcessor or ExternalReport)
         writer.writeCharacters("\t");
-        writer.writeStartElement("ExternalDataProcessor");
+        writer.writeStartElement(rootElement());
         writer.writeAttribute("uuid", objectId);
         writer.writeCharacters("\n");
         indentLevel = 2;
-        
+
         // InternalInfo
         writeInternalInfo(objectId, classId, typeUuids[0], typeUuids[1], name);
-        
+
         // Properties
         startElement("Properties");
         writeElement("Name", name);
@@ -117,6 +145,14 @@ public class EpfWriter extends XmlWriter {
         writeElement("Comment", "");
         writeElement("DefaultForm", "");
         writeElement("AuxiliaryForm", "");
+        if (isReport) {
+            writeElement("MainDataCompositionSchema", "");
+            writeElement("DefaultSettingsForm", "");
+            writeElement("AuxiliarySettingsForm", "");
+            writeElement("DefaultVariantForm", "");
+            writeElement("VariantsStorage", "");
+            writeElement("SettingsStorage", "");
+        }
         endElement(); // Properties
         
         // ChildObjects (пустой пока)
@@ -124,24 +160,27 @@ public class EpfWriter extends XmlWriter {
         endElement(); // ChildObjects
         
         indentLevel--;
-        endElement(); // ExternalDataProcessor
-        
+        endElement(); // ExternalDataProcessor / ExternalReport
+
         writer.writeEndElement(); // MetaDataObject
         close();
-        
+
         // Создать пустой ObjectModule.bsl
         Path objectModule = outputDir.resolve(name).resolve("Ext/ObjectModule.bsl");
         Files.createDirectories(objectModule.getParent());
-        Files.writeString(objectModule, "// Модуль объекта обработки " + name + "\n");
-        
-        System.out.println("Created EPF: " + name);
+        String moduleComment = isReport
+                ? "// Модуль объекта отчёта " + name + "\n"
+                : "// Модуль объекта обработки " + name + "\n";
+        Files.writeString(objectModule, moduleComment);
+
+        System.out.println("Created " + objectKind() + ": " + name);
         System.out.println("  Root XML: " + rootXml);
         System.out.println("  Object module: " + objectModule);
     }
     
     private void initEdt(String name, String synonym, Path outputDir) throws IOException, XMLStreamException {
         // Создать структуру каталогов EDT
-        Path mdoPath = EdtLayout.createEpfStructure(outputDir, name);
+        Path mdoPath = EdtLayout.createEpfStructure(outputDir, name, edtSubdir());
         
         // Генерировать UUID
         String uuid = UuidGenerator.generate();
@@ -152,7 +191,7 @@ public class EpfWriter extends XmlWriter {
         createWriter(mdoPath, false, new HashMap<>()); // БЕЗ BOM для EDT
         writeXmlDeclaration();
         
-        writer.writeStartElement("mdclass", "ExternalDataProcessor", "http://g5.1c.ru/v8/dt/metadata/mdclass");
+        writer.writeStartElement("mdclass", rootElement(), "http://g5.1c.ru/v8/dt/metadata/mdclass");
         writer.writeNamespace("xsi", "http://www.w3.org/2001/XMLSchema-instance");
         writer.writeNamespace("core", "http://g5.1c.ru/v8/dt/mcore");
         writer.writeNamespace("mdclass", "http://g5.1c.ru/v8/dt/metadata/mdclass");
@@ -179,14 +218,17 @@ public class EpfWriter extends XmlWriter {
             endElement(); // synonym
         }
         
-        writer.writeEndElement(); // mdclass:ExternalDataProcessor
+        writer.writeEndElement(); // mdclass:ExternalDataProcessor/ExternalReport
         close();
-        
+
         // Создать пустой ObjectModule.bsl
         Path objectModule = mdoPath.getParent().resolve("ObjectModule.bsl");
-        Files.writeString(objectModule, "// Модуль объекта обработки " + name + "\n");
-        
-        System.out.println("Created EPF (EDT): " + name);
+        String moduleComment = isReport
+                ? "// Модуль объекта отчёта " + name + "\n"
+                : "// Модуль объекта обработки " + name + "\n";
+        Files.writeString(objectModule, moduleComment);
+
+        System.out.println("Created " + objectKind() + " (EDT): " + name);
         System.out.println("  MDO: " + mdoPath);
         System.out.println("  Object module: " + objectModule);
     }
@@ -315,7 +357,7 @@ public class EpfWriter extends XmlWriter {
         indentLevel = 3;
         
         startElement("Type");
-        writeElement("v8:Type", "cfg:ExternalDataProcessorObject." + epfName);
+        writeElement("v8:Type", "cfg:" + generatedTypeName(epfName));
         endElement(); // Type
         
         writeElement("MainAttribute", "true");
@@ -344,7 +386,7 @@ public class EpfWriter extends XmlWriter {
         
         // Если setAsDefault, обновляем DefaultForm
         if (setAsDefault) {
-            String defaultFormValue = "ExternalDataProcessor." + epfName + ".Form." + formName;
+            String defaultFormValue = rootElement() + "." + epfName + ".Form." + formName;
             content = content.replace("<DefaultForm></DefaultForm>", 
                                      "<DefaultForm>" + defaultFormValue + "</DefaultForm>");
         }
@@ -478,19 +520,19 @@ public class EpfWriter extends XmlWriter {
     /**
      * Записать InternalInfo для обработки.
      */
-    private void writeInternalInfo(String objectId, String classId, String typeId, String valueId, String name) throws XMLStreamException {
+    private void writeInternalInfo(String objectId, String classIdValue, String typeId, String valueId, String name) throws XMLStreamException {
         startElement("InternalInfo");
-        
+
         // ContainedObject
         startElement("xr:ContainedObject");
-        writeElement("xr:ClassId", classId);
+        writeElement("xr:ClassId", classIdValue);
         writeElement("xr:ObjectId", objectId);
         endElement(); // xr:ContainedObject
-        
+
         // GeneratedType
         writer.writeCharacters("\t\t");
         writer.writeStartElement("xr:GeneratedType");
-        writer.writeAttribute("name", "ExternalDataProcessorObject." + name);
+        writer.writeAttribute("name", generatedTypeName(name));
         writer.writeAttribute("category", "Object");
         writer.writeCharacters("\n");
         indentLevel++;
@@ -500,7 +542,7 @@ public class EpfWriter extends XmlWriter {
         writer.writeCharacters("\t\t");
         writer.writeEndElement(); // xr:GeneratedType
         writer.writeCharacters("\n");
-        
+
         endElement(); // InternalInfo
     }
     
@@ -520,7 +562,7 @@ public class EpfWriter extends XmlWriter {
     
     private void addFormEdt(String epfName, String formName, String formSynonym, Path outputDir) throws IOException, XMLStreamException {
         // EDT: Forms/<FormName>/Form.form + Module.bsl
-        Path epfDir = outputDir.resolve("src/ExternalDataProcessors").resolve(epfName);
+        Path epfDir = outputDir.resolve("src/" + edtSubdir()).resolve(epfName);
         Path formsDir = epfDir.resolve("Forms");
         Path formPath = EdtLayout.createFormStructure(formsDir, formName);
         
@@ -539,7 +581,7 @@ public class EpfWriter extends XmlWriter {
     
     private void addTemplateEdt(String epfName, String templateName, String templateSynonym, String templateType, Path outputDir) throws IOException, XMLStreamException {
         // EDT: Templates/<TemplateName>/Template.<ext>
-        Path epfDir = outputDir.resolve("src/ExternalDataProcessors").resolve(epfName);
+        Path epfDir = outputDir.resolve("src/" + edtSubdir()).resolve(epfName);
         Path templatesDir = epfDir.resolve("Templates");
         Path templatePath = EdtLayout.createTemplateStructure(templatesDir, templateName);
         

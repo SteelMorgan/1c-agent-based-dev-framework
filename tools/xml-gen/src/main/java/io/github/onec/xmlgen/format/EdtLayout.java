@@ -11,18 +11,30 @@ public class EdtLayout {
     
     /**
      * Создать структуру каталогов для EPF (EDT).
-     * 
+     *
      * @param outputDir корневой каталог
      * @param epfName имя обработки
      * @return путь к .mdo файлу
      */
     public static Path createEpfStructure(Path outputDir, String epfName) throws IOException {
-        Path epfDir = outputDir.resolve("src/ExternalDataProcessors").resolve(epfName);
-        Files.createDirectories(epfDir);
-        Files.createDirectories(epfDir.resolve("Forms"));
-        Files.createDirectories(epfDir.resolve("Templates"));
-        
-        return epfDir.resolve(epfName + ".mdo");
+        return createEpfStructure(outputDir, epfName, "ExternalDataProcessors");
+    }
+
+    /**
+     * Создать структуру каталогов для EPF/ERF (EDT).
+     *
+     * @param outputDir корневой каталог
+     * @param name имя обработки/отчёта
+     * @param subdir подкаталог (ExternalDataProcessors или ExternalReports)
+     * @return путь к .mdo файлу
+     */
+    public static Path createEpfStructure(Path outputDir, String name, String subdir) throws IOException {
+        Path dir = outputDir.resolve("src/" + subdir).resolve(name);
+        Files.createDirectories(dir);
+        Files.createDirectories(dir.resolve("Forms"));
+        Files.createDirectories(dir.resolve("Templates"));
+
+        return dir.resolve(name + ".mdo");
     }
     
     /**

@@ -1,0 +1,79 @@
+---
+name: test-execution
+description: Запуск и анализ тестов (Test Execution). Навык учит агента **запускать тесты YaxUnit, анализировать результаты и связывать падения тестов с кодом**.
+---
+
+# Запуск и анализ тестов (Test Execution)
+
+Написание тестов — навык `test-writing`. Справочник API YaxUnit — `test-writing/references/yaxunit-cheatsheet.md`.
+
+Тест упал → оцени: виноваты твои правки или нет. Если да — исправь, build, перезапусти. Если нет — зафиксируй причину в `<role>-context.md`.
+
+## Расположение тестов
+
+```
+exts/TESTS/CommonModules/<ИмяМодуля>/Module.bsl
+```
+
+При `navigate_symbol` — файл в `exts/TESTS/src/CommonModules/`, не в основном `src/`.
+
+## Обязательный порядок: Build → Tests
+
+1. Менялись файлы (BSL, XML, тесты) → `build_project` → `run_tests`
+2. Без изменений → `run_tests` напрямую
+
+## Когда применять
+
+| Триггер | Действие |
+|---------|----------|
+| После реализации | `build_project` → `run_tests` |
+| Тесты модуля X | `build_project` → `run_tests(scope: "X")` |
+| После рефакторинга | `build_project` → все тесты |
+| Перед коммитом | `build_project` → `run_tests(scope: "all")` → `check_syntax` |
+
+## Анализ падений
+
+1. `errors[].module`, `errors[].test`, `errors[].message` — детали.
+2. `navigate_symbol` → падающий тест → тестируемый код → исправить → перезапустить.
+
+### Извлечение причины из логов (при `failedTests > 0`)
+
+Порядок источников (строго по очереди, следующий — если текущий не дал причины):
+
+1. **`logFile`**: строки `[ERR]` → многострочный блок до таймштампа → `Exception|Исключение|Assertion|expected|actual|stack`
+2. **Журнал регистрации**: последние N записей об ошибках
+3. **`enterpriseLogPath`**: маркеры `Ошибка|Исключение|Exception|Critical|Fatal|failed|assert` → блок 0..15 строк до пустой строки или таймштампа
+
+## Интерпретация результатов
+
+| Поле | Действие |
+|------|----------|
+| `success: true` | Все тесты пройдены |
+| `success: false` | Анализировать `errors` |
+| `failedTests > 0` | Извлекать причины из логов (см. выше) |
+
+Legacy-синонимы: `total`/`totalTests`, `passed`/`passedTests`, `failed`/`failedTests`.
+
+## Capabilities
+
+| Capability | Назначение |
+|------------|------------|
+| `run_tests` | Запуск тестов YaxUnit |
+| `build_project` | Сборка перед тестами |
+| `navigate_symbol` | Переход к тесту и тестируемому коду |
+| `check_syntax` | Проверка синтаксиса |
+
+## Типичные ошибки
+
+| Ошибка | Обходной путь |
+|--------|---------------|
+| Ошибка сборки | `build_project` → `check_syntax` → исправить |
+| `run_tests` недоступен | Зафиксировать причину, сообщить пользователю |
+| Модуль не найден | Проверить `scope`, sourceSet |
+| Падения из-за данных ИБ | Уточнить настройки; отдельная тестовая ИБ |
+| Долгое выполнение | `scope: "ИмяМодуля"` при итеративной разработке |
+
+---
+depends_on:
+  - framework/skills/bsl-practices/test-writing/SKILL.md
+---

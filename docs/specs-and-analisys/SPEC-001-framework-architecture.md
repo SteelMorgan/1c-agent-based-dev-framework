@@ -152,7 +152,7 @@ MVP считается достигнутым когда:
 1. **Одна модель на всё** — просто, но дорого
 2. **Tier-ы Economy/Mid/High/Premium** — оптимизация cost/quality
 3. **Динамический выбор по сложности** — слишком сложно для первой версии
-4. **Per-agent model field** — модель задаётся в frontmatter каждого агента; 1c-ai-agent-cli ремаппит алиасы для Cursor. Принято в v0.2
+4. **Per-agent model field** — модель задаётся в frontmatter каждого агента; install.py ремаппит алиасы для Cursor. Принято в v0.2
 
 ---
 
@@ -260,7 +260,7 @@ MVP считается достигнутым когда:
 │   └── workflows/ (3 файла)          # Слой 4
 │
 ├── tools/
-│   └── 1c-ai-agent-cli.py                  # CLI (clone, install)
+│   └── install.py                           # CLI (clone, install)
 └── README.md
 ```
 
@@ -293,7 +293,7 @@ MVP считается достигнутым когда:
 
 ### Tier-ы моделей (принцип)
 
-Модель задаётся per-agent через поле `model` в frontmatter: `haiku` (economy), `sonnet` (mid/high), `opus` (premium). `1c-ai-agent-cli` ремаппит алиасы в конкретные модели для Cursor IDE. Подробности: [`docs/model-capabilities.md`](model-capabilities.md).
+Модель задаётся per-agent через поле `model` в frontmatter: `haiku` (economy), `sonnet` (mid/high), `opus` (premium). `install.py` ремаппит алиасы в конкретные модели для Cursor IDE. Подробности: [`docs/model-capabilities.md`](model-capabilities.md).
 
 **Правила:**
 - Если задачу можно решить дешёвой моделью — используй дешёвую (Explorer, Formatter → haiku)
@@ -572,7 +572,7 @@ skills:
 ---
 ```
 
-**CLI** (`1c-ai-agent-cli.py`):
+**CLI** (`install.py`):
 
 1. Пользователь указывает IDE (`--ide cursor`) и выбирает нужные файлы (`--include agent/developer workflow/full-cycle`)
 2. Скрипт парсит `depends_on` рекурсивно, строит полный граф зависимостей
@@ -584,14 +584,14 @@ skills:
 
 **Пример для Cursor:**
 ```
-python tools/1c-ai-agent-cli.py --ide cursor --include agent/developer workflow/full-cycle
+python tools/install.py --ide cursor --include agent/developer workflow/full-cycle
 # Результат: в .cursor/rules/ и .cursor/skills/ появятся симлинки
 # на все выбранные файлы + их транзитивные зависимости
 ```
 
 ### Ограничения
 
-- При перемещении каталога фреймворка — симлинки сломаются. Решение: `python tools/1c-ai-agent-cli.py --relink`
+- При перемещении каталога фреймворка — симлинки сломаются. Решение: `python tools/install.py --relink`
 - Windows без admin: физическая копия, обновления требуют повторного запуска CLI
 - CLI — v0.2+ (не MVP). Для MVP: ручное копирование `framework/` целиком
 

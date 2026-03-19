@@ -1,0 +1,37 @@
+---
+name: vanessa-tests-location
+description: Политика расположения project-specific feature-файлов Vanessa Automation и ссылок на них в документации задач.
+---
+
+# Расположение project-specific сценариев Vanessa
+
+## MUST
+
+| Требование | Описание |
+|------------|----------|
+| Project feature files в `vanessa-tests/` | Сценарии конкретного проекта MUST храниться в `<project_root>/vanessa-tests/features` |
+| Project support files рядом | Project-specific support/fixtures MUST храниться в `<project_root>/vanessa-tests/support` |
+| Ссылки в документации задачи | Если в рамках задачи создан или изменён feature-файл, в документации задачи MUST быть ссылка на этот файл |
+| Не смешивать с shared templates | Project-specific сценарии нельзя хранить в shared runtime/template каталоге framework |
+
+## Разделение
+
+### Shared / universal
+
+- `tools/runtime/vanessa/*.json`
+- библиотечные шаги Vanessa в каталоге инструментов
+
+### Project-local
+
+- `<project_root>/vanessa-tests/features`
+- `<project_root>/vanessa-tests/support`
+
+## Что считается ссылкой в документации задачи
+
+Достаточно прямой ссылки или явного пути к созданному/обновлённому `.feature`, чтобы следующий агент мог быстро открыть сценарий без повторного поиска.
+
+---
+depends_on: []
+requires:
+  - tools
+---
