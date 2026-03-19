@@ -106,4 +106,5 @@ depends_on:
   - framework/rules/agent-context-protocol.md
   - framework/rules/capability-resolution.mdc
   - framework/rules/protected-paths.mdc
+  - framework/workflows/source-of-truth-policy.md
 ---

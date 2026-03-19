@@ -84,4 +84,5 @@ depends_on:
   - framework/skills/spec-writing/task-breakdown-subagent/SKILL.md
   - framework/rules/agent-context-protocol.md
   - framework/rules/capability-resolution.mdc
+  - framework/workflows/source-of-truth-policy.md
 ---

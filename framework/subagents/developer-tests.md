@@ -66,4 +66,5 @@ depends_on:
   - framework/skills/tool-usage/code-analysis/search-before-write/SKILL.md
   - framework/rules/agent-context-protocol.md
   - framework/rules/capability-resolution.mdc
+  - framework/workflows/source-of-truth-policy.md
 ---

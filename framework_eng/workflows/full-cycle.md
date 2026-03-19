@@ -1,6 +1,6 @@
 ---
 name: full-cycle
-description: Full development cycle with mandatory cross-review at every phase.
+description: Full development cycle with mandatory cross-review at each phase.
 ---
 
 # Workflow: Full development cycle (Full Cycle)
@@ -11,13 +11,13 @@ description: Full development cycle with mandatory cross-review at every phase.
 
 ### Phase 0: Classification (Explorer → Economy)
 
-Explorer explores the codebase → modules, call graphs, dependencies. The Orchestrator classifies: Simple → quick-fix; Medium/Complex → Phase 1.
+Explorer surveys the codebase → modules, call graphs, dependencies. The orchestrator classifies: Simple → quick-fix; Medium/Complex → Phase 1.
 
 Explorer artifacts are passed to Phase 1 and Phase 2 as context.
 
 ### Phase 1: Analysis (Analyst → Mid/High)
 
-Input: task + `explorer-context.md`. Analyst creates MADR 4.0 spec + RFC 2119. Review by Reviewer (Premium). Max 3 BLOCK iterations.
+Input: task + `explorer-context.md`. Analyst creates MADR 4.0 spec + RFC 2119. Reviewer (Premium) reviews. Max 3 BLOCK iterations.
 
 ### Phase 2: Architecture (Architect → High/Premium)
 
@@ -28,17 +28,17 @@ Input: approved spec + `explorer-context.md`. Architect produces `technical-desi
 - **3a (Scenario-Author):** intent scenarios → `.feature` Vanessa. Review (scope=bdd).
 - **3b (Developer-Tests):** MUST scenarios → unit tests (Red). Review (scope=tests).
 
-Both MUST be completed before Phase 3c.
+Both MUST finish before Phase 3c.
 
 ### Phase 3c: Implementation (Developer-Code → High)
 
-Input: everything from Phase 2 + tests from 3b + `.feature` from 3a. Developer-Code writes the code (Green). Only Phase 3b tests. On `test_failure` + `suspected_test_error` → Reviewer arbitration → routing.
+Input: everything from Phase 2 + tests 3b + `.feature` 3a. Developer-Code writes the code (Green). Only tests from Phase 3b. On `test_failure` + `suspected_test_error` → Reviewer arbitration → routing.
 
-Phase 3c starts ONLY after 3a and 3b (including reviews).
+Phase 3c begins ONLY after 3a and 3b (including their reviews).
 
 ### Phase 4: Coverage and regression (Tester → Mid/High)
 
-Tester runs all tests, adds edge cases, integration, regression. Review (High). Phase 4 DOES NOT duplicate Phase 3.
+Tester runs all tests, adds edge cases, integration, regression coverage. Review (High). Phase 4 does NOT duplicate Phase 3.
 
 ---
 
@@ -53,7 +53,7 @@ Tester runs all tests, adds edge cases, integration, regression. Review (High). 
 | 3b → 3c | test modules (.bsl) |
 | 3c → 4 | BSL + `.feature` + green tests |
 
-**Mandatory fields:** Specification — Context, Requirements, Scope, Test Plan. Technical Design — components, interfaces. Task Breakdown JSON — task_id, task_type, depends_on, spec_refs, acceptance criteria. Code — coding-standards. Tests — linkage to MUST scenarios.
+**Required fields:** Specification — Context, Requirements, Scope, Test Plan. Technical Design — components, interfaces. Task Breakdown JSON — task_id, task_type, depends_on, spec_refs, completion criteria. Code — coding-standards. Tests — linkage to MUST scenarios.
 
 ---
 
@@ -62,9 +62,9 @@ Tester runs all tests, adds edge cases, integration, regression. Review (High). 
 | Situation | Action |
 |----------|----------|
 | BLOCK, <= 3 iterations | Return to author |
-| BLOCK, > 3 | Escalate to user |
+| BLOCK, > 3 | Escalation to user |
 | User rejected Phase 2 | Architect reworks |
-| `test_failure` in Phase 3c | Developer-Code: own code → fix; test → `suspected_test_error` → Reviewer arbitration |
+| `test_failure` in Phase 3c | Developer-Code: if own code → fix; if test → `suspected_test_error` → Reviewer arbitration |
 | `test_failure` in Phase 4 | Tester: own test → fix; bug in code → `implementation_error` → Developer |
 | `check_syntax` failure | Developer fixes before review |
 | MCP unavailable | Escape hatch → escalation |
@@ -80,5 +80,6 @@ depends_on:
   - framework/subagents/developer-code.md
   - framework/subagents/tester.md
   - framework/subagents/reviewer.md
+  - framework/workflows/source-of-truth-policy.md
   - framework/rules/tdd-policy.md
 ---

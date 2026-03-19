@@ -1,35 +1,36 @@
 ---
 name: vanessa-scenario-policy
-description: Policy for writing Vanessa Automation scenario tests. Scenarios should rely on real project requirements and verify a single observable behavior.
+description: Policy for writing Vanessa Automation scenario tests. Scenarios must rely on real project requirements and verify a single observable behavior.
 ---
 
 # Vanessa Automation Scenario Policy
 
 ## MUST
 
-- Scenario relies on the task specification or an existing business case — no fictional flows
+- **Don't guess — look at the code.** Do not assume the logic of checks, handlers, and form events — read the form module, object module, manager module. Delegating code review to a subagent (Explorer or `code-navigation`) is preferable — it preserves context and delivers a structured result. If the code behavior does not match test expectations — this is not a test bug but a discovered mismatch: record it as a result
+- Scenario relies on the task specification or an existing business case — no fabricated cases
 - One scenario = one observable behavior
-- Before a new step, search for an existing one in the Vanessa library and the project scenarios
-- The first scenario for a new case should be a short smoke test
-- Scenario MUST run under a specific business user, not admin/AgentAI — exception only if the tested function is exclusively available to an administrator; determine the user from the task description, or **ask the human** if not specified
+- Before adding a new step — search the existing Vanessa library and project scenarios
+- The first scenario for a new case should be a short smoke
+- The scenario runs under a specific business user, not admin/AgentAI — exception only if the function being tested is available exclusively to an administrator; determine the user from the task description, and if absent — **ask a person**
 
 ## SHOULD
 
-- Specify the source: specification, task number, or the case being tested
-- Move data preparation out of the main scenario
-- Expectation should depend on the UI state rather than internal details
+- Specify the source: specification, task number, verifying case
+- Data setup is extracted from the main scenario
+- Expectations expressed via UI state, not via internal details
 
-## Scenario source
+## Scenario Source
 
-- New task: based on the approved specification (before or alongside implementation)
-- Implemented task: based on a real case (locking the regression)
+- New task: based on the approved specification (before or in parallel with implementation)
+- Implemented task: based on a real case (regression capture)
 
 ## Anti-patterns
 
 | Anti-pattern | Consequence |
-|-------------|-------------|
-| Invented flow without a project source | Does not protect a real requirement |
-| Long scenario covering 5–7 meanings | Unstable, hard to diagnose |
+|--------------|-------------|
+| Made-up flow without a project source | Does not protect a real requirement |
+| Long scenario covering 5-7 intents | Unstable, hard to diagnose |
 | Checking internal details instead of behavior | Fragile scenario |
 
 ---

@@ -27,9 +27,9 @@
       "status": "synced"
     },
     "framework/rules/framework-bootstrap.mdc": {
-      "ru_hash": "sha256:9c477582f2ca3a52c8517d94b6bd8bec847d2fac08088933ee9a323decaaf90f",
-      "en_hash": "sha256:dec58ce7861f5cb0d05af3309f99d4873406c28e001ffdc7b46628a85808ed43",
-      "synced_at": "2026-03-19T10:09:05Z",
+      "ru_hash": "sha256:2363d502da9af25067913e730653cdacdee3b3d2369ecfe777fb5c8e253bbf4c",
+      "en_hash": "sha256:29654a918402a9a0284c39047cceed20d211ac273df76ec505bffa82dad59c2d",
+      "synced_at": "2026-03-19T13:12:13Z",
       "status": "synced"
     },
     "framework/rules/sdd-policy.md": {
@@ -207,57 +207,57 @@
       "status": "synced"
     },
     "framework/subagents/analyst.md": {
-      "ru_hash": "sha256:ad2916a9f2d2a56dcfbb0ec2fa84d5cbd4adee4bcd29cc6ebd5bbf95ed2fcb53",
-      "en_hash": "sha256:b4f60ebaf98ca66a5e0a574a0714a15205ed932d6314f4be99f188124634cbeb",
-      "synced_at": "2026-03-19T09:03:06Z",
+      "ru_hash": "sha256:7c2402c439cc0dea07ecae45bf1bd3cec2ee41351a833904d8a21f4d041060a8",
+      "en_hash": "sha256:91772f38f30ad83fb41f3fe46a2947072b76a9aead4d7cdaa80850c4082c8506",
+      "synced_at": "2026-03-19T13:12:19Z",
       "status": "synced"
     },
     "framework/subagents/architect.md": {
-      "ru_hash": "sha256:af780e82d2b294cf6f485817ccee52b7c458cdab31b8ffbf80fd9ae8af6e9a7d",
-      "en_hash": "sha256:4eb0fcf8b0436c15afc0c291aa4110596ff2d3c0a6c656fac659f0b21b9fe659",
-      "synced_at": "2026-03-19T09:03:04Z",
+      "ru_hash": "sha256:4ae660524044efea4cc4c9492302c64e8e3f736aafee9ca3ee6dbd2244babf6e",
+      "en_hash": "sha256:c18b42da6d3ee8550e30e50e7859454e6b9f7540027ea0c9f3df005760c3962c",
+      "synced_at": "2026-03-19T13:12:25Z",
       "status": "synced"
     },
     "framework/subagents/developer-code.md": {
-      "ru_hash": "sha256:9edc703ecd9bf0df404768aa564610da45576503e316ec9ecfb938279334b4c7",
-      "en_hash": "sha256:b2cb71942cabd720416d654c8c9577127fe9acfef5ea291f4d7ba0a4a7f9271a",
-      "synced_at": "2026-03-19T09:02:43Z",
+      "ru_hash": "sha256:8077974f7625b843aa250f043334906aa70ed2db9c0443785b77d455c33462da",
+      "en_hash": "sha256:3f8427404e030ee7e26f4d269bfd01745d41d318726378c324a87c5a63bb39f2",
+      "synced_at": "2026-03-19T13:33:15Z",
       "status": "synced"
     },
     "framework/subagents/developer-tests.md": {
-      "ru_hash": "sha256:f14f3681250d09beaa6f7c38c20102456ecada919b5d152b440257895e34e661",
-      "en_hash": "sha256:47a2ff7e37a1c433d977c8e6b4c2d11fed10bb6e69d5caf42f60a710977980c4",
-      "synced_at": "2026-03-19T09:23:14Z",
+      "ru_hash": "sha256:6a3009b4a7d23323ae94a5507a8060f76fb3948ecd049d8469bb9b7cc32094ff",
+      "en_hash": "sha256:29489c77f48c0efb66a36f6fe24729c835fa6c27035886746eefc0c9ac87627c",
+      "synced_at": "2026-03-19T13:12:22Z",
       "status": "synced"
     },
     "framework/subagents/explorer.md": {
-      "ru_hash": "sha256:d15b7925c1ea80d43a00e4f281db7c5d460283935d787a881028d584615cc192",
-      "en_hash": "sha256:aec51d08f431504214b2abfa7f38485c7371ebc3244700ab058531e73b56eb51",
-      "synced_at": "2026-03-19T08:51:06Z",
+      "ru_hash": "sha256:67892c57929f824a9c388326f0f4c375c56c82d184b6cb9e9d8be3aa5696ce5b",
+      "en_hash": "sha256:50dc2110859aae1a7459ca68a1fe3014b9c5ee5c48f3a0f73917115fe8e9b017",
+      "synced_at": "2026-03-19T13:12:28Z",
       "status": "synced"
     },
     "framework/subagents/reviewer.md": {
-      "ru_hash": "sha256:e3f1af010b63186026bd2358c41860c37920c63bf89833d72afc0c6c7f2f2649",
-      "en_hash": "sha256:4a3debd811a5adb3bcb5d64755e31d620372e2d0b37de9eab93d4b0372fffddd",
-      "synced_at": "2026-03-19T10:17:36Z",
+      "ru_hash": "sha256:689e3ea2e331672dc4517634eec63b55887b9f1d96c892f75c1711942d440486",
+      "en_hash": "sha256:0219f077c9870955f1d6aa6af7b8067d7b3b0b64d6150fa83e6c8ca7ecafd93d",
+      "synced_at": "2026-03-19T13:13:13Z",
       "status": "synced"
     },
     "framework/subagents/tester.md": {
-      "ru_hash": "sha256:fe22790e3ed3e601f659910bc17e3e9450e52e8daa0744091b3a6ded68836067",
-      "en_hash": "sha256:31a0302f8dc747024980ac6dca2dd5cd9eb3f28a37e0e97c0cbcf1c76b2442b3",
-      "synced_at": "2026-03-19T09:02:46Z",
+      "ru_hash": "sha256:7513db698f4c42d4a7c3a273a99cf288f30f4b59fbe867fb983533820e4b935e",
+      "en_hash": "sha256:fd1409c18f8bf600e8d2d8dca86c9a224af7bd65ca9b91d71662f03fed04c436",
+      "synced_at": "2026-03-19T13:12:55Z",
       "status": "synced"
     },
     "framework/workflows/full-cycle.md": {
-      "ru_hash": "sha256:9e1312496c687ca79fa633ad9e6c8d1ebda5801a342838de6c033dacbe882021",
-      "en_hash": "sha256:263db2db3d159806f9c2f1850c39ae77daf277323a74dd7ad5d97a55967e1459",
-      "synced_at": "2026-03-17T17:09:55Z",
+      "ru_hash": "sha256:f4211014e1283312e7a99aa8118ff3a7262cb93cf9b29ea23406bc639c549826",
+      "en_hash": "sha256:cb7220500715a81c72a46642ee263d47cb198ec09d5672e37184bbe08173d4b0",
+      "synced_at": "2026-03-19T13:13:01Z",
       "status": "synced"
     },
     "framework/workflows/orchestrator.md": {
-      "ru_hash": "sha256:e7e877c3cf683e942d07e31420a5af9a37aa8c5521d5ea123cf16611c3475d08",
-      "en_hash": "sha256:fca1dcfb4642f65b889664b2cc440355e6ad75ff9046cfc2035b2bbef9d3a047",
-      "synced_at": "2026-03-17T17:02:48Z",
+      "ru_hash": "sha256:1b6fa81d2caf2ce3c745611ca0e3e6c438b3bfbd6b59b40bc5eb2b2f6c3d6bc5",
+      "en_hash": "sha256:d834af43f5b4e3e977a59bb2cbe52d8534b441b7d4144a842181d8190a055b73",
+      "synced_at": "2026-03-19T13:12:55Z",
       "status": "synced"
     },
     "framework/workflows/quick-fix.md": {
@@ -669,9 +669,9 @@
       "status": "synced"
     },
     "framework/skills/tool-usage/review/codex-review/SKILL.md": {
-      "ru_hash": "sha256:e9c2206ce20716f66d9d3a61b5358f3d0db1988dc4d446d172ed8181f9104e75",
-      "en_hash": "sha256:cf94ee25be3d874bb8838e519e955aa64d602831aca4545a185f982265263f82",
-      "synced_at": "2026-03-19T09:06:01Z",
+      "ru_hash": "sha256:20eef94e0c9cff36efc5667f8134814e2e969036a67f1f50f41e9a985c074567",
+      "en_hash": "sha256:d295e6e87d09d8b038c43174826a7e49fce83b0f2151a725ac29ddff0667dc6d",
+      "synced_at": "2026-03-19T13:36:10Z",
       "status": "synced"
     },
     "framework/skills/tool-usage/review/codex-review/references/prompt-template.md": {
@@ -705,9 +705,9 @@
       "status": "synced"
     },
     "framework/rules/vanessa-scenario-policy.mdc": {
-      "ru_hash": "sha256:d45baa99ad781019bc7572608a2d9fbc9641565e89fb3b6fcc5ee5c6910817af",
-      "en_hash": "sha256:b5b8acd3c249f96c09b6e8a277a62148b206219082ea959ea735951a8372261e",
-      "synced_at": "2026-03-19T07:56:43Z",
+      "ru_hash": "sha256:0db39d91b5bcd4c9a97e3792cd0e3f8b7380ae513604e5228d163ba2224cfd6a",
+      "en_hash": "sha256:697c40f29af8b5d8d51248ad01eb0c5fd6466295b980be1e23c379146f1c9ab6",
+      "synced_at": "2026-03-19T11:09:05Z",
       "status": "synced"
     },
     "framework/rules/vanessa-security-warning.mdc": {
@@ -765,9 +765,9 @@
       "status": "synced"
     },
     "framework/subagents/scenario-author.md": {
-      "ru_hash": "sha256:d3f0112ee706ab2c0b345643fc32fe3870e605ff817752a655ea935f19ae8d79",
-      "en_hash": "sha256:7621ee7a0c80bd8d205271721709b5a79d69af1375283b72d29eb494563a1fe8",
-      "synced_at": "2026-03-19T09:03:28Z",
+      "ru_hash": "sha256:6fa51392a1bd75bd955a351ad55bd0bf7692cf1c7e18405f5362901d78cda650",
+      "en_hash": "sha256:46dfed5863a5d5ecae4ff096c7fca9153ee414c95b93b52f74a2990d7fd0b529",
+      "synced_at": "2026-03-19T13:12:43Z",
       "status": "synced"
     },
     "framework/skills/framework-meta/skill-editing-from-project/SKILL.md": {
@@ -837,9 +837,21 @@
       "status": "synced"
     },
     "framework/skills/tool-usage/vanessa/vanessa-authoring/references/learned-patterns.md": {
-      "ru_hash": "sha256:4b09cc46b15b21dfe7768cba3685b69cef0f4af7b16bbaf93cb9458159155ce4",
-      "en_hash": "sha256:0a4431eb9bbdd5a08a7bd072bfb7caa735dbc25d4c23b65fa3b380bb7ff94305",
-      "synced_at": "2026-03-19T10:57:37Z",
+      "ru_hash": "sha256:7e526a9de49177473833f63bc28d7a6a8780552602939ba31f30cf7abe05661b",
+      "en_hash": "sha256:f3b586201e4de5d2b3c16e7eaf4f84a7220a762175fddc4b36c158a2dfd43e95",
+      "synced_at": "2026-03-19T13:13:28Z",
+      "status": "synced"
+    },
+    "framework/skills/tool-usage/diagnostics/agent-debug/SKILL.md": {
+      "ru_hash": "sha256:95577377d65aa090f307f433dd3ec63b70ac900c76111e0250e44e34f089a8c8",
+      "en_hash": "sha256:0527162f806f9193ff2935d2d982e906b847eea91f6539987b4a016eca3bf8ba",
+      "synced_at": "2026-03-19T11:37:46Z",
+      "status": "synced"
+    },
+    "framework/workflows/source-of-truth-policy.md": {
+      "ru_hash": "sha256:4ea0c530c27bf5d4b934d017729d745cd15009edf90af8949b787d0daa8cf027",
+      "en_hash": "sha256:4c6feddd8282fb3a749c690d732294235445a4a46050110c2994654896fea1a3",
+      "synced_at": "2026-03-19T13:13:43Z",
       "status": "synced"
     }
   }

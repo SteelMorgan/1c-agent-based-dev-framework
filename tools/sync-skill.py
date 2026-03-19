@@ -39,7 +39,7 @@ TRANSLATABLE_EXTS = {".md", ".mdc"}
 CODEX_PROFILE = "cx_gpt-5-codex-mini"
 CODEX_DONE_MARKER = "OK"
 CODEX_POLL_INTERVAL = 3   # секунды между проверками файла -o
-CODEX_TIMEOUT = 600       # максимальное время ожидания в секундах (10 мин для больших файлов)
+CODEX_TIMEOUT = 180       # максимальное время ожидания в секундах (3 мин)
 DEFAULT_WORKERS = 8       # параллельных переводов по умолчанию
 
 

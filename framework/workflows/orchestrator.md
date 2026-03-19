@@ -158,6 +158,7 @@ depends_on:
   - framework/workflows/full-cycle.md
   - framework/workflows/quick-fix.md
   - framework/rules/agent-context-protocol.md
+  - framework/workflows/source-of-truth-policy.md
   - framework/skills/tool-usage/review/codex-review/SKILL.md
   - framework/subagents/scenario-author.md
 ---

@@ -105,6 +105,7 @@ depends_on:
   - framework/skills/tool-usage/platform-data/query-execution/SKILL.md
   - framework/rules/agent-context-protocol.md
   - framework/rules/capability-resolution.mdc
+  - framework/workflows/source-of-truth-policy.md
   - framework/rules/vanessa-scenario-policy.mdc
   - framework/rules/vanessa-test-isolation-policy.mdc
   - framework/rules/vanessa-tests-location.mdc

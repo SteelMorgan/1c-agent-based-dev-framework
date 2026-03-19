@@ -1,128 +1,139 @@
 ---
 name: codex-review
-description: Review via external LLM (Codex). The skill teaches the agent to run an independent review of artifacts via the Codex CLI (GPT) and gather the result. Use when requesting a second opinion, invoking /review-gpt or /review-all, or when the user asks to check a plan, specification, code, or architecture with an alternative model. The skill can be used to hand off an arbitrary task to another LLM at the user's request.
+description: Iterative review via Codex CLI (GPT). The agent and Codex discuss the artifact in a loop of up to five iterations, verifying findings and producing a unified opinion. Use when invoking /review-gpt, /review-all, requesting a second opinion, or handing over an arbitrary task to another LLM.
 ---
 
-# Review via Codex CLI
+# Iterative review via Codex CLI
 
 ## When to apply
 
 | Trigger | Action |
 |---------|--------|
-| `/review-gpt` | Launch a review via the Codex CLI |
-| `/review-all` | GPT + Opus in parallel (see `opus-review`) |
-| “second opinion” | Suggest `/review-gpt` or `/review-all` |
+| Review request | Launch an iterative review via Codex CLI |
+| "second opinion" | Suggest `/review-gpt` or `/review-all` |
 | Complex architecture, > 5 files | Recommend a review |
-| Before implementing a specification | Offer to review the plan |
+| Before implementing the specification | Offer to review the plan |
 
 ---
 
-## Step 0: determine Codex mode
+## Iterative review protocol
 
-Before invoking, determine Codex operation mode:
+The review is a dialogue between the agent (Claude) and the reviewer (Codex). A maximum of **5 iterations**.
 
-```bash
-if [[ "${CUSTOM_CODEX_ENABLED:-0}" == "1" ]]; then
-  echo true   # custom mode with profiles
-else
-  echo false  # standard mode
-fi
+### Iteration 1 — initial request
+
+**Artifact review:**
+
+```
+1. Task — what business goal was set and the context
+2. Artifact — paths to the files
+3. Rules — the skills and guidelines that should have been applied during creation
 ```
 
-| Result | Mode | Command |
-|--------|------|---------|
-| `true` | Custom API server | see [Mode: custom](#mode-custom) |
-| `false` | Default ChatGPT auth | see [Mode: default](#mode-default) |
+**Second opinion (arbitrary question):**
 
----
-
-## Mode: custom
-
-The custom server is configured via `base_url` — use the profiles from `config.toml`.
-
-```bash
-RESULT_FILE=$(mktemp /tmp/codex-review-XXXXXX.txt)
-codex exec \
-  -p cx_gpt-5_3-codex-high \
-  --dangerously-bypass-approvals-and-sandbox \
-  --ephemeral \
-  -o "$RESULT_FILE" \
-  - < /tmp/codex-prompt.txt
+```
+1. Artifact — paths or text
+2. Question — what exactly to evaluate
+3. Context — relevant project rules (at the agent's discretion)
 ```
 
----
-
-## Mode: default
-
-Standard ChatGPT auth. The model and effort are passed via flags.
-
-```bash
-RESULT_FILE=$(mktemp /tmp/codex-review-XXXXXX.txt)
-codex exec \
-  -m gpt-5.4 \
-  -c 'model_reasoning_effort="high"' \
-  --dangerously-bypass-approvals-and-sandbox \
-  --ephemeral \
-  -o "$RESULT_FILE" \
-  - < /tmp/codex-prompt.txt
+Add to the beginning of the prompt:
+```
+IMPORTANT: Do NOT create, modify, or delete any project files. You may only READ files for analysis. Your final text response will be captured automatically.
 ```
 
-> **Sandbox is not needed.** The entire environment (devcontainer) is already sandboxed.
-> `--dangerously-bypass-approvals-and-sandbox` is safe: codex is ephemeral,
-> review is a read-only task, project files are not modified.
+Send Codex in the background and wait for a response.
 
----
+### Iteration 2 — verification and comments
 
-## Sending prompts: directly or via file
+1. **Read Codex's response**
+2. **Assign each finding an ID** (F-01, F-02, ...)
+3. **Verify** each finding against the actual code/artifact:
 
-### Direct argument (short single-line prompt without `` ` `` and `$`)
+| Status | Meaning |
+|--------|---------|
+| `agree` | Confirmed through verification |
+| `partial` | Partially correct, needs clarification |
+| `disagree` | Refuted (cite file:line + fact) |
+| `withdrawn` | Codex retracted it in the next iteration |
+| `out_of_scope` | Outside the scope of the current review |
 
-```bash
-codex exec -m gpt-5.4 -c 'model_reasoning_effort="high"' \
-  --dangerously-bypass-approvals-and-sandbox --ephemeral \
-  'Explain the purpose of the РассчитатьСумму function in Module.bsl'
+4. **Add your own findings** (ID: C-01, C-02, ...) — items Codex missed
+5. **Compose a follow-up** (see "Follow-up format")
+6. **Report progress to the user:** `Round 2/5: N agreed, M disputed`
+7. **Send Codex**
+
+### Iterations 3-5 — convergence
+
+Repeat the same verification cycle. Additional rules:
+
+- **Scope freeze:** starting from iteration 3, new findings are only allowed if they are BLOCK/WARN level and there is verifiable evidence
+- **Stylistics are not discussed:** INFO/style findings are noted without further iterations
+- **Report progress to the user** after each iteration
+
+### Completion
+
+| Condition | Action |
+|-----------|--------|
+| **Consensus** — all points `agree`/`withdrawn` | Finish |
+| **Stalemate** — `unresolved` unchanged for two cycles in a row | Finish and present both positions |
+| **Limit** — 5 iterations | Finish with the current state |
+
+### Final report to the user
+
 ```
-
-Only single quotes — double quotes trigger shell expansion and `Invalid JSON body`.
-
-### Via file (main method for reviews — multiline, >100 characters, or special characters)
-
-```bash
-# 1. Save the prompt
-PROMPT_FILE=$(mktemp /tmp/codex-prompt-XXXXXX.txt)
-RESULT_FILE=$(mktemp /tmp/codex-review-XXXXXX.txt)
-
-cat <<'EOF' > "$PROMPT_FILE"
-<prompt text — any length and characters with no limits>
-EOF
-
-# 2. Run (default mode)
-codex exec \
-  -m gpt-5.4 \
-  -c 'model_reasoning_effort="high"' \
-  --dangerously-bypass-approvals-and-sandbox \
-  --ephemeral \
-  -o "$RESULT_FILE" \
-  - < "$PROMPT_FILE"
+Unified opinion: [agreed findings]
+Disagreements: [Claude's position vs Codex's position] (if any)
+Iterations: N out of 5
+Recommendation: [what to do]
 ```
 
 ---
 
-## Prompt construction
+## Follow-up prompt format
 
-### Arbitrary task
+```markdown
+# Review Follow-up (Round N)
 
-Principles: one task — one prompt; context via file paths (Codex will read them itself); result — to a specific path.
+## Agreed (closed)
+- F-01: [short description] → agree
+- F-03: [short description] → withdrawn
 
-### Review
+## Disputed (discuss)
 
-A review prompt consists of three blocks. Full template: [references/prompt-template.md](references/prompt-template.md).
+### F-02
+Your finding: [essence]
+My status: disagree
+My arguments: at <file:line> the code does <fact>, which complies with the specification <quote>
+Question: reconsider or provide a counterargument with a concrete reference to code
 
-**Block 1 — Task:** what is being checked and in what context (2-5 sentences).
+### F-04
+Your finding: [essence]
+My status: partial
+My arguments: [what is right, what is not]
 
-**Block 2 — Artifact:** paths to files — the reviewer reads them directly. Prefer paths; include text only if the artifact does not exist on disk (diff, generated fragment) or a short critical context is required.
+## My additions
+- C-01: [new finding + file:line + justification]
 
-**Block 3 — Skills:** paths to the relevant `SKILL.md` for the artifact type:
+## Discussion rules
+- Discuss only the listed IDs
+- Do not return to closed items
+- New findings — only BLOCK/WARN with evidence
+- For each disputed item: KEEP / REVISE / WITHDRAW + rationale
+```
+
+---
+
+## Constructing the initial prompt
+
+Full template: [references/prompt-template.md](references/prompt-template.md).
+
+**Block 1 — Task:** what is being checked and why (2-5 sentences).
+
+**Block 2 — Artifact:** paths to the files (the reviewer reads them directly).
+
+**Block 3 — Rules:** paths to the relevant skills by artifact type:
 
 | Type | Skills |
 |-----|--------|
@@ -136,9 +147,44 @@ Paths: `framework/skills/bsl-practices/<name>/SKILL.md`
 
 ---
 
-## Monitoring and collecting the result
+## Launching Codex
 
-Run in the background (`run_in_background: true`). Check via `TaskOutput(task_id, block=false)` or `Read(RESULT_FILE)` (the `-o` file is created atomically upon completion). If the file is empty → `TaskOutput(task_id, block=true)`.
+### Determine the mode
+
+```bash
+if [[ "${CUSTOM_CODEX_ENABLED:-0}" == "1" ]]; then
+  echo "custom"
+else
+  echo "default"
+fi
+```
+
+### Custom
+
+```bash
+RESULT_FILE=$(mktemp /tmp/codex-review-XXXXXX.txt)
+codex exec \
+  -p cx_gpt-5_3-codex-high \
+  --dangerously-bypass-approvals-and-sandbox \
+  --ephemeral \
+  -o "$RESULT_FILE" \
+  - < /tmp/codex-prompt.txt
+```
+
+### Default
+
+```bash
+RESULT_FILE=$(mktemp /tmp/codex-review-XXXXXX.txt)
+codex exec \
+  -m gpt-5.4 \
+  -c 'model_reasoning_effort="high"' \
+  --dangerously-bypass-approvals-and-sandbox \
+  --ephemeral \
+  -o "$RESULT_FILE" \
+  - < /tmp/codex-prompt.txt
+```
+
+Run it in the background (`run_in_background: true`). Result: `Read(RESULT_FILE)`.
 
 ---
 
@@ -146,18 +192,16 @@ Run in the background (`run_in_background: true`). Check via `TaskOutput(task_id
 
 | Situation | Action |
 |----------|--------|
-| `Invalid JSON body` | The prompt was mangled by shell expansion (double quotes) — send via file or single quotes |
+| `Invalid JSON body` | Send the prompt through a file |
 | Codex CLI not installed | `npm install -g @openai/codex` |
-| Auth failure / `login required` | Run `codex login`; if in custom mode — check `config.toml` and the API key |
-| Unknown profile `-p` | Verify the profile name in `~/.codex/config.toml` |
-| Rate limit / 429 | Notify the user, wait 30-60 sec, retry |
-| Non-zero exit, `-o` file not created | Show stderr from `TaskOutput`; check cwd, paths, model |
-| Timeout | Show partial result from stdout |
+| Auth failure | `codex login`; custom → check `config.toml` |
+| Rate limit / 429 | Wait 30-60 seconds and retry |
+| Non-zero exit, file not created | Show stderr; check cwd, paths, and model |
 | `-o` file is empty | Take the last message from `TaskOutput` |
 
 ---
 
-Template prompt: `references/prompt-template.md`. Parallel reviewer: `opus-review`.
+Prompt template: `references/prompt-template.md`. Parallel reviewer: `opus-review`.
 
 ---
 depends_on:

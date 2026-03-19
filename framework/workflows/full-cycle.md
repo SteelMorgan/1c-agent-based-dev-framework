@@ -80,5 +80,6 @@ depends_on:
   - framework/subagents/developer-code.md
   - framework/subagents/tester.md
   - framework/subagents/reviewer.md
+  - framework/workflows/source-of-truth-policy.md
   - framework/rules/tdd-policy.md
 ---

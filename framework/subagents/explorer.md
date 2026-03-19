@@ -60,4 +60,5 @@ depends_on:
   - framework/skills/tool-usage/platform-data/nav-link/SKILL.md
   - framework/rules/agent-context-protocol.md
   - framework/rules/capability-resolution.mdc
+  - framework/workflows/source-of-truth-policy.md
 ---
