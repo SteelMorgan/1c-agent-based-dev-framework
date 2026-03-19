@@ -60,6 +60,7 @@ IDE_CONFIGS = {
     "cursor": {
         "name": "Cursor",
         "rules_dir": ".cursor/rules",
+        "rules_ext": ".mdc",
         "skills_dir": ".cursor/skills",
         "agents_dir": ".cursor/agents",
         "description": "Cursor IDE — правила в .cursor/rules/ (alwaysApply:true), навыки в .cursor/skills/",
@@ -1684,8 +1685,11 @@ def _component_target_file(
             return target_base / short_name  # симлинк на каталог
         skill_fn = ide_cfg.get("skill_filename", "SKILL.md")
         return target_base / short_name / skill_fn
-    # Сохраняем оригинальное расширение файла (.md или .mdc)
-    ext = source_file.suffix if source_file.suffix in (".md", ".mdc") else ".md"
+    # Для правил: IDE может задавать целевое расширение (напр. Cursor → .mdc)
+    if comp.type == "rule" and "rules_ext" in ide_cfg:
+        ext = ide_cfg["rules_ext"]
+    else:
+        ext = source_file.suffix if source_file.suffix in (".md", ".mdc") else ".md"
     return target_base / f"{short_name}{ext}"
 
 
@@ -1857,6 +1861,13 @@ def install_components(
             }:
                 if old_path.exists() or old_path.is_symlink():
                     old_path.unlink()
+            # Очистка старых симлинков с прежним расширением (напр. .md → .mdc при апгрейде)
+            if comp.type == "rule" and "rules_ext" in ide_cfg:
+                src_ext = source_file.suffix
+                if src_ext != ide_cfg["rules_ext"]:
+                    old_ext_path = target_file.with_suffix(src_ext)
+                    if old_ext_path.exists() or old_ext_path.is_symlink():
+                        old_ext_path.unlink()
 
         target_file.parent.mkdir(parents=True, exist_ok=True)
 
@@ -2647,18 +2658,6 @@ def main():
     if use_symlinks:
         print(f"\n  {dim('Симлинки привязаны к расположению фреймворка.')}")
         print(f"  {dim('Если переместите framework/ — запустите: python tools/install.py --relink')}")
-
-    # Post-install: напоминания для IDE требующих ручного импорта правил
-    if not args.dry_run:
-        # Собираем список установленных правил
-        installed_rule_ids = [
-            cid for cid in all_resolved
-            if graph.components.get(cid) and graph.components[cid].type == "rule"
-        ]
-        installed_rule_names = [cid.split("/")[-1] for cid in installed_rule_ids]
-
-        for current_ide_key in ide_keys:
-            print_rules_import_hint(current_ide_key, project_dir, installed_rule_names)
 
     print()
 
