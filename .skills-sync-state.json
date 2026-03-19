@@ -835,6 +835,12 @@
       "en_hash": "sha256:168b8a3868b8a2288bdf2149431dfb5d5912c8366db6633dfe29845e3ae8d0a2",
       "synced_at": "2026-03-19T10:14:09Z",
       "status": "synced"
+    },
+    "framework/skills/tool-usage/vanessa/vanessa-authoring/references/learned-patterns.md": {
+      "ru_hash": "sha256:4b09cc46b15b21dfe7768cba3685b69cef0f4af7b16bbaf93cb9458159155ce4",
+      "en_hash": "sha256:0a4431eb9bbdd5a08a7bd072bfb7caa735dbc25d4c23b65fa3b380bb7ff94305",
+      "synced_at": "2026-03-19T10:57:37Z",
+      "status": "synced"
     }
   }
 }
