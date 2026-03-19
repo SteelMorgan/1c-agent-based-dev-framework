@@ -33,5 +33,6 @@ description: Policy for writing Vanessa Automation scenario tests. Scenarios sho
 | Checking internal details instead of behavior | Fragile scenario |
 
 ---
-depends_on: []
+depends_on:
+  - framework/rules/vanessa-test-isolation-policy.mdc
 ---

@@ -132,10 +132,12 @@ description: Создание и доработка feature-сценариев V
 ---
 depends_on:
   - framework/rules/vanessa-scenario-policy.mdc
+  - framework/rules/vanessa-test-isolation-policy.mdc
   - framework/rules/vanessa-tests-location.mdc
   - framework/rules/vanessa-run-loop.mdc
   - framework/skills/tool-usage/vanessa/vanessa-run/SKILL.md
   - framework/skills/tool-usage/vanessa/vanessa-diagnostics/SKILL.md
+  - framework/skills/tool-usage/forms/form-element-mapping/SKILL.md
 requires:
   - tools
 ---

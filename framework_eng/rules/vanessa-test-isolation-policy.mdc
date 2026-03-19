@@ -1,0 +1,77 @@
+---
+name: vanessa-test-isolation-policy
+description: Test data isolation policy for Vanessa Automation scenario tests. Determines when a test must create its own data vs. when existing data is acceptable.
+---
+
+# Test Data Isolation Policy
+
+## Principle
+
+Isolation level is determined by two criteria:
+1. Does the test write data to the database?
+2. Reproducibility — the test must pass repeatedly without manual intervention
+
+## MUST
+
+### Full isolation — if the test writes data to the database
+
+If the scenario creates, modifies, or saves objects (documents, catalogs, registers):
+
+- The test creates its own document/object at the beginning of the scenario
+- Identifiers (document number) are passed between steps via Vanessa variables (`$VarName$`)
+- When switching TestClient between users — the document must be saved and closed before switching
+- Do not post test documents unless necessary — register movements affect other tests
+
+### Reference data when creating isolated objects
+
+Existing reference objects may be used, with the following distinction:
+
+- **Structural** (companies, warehouses, currencies, units of measure) — safe, do not change between runs
+- **Business-critical** (products with discount categories, counterparties with contracts, user limit settings) — acceptable, but the dependency must be documented in a scenario comment specifying the exact object
+
+## SHOULD
+
+### Relaxed isolation — if the test does not write data
+
+If the scenario only reads data or closes the form without saving:
+
+- Working with existing objects is acceptable
+- Data must be stable between runs (not created/deleted by other tests)
+- Tag `@manual-data` — if the test depends on pre-prepared data not available in the baseline database
+
+### Passing data between TestClients
+
+```gherkin
+И я активизирую TestClient "Manager"
+# ... create document ...
+И Я запоминаю значение выражения "..." в переменную "DocNumber"
+# ... save, close ...
+
+И я активизирую TestClient "Director"
+# ... find document by $DocNumber$ ...
+```
+
+Vanessa variables are global to the runner session — available in all TestClients.
+
+## Selection criteria
+
+| Test writes to DB? | Isolation | Data |
+|---|---|---|
+| Yes | Full | Test creates its own objects |
+| No | Relaxed | Existing stable objects |
+
+Key question: **can the test pass again** without intervention? If not — increase isolation.
+
+## Anti-patterns
+
+| Anti-pattern | Consequence |
+|---|---|
+| Test saves a document but uses someone else's existing one | Next run finds modified data |
+| Test posts a document unnecessarily | Movements affect balances, break other tests |
+| Test depends on a specific document number/date without `@manual-data` | Fails after database rebuild |
+| Data passed between TestClients without saving first | Second user does not see the changes |
+
+---
+depends_on:
+  - framework/rules/vanessa-scenario-policy.mdc
+---

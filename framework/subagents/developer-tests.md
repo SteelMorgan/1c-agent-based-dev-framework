@@ -44,6 +44,19 @@ skills:
 - НЕ изменяет спецификацию — при неясности → `clarification_needed`
 - НЕ покрывает edge cases сверх MUST/SHOULD — это Tester (Phase 4)
 
+**Инициализация — загрузка правил:**
+В конце этого промпта есть секция `depends_on` со списком зависимостей.
+Навыки (skills) уже загружены через поле `skills:` в шапке.
+Правила (rules) нужно прочитать самостоятельно:
+
+1. Найди `.install-session.json` в корне проекта
+2. В нём поле `component_map` — словарь `"type/name" → {ru_path, en_path}`
+3. Для каждого пути из `depends_on`, содержащего `/rules/`:
+   - Извлеки имя файла без расширения → это `name`
+   - Найди ключ `rule/{name}` в `component_map`
+   - Прочитай файл по `en_path` (или `ru_path` если EN отсутствует)
+4. Применяй прочитанные правила на протяжении всей работы
+
 ---
 depends_on:
   - framework/skills/bsl-practices/test-writing/SKILL.md

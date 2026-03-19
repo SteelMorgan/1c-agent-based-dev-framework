@@ -33,5 +33,6 @@ description: Политика написания сценарных тестов
 | Проверка внутренних деталей вместо поведения | Хрупкий сценарий |
 
 ---
-depends_on: []
+depends_on:
+  - framework/rules/vanessa-test-isolation-policy.mdc
 ---

@@ -18,6 +18,10 @@ __pycache__/
 build/
 test-output/
 
+# Local install shortcuts
+tools/fast-install/
+.claude/fast-install.mdc
+
 # Agent session reports (transient artifacts)
 **/PHASE*-REPORT.md
 **/PHASE*-SUMMARY.md

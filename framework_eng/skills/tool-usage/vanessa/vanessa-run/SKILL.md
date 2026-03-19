@@ -70,6 +70,47 @@ Before launching, prepare two files in `<project_root>/vanessa-tests/runtime/`:
 
 ---
 
+## Database update before the run
+
+**Preparation sequence:**
+1. `build_project` (MCP `yaxunit-runner`) — build and load the configuration into the database.
+2. Database update using the command below — **only if** structural changes were made.
+3. Run Vanessa (methods below).
+
+If structural changes were loaded into the database since the last update, Vanessa will fail when accessing new objects. A database update run is required first.
+
+**Required when** (changes to СУБД structure or permissions):
+- New role or change to role composition
+- New attribute / metadata object (catalog, document, register)
+- New predefined element
+- Attribute type change, object deletion
+
+**Not required** (code/interface only):
+- Module code changes, new common module, layout/report/subsystem changes
+
+**Command** (parameters taken from `configs/yaxunit-runner.yml`):
+
+```bash
+# <platform_version> — field platform-version
+# <server>, <base>   — from connection-string: Srvr='<server>';Ref='<base>';
+# <db_user>, <db_pwd> — fields user / password
+
+DISPLAY=:99 /opt/1cv8/x86_64/<platform_version>/1cv8c ENTERPRISE \
+  /S"<server>\\<base>" \
+  /N"<db_user>" \
+  /P"<db_pwd>" \
+  /C"ЗапуститьОбновлениеИнформационнойБазы" \
+  /DisableStartupMessages \
+  /DisableStartupDialogs \
+  /Out"/tmp/1c-update.out"
+```
+
+> The key name `/C"ЗапуститьОбновлениеИнформационнойБазы"` does not require translation — it is a platform system constant, not a user-visible string. For bases built on English BSP use `/C"StartInfobaseUpdate"` instead.
+
+Wait for the process to complete (the window closes automatically). Check `/tmp/1c-update.out` for errors.
+
+---
+
 ## Launch methods
 
 ### 1. Via `vrunner` (preferred)

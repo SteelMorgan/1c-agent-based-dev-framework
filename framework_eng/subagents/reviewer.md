@@ -137,4 +137,5 @@ depends_on:
   - framework/rules/capability-resolution.mdc
   - framework/rules/tdd-policy.md
   - framework/rules/vanessa-scenario-policy.mdc
+  - framework/rules/vanessa-test-isolation-policy.mdc
 ---

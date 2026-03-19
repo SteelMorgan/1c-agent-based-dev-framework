@@ -93,6 +93,7 @@ depends_on:
   - framework/rules/agent-context-protocol.md
   - framework/rules/capability-resolution.mdc
   - framework/rules/vanessa-scenario-policy.mdc
+  - framework/rules/vanessa-test-isolation-policy.mdc
   - framework/rules/vanessa-tests-location.mdc
   - framework/rules/vanessa-run-loop.mdc
   - framework/rules/vanessa-diagnostics-policy.mdc
