@@ -39,9 +39,9 @@
       "status": "synced"
     },
     "framework/skills/bsl-practices/coding-standards/SKILL.md": {
-      "ru_hash": "sha256:37bda7e39f806727bdf3e17de820abdb842705c9d2477509c8382384ee356ff6",
-      "en_hash": "sha256:ae3dd5e3cbe4b906f4e1d0fd7c8255bdc9379f5967c211cce7982e5e0fbcfdd9",
-      "synced_at": "2026-03-17T17:01:26Z",
+      "ru_hash": "sha256:5a94e4d188866975e4aa31766341595dc05778329ffa6c99901c64987875a718",
+      "en_hash": "sha256:fe3512936dbcbad6b0a2b146cd2d4351cb62b6da8b5fd6040f26fe617aafce00",
+      "synced_at": "2026-03-23T19:59:56Z",
       "status": "synced"
     },
     "framework/skills/bsl-practices/error-handling/SKILL.md": {
@@ -69,9 +69,9 @@
       "status": "synced"
     },
     "framework/skills/bsl-practices/ssl-patterns/SKILL.md": {
-      "ru_hash": "sha256:d33f7baf74d6ea01b434632e22edae87c2c7bed485486b32ee3f1c036c674ebe",
-      "en_hash": "sha256:4d5dcc8ad0651e294475650178dea23d0811218c4e76e8475c095f6ee56be357",
-      "synced_at": "2026-03-17T17:02:00Z",
+      "ru_hash": "sha256:88d16fb343f28b96416b82a349f834a73db8faf33dd9f7e9fd3522deab8bc711",
+      "en_hash": "sha256:8d780db7fad092556441cb40835365f45b202252cedd2ca2051e0c67b57dd261",
+      "synced_at": "2026-03-23T20:00:12Z",
       "status": "synced"
     },
     "framework/skills/bsl-practices/test-writing/SKILL.md": {
@@ -429,21 +429,21 @@
       "status": "synced"
     },
     "framework/skills/tool-usage/code-analysis/code-navigation/SKILL.md": {
-      "ru_hash": "sha256:b0df57d3ae4ee76482c2f1ce0042d9ced6f68b13a2e6685ef4b1be105c9814c1",
-      "en_hash": "sha256:f902bbc4f2172b5f52c41b6bd8486e84fe4c0f18cea5aaef92ae3130ba4649c5",
-      "synced_at": "2026-03-17T17:03:17Z",
+      "ru_hash": "sha256:e8e6f31608b200ae34b4255c6b2a33f3ce40202c4b2e601d98530ada1ecab89a",
+      "en_hash": "sha256:892bf5e46458bf2b50439a2d878eb0f4499acbfca49c47d70a14ff3bae91f9fb",
+      "synced_at": "2026-03-23T19:50:24Z",
       "status": "synced"
     },
     "framework/skills/tool-usage/code-analysis/search-before-write/SKILL.md": {
-      "ru_hash": "sha256:d1059a55837f3ed760ab712ca6b40bf54747c95e4379b7c3bee916cada8378d3",
-      "en_hash": "sha256:85b0606f16a5c647843f5c7bddab3c7f219ea410935051e1d754c3c83a7e0e65",
-      "synced_at": "2026-03-17T17:03:18Z",
+      "ru_hash": "sha256:1d503b339a9ad27db8661f740a5798f00aa932b50036d3583718e1f829654c9e",
+      "en_hash": "sha256:07c92cf2a0db796e88c5079ac2d27f2168e3beb76fb9009862c90136459244ae",
+      "synced_at": "2026-03-23T19:49:09Z",
       "status": "synced"
     },
     "framework/skills/tool-usage/code-analysis/syntax-checking/SKILL.md": {
       "ru_hash": "sha256:36536f5262e862e32aaa19461a687071ab97ddf5d8c4b9b4a93be84a8edcd3a5",
-      "en_hash": "sha256:7de3afe380409aa807e33588d5b63e77e41a3bd93a1b8d76c2bf54756ddfc9af",
-      "synced_at": "2026-03-17T17:03:30Z",
+      "en_hash": "sha256:a1f97db08dc5017dd911fe2d5fd87a4ad69101282d8926acf54e50311af77f3b",
+      "synced_at": "2026-03-23T19:59:32Z",
       "status": "synced"
     },
     "framework/skills/tool-usage/code-analysis/test-execution/SKILL.md": {
@@ -651,10 +651,10 @@
       "status": "synced"
     },
     "framework/skills/tool-usage/review/codex-review/SKILL.md": {
-      "ru_hash": "sha256:20eef94e0c9cff36efc5667f8134814e2e969036a67f1f50f41e9a985c074567",
+      "ru_hash": "sha256:017d2427aaf789f3be1361c820930cdc4114d9985de02df537d3fd2c86e9bdd0",
       "en_hash": "sha256:d295e6e87d09d8b038c43174826a7e49fce83b0f2151a725ac29ddff0667dc6d",
       "synced_at": "2026-03-19T13:36:10Z",
-      "status": "synced"
+      "status": "dirty"
     },
     "framework/skills/tool-usage/review/codex-review/references/prompt-template.md": {
       "ru_hash": "sha256:46a3944234f42786eb2398c424e6f1722ea48abbe20171d9db7132b18af0aa67",
@@ -852,6 +852,12 @@
       "ru_hash": "sha256:53781270c02bd1c05651f48f2ec128b0eca20aab36b126341bb5ffbf5f93ba59",
       "en_hash": "sha256:78bde5804948092ace93f9371a10e1af3d9e4e02941671050ae01d820cade8ba",
       "synced_at": "2026-03-19T18:35:41Z",
+      "status": "synced"
+    },
+    "framework/skills/tool-usage/code-analysis/buddy-prompting/SKILL.md": {
+      "ru_hash": "sha256:719934dbfaa92ff707393a672a0ba630857bf620a4dc59c6e7ff943c4a6799cc",
+      "en_hash": "sha256:2932d5431d4dc415e4bc3690c6709f4b1191c6fd05a6adf3f42c96de8523eb1c",
+      "synced_at": "2026-03-23T19:56:58Z",
       "status": "synced"
     }
   }

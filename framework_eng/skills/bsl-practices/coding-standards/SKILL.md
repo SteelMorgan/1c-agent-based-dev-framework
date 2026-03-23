@@ -399,5 +399,12 @@ See `error-handling`, rule 1.
 See `form-patterns`.
 
 ---
+
+## Verification through Buddy
+
+- **Verification of code against standards and BSP analogs:** `ask_ai_assistant` (template VALIDATE_BSL from `buddy-prompting`). Provide a code snippet to receive standard violations and recommendations for replacing the code with BSP/platform methods.
+- **Verification of the standard against the primary source:** `ask_ai_assistant` (template SEARCH_ITS from `buddy-prompting`). When the skill diverges from ITS, ITS takes precedence.
+
+---
 depends_on: []
 ---

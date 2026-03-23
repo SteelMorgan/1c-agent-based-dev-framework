@@ -1,6 +1,6 @@
 ---
 name: ssl-patterns
-description: Patterns for working with БСП (Library of Standard Subsystems). This skill teaches the agent to correctly use БСП (Library of Standard Subsystems, English.
+description: Patterns for working with БСП (Library of Standard Subsystems). This skill teaches the agent to correctly use БСП (Library of Standard Subsystems, English abbreviation).
 ---
 
 # Patterns for working with БСП (Library of Standard Subsystems)
@@ -11,13 +11,13 @@ description: Patterns for working with БСП (Library of Standard Subsystems). 
 
 ## Rule 1: Module ОбщегоНазначения — the main "Swiss army knife"
 
-Before writing your own implementation, check if БСП already has a ready-made function.
+Before writing your own implementation, check whether БСП already has a ready function.
 
 | Function | When to use |
 |---------|-------------------|
-| `ЗначениеРеквизитаОбъекта()` | Instead of `Ссылка.Реквизит` (avoid point notation) |
-| `ЗначенияРеквизитовОбъекта()` | Fetch several attributes with one call |
-| `СообщитьПользователю()` | Message bound to a field (instead of `Сообщить()`) |
+| `ЗначениеРеквизитаОбъекта()` | Instead of `Ссылка.Реквизит` (avoid dotted notation) |
+| `ЗначенияРеквизитовОбъекта()` | Multiple attributes with one call |
+| `СообщитьПользователю()` | Field-bound message (instead of `Сообщить()`) |
 | `МенеджерОбъектаПоСсылке()` | Instead of `Выполнить("Справочники." + Имя)` |
 | `ПодсистемаСуществует()` | Conditional module invocation |
 | `ОбщийМодуль()` | Dynamic call of a БСП module |
@@ -40,7 +40,7 @@ Before writing your own implementation, check if БСП already has a ready-made
 
 ## Rule 2: СтроковыеФункцииКлиентСервер — string handling
 
-The module contains optimized functions that correctly handle edge cases.
+The module contains optimized functions that handle edge cases correctly.
 
 | Function | When to use |
 |---------|-------------------|
@@ -48,7 +48,7 @@ The module contains optimized functions that correctly handle edge cases.
 | `СтрокаСЧисломПредметов()` | Declension: "5 документов", "1 документ" |
 | `ЕстьНедопустимыеСимволы()` | Input validation |
 | `ТолькоЦифрыВСтроке()` | Validation for ИНН, КПП |
-| `РазложитьСтрокуВМассивПодстрок()` | Parsing by delimiter |
+| `РазложитьСтрокуВМассивПодстрок()` | Parsing by a delimiter |
 
 ```bsl
 // Склонение: «1 документ», «2 документа», «5 документов»
@@ -61,14 +61,14 @@ The module contains optimized functions that correctly handle edge cases.
 
 ## Rule 3: ОбщегоНазначенияКлиентСервер — utilities for both environments
 
-Directive `&НаКлиентеНаСервереБезКонтекста` — available on both client and server.
+Directive `&НаКлиентеНаСервереБезКонтекста` is available on both the client and server.
 
 | Function | Description |
 |---------|----------|
-| `ДополнитьМассив()` | Merge two arrays |
-| `ДополнитьСтруктуру()` | Merge two structures |
-| `СвойствоСтруктуры()` | Safe property read (default value if missing) |
-| `ПроверитьПараметр()` | Type validation with informative error |
+| `ДополнитьМассив()` | Merging two arrays |
+| `ДополнитьСтруктуру()` | Merging two structures |
+| `СвойствоСтруктуры()` | Safe property reading (default value if missing) |
+| `ПроверитьПараметр()` | Type validation with an informative error |
 
 ```bsl
 // Безопасный доступ с значением по умолчанию
@@ -84,15 +84,15 @@ Directive `&НаКлиентеНаСервереБезКонтекста` — av
 
 1. **LSP** (if available): `navigate_symbol("ЗначенияРеквизитовОбъекта")`
 2. **Text search**: `grep -r "Функция.*КурсВалюты" src/CommonModules/`
-3. **AI assistant**: "Is there a БСП function that gets the exchange rate for a given date?"
+3. **AI assistant**: "Is there a БСП function that retrieves the exchange rate for a date?"
 
 ### When to write your own vs use БСП
 
 | Situation | Decision |
-|----------|----------|
-| БСП has an appropriate function | **Use БСП** |
-| БСП has a similar function with extra features | **Use БСП** — the extra features do not hurt |
-| The needed function is missing in БСП | Write your own in БСП style |
+|----------|---------|
+| БСП has a suitable function | **Use БСП** |
+| БСП has a similar function but with extra functionality | **Use БСП** — the extra features do not hurt |
+| The needed function is not in БСП | Write your own in the БСП style |
 | Configuration without БСП | Write your own |
 
 ---
@@ -105,7 +105,7 @@ See `error-handling`, rule 7.
 
 ## Rule 6: РаботаСФайлами — instead of direct FileSystem calls
 
-Working with files directly ignores access rights, temporary files, and cross-platform aspects.
+Direct work with files skips access rights, temporary files, and cross-platform concerns.
 
 ```bsl
 ИмяВременногоФайла = ПолучитьИмяВременногоФайла("xlsx");
@@ -183,10 +183,16 @@ Working with files directly ignores access rights, temporary files, and cross-pl
 |----------------|-------------|---------|
 | (no suffix) | Server | `ОбщегоНазначения` |
 | `Клиент` | Client | `ОбщегоНазначенияКлиент` |
-| `КлиентСервер` | Both | `ОбщегоНазначенияКлиентСервер` |
+| `КлиентСервер` | Both environments | `ОбщегоНазначенияКлиентСервер` |
 | `ПовтИсп` | Server with caching | `ОбщегоНазначенияПовтИсп` |
 
-For client form code — look in `*КлиентСервер` first, then `*Клиент`. For server code — look in the main module (no suffix). `*ПовтИсп` is for frequently requested reference data.
+For client form code — look first in `*КлиентСервер`, then `*Клиент`. For server code — check the main module (without a suffix). `*ПовтИсп` is for frequently requested reference data.
+
+---
+
+## Finding analogs via Buddy
+
+If `search_ssl_functions` yields no result — `ask_ai_assistant` (VALIDATE_BSL template from `buddy-prompting`): send a code snippet and get recommendations on replacing it with БСП methods. Also use `SEARCH_DOCS` for documentation on a specific БСП method.
 
 ---
 depends_on: []
