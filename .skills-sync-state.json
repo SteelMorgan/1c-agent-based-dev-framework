@@ -652,9 +652,9 @@
     },
     "framework/skills/tool-usage/review/codex-review/SKILL.md": {
       "ru_hash": "sha256:017d2427aaf789f3be1361c820930cdc4114d9985de02df537d3fd2c86e9bdd0",
-      "en_hash": "sha256:d295e6e87d09d8b038c43174826a7e49fce83b0f2151a725ac29ddff0667dc6d",
-      "synced_at": "2026-03-19T13:36:10Z",
-      "status": "dirty"
+      "en_hash": "sha256:55ee9345271a3919d060adde308ae2735b9a26193d4b452f25ea02201de66253",
+      "synced_at": "2026-03-23T20:04:57Z",
+      "status": "synced"
     },
     "framework/skills/tool-usage/review/codex-review/references/prompt-template.md": {
       "ru_hash": "sha256:46a3944234f42786eb2398c424e6f1722ea48abbe20171d9db7132b18af0aa67",

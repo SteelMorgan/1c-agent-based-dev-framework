@@ -159,18 +159,6 @@ else
 fi
 ```
 
-### Custom
-
-```bash
-RESULT_FILE=$(mktemp /tmp/codex-review-XXXXXX.txt)
-codex exec \
-  -p cx_gpt-5_3-codex-high \
-  --dangerously-bypass-approvals-and-sandbox \
-  --ephemeral \
-  -o "$RESULT_FILE" \
-  - < /tmp/codex-prompt.txt
-```
-
 ### Default
 
 ```bash
@@ -178,6 +166,18 @@ RESULT_FILE=$(mktemp /tmp/codex-review-XXXXXX.txt)
 codex exec \
   -m gpt-5.4 \
   -c 'model_reasoning_effort="high"' \
+  --dangerously-bypass-approvals-and-sandbox \
+  --ephemeral \
+  -o "$RESULT_FILE" \
+  - < /tmp/codex-prompt.txt
+```
+
+### Custom
+
+```bash
+RESULT_FILE=$(mktemp /tmp/codex-review-XXXXXX.txt)
+codex exec \
+  -p cx_gpt-5_3-codex-high \
   --dangerously-bypass-approvals-and-sandbox \
   --ephemeral \
   -o "$RESULT_FILE" \
@@ -201,7 +201,7 @@ codex exec \
 
 ---
 
-Шаблон промпта: `references/prompt-template.md`. Параллельный ревьювер: `opus-review`.
+Шаблон промпта: `references/prompt-template.md`.
 
 ---
 depends_on:

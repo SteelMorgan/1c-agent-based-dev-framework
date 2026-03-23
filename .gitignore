@@ -1,4 +1,5 @@
 # Generated artifacts (do not commit)
+output/
 
 # Reference sources (local only)
 src_temp/

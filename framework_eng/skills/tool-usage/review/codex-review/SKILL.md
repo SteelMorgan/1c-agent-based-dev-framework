@@ -1,6 +1,6 @@
 ---
 name: codex-review
-description: Iterative review via Codex CLI (GPT). The agent and Codex discuss the artifact in a loop of up to five iterations, verifying findings and producing a unified opinion. Use when invoking /review-gpt, /review-all, requesting a second opinion, or handing over an arbitrary task to another LLM.
+description: Iterative review via Codex CLI (GPT). The agent and Codex discuss the artifact in a loop of up to five iterations, verifying observations and producing a unified opinion. Use when invoking /review-gpt, /review-all, requesting a second opinion, or handing off an arbitrary task to another LLM.
 ---
 
 # Iterative review via Codex CLI
@@ -9,7 +9,7 @@ description: Iterative review via Codex CLI (GPT). The agent and Codex discuss t
 
 | Trigger | Action |
 |---------|--------|
-| Review request | Launch an iterative review via Codex CLI |
+| Review request | Start an iterative review via Codex CLI |
 | "second opinion" | Suggest `/review-gpt` or `/review-all` |
 | Complex architecture, > 5 files | Recommend a review |
 | Before implementing the specification | Offer to review the plan |
@@ -18,14 +18,14 @@ description: Iterative review via Codex CLI (GPT). The agent and Codex discuss t
 
 ## Iterative review protocol
 
-The review is a dialogue between the agent (Claude) and the reviewer (Codex). A maximum of **5 iterations**.
+The review is a dialogue between the agent (Claude) and the reviewer (Codex). Up to **5 iterations**.
 
 ### Iteration 1 — initial request
 
 **Artifact review:**
 
 ```
-1. Task — what business goal was set and the context
+1. Task — what business goal was set, the context
 2. Artifact — paths to the files
 3. Rules — the skills and guidelines that should have been applied during creation
 ```
@@ -43,24 +43,24 @@ Add to the beginning of the prompt:
 IMPORTANT: Do NOT create, modify, or delete any project files. You may only READ files for analysis. Your final text response will be captured automatically.
 ```
 
-Send Codex in the background and wait for a response.
+Send Codex in the background and wait for the response.
 
 ### Iteration 2 — verification and comments
 
 1. **Read Codex's response**
-2. **Assign each finding an ID** (F-01, F-02, ...)
-3. **Verify** each finding against the actual code/artifact:
+2. **Assign an ID to each finding** (F-01, F-02, ...)
+3. **Verify** every finding against the actual code/artifact:
 
 | Status | Meaning |
 |--------|---------|
-| `agree` | Confirmed through verification |
+| `agree` | Confirmed during verification |
 | `partial` | Partially correct, needs clarification |
 | `disagree` | Refuted (cite file:line + fact) |
-| `withdrawn` | Codex retracted it in the next iteration |
+| `withdrawn` | Codex retracted it in the following iteration |
 | `out_of_scope` | Outside the scope of the current review |
 
-4. **Add your own findings** (ID: C-01, C-02, ...) — items Codex missed
-5. **Compose a follow-up** (see "Follow-up format")
+4. **Add your own findings** (ID: C-01, C-02, ...) — things Codex missed
+5. **Compose a follow-up** (see “Follow-up format”)
 6. **Report progress to the user:** `Round 2/5: N agreed, M disputed`
 7. **Send Codex**
 
@@ -68,16 +68,16 @@ Send Codex in the background and wait for a response.
 
 Repeat the same verification cycle. Additional rules:
 
-- **Scope freeze:** starting from iteration 3, new findings are only allowed if they are BLOCK/WARN level and there is verifiable evidence
-- **Stylistics are not discussed:** INFO/style findings are noted without further iterations
+- **Scope freeze:** starting with iteration 3, new findings are permitted only if they are BLOCK/WARN level and backed by verifiable evidence
+- **Stylistic issues are not debated:** INFO/style findings are noted without additional iterations
 - **Report progress to the user** after each iteration
 
 ### Completion
 
 | Condition | Action |
 |-----------|--------|
-| **Consensus** — all points `agree`/`withdrawn` | Finish |
-| **Stalemate** — `unresolved` unchanged for two cycles in a row | Finish and present both positions |
+| **Consensus** — all items `agree`/`withdrawn` | Finish |
+| **Stalemate** — `unresolved` stays the same for two cycles in a row | Finish and present both positions |
 | **Limit** — 5 iterations | Finish with the current state |
 
 ### Final report to the user
@@ -129,7 +129,7 @@ My arguments: [what is right, what is not]
 
 Full template: [references/prompt-template.md](references/prompt-template.md).
 
-**Block 1 — Task:** what is being checked and why (2-5 sentences).
+**Block 1 — Task:** what we are checking and why (2-5 sentences).
 
 **Block 2 — Artifact:** paths to the files (the reviewer reads them directly).
 
@@ -159,18 +159,6 @@ else
 fi
 ```
 
-### Custom
-
-```bash
-RESULT_FILE=$(mktemp /tmp/codex-review-XXXXXX.txt)
-codex exec \
-  -p cx_gpt-5_3-codex-high \
-  --dangerously-bypass-approvals-and-sandbox \
-  --ephemeral \
-  -o "$RESULT_FILE" \
-  - < /tmp/codex-prompt.txt
-```
-
 ### Default
 
 ```bash
@@ -178,6 +166,18 @@ RESULT_FILE=$(mktemp /tmp/codex-review-XXXXXX.txt)
 codex exec \
   -m gpt-5.4 \
   -c 'model_reasoning_effort="high"' \
+  --dangerously-bypass-approvals-and-sandbox \
+  --ephemeral \
+  -o "$RESULT_FILE" \
+  - < /tmp/codex-prompt.txt
+```
+
+### Custom
+
+```bash
+RESULT_FILE=$(mktemp /tmp/codex-review-XXXXXX.txt)
+codex exec \
+  -p cx_gpt-5_3-codex-high \
   --dangerously-bypass-approvals-and-sandbox \
   --ephemeral \
   -o "$RESULT_FILE" \
@@ -195,13 +195,13 @@ Run it in the background (`run_in_background: true`). Result: `Read(RESULT_FILE)
 | `Invalid JSON body` | Send the prompt through a file |
 | Codex CLI not installed | `npm install -g @openai/codex` |
 | Auth failure | `codex login`; custom → check `config.toml` |
-| Rate limit / 429 | Wait 30-60 seconds and retry |
+| Rate limit / 429 | Wait 30-60 seconds, then retry |
 | Non-zero exit, file not created | Show stderr; check cwd, paths, and model |
 | `-o` file is empty | Take the last message from `TaskOutput` |
 
 ---
 
-Prompt template: `references/prompt-template.md`. Parallel reviewer: `opus-review`.
+Prompt template: `references/prompt-template.md`.
 
 ---
 depends_on:
