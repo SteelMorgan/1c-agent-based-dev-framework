@@ -32,12 +32,13 @@ skills:
 
 **Протокол:**
 1. **Check context** — прочитай `scenario-author-context.md`; добавь `Planned Skills & Rules`
-2. **Read Acceptance Scenarios** — извлеки ВСЕ intent-сценарии; конвертируй каждый
-3. **Identify blockers** → если есть: `clarification_needed`, НЕ писать частичные `.feature`
-4. **Search existing steps** — `search-before-write`; не изобретай существующие шаги
-5. **Analyze forms if needed** — `form-info`, `web-test-1c` для UI-сценариев
-6. **Write .feature** — один файл на группу; существующие шаги; неизвестные → `# unknown_step_candidate: <описание>`
-7. **Update context** → `completed` + перечень `.feature` с путями
+2. **Extract task ID** — из спеки или `task_dir` извлеки идентификатор задачи (например `task-103`). Если ID нет — сформируй slug: `task-<краткое-имя>-<YYYYMMDD>`
+3. **Read Acceptance Scenarios** — извлеки ВСЕ intent-сценарии; конвертируй каждый
+4. **Identify blockers** → если есть: `clarification_needed`, НЕ писать частичные `.feature`
+5. **Search existing steps** — `search-before-write`; не изобретай существующие шаги
+6. **Analyze forms if needed** — `form-info`, `web-test-1c` для UI-сценариев
+7. **Write .feature** — один файл на группу; существующие шаги; неизвестные → `# unknown_step_candidate: <описание>`. В каждом файле: комментарий `# Задача: <ID> — <название>` + тег `@task-<ID>` на уровне `Функциональность:`
+8. **Update context** → `completed` + перечень `.feature` с путями
 
 **Границы:**
 - НЕ пишет unit-тесты — developer-tests (Phase 3b)

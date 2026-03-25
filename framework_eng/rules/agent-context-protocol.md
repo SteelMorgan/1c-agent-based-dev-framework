@@ -1,18 +1,29 @@
 ---
 name: agent-context-protocol
-description: Protocol for saving and restoring subagent context between runs.
+description: Protocol for saving and restoring agent contexts (orchestrator + subagents) between runs.
 ---
 
 # Agent Context Protocol
 
-> Each subagent MUST save its context before finishing and MUST read it when starting.
+> Each agent — **both orchestrator and subagents** — MUST save the context before termination and MUST read it at startup. The orchestrator keeps `orchestrator-context.md`, subagents keep `{role}-context.md`.
+
+## Context locations
+
+All agent context files are stored in the `.context/` subdirectory inside `task_dir`:
+
+```
+task_dir/.context/{role}-context.md
+```
+
+The agent MUST create the `.context/` directory if it does not yet exist (mkdir -p).
 
 ## First step on startup
 
-Each subagent MUST as **the first step**: check `{role}-context.md` in `task_dir`, read it, and continue working without redoing completed steps.
+Each agent (orchestrator and subagents) MUST as **the first step** check `task_dir/.context/{role}-context.md`, read it, and continue working without repeating already completed steps.
 
 | Agent | Context file |
 |-------|--------------|
+| **orchestrator** | `orchestrator-context.md` |
 | analyst | `analyst-context.md` |
 | architect | `architect-context.md` |
 | scenario-author | `scenario-author-context.md` |
@@ -21,11 +32,11 @@ Each subagent MUST as **the first step**: check `{role}-context.md` in `task_dir
 | tester | `tester-context.md` |
 | reviewer | `reviewer-context-{scope}.md` |
 
-## Last step before completion
+## Last step before termination
 
-Each subagent MUST write `{role}-context.md` into `task_dir` **before any termination**: `completed`, `clarification_needed`, `implementation_error`.
+Each agent (orchestrator and subagents) MUST write `task_dir/.context/{role}-context.md` **before any termination**: `completed`, `clarification_needed`, `implementation_error`.
 
-## Context file structure
+## Structure of the context file
 
 ```markdown
 # {Role} Context
@@ -57,7 +68,7 @@ Each subagent MUST write `{role}-context.md` into `task_dir` **before any termin
 
 ## Resume mechanism
 
-`{role}-context.md` — primary mechanism. `resume agentId` — optimization within a single session. When using `resume`, the context file still MUST be written.
+`{role}-context.md` is the main mechanism. `resume agentId` is an optimization within a single session. When using `resume`, the context file still MUST be written.
 
 ---
 depends_on: []

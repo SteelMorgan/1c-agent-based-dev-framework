@@ -1,6 +1,6 @@
 ---
 name: vanessa-authoring
-description: Creating and refining Vanessa Automation feature scenarios based on real project requirements. Use when you need to write or update a scenario test, not just run it.
+description: Creating and refining Vanessa Automation feature scenarios according to real project requirements. Use when you need to write or update a scenario test rather than just run it.
 ---
 
 # Authoring Vanessa Automation Scenarios
@@ -8,10 +8,10 @@ description: Creating and refining Vanessa Automation feature scenarios based on
 ## Writing process
 
 1. Identify the requirement source — specification or business case (`vanessa-scenario-policy`).
-2. Determine **under which user** the scenario runs (see "User Context").
+2. Determine **which user** the scenario runs under (see "User Context").
 3. Find suitable steps: first in the Vanessa library, then in the project scenarios.
 4. Write a single smoke scenario: open → one action → one observable consequence.
-5. If a step is missing — tag it `# unknown_step_candidate`, do not invent a BSL step.
+5. If a step is missing — tag it `# unknown_step_candidate`; do not invent a BSL step.
 6. Submit the scenario to `vanessa-run` for execution.
 
 ---
@@ -21,8 +21,9 @@ description: Creating and refining Vanessa Automation feature scenarios based on
 ```gherkin
 # language: ru
 # encoding: utf-8
+# Задача: task-103 — Оформление заказа клиента через портфель
 
-@тег-фичи
+@task-103 @тег-фичи
 Функциональность: Краткое название
 
 Как <роль пользователя>
@@ -38,18 +39,18 @@ description: Creating and refining Vanessa Automation feature scenarios based on
     Тогда <ожидаемый результат>
 ```
 
-- `Контекст:` runs **before each** scenario in the file.
-- Step keywords: `Дано`, `Когда`, `Тогда`, `И`, `Затем` — interchangeable syntactically.
-- Strings — in apostrophes or quotes; escape sequences: `\'`, `\"`, `\\`.
-- `Структура сценария:` + `Примеры:` — runs the scenario for each row of the parameter table.
-- `@tree` in the header — enables Turbo Gherkin: Tab indents define the step tree (spaces are not allowed!).
-- `@exportscenarios` — makes the scenario available as a subscenario from another feature file.
+- The `Контекст:` section runs **before each** scenario in the file.
+- Step keywords: `Дано`, `Когда`, `Тогда`, `И`, `Затем` — syntactically interchangeable.
+- Strings go in apostrophes or quotes; escape sequences are `\'`, `\"`, `\\`.
+- `Структура сценария:` + `Примеры:` runs the scenario for each row of the parameter table.
+- `@tree` in the header enables Turbo Gherkin: Tab indents define the step tree (spaces are not allowed!).
+- `@exportscenarios` makes the scenario available as a subscenario from another feature file.
 
 ---
 
 ## User Context
 
-**MUST:** each scenario runs under a specific business user, not under admin/AgentAI. The only exception is when the tested function is available exclusively to an administrator.
+**MUST:** each scenario runs under a specific business user, not admin/AgentAI. The only exception is when the tested function is available exclusively to an administrator.
 
 **How to determine the user:**
 1. Specified in the task description → use it.
@@ -75,7 +76,7 @@ description: Creating and refining Vanessa Automation feature scenarios based on
 И я закрываю TestClient "Руководитель"
 ```
 
-> Password is plain text in the feature file. Test users must have a simple or empty password (`password ""`).
+> Password is plain text in the feature file. Test users must have a simple or empty password (`пароль ""`).
 
 ---
 
@@ -97,7 +98,7 @@ Library: `/opt/onescript/2.0.0/lib/add/features/libraries/`
 
 Cheat sheet for common steps with syntax → `references/steps-cheatsheet.md`.
 
-**Full library:** `references/steps.json` (1116 steps). **Do NOT read it in full** — use `grep` to search for keywords from the task. The structure of each entry:
+**Full library:** `references/steps.json` (1116 steps). **Do NOT read it in full** — use `grep` to search by the keywords from the task. The structure of each entry:
 - `ИмяШага` — sample call with parameters
 - `ОписаниеШага` — what the step does
 - `ПолныйТипШага` — category (UI, Other, Files, Variables, etc.)
@@ -108,12 +109,13 @@ Cheat sheet for common steps with syntax → `references/steps-cheatsheet.md`.
 
 | Tag | Meaning |
 |-----|-------|
+| `@task-<ID>` | Link to the tracker task (MUST, `vanessa-scenario-policy`) |
 | `@draft` / `@Draft@` | Exclude from runs when executing the directory |
 | `@manual-data` | Scenario depends on data that is created manually |
 | `@regression` | Regression test |
 | `@ui` | UI test via TestClient |
 | `@tree` | Turbo Gherkin: Tab indents = nesting (spaces prohibited) |
-| `@exportscenarios` | Scenario is called as a subscenario from another file |
+| `@exportscenarios` | Scenario is invoked as a subscenario from another file |
 | `@IgnoreOnXxx` | System: skip in the specified environment |
 
 ---
