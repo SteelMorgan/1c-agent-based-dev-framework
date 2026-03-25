@@ -1,113 +1,118 @@
 ---
 name: spec-standard
-description: Universal skill for writing specifications (SDD). Defines the spec structure, RFC 2119, and quality checklist regardless of execution mode.
+description: Universal skill for writing specifications (SDD). Defines the spec structure, RFC 2119, and the quality checklist regardless of the task execution mode.
 ---
 
-# Specification Writing Skill (SDD)
+# Specification writing skill (SDD)
 
-The skill **does not choose an execution mode** (subagent/linear) — it only provides the structure, RFC 2119, and quality checklist.
+The skill **does not choose an execution mode** (subagent/linear) — it only provides the structure, RFC 2119, and the quality checklist.
 
 ---
 
 ## 2. When a specification is needed
 
-| Task type | Specification required | Justification |
-|-----------|------------------------|---------------|
-| New functionality | MUST | Captures the scope, requirements, alternatives, and chosen solution. |
-| Bug fix with architectural impact | MUST | Needed to justify changes in structure/behavior. |
+| Task type | Spec needed | Rationale |
+|------------|-------------|-------------|
+| New functionality | MUST | Captures the scope, requirements, alternatives, and the chosen solution. |
+| Bug fix with architectural impact | MUST | Requires justification for the change in structure/behavior. |
 | Simple local bug fix | MAY | A brief description without a full spec is acceptable if the change is isolated. |
-| Large refactoring | SHOULD | Transparency on boundaries and consequences of changes is needed. |
+| Large refactoring | SHOULD | Needs transparency around the boundaries and consequences of the changes. |
 
 ---
 
-## 3. Mandatory specification structure
+## 3. Specification language
+
+The specification MUST be written in **Russian** — section headings, descriptions, requirements, scenarios. Exception — code and metadata identifiers (module names, attributes, variables) remain as they are.
+
+## 4. Required specification structure
 
 ```markdown
 # SPEC-NNN: [Краткое название]
-Status: Draft | Review | Approved | Implemented
-Date: YYYY-MM-DD
+Статус: Черновик | Ревью | Утверждена | Реализована
+Дата: YYYY-MM-DD
 
-## Context and Problem Statement
+## Контекст и постановка проблемы
 
-## Requirements (RFC 2119)
+## Требования (RFC 2119)
 ### MUST
 ### SHOULD
 ### MAY
 ### MUST NOT
 
-## Scope
-### In scope
-### Out of scope
+## Границы
+### Входит в scope
+### Не входит в scope
 
-## Considered Options
+## Рассмотренные варианты
 
-## Decision Outcome
+## Выбранное решение
 
-## Technical Design
-### Metadata Objects (создает пользователь)
-### Modules (пишет агент)
-### Data Flow
+## Технический дизайн
+### Объекты метаданных (создаёт пользователь)
+### Модули (пишет агент)
+### Поток данных
 
-## Test Plan (TDD)
+## План тестирования (TDD)
 
-## Acceptance Scenarios (BDD)
+## Приёмочные сценарии (BDD)
 
-## Open Questions
+## Открытые вопросы
 
-## Decision Log (ADR)
+## Журнал решений (ADR)
 ```
 
 ---
 
-## 4. RFC 2119 rules
+## 5. RFC 2119 rules
 
 | Keyword | Meaning | Usage rule |
-|---------|---------|------------|
-| MUST | Mandatory | Without satisfying it the requirement is considered unmet. |
-| SHOULD | Strongly recommended | Deviation is allowed only with an explicit justification. |
-| MAY | Optional | An improvement that does not block acceptance. |
-| MUST NOT | Forbidden | An explicit restriction; violation is unacceptable. |
+|----------------|----------|------------------------|
+| MUST | Mandatory | Without fulfillment the requirement is considered not met. |
+| SHOULD | Strongly recommended | Deviation is allowed only with explicit justification. |
+| MAY | Optional | An enhancement that does not block acceptance. |
+| MUST NOT | Prohibited | Explicit restriction, violation is unacceptable. |
 
 Requirements must be:
-- atomic (one requirement equals one verifiable idea);
-- verifiable (confirmable with a test/scenario);
+- atomic (one requirement — one verifiable idea);
+- verifiable (can be confirmed with a test/scenario);
 - consistent across sections.
 
 ---
 
-## 5. Task breakdown
+## 6. Task decomposition
 
-For tasks with a specification, breakdown is **mandatory** (a separate Task Breakdown JSON file). The specification should include a link to the JSON and/or a brief summary.
+For tasks with a specification, decomposition is **mandatory** (a separate Task Breakdown JSON file). The specification should include a link to the JSON and/or a brief summary.
 
-The quality control process sits outside this skill: `task-breakdown-subagent` (cross-review) or `task-breakdown-linear` (self-check).
-
----
-
-## 6. Specification quality criteria
-
-Review checklist:
-
-- [ ] Context describes who has the problem and what is broken.
-- [ ] Every MUST is covered by an item in the Test Plan.
-- [ ] Scope clearly separates In scope and Out of scope.
-- [ ] Considered Options includes at least 2 alternatives.
-- [ ] Decision Outcome contains rationale and consequences.
-- [ ] Technical Design separates user-facing tasks (metadata) and agent tasks (code).
-- [ ] Sections do not contradict each other.
-- [ ] Requirements are phrased using RFC 2119 (MUST/SHOULD/MAY/MUST NOT).
-- [ ] There is a link/summary for the separate Task Breakdown JSON.
-- [ ] Acceptance Scenarios contain business-level Gherkin scenarios (Given/When/Then) for the MUST requirements.
+The quality control process is outside this skill: `task-breakdown-subagent` (cross-review) or `task-breakdown-linear` (self-check).
 
 ---
 
-## 7. Common mistakes
+## 7. Specification quality criteria
+
+Checklist for review:
+
+- [ ] «Context» describes who has the problem and what is broken.
+- [ ] Every MUST is covered by a point in the «Test Plan».
+- [ ] «Boundaries» clearly separate «In scope» and «Out of scope».
+- [ ] «Considered options» contains at least 2 alternatives.
+- [ ] «Chosen solution» includes rationale and consequences.
+- [ ] «Technical design» separates user tasks (metadata) and agent tasks (code).
+- [ ] There are no contradictions between sections.
+- [ ] Requirements are formulated using RFC 2119 (MUST/SHOULD/MAY/MUST NOT).
+- [ ] There is a link/summary to a separate Task Breakdown JSON.
+- [ ] «Acceptance scenarios» contain business-level Gherkin scenarios (Given/When/Then) for MUST requirements.
+- [ ] The document is written in Russian (except for code identifiers).
+
+---
+
+## 8. Common mistakes
 
 | Mistake | Consequence |
-|---------|-------------|
+|--------|------------|
 | Mixing the problem and the solution in Context | It becomes unclear what needs to be fixed |
-| Vague requirements without RFC 2119 | The work cannot be accepted unambiguously |
+| Vague requirements without RFC 2119 | Impossible to unambiguously accept the work |
 | Empty Out of scope | Scope creep |
-| Missing task breakdown | Poor traceability |
+| Lack of task decomposition | Weak traceability |
 | Contradictions between Requirements ↔ Technical Design | Implementation errors |
 
 ---

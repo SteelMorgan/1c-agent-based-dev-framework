@@ -5,9 +5,13 @@ description: Protocol for saving and restoring agent contexts (orchestrator + su
 
 # Agent Context Protocol
 
-> Each agent — **both orchestrator and subagents** — MUST save the context before termination and MUST read it at startup. The orchestrator keeps `orchestrator-context.md`, subagents keep `{role}-context.md`.
+> Every agent — **both orchestrator and subagents** — MUST save the context before shutdown and MUST read it at startup. The orchestrator maintains `orchestrator-context.md`, subagents maintain `{role}-context.md`.
 
-## Context locations
+## Document Language
+
+All task artifacts MUST be in **Russian**: specifications, technical design, agent contexts, reports, comments in `.feature` files, `final-report.md`. Exception — code identifiers (variable, module, metadata names) stay as they are.
+
+## Context Locations
 
 All agent context files are stored in the `.context/` subdirectory inside `task_dir`:
 
@@ -15,11 +19,11 @@ All agent context files are stored in the `.context/` subdirectory inside `task_
 task_dir/.context/{role}-context.md
 ```
 
-The agent MUST create the `.context/` directory if it does not yet exist (mkdir -p).
+An agent MUST create the `.context/` directory if it does not yet exist (mkdir -p).
 
-## First step on startup
+## First Step at Startup
 
-Each agent (orchestrator and subagents) MUST as **the first step** check `task_dir/.context/{role}-context.md`, read it, and continue working without repeating already completed steps.
+Each agent (orchestrator and subagents) MUST as the **first step**: check `task_dir/.context/{role}-context.md`, read it, and continue work without repeating completed steps.
 
 | Agent | Context file |
 |-------|--------------|
@@ -32,11 +36,11 @@ Each agent (orchestrator and subagents) MUST as **the first step** check `task_d
 | tester | `tester-context.md` |
 | reviewer | `reviewer-context-{scope}.md` |
 
-## Last step before termination
+## Last Step Before Shutdown
 
 Each agent (orchestrator and subagents) MUST write `task_dir/.context/{role}-context.md` **before any termination**: `completed`, `clarification_needed`, `implementation_error`.
 
-## Structure of the context file
+## File Structure
 
 ```markdown
 # {Role} Context
@@ -62,13 +66,13 @@ Each agent (orchestrator and subagents) MUST write `task_dir/.context/{role}-con
 
 ## What NOT to include
 
-- Full contents of files — only findings and paths
-- Intermediate reasoning — only final observations
+- Full file contents — only conclusions and paths
+- Intermediate reasoning — only final findings
 - Information from other `task_dir` artifacts
 
-## Resume mechanism
+## Resume Mechanism
 
-`{role}-context.md` is the main mechanism. `resume agentId` is an optimization within a single session. When using `resume`, the context file still MUST be written.
+`{role}-context.md` is the primary mechanism. `resume agentId` is an optimization within one session. On `resume`, the context file still MUST be written.
 
 ---
 depends_on: []
