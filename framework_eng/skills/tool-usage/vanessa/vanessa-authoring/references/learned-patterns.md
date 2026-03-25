@@ -83,9 +83,8 @@ source: general behavior of platform 1С:Предприятие
 status: confirmed
 area: closing a modified form
 technique: the "*" symbol in the form title indicates unsaved changes.
-       When closing such a form the platform shows the dialog "Данные были изменены.
-       Сохранить изменения?" with buttons "Да / Нет / Отмена".
-       If saving is not required by the test conditions — click "Нет".
+       When closing such a form the platform shows the dialog "Data has been changed. Save changes?" with buttons "Yes / No / Cancel".
+       If saving is not required by the test conditions — click "No".
        If saving is required — save first, then close.
 anti-pattern: closing a modified form without handling the confirmation dialog —
            the test will hang on the modal window
@@ -99,4 +98,64 @@ steps: |
      And I click the form button "Save"
      And I click the form button "Close"
 source: general behavior of platform 1С:Предприятие
+```
+
+---
+
+```
+status: confirmed
+area: RadioButtonField with RadioButtonType=Tumbler
+technique: Tumbler in the DOM is <div class="tumblerItem">, NOT a button. Standard Vanessa steps DO NOT work.
+       Workarounds: (1) if the default value matches the needed one — skip the step;
+       (2) if you need to switch it — write a custom step or click via Playwright on <td class="tumblerCol">
+anti-pattern: DO NOT use: "I change the toggler value" (ВыбратьВариант error),
+           "from the dropdown list" (ОткрытьВыпадающийСписок error),
+           "I enter text" (ВвестиТекст error),
+           "I click the button" (searches for Button-type element, Tumbler = div)
+why: Tumbler renders as <td class="tumblerCol"><div class="tumblerItem"> —
+        this is NOT a standard button element. TestClient does not see it as a Button.
+        6 iterations were spent trying in a real project.
+steps: |
+  1. Check whether the required value is already set by default (Form.xml or Module.bsl)
+  2. Check whether the value is set automatically by another field (e.g. portfolio)
+  3. If you need to switch it — analyze the DOM via web-test, then write a custom step
+source: task-103 GBIG PAM, 12 iterations of Vanessa scenarios (2026-03-24)
+```
+
+---
+
+```
+status: confirmed
+area: CheckBoxField with CheckBoxType=Switcher
+technique: Use the step "I change the flag with the title 'Title'" — it works for Switcher.
+       The title comes from <Title> in Form.xml, NOT from the element name.
+anti-pattern: DO NOT use "I set the flag" or "I set the flag with the name" —
+           they call УстановитьОтметку(), which does not work for CheckBoxType=Switcher
+why: УстановитьОтметку does not trigger the ПриИзменении handler for Switcher.
+        "I set" → УстановитьОтметку (does not work), "I change" → another method (works).
+steps: |
+  1. In Form.xml find the CheckBoxField element and its <Title><v8:content>Title</v8:content>
+  2. Use: And I change the flag with the title "Title"
+  3. DO NOT confuse the element name (name=) with the title (<Title>) — they often differ!
+source: task-103 GBIG PAM, S7 iterations 10-12 (2026-03-24)
+```
+
+---
+
+```
+status: confirmed
+area: form element search — title ≠ name
+technique: Many Vanessa steps search for elements by title (Title), NOT by name (Name).
+       The title is set in Form.xml: <Title><v8:content>Text</v8:content></Title>.
+       Before writing the step — check the actual title in Form.xml.
+anti-pattern: DO NOT assume that the title equals the element name.
+           Example: element name="РазрешитьЗакрытиеСделки", Title="Allow"
+why: "The flag with title <РазрешитьЗакрытиеСделки> was not found" — because
+        the title is "Allow", not "РазрешитьЗакрытиеСделки"
+steps: |
+  1. Grep by the element name in Form.xml
+  2. Find the block <Title><v8:content>REAL_TITLE</v8:content></Title>
+  3. Use REAL_TITLE in Vanessa steps "with the title"
+  4. Or use "with the name" if the step supports it
+source: task-103 GBIG PAM (2026-03-24)
 ```

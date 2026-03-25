@@ -778,9 +778,9 @@
     },
     "framework/skills/tool-usage/vanessa/vanessa-authoring/references/learned-patterns.md": {
       "ru_hash": "sha256:90082064d49d72c0a2437eca549b070bcb9f73a247a8fb83d62006bba9d4b2ed",
-      "en_hash": "sha256:f3b586201e4de5d2b3c16e7eaf4f84a7220a762175fddc4b36c158a2dfd43e95",
-      "synced_at": "2026-03-19T13:13:28Z",
-      "status": "dirty"
+      "en_hash": "sha256:1067b4b88e2faf1d829926b1a63733f68154a219a58aabc2afe7b54b450a0ee9",
+      "synced_at": "2026-03-25T09:25:45Z",
+      "status": "synced"
     },
     "framework/skills/tool-usage/diagnostics/agent-debug/SKILL.md": {
       "ru_hash": "sha256:95577377d65aa090f307f433dd3ec63b70ac900c76111e0250e44e34f089a8c8",
@@ -862,9 +862,9 @@
     },
     "framework/skills/bsl-practices/test-writing/references/learned-patterns.md": {
       "ru_hash": "sha256:6ca25c4da95e42be441cabc9d154db482ff6b0d7680d62cbf68e5791a7bf4865",
-      "en_hash": null,
-      "synced_at": null,
-      "status": "pending"
+      "en_hash": "sha256:e7cbff83830f32120b35bbd83aaaf94b46970b03155b35da9a14f4ae3c9c0c9b",
+      "synced_at": "2026-03-25T09:25:01Z",
+      "status": "synced"
     }
   }
 }

@@ -7,7 +7,7 @@ description: Running and analyzing tests (Test Execution). The skill teaches the
 
 Writing tests is the `test-writing` skill. The YaxUnit API reference is `test-writing/references/yaxunit-cheatsheet.md`.
 
-Test failed → assess whether your changes are to blame. If yes — fix, build, rerun. If no — record the reason in `<role>-context.md`.
+Test failed → assess whether your changes caused it. If yes — fix, build, rerun. If no — record the reason in `<role>-context.md`.
 
 ## Test locations
 
@@ -27,7 +27,7 @@ When using `navigate_symbol` — the file is under `exts/TESTS/src/CommonModules
 | Trigger | Action |
 |---------|--------|
 | After implementation | `build_project` → `run_tests` |
-| Module X tests | `build_project` → `run_tests(scope: "ModuleName")` |
+| Module X tests | `build_project` → `run_tests(scope: "X")` |
 | After refactoring | `build_project` → all tests |
 | Before commit | `build_project` → `run_tests(scope: "all")` → `check_syntax` |
 
@@ -38,7 +38,7 @@ When using `navigate_symbol` — the file is under `exts/TESTS/src/CommonModules
 
 ### Extracting the cause from logs (when `failedTests > 0`)
 
-Source order (strictly sequential; move to the next only if the current one does not yield a cause):
+Source order (strictly sequential; move to the next only if the current one does not reveal a cause):
 
 1. **`logFile`**: lines with `[ERR]` → the multiline block up to a timestamp → `Exception|Исключение|Assertion|expected|actual|stack`
 2. Registration log: the last N error entries
@@ -62,6 +62,14 @@ Legacy synonyms: `total`/`totalTests`, `passed`/`passedTests`, `failed`/`failedT
 | `build_project` | Build before tests |
 | `navigate_symbol` | Jump to the test and the tested code |
 | `check_syntax` | Check syntax |
+
+## Monitoring the registration log during tests
+
+While tests are running — check the registration log every **20 seconds** for new errors (prioritize compilation errors for tests). If a compilation error appears — do not wait for `run_tests` to finish; immediately:
+
+1. Extract the error text from the registration log.
+2. Locate the problematic module (`navigate_symbol`).
+3. Fix → `build_project` → rerun the tests.
 
 ## Common mistakes
 

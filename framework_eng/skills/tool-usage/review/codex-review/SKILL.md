@@ -13,6 +13,7 @@ description: Iterative review via Codex CLI (GPT). The agent and Codex discuss t
 | "second opinion" | Suggest `/review-gpt` or `/review-all` |
 | Complex architecture, > 5 files | Recommend a review |
 | Before implementing the specification | Offer to review the plan |
+| BDD scenario (.feature) created/modified | Review for compliance with vanessa-authoring, isolation policies, and scenario policies |
 
 ---
 
@@ -141,6 +142,7 @@ Full template: [references/prompt-template.md](references/prompt-template.md).
 | Specification | `spec-standard` |
 | Form (UI) | `form-patterns`, `form-visual-requirements` |
 | Architecture | `ssl-patterns`, `query-patterns`, `coding-standards` |
+| BDD scenario (.feature) | `vanessa-authoring`, `vanessa-scenario-policy`, `vanessa-test-isolation-policy` |
 | Tests | `coding-standards`, `error-handling` |
 
 Paths: `framework/skills/bsl-practices/<name>/SKILL.md`

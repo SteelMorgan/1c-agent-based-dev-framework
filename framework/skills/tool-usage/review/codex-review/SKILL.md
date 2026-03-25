@@ -13,6 +13,7 @@ description: Итеративное ревью через Codex CLI (GPT). Аг�
 | «второе мнение» | Предложить `/review-gpt` или `/review-all` |
 | Сложная архитектура, > 5 файлов | Рекомендовать ревью |
 | Перед реализацией спецификации | Предложить ревью плана |
+| BDD-сценарий (.feature) создан/изменён | Ревью на соответствие vanessa-authoring, политикам изоляции и сценариев |
 
 ---
 
@@ -141,6 +142,7 @@ IMPORTANT: Do NOT create, modify, or delete any project files. You may only READ
 | Спецификация | `spec-standard` |
 | Форма (UI) | `form-patterns`, `form-visual-requirements` |
 | Архитектура | `ssl-patterns`, `query-patterns`, `coding-standards` |
+| BDD-сценарий (.feature) | `vanessa-authoring`, `vanessa-scenario-policy`, `vanessa-test-isolation-policy` |
 | Тесты | `coding-standards`, `error-handling` |
 
 Пути: `framework/skills/bsl-practices/<name>/SKILL.md`
