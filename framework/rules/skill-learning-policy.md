@@ -1,6 +1,7 @@
 ---
 name: skill-learning-policy
 description: Политика накопления знаний. После цикла итераций агент извлекает проверенные приёмы и антиприёмы и записывает их в references/learned-patterns.md целевого навыка.
+alwaysApply: true
 ---
 
 # Политика накопления знаний (Skill Learning)

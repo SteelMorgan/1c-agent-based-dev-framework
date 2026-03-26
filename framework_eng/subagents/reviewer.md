@@ -97,10 +97,10 @@ Context is not accumulated between different artifacts of the task.
 For each finding:
 
 ```
-[BLOCK|WARN|INFO] <file>:<line> (or <section> for specifications)
-Problem: <what is wrong>
-Reason: <why this is a problem>
-Fix suggestion: <direction for the fix or a concrete approach>
+[BLOCK|WARN|INFO] <файл>:<строка> (или <раздел> для спецификаций)
+Проблема: <что не так>
+Причина: <почему это проблема>
+Исправление: <направление исправления или конкретный подход>
 ```
 
 ## Summary at the end of the review
@@ -123,18 +123,24 @@ Fix suggestion: <direction for the fix or a concrete approach>
 - Does not create code or specifications — only reviews them
 - Does not start independent reviews through codex-review or opus-review — that is the orchestrator’s responsibility
 
-**Mandatory reading of rules:**
-At the end of this prompt there is a `depends_on` section listing dependencies.
-Skills are already loaded via the `skills:` field in the header.
-Rules must be read independently:
+**CRITICAL: Mandatory reading of skills and rules:**
+At the end of this prompt there is a `depends_on` section with a list of dependencies.
+The header contains a `skills:` field with a list of skills.
 
-1. Find `.install-session.json` at the project root
-2. In it, the `component_map` field is a dictionary that maps `"type/name" → {ru_path, en_path}`
-3. For each path from `depends_on` that contains `/rules/`:
-   - Extract the filename without extension → this is `name`
-   - Find the key `rule/{name}` in `component_map`
-   - Read the file at `en_path` (or `ru_path` if EN is missing)
-4. Apply the read rules throughout the work
+**Skills are NOT loaded automatically.** You MUST read every SKILL.md BEFORE starting any work.
+Failing to apply a skill = protocol violation. Do NOT create artifacts without applying the relevant skill.
+
+1. Find `.install-session.json` at the root of the project
+2. Inside it, the `component_map` field is a dictionary `"type/name" → {ru_path, en_path}`
+3. For each skill from the `skills:` list in the header:
+   - Find the `skill/{name}` key in `component_map`
+   - Read SKILL.md via `ru_path` (or `en_path`)
+   - Log in context: `[SKILL_READ] {name} — done`
+4. For each path from `depends_on` that contains `/rules/`:
+   - Extract the filename without extension → that is `name`
+   - Find the `rule/{name}` key in `component_map`
+   - Read the file via `en_path` (or `ru_path` if EN is missing)
+5. Apply the read skills and rules throughout the work
 
 ---
 depends_on:
@@ -149,6 +155,8 @@ depends_on:
   - framework/skills/tool-usage/code-analysis/code-navigation/SKILL.md
   - framework/rules/agent-context-protocol.md
   - framework/rules/capability-resolution.mdc
+  - framework/rules/no-direct-db-access.md
+  - framework/rules/skill-learning-policy.md
   - framework/workflows/source-of-truth-policy.md
   - framework/rules/tdd-policy.md
   - framework/rules/vanessa-scenario-policy.mdc

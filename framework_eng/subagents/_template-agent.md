@@ -41,18 +41,24 @@ You are a [role] specializing in [domain] for 1С:Предприятие (BSL).
 **Boundaries:**
 - [What the agent does NOT do]
 
-**Mandatory reading of rules:**
+**CRITICAL: Mandatory reading of skills and rules:**
 At the end of this prompt there is a `depends_on` section with a list of dependencies.
-Skills (skills) are already loaded via the `skills:` field in the header.
-Rules (rules) need to be read manually:
+The header contains a `skills:` field with a list of skills.
 
-1. Find `.install-session.json` at the project root
-2. Its `component_map` field is a dictionary `"type/name" → {ru_path, en_path}`
-3. For each path from `depends_on` that contains `/rules/`:
-   - Extract the file name without extension → this is `name`
-   - Find the key `rule/{name}` in `component_map`
-   - Read the file by `en_path` (or `ru_path` if EN is missing)
-4. Apply the read rules throughout the work
+**Skills are NOT loaded automatically.** You MUST read every SKILL.md BEFORE starting any work.
+Failing to apply a skill = protocol violation. Do NOT create artifacts without applying the relevant skill.
+
+1. Find `.install-session.json` at the root of the project
+2. Inside it, the `component_map` field is a dictionary "type/name" → {ru_path, en_path}
+3. For each skill from the `skills:` list in the header:
+   - Find the `skill/{name}` key in `component_map`
+   - Read SKILL.md via `ru_path` (or `en_path`)
+   - Log in context: `[SKILL_READ] {name} — done`
+4. For each path from `depends_on` that contains `/rules/`:
+   - Extract the filename without extension → that is `name`
+   - Find the `rule/{name}` key in `component_map`
+   - Read the file via `en_path` (or `ru_path` if EN is missing)
+5. Apply the read skills and rules throughout the work
 
 ---
 depends_on:
