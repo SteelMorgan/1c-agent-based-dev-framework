@@ -874,9 +874,9 @@
     },
     "framework/skills/tool-usage/platform-admin/subsystem-update/SKILL.md": {
       "ru_hash": "sha256:2774e3a2eaa32d4ce430667c2e196f4483954317898dc1e5f1c8fd63a05b96d7",
-      "en_hash": null,
-      "synced_at": null,
-      "status": "pending"
+      "en_hash": "sha256:424413ee7016a7ffb2d51280f8a75269f0d1fe351c1aec186cfb92192f3d64ba",
+      "synced_at": "2026-03-26T12:07:41Z",
+      "status": "synced"
     }
   }
 }
