@@ -195,9 +195,9 @@
       "status": "synced"
     },
     "framework/subagents/analyst.md": {
-      "ru_hash": "sha256:ec1b9dde641a967a521d22f71f2b89f8888d57acf4d05439d7aad1f6fcdf262c",
-      "en_hash": "sha256:996b1433bbc2c143475550f05759f8bf2846bbf239992f2aeebf972aad84f21c",
-      "synced_at": "2026-03-26T05:56:35Z",
+      "ru_hash": "sha256:130b56abc3c783e9988fea350ed4e7d44bd974762d3ca8fcd330346922a54bf4",
+      "en_hash": "sha256:67650897526dbb30cfaa832d7e15defdb744389144fe1742aad4d074dac52f39",
+      "synced_at": "2026-03-27T08:47:35Z",
       "status": "synced"
     },
     "framework/subagents/architect.md": {

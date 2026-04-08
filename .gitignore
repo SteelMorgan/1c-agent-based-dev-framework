@@ -9,6 +9,7 @@ src_temp/
 .cursor/
 .agents/
 .kilocode/
+.mcp.json
 
 # Node
 node_modules/
