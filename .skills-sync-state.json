@@ -249,9 +249,9 @@
       "status": "synced"
     },
     "framework/workflows/quick-fix.md": {
-      "ru_hash": "sha256:76a1be12f86a429b7c5baf4a288314f82d870e994c71e1f9f432c85988b13f86",
-      "en_hash": "sha256:dce671124554cdd367c4032a8a87f29aa01b3d75715dbafdddb900da62e99447",
-      "synced_at": "2026-03-17T17:02:32Z",
+      "ru_hash": "sha256:d6d73b306b039d95940392b96bdf79013cfef3fc1b87318c6595bde2283d88d6",
+      "en_hash": "sha256:ed8774d09f19283309105e1aef413732f2f2f742e9f961698bbb546c578ab737",
+      "synced_at": "2026-04-08T16:34:23Z",
       "status": "synced"
     },
     "framework/skills/framework-meta/skills-i18n-sync/SKILL.md": {
@@ -429,9 +429,9 @@
       "status": "synced"
     },
     "framework/skills/tool-usage/code-analysis/code-navigation/SKILL.md": {
-      "ru_hash": "sha256:e8e6f31608b200ae34b4255c6b2a33f3ce40202c4b2e601d98530ada1ecab89a",
-      "en_hash": "sha256:892bf5e46458bf2b50439a2d878eb0f4499acbfca49c47d70a14ff3bae91f9fb",
-      "synced_at": "2026-03-23T19:50:24Z",
+      "ru_hash": "sha256:71357f5a6cb27d26907e7f27032285104be99a8f18cdef7096228c6b8277fe8a",
+      "en_hash": "sha256:d3cd718aac626f4c3124a26507e694b28ff600a1b7a4832e4cd4bdcae4d6fca5",
+      "synced_at": "2026-04-08T16:34:42Z",
       "status": "synced"
     },
     "framework/skills/tool-usage/code-analysis/search-before-write/SKILL.md": {
@@ -441,9 +441,9 @@
       "status": "synced"
     },
     "framework/skills/tool-usage/code-analysis/syntax-checking/SKILL.md": {
-      "ru_hash": "sha256:36536f5262e862e32aaa19461a687071ab97ddf5d8c4b9b4a93be84a8edcd3a5",
-      "en_hash": "sha256:a1f97db08dc5017dd911fe2d5fd87a4ad69101282d8926acf54e50311af77f3b",
-      "synced_at": "2026-03-23T19:59:32Z",
+      "ru_hash": "sha256:4ac3567bc725f023d40f89ff271839fc6910e0306df7e57ec367ee0b58b7b277",
+      "en_hash": "sha256:293e017c2f03e54e8b632a98bdc5c3e7956fc14fe2075d15f84cd9e55e56e53f",
+      "synced_at": "2026-04-08T16:34:35Z",
       "status": "synced"
     },
     "framework/skills/tool-usage/code-analysis/test-execution/SKILL.md": {
@@ -876,6 +876,12 @@
       "ru_hash": "sha256:2774e3a2eaa32d4ce430667c2e196f4483954317898dc1e5f1c8fd63a05b96d7",
       "en_hash": "sha256:424413ee7016a7ffb2d51280f8a75269f0d1fe351c1aec186cfb92192f3d64ba",
       "synced_at": "2026-03-26T12:07:41Z",
+      "status": "synced"
+    },
+    "framework/skills/tool-usage/code-analysis/code-verification/SKILL.md": {
+      "ru_hash": "sha256:53da2803b2f9cb12e31e1cc38b0dc72428dcfa54d5a4133707ba4151429aeec5",
+      "en_hash": "sha256:1bbd4c0e275c34b4941cefd11b43cb56145a1aaa9d236041a662cd5457d49209",
+      "synced_at": "2026-04-08T16:31:12Z",
       "status": "synced"
     }
   }

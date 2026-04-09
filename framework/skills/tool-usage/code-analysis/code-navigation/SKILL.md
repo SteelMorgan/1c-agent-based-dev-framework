@@ -32,7 +32,7 @@ description: Навигация по коду (Code Navigation). Навык уч
 1. `navigate_symbol` → `uri`, `line`, `character`
 2. `rename_symbol(..., preview: true)` → проверить `changes`
 3. `rename_symbol(..., preview: false)`
-4. `check_syntax`
+4. `get_diagnostics` по затронутым файлам
 
 ### Quick Fixes
 
