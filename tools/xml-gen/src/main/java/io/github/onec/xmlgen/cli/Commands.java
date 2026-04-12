@@ -33,6 +33,8 @@ import io.github.onec.xmlgen.info.SubsystemInfoPrinter;
 import io.github.onec.xmlgen.info.MetaInfoPrinter;
 import io.github.onec.xmlgen.info.ExtensionDiffPrinter;
 
+import io.github.onec.xmlgen.editor.ReplaceTextEditor;
+
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -40,7 +42,9 @@ import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 /**
@@ -85,6 +89,9 @@ public class Commands {
                 break;
             case "extension":
                 executeExtension(args);
+                break;
+            case "edit":
+                executeEdit(args);
                 break;
             case "validate":
                 executeValidate(args);
@@ -2181,6 +2188,117 @@ public class Commands {
             new ExtensionDiffPrinter().diff(extPath, configPath, mode);
         } catch (IOException e) {
             throw new RuntimeException("Extension diff failed: " + e.getMessage(), e);
+        }
+    }
+
+    // ── edit ──────────────────────────────────────────────────────────────
+
+    private static void executeEdit(String[] args) {
+        if (args.length == 0) {
+            throw new IllegalArgumentException("Edit subcommand required: replace-text");
+        }
+        String subcommand = args[0].toLowerCase();
+        switch (subcommand) {
+            case "replace-text":
+                editReplaceText(args);
+                break;
+            default:
+                throw new IllegalArgumentException(
+                        "Unknown edit subcommand: " + args[0] + ". Supported: replace-text");
+        }
+    }
+
+    /**
+     * xml-gen edit replace-text {@literal <file>} --old "old" --new "new" [--all] [--dry-run]
+     *         [--backup] [--validate] [--encoding utf-8-sig|utf-8]
+     */
+    private static void editReplaceText(String[] args) {
+        List<String> oldTexts = new ArrayList<>();
+        List<String> newTexts = new ArrayList<>();
+        boolean replaceAll = false;
+        boolean dryRun = false;
+        boolean backup = false;
+        boolean validate = false;
+        String encoding = "utf-8-sig";
+        Path file = null;
+
+        for (int i = 1; i < args.length; i++) {
+            switch (args[i]) {
+                case "--old" -> {
+                    if (i + 1 < args.length) oldTexts.add(args[++i]);
+                    else throw new IllegalArgumentException("--old requires a value");
+                }
+                case "--new" -> {
+                    if (i + 1 < args.length) newTexts.add(args[++i]);
+                    else throw new IllegalArgumentException("--new requires a value");
+                }
+                case "--all" -> replaceAll = true;
+                case "--dry-run" -> dryRun = true;
+                case "--backup" -> backup = true;
+                case "--validate" -> validate = true;
+                case "--encoding" -> {
+                    if (i + 1 < args.length) encoding = args[++i].toLowerCase();
+                    else throw new IllegalArgumentException("--encoding requires a value");
+                }
+                default -> {
+                    if (!args[i].startsWith("--")) {
+                        file = Paths.get(args[i]);
+                    } else {
+                        throw new IllegalArgumentException("Unknown option: " + args[i]);
+                    }
+                }
+            }
+        }
+
+        if (oldTexts.isEmpty()) {
+            throw new IllegalArgumentException("--old is required");
+        }
+        if (oldTexts.size() != newTexts.size()) {
+            throw new IllegalArgumentException(
+                    "Each --old must have a matching --new (got "
+                            + oldTexts.size() + " old, " + newTexts.size() + " new)");
+        }
+        if (file == null) {
+            throw new IllegalArgumentException("File argument required");
+        }
+        if (!Files.exists(file)) {
+            throw new IllegalArgumentException("File not found: " + file);
+        }
+
+        List<ReplaceTextEditor.Replacement> pairs = new ArrayList<>();
+        for (int i = 0; i < oldTexts.size(); i++) {
+            pairs.add(new ReplaceTextEditor.Replacement(oldTexts.get(i), newTexts.get(i)));
+        }
+
+        try {
+            ReplaceTextEditor editor = new ReplaceTextEditor();
+            ReplaceTextEditor.Result result = editor.execute(
+                    file, pairs, replaceAll, encoding, dryRun, backup, validate);
+
+            // Dry-run: show replacement info to stderr
+            if (dryRun && result.replacements() > 0) {
+                System.err.println("[DRY-RUN] Would replace " + result.replacements()
+                        + " occurrence(s) in " + result.file());
+            }
+
+            // JSON output to stdout
+            Map<String, Object> json = new LinkedHashMap<>();
+            json.put("file", result.file().toString());
+            json.put("replacements", result.replacements());
+            json.put("bytes_before", result.bytesBefore());
+            json.put("bytes_after", result.bytesAfter());
+            if (dryRun) {
+                json.put("dry_run", true);
+            }
+            ObjectMapper mapper = new ObjectMapper();
+            System.out.println(mapper.writeValueAsString(json));
+
+            if (result.replacements() == 0) {
+                System.err.println("Text not found in " + file);
+                System.exit(1);
+            }
+        } catch (IOException e) {
+            throw new RuntimeException("Replace-text failed: " + e.getMessage(), e);
         }
     }
 }

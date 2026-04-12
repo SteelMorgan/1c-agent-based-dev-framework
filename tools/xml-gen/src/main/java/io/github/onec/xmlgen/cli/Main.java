@@ -51,6 +51,7 @@ public class Main {
         System.out.println("  skd add-parameter     - Add parameter to SKD");
         System.out.println("  skd add-field         - Add field to SKD dataset");
         System.out.println("  mxl compile           - Compile MXL from JSON DSL");
+        System.out.println("  edit replace-text     - Byte-safe text replacement in XML files");
         System.out.println("  validate              - Validate 1C XML files");
         System.out.println();
         System.out.println("Options:");

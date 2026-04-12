@@ -1,6 +1,6 @@
 ---
 name: xml-gen-cli
-description: Rules for working with XmlGen CLI — validate (form/role/skd/mxl/epf/config/subsystem/interface/meta/extension), edit commands and universal operations (form/template/help add/remove). Use when validating XML and modifying existing Form, Role, EPF, SKD.
+description: Rules for working with XmlGen CLI — validate, edit commands (form/role/epf/skd), edit replace-text (byte-by-byte replacement) and universal operations (form/template/help add/remove). Use when validating XML and modifying existing files.
 ---
 
 # XmlGen CLI — validate and edit commands
@@ -30,6 +30,42 @@ xml-gen form remove <objectPath> <formName>
 xml-gen template add <objectPath> <name> --type <spreadsheet|html|text|dcs|binary>
 xml-gen template remove <objectPath> <name>
 xml-gen help add <objectPath>
+```
+
+## Byte-by-byte text replacement (edit replace-text)
+
+Safe text replacement in XML without normalizing line endings. Keeps bare LF (0x0A) inside `<v8:content>`, CRLF between tags, UTF-8 BOM.
+
+**Use instead of Claude Code Edit tool** when the file contains multiline content in `<v8:content>` tags (tooltips, descriptions).
+
+```bash
+xml-gen edit replace-text <file> --old "<old_text>" --new "<new_text>" [--all] [--dry-run] [--backup] [--validate] [--encoding utf-8-sig|utf-8]
+```
+
+| Flag | Description |
+|------|-------------|
+| `--old` / `--new` | Replacement pair. You can specify several: `--old "A" --new "B" --old "C" --new "D"` |
+| `--all` | Replace all occurrences (by default — only the first) |
+| `--dry-run` | Show the result without writing the file |
+| `--backup` | Create a .bak before writing |
+| `--validate` | Check XML well-formedness after the replacement |
+| `--encoding` | `utf-8-sig` (default, keeps the BOM) or `utf-8` (without BOM) |
+
+Exit codes: 0=replacement performed, 1=text not found, 2=error.
+
+Output (stdout): JSON `{"file": "...", "replacements": N, "bytes_before": N, "bytes_after": N}`
+
+```bash
+# Замена Type на TypeSet
+xml-gen edit replace-text src/xml/Documents/биг_Операция.xml \
+  --old '<v8:Type>cfg:DocumentRef.big_Order_OKX</v8:Type>' \
+  --new '<v8:TypeSet>cfg:DefinedType.биг_ОрдерБиржи</v8:TypeSet>'
+
+# Множественная замена во всех вхождениях с dry-run
+xml-gen edit replace-text Form.xml \
+  --old 'cfg:DefinedType.биг_ДокументыПозиций' \
+  --new 'cfg:DefinedType.биг_ПозицияБиржи' \
+  --all --dry-run
 ```
 
 ## Edit commands
@@ -71,7 +107,7 @@ xml-gen skd add-field --dataset <DataSetName> --name <FieldName> --path <DataPat
 
 1. **Before modification** — `validate` to check the current state.
 2. **After modification** — auto-validation; rollback is automatic if an error occurs.
-3. **EPF** — root XML: `output/MyProcessor.xml`. Form inside the EPF: `output/MyProcessor/Forms/MainForm/Ext/Form.xml`.
+3. **EPF** — root XML: `output/MyProcessor.xml`. Form in the EPF: `output/MyProcessor/Forms/MainForm/Ext/Form.xml`.
 
 ## Correct / Incorrect
 
@@ -98,6 +134,7 @@ xml-gen role add-object --name Catalog.Номенклатура --rights Read,Vi
 | "Parent element not found" | Check the exact parent name in Form.xml (case matters) |
 | "Object already exists" (role) | use `role add-right` instead of `add-object` |
 | "DataSet not found" (skd) | Check the data set name in Schema.xml |
+| Edit tool breaks line endings in XML | Use `xml-gen edit replace-text` instead of Claude Code Edit |
 
 ---
 depends_on: []
