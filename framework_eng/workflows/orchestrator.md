@@ -51,7 +51,23 @@ According to the [decision tree](#classification-decision-tree).
 
 **MANDATORY** launch ALL subagents in background mode (`run_in_background: true`). This allows the orchestrator to stay connected to the user and handle their messages while the subagent runs. The orchestrator will be notified automatically when the subagent completes.
 
-### 2b. Project skills
+### 2b. Background agent health monitoring
+
+**MANDATORY** check the health of running background agents **every 5 minutes**. Agents can hang on MCP tool calls (e.g., `build_project`, `launch_app`) without timeout, causing hours of idle time.
+
+**Monitoring procedure:**
+1. Read the last few lines of the agent's output file (parse JSONL for the latest `timestamp` and `tool_use` name)
+2. If the last activity is older than **10 minutes** — the agent is likely stuck
+3. **Action on stuck agent:** stop it (`TaskStop`), kill any orphaned OS processes (Designer, 1cv8), read whatever context the agent wrote, and relaunch with instructions to continue from the last completed step
+4. LOG the hang event: `HANG_DETECTED: {role} stuck on {tool} for {N} min → killed → relaunched`
+
+**Known hanging tools (PROHIBITED or use with caution):**
+
+- `build_project` — safe but slow (5-8 min), monitor but do not kill prematurely
+- `dump_config` — safe but slow (3-5 min), monitor but do not kill prematurely
+- `launch_app` — usually fast (<1 min), if >5 min — likely stuck
+
+### 2c. Project skills
 
 At the start of work the orchestrator **MUST** collect the list of available project skills — the `SKILL.md` files in the project's skill catalog (usually next to the IDE/agent configuration). Reading names and descriptions (frontmatter) is sufficient; do not read the skill contents.
 
@@ -153,48 +169,48 @@ Clarification: max. 1 round of questions → if `clarification_needed` happens a
 You do not do the work — you launch the subagent and handle its result.
 
 ```
-1. Receive the task
-2. Initialize task_dir (existing or tasks/TASK-XXX-name/)
+1. Получить задачу
+2. Инициализировать task_dir (существующий или tasks/TASK-XXX-название/)
    + mkdir -p task_dir/.context
    + sessions.json → task_dir/.context/sessions.json
-   + LOG: task_dir/.context/orchestrator-context.md ← START
+   + ЛОГ: task_dir/.context/orchestrator-context.md ← START
 
-3. LOG ← PHASE: Explorer
-   LAUNCH the Explorer subagent (model: Economy) with the task + task_dir
-   Read explorer-context.md (only status and classification, NOT sources)
-   LOG ← DONE_PHASE: Explorer → classification (simple/medium/complex)
+3. ЛОГ ← PHASE: Explorer
+   ЗАПУСТИТЬ сабагент Explorer (model: Economy) с задачей + task_dir
+   Прочитать explorer-context.md (только статус и классификацию, НЕ исходники)
+   ЛОГ ← DONE_PHASE: Explorer → классификация (простая/средняя/сложная)
 
-4. DECISION: simple → quick-fix; medium/complex → full-cycle
+4. РЕШЕНИЕ: простая → quick-fix; средняя/сложная → full-cycle
 
-5. For each full-cycle phase:
-   a. LOG ← PHASE: {role}
-   b. LAUNCH the {role} subagent (resume if the agentId is valid) + record the agentId
-      Inputs + task_dir:
-      - Phase 1 (Analyst): task + explorer-context.md
-      - Phase 2 (Architect): spec + explorer-context.md
-      - Phase 3a/3b: spec + technical-design + task-breakdown.json (parallel)
-      - Phase 3c (Developer-Code): everything above + tests 3b + .feature 3a
-   c. Read {role}-context.md (only status and artifact, NOT code)
-      LOG ← DONE_PHASE: {role} → result
-   d. LAUNCH the Reviewer subagent (review_scope) → processing:
-      - pass → step d2
-      - BLOCK ≤ 3 → return to the author (codex-review is NOT required for BLOCK iterations)
-      - BLOCK > 3 → escalation
-      LOG ← REVIEW: result
-   d2. MANDATORY: LAUNCH codex-review for the artifact of the current phase.
-      LOG ← CODEX_REVIEW: result
-      - pass → next phase (Phase 2: → approval gate)
-      - comments → return to the author for refinement
-   e. clarification_needed → questions to the user → LOG ← CLARIFICATION
-      Answers → LOG ← USER_INPUT → rerun the subagent
-   f. Hand off the artifact to the next phase
+5. Для каждой фазы full-cycle:
+   a. ЛОГ ← PHASE: {роль}
+   b. ЗАПУСТИТЬ сабагент {роль} (resume если agentId актуален) + записать agentId
+      Входные данные + task_dir:
+      - Phase 1 (Analyst): задача + explorer-context.md
+      - Phase 2 (Architect): спека + explorer-context.md
+      - Phase 3a/3b: spec + technical-design + task-breakdown.json (параллельно)
+      - Phase 3c (Developer-Code): всё выше + тесты 3b + .feature 3a
+   c. Прочитать {role}-context.md (только статус и артефакт, НЕ код)
+      ЛОГ ← DONE_PHASE: {роль} → результат
+   d. ЗАПУСТИТЬ сабагент Reviewer (review_scope) → обработка:
+      - pass → шаг d2
+      - BLOCK ≤ 3 → вернуть автору (codex-review НЕ нужен для BLOCK-итераций)
+      - BLOCK > 3 → эскалация
+      ЛОГ ← REVIEW: результат
+   d2. ОБЯЗАТЕЛЬНО: ЗАПУСТИТЬ codex-review для артефакта текущей фазы.
+      ЛОГ ← CODEX_REVIEW: результат
+      - pass → следующая фаза (Phase 2: → approval gate)
+      - замечания → вернуть автору для доработки
+   e. clarification_needed → вопросы пользователю → ЛОГ ← CLARIFICATION
+      Ответы → ЛОГ ← USER_INPUT → повторный запуск сабагента
+   f. Передать артефакт на следующую фазу
 
-6. MANDATORY: final codex-review of the entire task (spec + design + code + tests).
-   LOG ← CODEX_REVIEW: final → result
-   If critical comments → return to the appropriate phase.
-7. LAUNCH finalization → final-report.md
-   LOG ← DONE
-8. Deliver the result to the user
+6. ОБЯЗАТЕЛЬНО: финальный codex-review всей задачи (spec + design + код + тесты).
+   ЛОГ ← CODEX_REVIEW: final → результат
+   Если критические замечания → вернуться к нужной фазе.
+7. ЗАПУСТИТЬ финализацию → final-report.md
+   ЛОГ ← DONE
+8. Результат пользователю
 ```
 
 Phase 3a and 3b run in parallel after Phase 2 approval. Wait for both to finish (including reviews) before Phase 3c.
@@ -232,10 +248,10 @@ Append to the existing log; do not overwrite.
 ## Final report (`final-report.md`)
 
 ```markdown
-# Report: TASK-XXX-name
-## New metadata objects
-## Modified objects
-## What was done
+# Отчёт: TASK-XXX-название
+## Новые объекты метаданных
+## Изменённые объекты
+## Что сделано
 ```
 
 Rules: new items are NOT repeated among modified; notation uses 1С `Type.Name`; subitems separated by dots; "What was done" consists of 3–7 sentences.
@@ -245,11 +261,11 @@ Rules: new items are NOT repeated among modified; notation uses 1С `Type.Name`;
 ## Classification decision tree
 
 ```
-Task
-  ├── New metadata objects? → Yes → COMPLEX → full-cycle
-  ├── Data flow / architecture changes? → Yes → COMPLEX → full-cycle
-  ├── Bug in a single file? → Yes → SIMPLE → quick-fix
-  └── Everything else / uncertainty → MEDIUM → full-cycle
+Задача
+  ├── Новые объекты метаданных? → Да → СЛОЖНАЯ → full-cycle
+  ├── Изменяется поток данных / архитектура? → Да → СЛОЖНАЯ → full-cycle
+  ├── Баг в одном файле? → Да → ПРОСТАЯ → quick-fix
+  └── Всё остальное / неопределённость → СРЕДНЯЯ → full-cycle
 ```
 
 ---

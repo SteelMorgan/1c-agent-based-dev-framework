@@ -244,9 +244,9 @@
     },
     "framework/workflows/orchestrator.md": {
       "ru_hash": "sha256:a23e9802178b99ed3730343f235c046f7fee468e81c2fb384b71ce812facfafe",
-      "en_hash": "sha256:5c0c78f3015231342f03377255b63153d548a849cb7b216a01bc9c8fab4f43d9",
-      "synced_at": "2026-03-25T17:26:47Z",
-      "status": "dirty"
+      "en_hash": "sha256:383752c73df773877904b80067bdff7f43f552596d3ff70727b8d22aee5c8132",
+      "synced_at": "2026-04-12T09:06:33Z",
+      "status": "synced"
     },
     "framework/workflows/quick-fix.md": {
       "ru_hash": "sha256:d6d73b306b039d95940392b96bdf79013cfef3fc1b87318c6595bde2283d88d6",
@@ -442,9 +442,9 @@
     },
     "framework/skills/tool-usage/code-analysis/syntax-checking/SKILL.md": {
       "ru_hash": "sha256:acaeb3300665feec207629a9d1df08b49f6ff072815cfb49b295c73f78380f06",
-      "en_hash": "sha256:293e017c2f03e54e8b632a98bdc5c3e7956fc14fe2075d15f84cd9e55e56e53f",
-      "synced_at": "2026-04-08T16:34:35Z",
-      "status": "dirty"
+      "en_hash": "sha256:f67679329c70903650bb782c7d9392fa82300ccbcbbbf923c0976f23ac324eb9",
+      "synced_at": "2026-04-12T09:06:24Z",
+      "status": "synced"
     },
     "framework/skills/tool-usage/code-analysis/test-execution/SKILL.md": {
       "ru_hash": "sha256:48b297b37801aeb9ea7aaffc6d4445397f63e05eb3728bca62869e0a64c3e3cd",

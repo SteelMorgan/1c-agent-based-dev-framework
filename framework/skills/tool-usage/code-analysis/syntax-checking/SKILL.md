@@ -37,8 +37,19 @@ description: Проверка синтаксиса (Syntax Checking). Навык
 
 1. `check_syntax(target: "путь/Module.bsl", mode: "edt")` — режим по умолчанию.
 2. `success = false` → прочитать `errors`, исправить, повторить.
-3. EDT недоступен → fallback: `mode: "designer_config"` (CheckConfig) или `mode: "designer_modules"` (CheckModules). Требуют подключения к ИБ.
+3. EDT недоступен → fallback: `mode: "designer_modules"` (CheckModules). Требует подключения к ИБ.
 4. После рефакторинга нескольких модулей — `target: "all"` или по каждому.
+
+### Preflight: проверка доступности сеанса Конфигуратора
+
+**ОБЯЗАТЕЛЬНО** перед любым вызовом инструмента, работающего через Конфигуратор (`check_syntax_designer_modules`, `build_project`, `dump_config`, `launch_app`):
+
+1. Проверить отсутствие висящих сеансов:
+   ```bash
+   ps aux | grep "1cv8.*DESIGNER" | grep -v grep
+   ```
+2. Если найден живой процесс Designer — **убить его** (`kill <PID>`) перед запуском нового.
+3. Два одновременных сеанса Конфигуратора на одну ИБ = deadlock. Это основная причина зависаний.
 
 ## Интерпретация результатов
 
@@ -65,7 +76,7 @@ Severity: `error` (блокирует компиляцию) > `warning` > `infor
 | Ошибка | Обходной путь |
 |--------|---------------|
 | LSP не запущен | `check_syntax` как fallback |
-| EDT не запущен | `get_diagnostics` или `designer_config` / `designer_modules` |
+| EDT не запущен | `get_diagnostics` или `designer_modules` |
 | Таймаут `target: "all"` | Проверять по модулям |
 | Проект EDT не найден | Проверить путь, `sourceSet`; использовать Designer |
 | Непонятные `errors` | `navigate_symbol` к месту ошибки; `ask_ai_assistant` |

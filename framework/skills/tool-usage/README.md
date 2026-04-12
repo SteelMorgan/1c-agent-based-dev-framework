@@ -344,7 +344,7 @@
 | `get_code_actions` | lsp-bsl-bridge | Быстрые исправления | Программист | 🟢 `code-navigation` |
 | `rename_symbol` | lsp-bsl-bridge | Переименование символа | Программист | 🟢 `code-navigation` |
 | `search_ssl_functions` | lsp-bsl-bridge | Поиск функций БСП | СА, Программист | 🟢 `search-before-write` |
-| `check_syntax` | test-runner | Проверка синтаксиса (абстрагирует `check_syntax_edt`, `check_syntax_designer_config`, `check_syntax_designer_modules`) | Программист, QA | 🟢 `syntax-checking`, `test-execution` |
+| `check_syntax` | test-runner | Проверка синтаксиса (абстрагирует `check_syntax_edt`, `check_syntax_designer_modules`) | Программист, QA | 🟢 `syntax-checking`, `test-execution` |
 | `run_tests` | test-runner | Запуск тестов (абстрагирует `run_all_tests`, `run_module_tests`) | Программист, QA | 🟢 `test-execution` |
 | `build_project` | test-runner | Сборка проекта | Программист, QA | 🟢 `test-execution` |
 | `dump_config` | test-runner | Выгрузка конфигурации | Программист | 🟢 `metadata-discovery` |
