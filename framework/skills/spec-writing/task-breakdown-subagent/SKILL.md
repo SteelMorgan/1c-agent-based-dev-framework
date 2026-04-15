@@ -1,6 +1,16 @@
 ---
 name: task-breakdown-subagent
-description: Декомпозиция задач для сабагентного режима. Определяет отдельный Task Breakdown JSON, cross-review и BLOCK-итерации.
+description: "Task decomposition for multi-agent subagent mode with Architect/Reviewer cross-review. Creates Task Breakdown JSON with BLOCK iteration support. Use when breaking down a spec for parallel execution with dedicated reviewer agent and cross-review cycles."
+user-invocable: true
+triggers:
+  - break down this task for subagents
+  - multi-agent task decomposition
+  - create task breakdown with reviewer
+  - subagent mode decomposition
+  - plan with cross-review
+  - architect and reviewer decomposition
+  - parallel agent task breakdown
+  - decompose with BLOCK iteration
 ---
 
 # Навык декомпозиции задач (subagent mode)

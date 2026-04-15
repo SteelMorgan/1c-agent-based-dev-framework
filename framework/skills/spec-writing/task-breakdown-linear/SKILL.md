@@ -1,6 +1,16 @@
 ---
 name: task-breakdown-linear
-description: Декомпозиция задач для линейного single-agent режима. Определяет отдельный Task Breakdown JSON и self-check без review-агента.
+description: "Task decomposition for linear single-agent execution mode. Creates a Task Breakdown JSON with dependency ordering and self-check steps. Use when breaking down a spec into sequential implementation tasks without a reviewer agent."
+user-invocable: true
+triggers:
+  - break down this task linearly
+  - decompose this spec for single agent
+  - create task breakdown JSON
+  - linear task decomposition
+  - break this into sequential steps
+  - plan implementation steps
+  - create a linear task plan
+  - decompose without reviewer
 ---
 
 # Навык декомпозиции задач (linear single-agent mode)

@@ -1,6 +1,16 @@
 ---
 name: spec-standard
-description: Универсальный навык написания спецификаций (SDD). Задает структуру спеки, RFC 2119 и quality checklist независимо от режима исполнения задач.
+description: "Universal SDD (Software Design Document) skill for 1C BSL projects. Defines specification structure, RFC 2119 requirement levels, and quality checklist. Use when writing a new feature spec, documenting an architectural decision, or preparing a structured task description before implementation."
+user-invocable: true
+triggers:
+  - write a spec for this
+  - create a specification
+  - document this feature
+  - write an SDD
+  - create a design document
+  - prepare a specification before coding
+  - spec out this task
+  - write requirements for this
 ---
 
 # Навык написания спецификаций (SDD)

@@ -1,6 +1,16 @@
 ---
 name: ssl-patterns
-description: Паттерны работы с БСП (Библиотека стандартных подсистем). Этот навык учит агента правильно использовать БСП (Библиотеку стандартных подсистем, англ.
+description: "Patterns for working with 1C SSL (Standard Subsystems Library / BSL). Use when writing 1C BSL code that needs to use standard subsystem modules, avoid code duplication, or follow ITS standards for common operations like user messages, attribute retrieval, and module interactions."
+user-invocable: true
+triggers:
+  - use BSP module
+  - SSL patterns
+  - БСП patterns
+  - use standard subsystem
+  - avoid duplicating BSL code
+  - use ОбщегоНазначения module
+  - common module patterns
+  - BSL standard library usage
 ---
 
 # Паттерны работы с БСП (Библиотека стандартных подсистем)

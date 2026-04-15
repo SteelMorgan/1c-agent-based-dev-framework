@@ -1,6 +1,16 @@
 ---
 name: error-handling
-description: Обработка ошибок, транзакции и блокировки. Этот навык учит агента правильно обрабатывать ошибки, управлять транзакциями и блокировками в 1С.
+description: "Error handling, transactions, and locks in 1C BSL. Use when writing 1C code that needs Попытка/Исключение blocks, transaction management (НачатьТранзакцию/ЗафиксироватьТранзакцию/ОтменитьТранзакцию), or managed lock patterns to prevent data corruption."
+user-invocable: true
+triggers:
+  - handle errors in 1C
+  - add error handling
+  - wrap in try-catch BSL
+  - add transaction management
+  - Попытка Исключение pattern
+  - transaction and locks 1C
+  - BSL error handling
+  - manage 1C locks
 ---
 
 # Обработка ошибок, транзакции и блокировки
