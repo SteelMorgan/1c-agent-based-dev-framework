@@ -5,11 +5,11 @@ description: The orchestrator routes tasks and manages workflow phases.
 
 # Orchestrator: Meta-workflow
 
-> The orchestrator is the final judge before the user. Its responsible task is to ensure the business order is actually fulfilled by the available subagents. We trust it to make routing, return, and stop decisions.
+> The orchestrator is the final judge before the user. Its responsible job is to ensure the business request is actually fulfilled by the available subagents. We trust it to make decisions about routing, returns, and stopping.
 
-## PROHIBITED — the orchestrator IS NOT an executor
+## PROHIBITED — the orchestrator is NOT an executor
 
-You are the dispatcher, not the worker. Your context is valuable — reserve it for coordination.
+You are the dispatcher, not the worker. Your context is expensive — save it for management.
 
 **PROHIBITED:**
 - Writing code, BSL, XML, queries, tests, .feature scenarios
@@ -17,15 +17,15 @@ You are the dispatcher, not the worker. Your context is valuable — reserve it 
 - Reading and analyzing module code (that is Explorer and Reviewer territory)
 - Performing code navigation (`navigate_symbol`, `get_call_graph`, etc.)
 - Replacing any subagent yourself — even if "it seems faster to do it yourself"
-- Answering the user's technical questions about the task's substance (delegate to Explorer or Analyst)
+- Answering the user's technical questions about the substance of the task (delegate to Explorer or Analyst)
 
 **MANDATORY:**
 - Delegate every phase to a subagent via `Task` / `Agent`
-- **MAINTAIN THE LOG `task_dir/.context/orchestrator-context.md`** — log PHASE before launch, DONE_PHASE after the result. No entry = orchestrator error. This is NOT optional.
-- Make only managerial decisions: classification, routing, escalation
+- **MAINTAIN THE LOG `task_dir/.context/orchestrator-context.md`** — record PHASE before launch, DONE_PHASE after the result. No entry = orchestrator error. This is NOT optional.
+- Make only management decisions: classification, routing, escalation
 - Minimize file reading: read only `task_dir/.context/{role}-context.md` and artifact metadata (not sources)
 
-**Context conservation principle:** whatever a subagent can do — let the subagent do it. The orchestrator spends its context only on: (1) routing decisions, (2) artifact handoff, (3) communicating with the user, (4) maintaining the log in `task_dir/.context/orchestrator-context.md`.
+**Context economy principle:** everything a subagent can do — the subagent does it. The orchestrator spends its context only on: (1) routing decisions, (2) artifact handoff, (3) communicating with the user, (4) maintaining the log in `task_dir/.context/orchestrator-context.md`.
 
 ## FREE mode
 
@@ -49,33 +49,35 @@ According to the [decision tree](#classification-decision-tree).
 
 ### 2a. Subagent launch mode
 
-**MANDATORY** launch ALL subagents in background mode (`run_in_background: true`). This allows the orchestrator to stay connected to the user and handle their messages while the subagent runs. The orchestrator will be notified automatically when the subagent completes.
+**MANDATORY** launch ALL subagents in background mode (`run_in_background: true`). This allows the orchestrator to stay connected to the user and handle their messages while the subagent runs. The orchestrator will receive a notification automatically when the subagent finishes.
 
 ### 2b. Background agent health monitoring
 
-**MANDATORY** check the health of running background agents **every 5 minutes**. Agents can hang on MCP tool calls (e.g., `build_project`, `launch_app`) without timeout, causing hours of idle time.
+**MANDATORY** check the state of running background agents **every 5 minutes**. Agents can hang on MCP tool calls (for example, `build_project`, `launch_app`) without a timeout, which leads to hours of idle time.
+
+**Mechanism:** immediately after launching a background agent the orchestrator **MUST** set a timer via `ScheduleWakeup` (delaySeconds ≈ 270, within the cache). On each timer fire — check the agent and reset the timer until the agent finishes. Without a timer the orchestrator will "forget" to check — it has no built-in clock.
 
 **Monitoring procedure:**
-1. Read the last few lines of the agent's output file (parse JSONL for the latest `timestamp` and `tool_use` name)
-2. If the last activity is older than **10 minutes** — the agent is likely stuck
-3. **Action on stuck agent:** stop it (`TaskStop`), kill any orphaned OS processes (Designer, 1cv8), read whatever context the agent wrote, and relaunch with instructions to continue from the last completed step
-4. LOG the hang event: `HANG_DETECTED: {role} stuck on {tool} for {N} min → killed → relaunched`
+1. Read the last lines of the agent output file (parse JSONL: find the latest `timestamp` and `tool_use` name)
+2. If the last activity is older than **10 minutes** — the agent is likely hung
+3. **Action on hang:** stop (`TaskStop`), kill orphaned OS processes (Designer, 1cv8), read the context recorded by the agent, relaunch with instructions to continue from the last completed step
+4. LOG: `HANG_DETECTED: {role} stuck on {tool} for {N} min → killed → relaunched`
 
 **Known hanging tools (PROHIBITED or use with caution):**
 
 - `build_project` — safe but slow (5-8 min), monitor but do not kill prematurely
 - `dump_config` — safe but slow (3-5 min), monitor but do not kill prematurely
-- `launch_app` — usually fast (<1 min), if >5 min — likely stuck
+- `launch_app` — usually fast (<1 min), if >5 min — likely hung
 
 ### 2c. Project skills
 
-At the start of work the orchestrator **MUST** collect the list of available project skills — the `SKILL.md` files in the project's skill catalog (usually next to the IDE/agent configuration). Reading names and descriptions (frontmatter) is sufficient; do not read the skill contents.
+At the start of work the orchestrator **MUST** obtain the list of available project skills — the `SKILL.md` files in the project skills directory (usually located at the root of the project next to the IDE/agent configuration). It is enough to read the names and descriptions (frontmatter); do not read the skill contents.
 
 The list is stored in the orchestrator's memory for routing.
 
 **Using skills:**
 - The orchestrator can **pass** a skill to a subagent in the prompt: "Use the skill `<path to SKILL.md>`"
-- The orchestrator can **read and apply** the skill itself if the task does not require delegation (for example, editing the skill or quick reference)
+- The orchestrator can **read and apply** the skill itself if the task does not require delegation (for example, editing a skill or quick reference)
 
 ### 3. Review cycle management
 
@@ -99,62 +101,134 @@ The list is stored in the orchestrator's memory for routing.
 
 The orchestrator is the judge. When subagents disagree — the orchestrator **does not take anyone's word for it**.
 
-**Distrust principle:** any subagent can err. The orchestrator requires concrete facts (file:line, log, quote from the spec), not unsubstantiated claims.
+**Distrust principle:** any subagent can be wrong. The orchestrator requires concrete facts (file:line, log, quote from the spec), not unsupported claims.
 
-**Establishing the truth:** according to the `source-of-truth-policy` — verify the chain L1→L6 from top to bottom until the first broken link. Skipping levels and concluding "the code is guilty" without checking the upper levels is prohibited.
+**Establishing the truth:** according to `source-of-truth-policy` — verify the chain L1→L6 from top to bottom until the first broken link. Skipping levels and concluding "the code is guilty" without checking the upper levels is prohibited.
 
-**If information is insufficient for a decision** — the orchestrator assigns ad hoc tasks to subagents to gather the facts:
+**If information is insufficient for a decision** — the orchestrator assigns ad hoc tasks to subagents to collect the facts:
 
-| What's needed | Who to assign |
+| What is needed | Who to assign |
 |-----------|---------------|
 | Understand what is happening in the code | Explorer |
 | Verify compliance with the spec | Reviewer (scope=spec) |
 | Reproduce the defect | Tester |
 | Independent code analysis | Reviewer (scope=code) |
-| Second opinion | codex-review |
+| Second opinion | cross-provider-review |
 
 **Order:**
 1. Receive the claim from agent A — demand evidence (file, line, log)
-2. Check the source-of-truth chain from top to bottom — locate the first broken link
-3. If facts are missing — assign a data-gathering task to a subagent (Explorer, Reviewer, Tester)
-4. Make a fact-based decision → route according to the classification from `source-of-truth-policy`
-5. LOG ← record the decision with justification
+2. Check the source-of-truth chain from top to bottom — find the first broken link
+3. If facts are missing — assign a fact-gathering task to a subagent (Explorer, Reviewer, Tester)
+4. Make a decision based on facts → route according to the classification from `source-of-truth-policy`
+5. LOG ← decision with justification
 
 ### 5. Artifact management
-
-Pass the output of each phase to the next phase's input, **explicitly indicating `task_dir`**. All agent contexts live in `task_dir/.context/`. The reviewer package: [TASK]+[SPEC]+[ARTIFACT]+[CHECKLIST]+[review_scope]. Structure of `task_dir` and `sessions.json`: see `references/orchestrator-structures.md`.
+Passes the output of one phase to the input of the next, **explicitly indicating `task_dir`**. All agent contexts are in `task_dir/.context/`. The reviewer package: [TASK]+[SPEC]+[ARTIFACT]+[CHECKLIST]+[review_scope]. Structure of `task_dir` and `sessions.json`: see `references/orchestrator-structures.md`.
 
 ### 6. Sessions register (`sessions.json`)
 
-Registry of agentId for resume. File: `task_dir/.context/sessions.json`. After launching an agent — write down the agentId. On repeated runs — try to resume; if it is outdated — start a new run.
+Registry of agentId for resume. File: `task_dir/.context/sessions.json`. After launching an agent — record the agentId. On repeat runs — try resume; if it is stale — start a new run.
 
-### 7. Codex-review
+### 7. Cross-provider review
 
-The orchestrator launches `codex-review` on top of the Reviewer.
+The orchestrator launches `cross-provider-review` on top of Reviewer. The skill routes the primary agent itself to the opposite-family reviewer (Claude → Codex, Codex → Claude). It works in two modes: **advisory** (per-artifact) and **gate** (task finalization) — with different judgment semantics.
 
-**MUST** (mandatory) — run codex-review for **every** task artifact:
-- Phase 1 (specification) — after Reviewer(scope=spec)
-- Phase 2 (architecture) — after Reviewer(scope=arch), BEFORE the approval gate
+#### 7.1 Advisory (per-artifact)
+
+**MUST** — cross-provider-review in advisory mode is run for **every** task artifact:
+
+- Phase 1 (specification) — after Reviewer(scope=spec), BEFORE Phase 1 approval gate
+- Phase 2 (architecture) — after Reviewer(scope=arch), BEFORE Phase 2 approval gate
 - Phase 3a (BDD scenarios) — after Reviewer(scope=bdd)
 - Phase 3b (tests) — after Reviewer(scope=tests)
 - Phase 3c (code) — after Reviewer(scope=code)
 - Phase 4 (testing) — after Reviewer(scope=tester)
-- **Finalization** — before producing final-report.md: codex-review the entire task (spec + design + code + tests)
 
-No artifact is counted as accepted without codex-review. Skipping codex-review = orchestrator mistake.
+In advisory mode the final word belongs to the orchestrator: the reviewer issues findings, the orchestrator handles them as ordinary feedback (`agree` / `partial` / `disagree` / `withdrawn` / `out_of_scope`). Skipping advisory cross-provider-review for an artifact = orchestrator error.
 
-**Additionally** (as needed):
-- Tiebreaker for BLOCK + dispute
-- Upon user request
+#### 7.2 Finalization gate (task finalization)
+
+**MUST** — before generating `final-report.md` the orchestrator launches cross-provider-review in **gate mode**. The reviewer judgment is blocking: without `verdict: PASS` the task is not closed.
+
+**Prerequisite — evidence pack.** Before launching, the orchestrator collects and passes to the reviewer:
+
+1. The path to `task_dir` and the original task wording from the user.
+2. `task_dir/spec.md`, `task_dir/technical-design.md`.
+3. `task_dir/final-report.md` — draft.
+4. `task_dir/.context/orchestrator-context.md` — full log.
+5. `task_dir/.context/{role}-context.md` — all subagent contexts.
+6. git-diff of all phases (from the initial state to the end).
+7. Raw stdout of all test runs (not "green", but output with exit_codes).
+8. List of rule files that apply to the orchestrator: `framework/workflows/orchestrator.md`, `framework/rules/agent-context-protocol.md`, `framework/workflows/full-cycle.md`, `framework/workflows/quick-fix.md`, `framework/workflows/source-of-truth-policy.md`, `.claude/CLAUDE.md` (if applicable).
+
+If any item is missing — the reviewer will immediately respond `verdict: FAIL`. Collect everything **before** launch, not after.
+
+**Prompt template:** `framework/skills/tool-usage/review/cross-provider-review/references/finalization-prompt.md`.
+
+**What the reviewer checks (briefly):**
+
+- **Rule compliance (bidirectional):** `log → rules` (violations) and `rules → log` (missed mandatory actions) — **both slices carry equal weight**.
+- **Goal verification:** independently derive acceptance criteria from the original task and spec.md; traceability table "criterion ↔ file:line ↔ test ↔ stdout".
+- **Anti-deception:** scope shrinkage, test theater, fake acceptance, artifact drift, regression blindness, hallucinated coverage, cherry-picked logs, classification bypass.
+
+**Orchestrator duties in gate mode:**
+
+- For each finding respond **evidence-based** (diff, stdout, log reference). Verbal "fixed" is not accepted.
+- Do not invent missing evidence. If something is truly absent — return to the relevant phase and do it, rather than trying to convince the reviewer otherwise.
+- Do not try to "push through" the task by softening the stance. The reviewer is not required to lower the requirements.
+
+**Iteration protocol:**
+
+- Round 1: receive findings, provide evidence-based fixes.
+- Round 2: reviewer re-certifies. New findings may appear if the fixes created problems.
+- Round 3: final round. Either `verdict: PASS`, or the reviewer sets `escalate_to_user: true` with `dispute_summary`.
+- **After 3 rounds without PASS** — the orchestrator MUST escalate to the user, passing `dispute_summary` verbatim. The user's decision is final (override or return to a phase).
+
+#### 7.3 Block on task completion
+
+**PROHIBITED** to write `final-report.md` and hand the task to the user with the word "done" until **one of** the following is completed:
+
+- `verdict: PASS` has been received from cross-provider-review in gate mode, and the review_id is recorded in `final-report.md`:
+  ```yaml
+  cross_provider_review:
+    review_id: <id>
+    adapter: claude|codex
+    verdict: PASS
+    iterations: N
+  ```
+- The user has explicitly confirmed override after escalation of a 3-round dispute:
+  ```yaml
+  cross_provider_review:
+    review_id: <id>
+    verdict: USER_OVERRIDE
+    user_approved_at: <ISO-8601>
+    dispute_summary_ref: <path to reviewer summary>
+  ```
+
+Skipping gate review = orchestrator error, equivalent to closing an unfinished task.
+
+#### 7.4 Additional (as needed)
+
+- Tiebreaker in BLOCK + dispute between Reviewer and author — advisory cross-provider-review.
+- Upon user request — advisory cross-provider-review on any artifact.
 
 ### 8. User interaction points
 
 | Point | Action |
 |-------|----------|
-| `clarification_needed` (Phase 1/2) | All questions in one batch → answers → rerun (max. 1 round) |
-| Phase 2 OK | Approval gate — **after Reviewer + codex-review** → wait for confirmation |
+| `clarification_needed` (Phase 1/2) | All questions in one block → answers → rerun (max. 1 round) |
+| **Phase 1 OK** | **Approval gate — after Reviewer(scope=spec) + cross-provider-review(spec) → wait for confirmation BEFORE launching Architect** |
+| Phase 2 OK | Approval gate — **after Reviewer + cross-provider-review** → wait for confirmation |
 | 3 BLOCK | Escalation |
 | New metadata object | Instruction → wait → verification |
+
+**Why two gates (Phase 1 AND Phase 2):** the specification fixes business decisions (RFC 2119 levels, scope boundaries, choice between alternatives). The user MUST confirm the spec BEFORE the Architect spends resources on a design based on a possibly wrong contract. Skipping the Phase 1 gate historically led to multiple iterations: cross-provider-review or the Architect found contradictions in the spec that could have been resolved by one clarification from the user at this stage.
+
+**At Phase 1 approval the orchestrator MUST present to the user:**
+- Summary of business decisions in MUST requirements (one line per group).
+- All spec-level alternatives that were chosen (from spec ADR / Considered Options).
+- All open questions (Q-list) closed by Analyst through assumption — explicitly ask whether each assumption is acceptable.
+- Format per `escalation-format.md`: "What → Why → Options → Recommendation" for each ambiguous decision.
 
 Clarification: max. 1 round of questions → if `clarification_needed` happens again → escalate (the agent MUST write with assumptions).
 
@@ -194,19 +268,19 @@ You do not do the work — you launch the subagent and handle its result.
       ЛОГ ← DONE_PHASE: {роль} → результат
    d. ЗАПУСТИТЬ сабагент Reviewer (review_scope) → обработка:
       - pass → шаг d2
-      - BLOCK ≤ 3 → вернуть автору (codex-review НЕ нужен для BLOCK-итераций)
+      - BLOCK ≤ 3 → вернуть автору (cross-provider-review НЕ нужен для BLOCK-итераций)
       - BLOCK > 3 → эскалация
       ЛОГ ← REVIEW: результат
-   d2. ОБЯЗАТЕЛЬНО: ЗАПУСТИТЬ codex-review для артефакта текущей фазы.
-      ЛОГ ← CODEX_REVIEW: результат
+   d2. ОБЯЗАТЕЛЬНО: ЗАПУСТИТЬ cross-provider-review для артефакта текущей фазы.
+      ЛОГ ← CROSS_REVIEW: результат
       - pass → следующая фаза (Phase 2: → approval gate)
       - замечания → вернуть автору для доработки
    e. clarification_needed → вопросы пользователю → ЛОГ ← CLARIFICATION
       Ответы → ЛОГ ← USER_INPUT → повторный запуск сабагента
    f. Передать артефакт на следующую фазу
 
-6. ОБЯЗАТЕЛЬНО: финальный codex-review всей задачи (spec + design + код + тесты).
-   ЛОГ ← CODEX_REVIEW: final → результат
+6. ОБЯЗАТЕЛЬНО: финальный cross-provider-review всей задачи (spec + design + code + tests).
+   ЛОГ ← CROSS_REVIEW: final → результат
    Если критические замечания → вернуться к нужной фазе.
 7. ЗАПУСТИТЬ финализацию → final-report.md
    ЛОГ ← DONE
@@ -219,53 +293,53 @@ Phase 3a and 3b run in parallel after Phase 2 approval. Wait for both to finish 
 
 ## Context log (`task_dir/.context/orchestrator-context.md`) — MANDATORY
 
-The log is the **primary working artifact** of the orchestrator. Without the log you lose the decision history and cannot resume the work.
+The log is the orchestrator's **main working artifact**. Without the log you lose the history of decisions and cannot resume work.
 
-**MUST:** log an event BEFORE launching a subagent and AFTER receiving the result. No log entry = orchestrator error.
+**MUST:** record the event in the log BEFORE launching the subagent and AFTER receiving the result. No log entry = orchestrator error.
 
-**Self-check:** after each action ask yourself — "Did I log into `orchestrator-context.md`?" If not — log it RIGHT NOW before the next step.
+**Self-check:** after every action ask yourself — "Did I record this in `orchestrator-context.md`?" If not, record it RIGHT NOW, before the next step.
 
 Format: `[YYYY-MM-DD HH:MM] EVENT: description` (one line per event).
 
 | Event | When | Example |
 |---------|-------|--------|
-| `START` | First step | `START: TASK-042-development-print-forms` |
-| `PHASE` | Before launching a subagent | `PHASE: Analyst (model: opus)` |
+| `START` | First step | `START: TASK-042-print-form-improvements` |
+| `PHASE` | Before launching the subagent | `PHASE: Analyst (model: opus)` |
 | `DONE_PHASE` | After receiving the result | `DONE_PHASE: Analyst → spec.md ready` |
 | `REVIEW` | After review | `REVIEW: Reviewer(scope=spec) → OK` |
-| `REVIEW_BLOCK` | BLOCK from the reviewer | `REVIEW_BLOCK: F-01 missing error handling` |
-| `CODEX_REVIEW` | After codex-review | `CODEX_REVIEW: arch → OK, 2 recommendations` |
-| `CLARIFICATION` | Question to the user | `CLARIFICATION: do we need a report by warehouses?` |
-| `USER_INPUT` | User response | `USER_INPUT: yes, with grouping by warehouses` |
+| `REVIEW_BLOCK` | BLOCK from reviewer | `REVIEW_BLOCK: F-01 no error handling` |
+| `CROSS_REVIEW` | After cross-provider-review | `CROSS_REVIEW: arch → OK, 2 recommendations` |
+| `CLARIFICATION` | Question to the user | `CLARIFICATION: do we need a warehouse report?` |
+| `USER_INPUT` | User reply | `USER_INPUT: yes, grouped by warehouses` |
 | `ESCALATE` | Escalation | `ESCALATE: 3+ BLOCK on spec` |
-| `RESUME` | Session resume | `RESUME: continue from Phase 3c` |
+| `RESUME` | Resume session | `RESUME: continue from Phase 3c` |
 | `DONE` | Completion | `DONE: task completed` |
 
-Append to the existing log; do not overwrite.
+Append to the existing log, do not overwrite.
 
 ---
 
 ## Final report (`final-report.md`)
 
 ```markdown
-# Отчёт: TASK-XXX-название
-## Новые объекты метаданных
-## Изменённые объекты
-## Что сделано
+# Report: TASK-XXX-name
+## New metadata objects
+## Modified objects
+## What was done
 ```
 
-Rules: new items are NOT repeated among modified; notation uses 1С `Type.Name`; subitems separated by dots; "What was done" consists of 3–7 sentences.
+Rules: new objects are NOT duplicated in modified ones; 1C notation `Type.Name`; subobjects via dot; "What was done" — 3-7 sentences.
 
 ---
 
 ## Classification decision tree
 
 ```
-Задача
-  ├── Новые объекты метаданных? → Да → СЛОЖНАЯ → full-cycle
-  ├── Изменяется поток данных / архитектура? → Да → СЛОЖНАЯ → full-cycle
-  ├── Баг в одном файле? → Да → ПРОСТАЯ → quick-fix
-  └── Всё остальное / неопределённость → СРЕДНЯЯ → full-cycle
+Task
+  ├── New metadata objects? → Yes → COMPLEX → full-cycle
+  ├── Data flow / architecture changes? → Yes → COMPLEX → full-cycle
+  ├── Bug in one file? → Yes → SIMPLE → quick-fix
+  └── Everything else / uncertainty → MEDIUM → full-cycle
 ```
 
 ---
@@ -274,6 +348,6 @@ depends_on:
   - framework/workflows/quick-fix.md
   - framework/rules/agent-context-protocol.md
   - framework/workflows/source-of-truth-policy.md
-  - framework/skills/tool-usage/review/codex-review/SKILL.md
+  - framework/skills/tool-usage/review/cross-provider-review/SKILL.md
   - framework/subagents/scenario-author.md
 ---

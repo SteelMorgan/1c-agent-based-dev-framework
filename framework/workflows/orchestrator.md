@@ -55,6 +55,8 @@ description: Оркестратор маршрутизирует задачи и
 
 **ОБЯЗАТЕЛЬНО** проверяй состояние работающих фоновых агентов **каждые 5 минут**. Агенты могут зависнуть на вызовах MCP-инструментов (например, `build_project`, `launch_app`) без таймаута, что приводит к часам простоя.
 
+**Механизм:** сразу после запуска фонового агента оркестратор **ДОЛЖЕН** установить таймер через `ScheduleWakeup` (delaySeconds ≈ 270, в пределах кэша). При каждом срабатывании таймера — проверить агента и переустановить таймер, пока агент не завершится. Без таймера оркестратор «забудет» проверить — у него нет встроенных часов.
+
 **Процедура мониторинга:**
 1. Прочитать последние строки output-файла агента (парсить JSONL: найти последний `timestamp` и имя `tool_use`)
 2. Если последняя активность старше **10 минут** — агент скорее всего завис
@@ -111,7 +113,7 @@ description: Оркестратор маршрутизирует задачи и
 | Проверить соответствие спеке | Reviewer (scope=spec) |
 | Воспроизвести ошибку | Tester |
 | Независимый анализ кода | Reviewer (scope=code) |
-| Второе мнение | codex-review |
+| Второе мнение | cross-provider-review |
 
 **Порядок:**
 1. Получить претензию от агента A — потребовать доказательства (файл, строка, лог)
@@ -127,33 +129,106 @@ description: Оркестратор маршрутизирует задачи и
 
 Реестр agentId для resume. Файл: `task_dir/.context/sessions.json`. После запуска агента — записать agentId. При повторном — попробовать resume; если устарел — новый запуск.
 
-### 7. Codex-review
+### 7. Cross-provider review
 
-Оркестратор запускает `codex-review` поверх Reviewer.
+Оркестратор запускает `cross-provider-review` поверх Reviewer. Навык сам маршрутизирует primary agent в opposite-family reviewer (Claude → Codex, Codex → Claude). Работает в двух режимах: **advisory** (per-artifact) и **gate** (финал задачи) — с разной семантикой приговора.
 
-**MUST** (обязательно) — codex-review запускается для **каждого** артефакта задачи:
-- Phase 1 (спецификация) — после Reviewer(scope=spec)
-- Phase 2 (архитектура) — после Reviewer(scope=arch), ПЕРЕД approval gate
+#### 7.1 Advisory (per-artifact)
+
+**MUST** — cross-provider-review в advisory-режиме запускается для **каждого** артефакта задачи:
+
+- Phase 1 (спецификация) — после Reviewer(scope=spec), ПЕРЕД Phase 1 approval gate
+- Phase 2 (архитектура) — после Reviewer(scope=arch), ПЕРЕД Phase 2 approval gate
 - Phase 3a (BDD-сценарии) — после Reviewer(scope=bdd)
 - Phase 3b (тесты) — после Reviewer(scope=tests)
 - Phase 3c (код) — после Reviewer(scope=code)
 - Phase 4 (тестирование) — после Reviewer(scope=tester)
-- **Финализация** — перед формированием final-report.md: codex-review всей задачи целиком (spec + design + код + тесты)
 
-Без codex-review ни один артефакт не считается принятым. Пропуск codex-review = ошибка оркестратора.
+В advisory-режиме последнее слово за оркестратором: reviewer выдаёт findings, оркестратор обрабатывает как обычный feedback (`agree` / `partial` / `disagree` / `withdrawn` / `out_of_scope`). Пропуск advisory cross-provider-review для артефакта = ошибка оркестратора.
 
-**Дополнительно** (по ситуации):
-- Tiebreaker при BLOCK + оспаривании
-- По запросу пользователя
+#### 7.2 Finalization gate (финал задачи)
+
+**MUST** — перед формированием `final-report.md` оркестратор запускает cross-provider-review в **gate-режиме**. Приговор reviewer'а blocking: без `verdict: PASS` задача не закрывается.
+
+**Предусловие — evidence pack.** До запуска оркестратор собирает и передаёт reviewer'у:
+
+1. Путь к `task_dir` и исходная формулировка задачи от пользователя.
+2. `task_dir/spec.md`, `task_dir/technical-design.md`.
+3. `task_dir/final-report.md` — draft.
+4. `task_dir/.context/orchestrator-context.md` — полный лог.
+5. `task_dir/.context/{role}-context.md` — все контексты субагентов.
+6. git-diff всех фаз (от исходного состояния до конца).
+7. Сырой stdout всех тест-прогонов (не «зелёные», а вывод с exit_code'ами).
+8. Список rule-файлов, действующих на оркестратора: `framework/workflows/orchestrator.md`, `framework/rules/agent-context-protocol.md`, `framework/workflows/full-cycle.md`, `framework/workflows/quick-fix.md`, `framework/workflows/source-of-truth-policy.md`, `.claude/CLAUDE.md` (если применимо).
+
+Если какой-либо пункт не собран — reviewer немедленно ответит `verdict: FAIL`. Собрать всё **до** запуска, не после.
+
+**Шаблон промпта:** `framework/skills/tool-usage/review/cross-provider-review/references/finalization-prompt.md`.
+
+**Что проверяет reviewer (кратко):**
+
+- **Rule compliance (bidirectional):** `log → rules` (нарушения) и `rules → log` (пропуски обязательных действий) — **оба среза с равным весом**.
+- **Goal verification:** самостоятельный вывод acceptance criteria из исходной задачи и spec.md; traceability-таблица «критерий ↔ файл:строка ↔ тест ↔ stdout».
+- **Anti-deception:** scope shrinkage, test theater, fake acceptance, artifact drift, regression blindness, hallucinated coverage, cherry-picked logs, classification bypass.
+
+**Обязанности оркестратора в gate-режиме:**
+
+- На каждый finding отвечать **evidence-based** (diff, stdout, лог-ссылка). Устные «исправлено» не принимаются.
+- Не выдумывать отсутствующие доказательства. Если чего-то реально нет — вернуться на соответствующую фазу и сделать, а не пытаться убедить reviewer'а в обратном.
+- Не пытаться «протащить» задачу через смягчение позиции. Reviewer не обязан деградировать требования.
+
+**Итерационный протокол:**
+
+- Round 1: получить findings, выдать evidence-based правки.
+- Round 2: reviewer переаттестует. Возможно получить новые findings, если правки породили проблемы.
+- Round 3: последний раунд. Либо `verdict: PASS`, либо reviewer выставляет `escalate_to_user: true` с `dispute_summary`.
+- **После 3 раундов без PASS** — оркестратор ОБЯЗАН эскалировать пользователю, передав `dispute_summary` дословно. Решение пользователя — финальное (override или возврат на фазу).
+
+#### 7.3 Блок на завершение задачи
+
+**ЗАПРЕЩЕНО** писать `final-report.md` и отдавать задачу пользователю со словом «готово», пока не выполнено **одно из**:
+
+- Получен `verdict: PASS` от cross-provider-review в gate-режиме, и review_id зафиксирован в `final-report.md`:
+  ```yaml
+  cross_provider_review:
+    review_id: <id>
+    adapter: claude|codex
+    verdict: PASS
+    iterations: N
+  ```
+- Пользователь явно подтвердил override после эскалации 3-раундового спора:
+  ```yaml
+  cross_provider_review:
+    review_id: <id>
+    verdict: USER_OVERRIDE
+    user_approved_at: <ISO-8601>
+    dispute_summary_ref: <путь к reviewer summary>
+  ```
+
+Пропуск gate-ревью = ошибка оркестратора, приравненная к закрытию незавершённой задачи.
+
+#### 7.4 Дополнительно (по ситуации)
+
+- Tiebreaker при BLOCK + оспаривании между Reviewer и автором — advisory cross-provider-review.
+- По запросу пользователя — advisory cross-provider-review на любой артефакт.
 
 ### 8. Точки взаимодействия с пользователем
 
 | Точка | Действие |
 |-------|----------|
 | `clarification_needed` (Phase 1/2) | Все вопросы одним блоком → ответы → повторный запуск (макс. 1 раунд) |
-| Phase 2 OK | Approval gate — **после Reviewer + codex-review** → ждём подтверждения |
+| **Phase 1 OK** | **Approval gate — после Reviewer(scope=spec) + cross-provider-review(spec) → ждём подтверждения ДО запуска Architect** |
+| Phase 2 OK | Approval gate — **после Reviewer + cross-provider-review** → ждём подтверждения |
 | 3 BLOCK | Эскалация |
 | Новый объект метаданных | Инструкция → ожидание → проверка |
+
+**Зачем два gate'а (Phase 1 И Phase 2):** спецификация фиксирует бизнес-решения (уровни RFC 2119, границы scope, выбор между альтернативами). Пользователь ОБЯЗАН подтвердить спеку ДО того, как Architect потратит ресурс на дизайн, опирающийся на возможно неверный контракт. Пропуск Phase 1 gate исторически приводил к множественным итерациям: cross-provider-review или Architect находили противоречия в спеке, которые можно было устранить одним уточнением у пользователя на этой стадии.
+
+**На Phase 1 approval оркестратор ОБЯЗАН представить пользователю:**
+- Сводку бизнес-решений в MUST-требованиях (одна строка на группу).
+- Все spec-уровневые альтернативы, которые были выбраны (из spec ADR / Considered Options).
+- Все открытые вопросы (Q-list), закрытые Analyst через assumption — явно спросить, приемлем ли каждый assumption.
+- Формат по `escalation-format.md`: «Что → Почему → Варианты → Рекомендация» для каждого неоднозначного решения.
 
 Clarification: макс. 1 раунд вопросов → если снова `clarification_needed` → эскалация (агент MUST писать с допущениями).
 
@@ -193,19 +268,19 @@ Clarification: макс. 1 раунд вопросов → если снова `
       ЛОГ ← DONE_PHASE: {роль} → результат
    d. ЗАПУСТИТЬ сабагент Reviewer (review_scope) → обработка:
       - pass → шаг d2
-      - BLOCK ≤ 3 → вернуть автору (codex-review НЕ нужен для BLOCK-итераций)
+      - BLOCK ≤ 3 → вернуть автору (cross-provider-review НЕ нужен для BLOCK-итераций)
       - BLOCK > 3 → эскалация
       ЛОГ ← REVIEW: результат
-   d2. ОБЯЗАТЕЛЬНО: ЗАПУСТИТЬ codex-review для артефакта текущей фазы.
-      ЛОГ ← CODEX_REVIEW: результат
+   d2. ОБЯЗАТЕЛЬНО: ЗАПУСТИТЬ cross-provider-review для артефакта текущей фазы.
+      ЛОГ ← CROSS_REVIEW: результат
       - pass → следующая фаза (Phase 2: → approval gate)
       - замечания → вернуть автору для доработки
    e. clarification_needed → вопросы пользователю → ЛОГ ← CLARIFICATION
       Ответы → ЛОГ ← USER_INPUT → повторный запуск сабагента
    f. Передать артефакт на следующую фазу
 
-6. ОБЯЗАТЕЛЬНО: финальный codex-review всей задачи (spec + design + код + тесты).
-   ЛОГ ← CODEX_REVIEW: final → результат
+6. ОБЯЗАТЕЛЬНО: финальный cross-provider-review всей задачи (spec + design + код + тесты).
+   ЛОГ ← CROSS_REVIEW: final → результат
    Если критические замечания → вернуться к нужной фазе.
 7. ЗАПУСТИТЬ финализацию → final-report.md
    ЛОГ ← DONE
@@ -233,7 +308,7 @@ Phase 3a и 3b — параллельно после Phase 2 approval. Ждат�
 | `DONE_PHASE` | После получения результата | `DONE_PHASE: Analyst → spec.md готова` |
 | `REVIEW` | После ревью | `REVIEW: Reviewer(scope=spec) → OK` |
 | `REVIEW_BLOCK` | BLOCK от ревьюера | `REVIEW_BLOCK: F-01 нет обработки ошибок` |
-| `CODEX_REVIEW` | После codex-review | `CODEX_REVIEW: arch → OK, 2 recommendations` |
+| `CROSS_REVIEW` | После cross-provider-review | `CROSS_REVIEW: arch → OK, 2 recommendations` |
 | `CLARIFICATION` | Вопрос пользователю | `CLARIFICATION: нужен ли отчёт по складам?` |
 | `USER_INPUT` | Ответ пользователя | `USER_INPUT: да, с группировкой по складам` |
 | `ESCALATE` | Эскалация | `ESCALATE: 3+ BLOCK на spec` |
@@ -273,6 +348,6 @@ depends_on:
   - framework/workflows/quick-fix.md
   - framework/rules/agent-context-protocol.md
   - framework/workflows/source-of-truth-policy.md
-  - framework/skills/tool-usage/review/codex-review/SKILL.md
+  - framework/skills/tool-usage/review/cross-provider-review/SKILL.md
   - framework/subagents/scenario-author.md
 ---
