@@ -1,6 +1,6 @@
 ---
 name: form-info
-description: Analyze the structure of a managed 1С form (Form.xml) — elements, attributes, commands, events. Use to understand the form when writing the form module, analyzing handlers, or elements
+description: Analysis of the structure of a managed 1С form (Form.xml) — elements, attributes, commands, events. Use it to understand a form when writing the form module, analyzing handlers, and inspecting elements
 argument-hint: <FormPath>
 allowed-tools:
   - Bash
@@ -18,22 +18,24 @@ allowed-tools:
 
 ## Parameters
 
-| Parameter | Required | Default | Description                                   |
-|-----------|:--------:|---------|-----------------------------------------------|
-| FormPath  | yes      | —       | Path to the Form.xml file                      |
-| Limit     | no       | `150`   | Max output rows (overflow protection)          |
-| Offset    | no       | `0`     | Skip N rows (for pagination)                   |
+| Parameter  | Required | Default | Description                                    |
+|-----------|:--------:|---------|------------------------------------------------|
+| FormPath  | yes       | —       | Path to the Form.xml file                      |
+| Limit     | no        | `150`   | Max output rows (overflow protection)          |
+| Offset    | no        | `0`     | Skip N rows (for pagination)                   |
 
 ## Command
 
 ```bash
-python3 scripts/form-info.py -FormPath "<путь к Form.xml>"
+xmlgen form info "<FormPath>"
 ```
 
 With pagination:
 ```bash
-python3 scripts/form-info.py -FormPath "<путь>" -Offset 150
+xmlgen form info "<FormPath>" --limit 150 --offset 150
 ```
+
+> Implementation: Java CLI `xmlgen form info` (replacement for the Python script). The result is printed to stdout and has the same structure regardless of platform.
 
 ## Reading output
 
@@ -50,7 +52,7 @@ For borrowed extension forms (with `<BaseForm>`):
 
 ### Properties — form properties
 
-Only non-default properties:
+Only non-default properties (those differing from the default):
 
 ```
 Properties: AutoTitle=false, WindowOpeningMode=LockOwnerWindow, CommandBarLocation=Bottom

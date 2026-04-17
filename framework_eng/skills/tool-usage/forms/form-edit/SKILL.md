@@ -1,6 +1,6 @@
 ---
 name: form-edit
-description: Adding elements, attributes, and commands to an existing managed 1С form. Use when you need to surgically modify a ready form.
+description: Adding elements, attributes, commands, and events to an existing managed 1С form through xmlgen CLI. Use when you need to surgically modify a ready-made form.
 argument-hint: <FormPath> <JsonPath>
 allowed-tools:
   - Bash
@@ -11,7 +11,12 @@ allowed-tools:
 
 # /form-edit — Form editing
 
-Adds elements, attributes, and/or commands to an existing Form.xml. Automatically selects IDs from the correct pool, generates companion elements (ContextMenu, ExtendedTooltip, etc.), and event handlers.
+Adds elements, attributes, commands, and events to an existing `Form.xml`. Implementation: Java CLI `xmlgen form edit` (replacement for the Python script). Automatically:
+
+- allocates IDs from three independent pools (elements / attributes / commands),
+- generates companion elements (ContextMenu, ExtendedTooltip, AutoCommandBar, etc.) based on the element type,
+- detects extension mode when `<BaseForm>` is present and sets the ID floor to 1 000 000,
+- appends empty BSL handler stubs to `Ext/Form/Module.bsl` with the correct compilation directive (`&НаКлиенте`/`&НаСервере`) and parameter signature.
 
 ## Usage
 
@@ -21,25 +26,30 @@ Adds elements, attributes, and/or commands to an existing Form.xml. Automaticall
 
 ## Parameters
 
-| Parameter | Required | Description |
+| Parameter  | Required | Description                         |
 |-----------|:------------:|----------------------------------|
-| FormPath  | yes        | Path to the existing Form.xml    |
-| JsonPath  | yes        | Path to the JSON describing the additions |
+| FormPath  | yes           | Path to the existing Form.xml    |
+| JsonPath  | yes           | Path to the JSON specification of the additions |
 
 ## Command
 
 ```bash
-python3 scripts/form-edit.py -FormPath "<путь>" -JsonPath "<путь>"
+xmlgen form edit "<FormPath>" --json "<JsonPath>"
 ```
 
 ## JSON format
 
 ```json
 {
-  "into": "ГруппаШапка",
-  "after": "Контрагент",
   "elements": [
-    { "input": "Склад", "path": "Объект.Склад", "on": ["OnChange"] }
+    {
+      "kind": "input",
+      "name": "Склад",
+      "dataPath": "Объект.Склад",
+      "into": "ГруппаШапка",
+      "after": "Контрагент",
+      "on": [{ "event": "OnChange" }]
+    }
   ],
   "attributes": [
     { "name": "СуммаИтого", "type": "decimal(15,2)" }
@@ -50,110 +60,85 @@ python3 scripts/form-edit.py -FormPath "<путь>" -JsonPath "<путь>"
 }
 ```
 
-### Extensions (extension forms)
+### Element types (`kind`)
 
-For borrowed forms (with `<BaseForm>`), extension mode is automatically activated: IDs start at 1000000+. Additional sections are available:
+You can specify either a short DSL alias (`input`) or the direct XML tag name (`InputField`).
 
-```json
-{
-  "formEvents": [
-    { "name": "OnCreateAtServer", "handler": "Расш1_ПриСозданииПосле", "callType": "After" },
-    { "name": "OnOpen", "handler": "Расш1_ПриОткрытии", "callType": "Before" }
-  ],
-  "elementEvents": [
-    { "element": "Банк", "name": "OnChange", "handler": "Расш1_БанкПриИзменении", "callType": "Before" }
-  ],
-  "commands": [
-    { "name": "Подбор", "action": "Расш1_ПодборПосле", "callType": "After" },
-    { "name": "Запрос", "actions": [
-      { "callType": "Before", "handler": "Расш1_ЗапросПеред" },
-      { "callType": "After", "handler": "Расш1_ЗапросПосле" }
-    ]}
-  ],
-  "elements": [
-    { "input": "Поле", "path": "Объект.Поле", "on": [{ "event": "OnChange", "callType": "After" }] }
-  ]
-}
-```
-
-### Positioning elements
-
-| Key | Default | Description |
-|------|-------------|----------|
-| `into` | root ChildItems | Name of the group/table/page where to insert |
-| `after` | end | Name of the element after which to insert |
-
-### Element types
-
-The same DSL keys as in `/form-compile`:
-
-| Key | XML tag | Companions |
+| kind | XML tag | Companions |
 |------|---------|------------|
 | `input` | InputField | ContextMenu, ExtendedTooltip |
 | `check` | CheckBoxField | ContextMenu, ExtendedTooltip |
 | `label` | LabelDecoration | ContextMenu, ExtendedTooltip |
 | `labelField` | LabelField | ContextMenu, ExtendedTooltip |
+| `picField` | PictureField | ContextMenu, ExtendedTooltip |
+| `calendar` | CalendarField | ContextMenu, ExtendedTooltip |
+| `picture` | PictureDecoration | ContextMenu, ExtendedTooltip |
+| `table` | Table | ContextMenu, AutoCommandBar, SearchStringAddition, ViewStatusAddition, SearchControlAddition |
+| `button` | Button | ExtendedTooltip |
 | `group` | UsualGroup | ExtendedTooltip |
-| `table` | Table | ContextMenu, AutoCommandBar, Search*, ViewStatus* |
 | `pages` | Pages | ExtendedTooltip |
 | `page` | Page | ExtendedTooltip |
-| `button` | Button | ExtendedTooltip |
+| `cmdBar` | CommandBar | — |
+| `popup` | Popup | — |
 
-Groups and tables support `children`/`columns` for nested elements.
+Groups and tables support `children` for nested elements.
 
-### Buttons: command and stdCommand
+### Positioning
 
-- "command": "ИмяКоманды" → `Form.Command.ИмяКоманды`
-- "stdCommand": "Close" → `Form.StandardCommand.Close`
-- "stdCommand": "Товары.Add" → `Form.Item.Товары.StandardCommand.Add` (standard element command)
+| Key | Default | Description |
+|------|-------------|----------|
+| `into` | root ChildItems | Name of the group/table/page into which to insert |
+| `after` | end | Name of the element after which to insert |
 
-### Allowed events (`on`)
+### Attributes — type system
 
-The compiler warns about invalid event names. Core ones:
+`string`, `string(100)`, `decimal(15,2)`, `decimal(15,2,nonneg)`, `boolean`, `date`, `dateTime`, `time`, `CatalogRef.X`, `DocumentObject.X`, `ValueTable` (+ `columns:[]`), `ValueTree`, `DynamicList`, `TypeA | TypeB` (composite).
 
-- **input**: `OnChange`, `StartChoice`, `ChoiceProcessing`, `Clearing`, `AutoComplete`, `TextEditEnd`
-- **check**: `OnChange`
-- **table**: `OnStartEdit`, `OnEditEnd`, `OnChange`, `Selection`, `BeforeAddRow`, `BeforeDeleteRow`, `OnActivateRow`
-- **label/picture**: `Click`, `URLProcessing`
-- **pages**: `OnCurrentPageChange`
-- **button**: `Click`
+Russian synonyms: `строка(100)`, `число(15,2)`, `дата`, `булево`, `справочникСсылка.X` — are recognized and converted into the canonical English names.
 
-### Type system (for attributes)
+Attribute flags:
+- `"main": true` — marks the attribute as main (`<MainAttribute>true</MainAttribute>`).
+- `"savedData": true` — saves it in the form settings.
+- `"columns": [{ "name": "…", "type": "…" }]` — columns for `ValueTable`/`ValueTree`.
 
-`string`, `string(100)`, `decimal(15,2)`, `boolean`, `date`, `dateTime`, `CatalogRef.XXX`, `DocumentObject.XXX`, `ValueTable`, `DynamicList`, `Type1 | Type2` (composite).
+### Events (`on`, `formEvents`, `elementEvents`)
 
-### Extension sections
-
-| Section | Purpose |
-|--------|-----------|
-| `formEvents` | Form-level events with `callType` (Before/After/Override) |
-| `elementEvents` | Events on existing elements of the borrowed form |
-| `callType` on `commands` | callType on the command action |
-| `callType` on `on` | callType on events of new elements (object format) |
-
-All extension sections are optional — without them the skill works the same as with normal forms.
-
-## Output
-
+For a new element:
+```json
+{ "kind": "input", "name": "Поле", "on": [{ "event": "OnChange" }] }
 ```
-=== form-edit: Form ===
+If no explicit `handler` is provided, the name is generated as `<name>OnChange`. An empty BSL procedure stub is automatically appended to `Ext/Form/Module.bsl` if it is not already there.
 
-[EXTENSION] BaseForm detected — IDs start at 1000000+
-
-Added form events:
-  + OnCreateAtServer[After] -> Расш1_ПриСозданииПосле
-
-Added elements (into ГруппаШапка, after Контрагент):
-  + [Input] Склад -> Объект.Склад {OnChange}
-
-Added attributes:
-  + СуммаИтого: decimal(15,2) (id=1000000)
-
----
-Total: 1 form event(s), 1 element(s) (+2 companions), 1 attribute(s)
-Run /form-validate to verify.
+For extensions (`<BaseForm>` is present in the form), `callType` is available:
+```json
+{
+  "formEvents": [
+    { "name": "OnCreateAtServer", "handler": "Расш_ПриСоздании", "callType": "After" }
+  ],
+  "elementEvents": [
+    { "element": "Банк", "name": "OnChange", "handler": "Расш_БанкПриИзменении", "callType": "Before" }
+  ],
+  "elements": [
+    { "kind": "input", "name": "П", "on": [{ "event": "OnChange", "callType": "After" }] }
+  ]
+}
 ```
+
+Explicit handler override through `handlers`:
+```json
+{ "kind": "input", "name": "Поле",
+  "on": [{ "event": "OnChange" }],
+  "handlers": { "OnChange": "МойКастомныйОбработчик" }
+}
+```
+
+### Buttons bound to a command
+
+```json
+{ "kind": "button", "name": "БтнВыполнить", "command": "Выполнить" }
+```
+→ `CommandName = Form.Command.Выполнить`.
 
 ## Workflow
 
-`/form-info` → create the JSON → `/form-edit` → `/form-validate` → `/form-info`
+`/form-info` → create JSON → `/form-edit` → `/form-validate` → `/form-info`.

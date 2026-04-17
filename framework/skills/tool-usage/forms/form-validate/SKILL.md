@@ -28,8 +28,15 @@ allowed-tools:
 ## Команда
 
 ```bash
-python3 scripts/form-validate.py -FormPath "<путь>"
+xmlgen validate --type form "<FormPath>"
 ```
+
+С JSON-отчётом:
+```bash
+xmlgen validate --type form --output json "<FormPath>"
+```
+
+> Реализация: Java-CLI `xmlgen validate` (замена Python-скрипта). Коды ошибок — `FORM-001..008` (структура), `FORM-101..120` (семантика).
 
 ## Выполняемые проверки
 

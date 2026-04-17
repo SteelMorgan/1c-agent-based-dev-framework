@@ -27,13 +27,15 @@ allowed-tools:
 ## Команда
 
 ```bash
-python3 scripts/form-info.py -FormPath "<путь к Form.xml>"
+xmlgen form info "<FormPath>"
 ```
 
 С пагинацией:
 ```bash
-python3 scripts/form-info.py -FormPath "<путь>" -Offset 150
+xmlgen form info "<FormPath>" --limit 150 --offset 150
 ```
+
+> Реализация: Java-CLI `xmlgen form info` (замена Python-скрипта). Результат выводится в stdout и имеет одинаковую структуру независимо от платформы.
 
 ## Чтение вывода
 

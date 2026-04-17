@@ -2,6 +2,8 @@ package io.github.onec.xmlgen.cli;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.github.onec.xmlgen.dsl.FormDsl;
+import io.github.onec.xmlgen.dsl.FormEditDsl;
+import io.github.onec.xmlgen.form.edit.FormEditApplier;
 import io.github.onec.xmlgen.dsl.MxlDsl;
 import io.github.onec.xmlgen.dsl.RoleDsl;
 import io.github.onec.xmlgen.dsl.SkdDsl;
@@ -288,7 +290,7 @@ public class Commands {
 
     private static void executeForm(String[] args) {
         if (args.length == 0) {
-            throw new IllegalArgumentException("Form subcommand required: info, add, remove, compile, add-attribute, add-element, add-command, remove-element, move-element");
+            throw new IllegalArgumentException("Form subcommand required: info, add, remove, compile, edit, add-attribute, add-element, add-command, remove-element, move-element");
         }
 
         String subcommand = args[0];
@@ -300,6 +302,8 @@ public class Commands {
             formRemove(args);
         } else if ("compile".equals(subcommand.toLowerCase())) {
             formCompile(args);
+        } else if ("edit".equals(subcommand.toLowerCase())) {
+            formEditJson(args);
         } else if (subcommand.startsWith("add-") || subcommand.endsWith("-element")) {
             formEdit(args);
         } else {
@@ -533,6 +537,42 @@ public class Commands {
             saveAndValidate(doc, file, "form", args);
         } catch (Exception e) {
             throw new RuntimeException("Form editor failed: " + e.getMessage(), e);
+        }
+    }
+
+    /**
+     * xml-gen form edit <form.xml> --json <spec.json>
+     *
+     * Применяет JSON-спецификацию мутаций к существующей Form.xml
+     * (атрибуты, элементы, команды, события). Замена Python form-edit.py.
+     */
+    private static void formEditJson(String[] args) {
+        Path formFile = null;
+        Path jsonFile = null;
+
+        for (int i = 1; i < args.length; i++) {
+            if ("--json".equals(args[i]) && i + 1 < args.length) {
+                jsonFile = Paths.get(args[++i]);
+            } else if (formFile == null) {
+                formFile = Paths.get(args[i]);
+            }
+        }
+
+        if (formFile == null || jsonFile == null) {
+            throw new IllegalArgumentException(
+                "Usage: xml-gen form edit <form.xml> --json <spec.json>");
+        }
+
+        try {
+            XmlDocument doc = new XmlStructureReader().parse(formFile);
+            FormEditor editor = new FormEditor(doc);
+            ObjectMapper mapper = new ObjectMapper();
+            FormEditDsl spec = mapper.readValue(jsonFile.toFile(), FormEditDsl.class);
+            // formFile передаётся, чтобы BslStubWriter мог найти соседний Module.bsl
+            new FormEditApplier(editor, formFile).apply(spec);
+            saveAndValidate(doc, formFile, "form", args);
+        } catch (Exception e) {
+            throw new RuntimeException("Form edit failed: " + e.getMessage(), e);
         }
     }
 
