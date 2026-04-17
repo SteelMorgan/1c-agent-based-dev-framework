@@ -60,7 +60,6 @@ For **every** testable rule: is the required event/artifact present? Examples:
 - Rule “sessions.json after launching the agent” → the file exists and contains a record for every launched subagent.
 - Rule “clarification_needed → user” → if `{role}-context.md` contains `clarification_needed`, the log must contain `CLARIFICATION:` and `USER_INPUT:` events.
 - Rule “approval gate after Phase 2” → between `DONE_PHASE: Architect` and `PHASE: Developer-*` there must be explicit user confirmation.
-- Rule “background agent health checks every 5 minutes” → for long phases, the log must contain heartbeat checks.
 
 **Critical:** a missed mandatory action is just as severe a violation as an explicit one. Do not skip the A2 pass.
 
@@ -82,7 +81,7 @@ For each row:
 
 If any cell is not confirmed by the sources — the criterion becomes a BLOCK finding.
 
-After the table, compare your own list of criteria with `final-report.md`. A criterion mentioned in the report but absent from the spec → a finding (most likely scope creep or post-hoc rationalization). A criterion in the spec but missing from the report → finding “undelivered”.
+After the table, compare your own list of criteria with final-report.md. A criterion mentioned in the report but absent from the spec → a finding (most likely scope creep or post-hoc rationalization). A criterion in the spec but missing from the report → finding “undelivered”.
 
 ---
 

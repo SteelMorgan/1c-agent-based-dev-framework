@@ -30,6 +30,12 @@ tools/fast-install/
 # Local rules (not shared)
 .claude/rules/CLAUDE.md
 
+# Claude Code runtime artefacts
+.claude/scheduled_tasks.lock
+
+# Codex CLI marker (empty file)
+.codex
+
 # Agent session reports (transient artifacts)
 **/PHASE*-REPORT.md
 **/PHASE*-SUMMARY.md

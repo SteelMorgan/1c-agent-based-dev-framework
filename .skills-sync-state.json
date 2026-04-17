@@ -28,9 +28,9 @@
     },
     "framework/rules/tdd-policy.md": {
       "ru_hash": "sha256:61e803bed15150a41f0c5ad6a21879ec8ef2e370f9bac7410421f6b243604612",
-      "en_hash": "sha256:f555d9dfd172658f43e4cc08468068117d5f6c7b0e9b1d3888504c241f7b344d",
-      "synced_at": "2026-03-17T17:00:43Z",
-      "status": "dirty"
+      "en_hash": "sha256:54e7c9f4e488f55ceeb3d34b8dde703dae2b221cbc0b8f5e68b9491c6c848346",
+      "synced_at": "2026-04-17T08:48:06Z",
+      "status": "synced"
     },
     "framework/skills/_template-skill.md": {
       "ru_hash": "sha256:72b88d1f50eb242a340a807d06baf5139542372d6b03b0acad22093fd04da4c7",
@@ -244,9 +244,9 @@
     },
     "framework/workflows/orchestrator.md": {
       "ru_hash": "sha256:508b564d4a98a51a3180d1c4c12fc5189b62256fa775fbd62c4d24a553c55a67",
-      "en_hash": "sha256:3785e60f9927a2715e7fc0d2944ed8de0dd80a5720bca551e0e0896e3e00b805",
-      "synced_at": "2026-04-16T18:12:30Z",
-      "status": "dirty"
+      "en_hash": "sha256:fc007db69fdcae7c44af7e9ea87ae3a0223218c3c8aad9f28ad78daeafd6ac23",
+      "synced_at": "2026-04-17T08:48:00Z",
+      "status": "synced"
     },
     "framework/workflows/quick-fix.md": {
       "ru_hash": "sha256:d6d73b306b039d95940392b96bdf79013cfef3fc1b87318c6595bde2283d88d6",
@@ -448,9 +448,9 @@
     },
     "framework/skills/tool-usage/code-analysis/test-execution/SKILL.md": {
       "ru_hash": "sha256:0039a87f7a55b90e96c657485dd1123b0c644972dedcbbca5cf018685176e891",
-      "en_hash": "sha256:44f68db4c2780730c6455f66dcf94481c7a43371db4c597a4e4223d605146544",
-      "synced_at": "2026-03-24T07:05:13Z",
-      "status": "dirty"
+      "en_hash": "sha256:ddaa322c538cf31a2c41f1702511e6cc0de05481cd75f11da2e764425fcd00cc",
+      "synced_at": "2026-04-17T08:48:09Z",
+      "status": "synced"
     },
     "framework/skills/tool-usage/diagnostics/event-log-analysis/SKILL.md": {
       "ru_hash": "sha256:03d6c13f5b8e7caa580cd58752fdb485163ff3b02059745ff8dee1db497f3767",
@@ -886,9 +886,9 @@
     },
     "framework/skills/tool-usage/review/cross-provider-review/references/finalization-prompt.md": {
       "ru_hash": "sha256:50150498c036305c548b329c611b71cb44c443780e969646a423cbaa8bc5e4f2",
-      "en_hash": "sha256:3dc2c7322614d93f7822d122b67f3d29a8744259823a1d59a5a6a3cf222af628",
-      "synced_at": "2026-04-16T18:12:06Z",
-      "status": "dirty"
+      "en_hash": "sha256:0081374d4d4f166ef150569fc6ea4341e2ac52e026d94cf66e5b381a0e5fee59",
+      "synced_at": "2026-04-17T08:48:06Z",
+      "status": "synced"
     }
   }
 }

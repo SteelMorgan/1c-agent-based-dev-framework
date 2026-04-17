@@ -51,25 +51,7 @@ According to the [decision tree](#classification-decision-tree).
 
 **MANDATORY** launch ALL subagents in background mode (`run_in_background: true`). This allows the orchestrator to stay connected to the user and handle their messages while the subagent runs. The orchestrator will receive a notification automatically when the subagent finishes.
 
-### 2b. Background agent health monitoring
-
-**MANDATORY** check the state of running background agents **every 5 minutes**. Agents can hang on MCP tool calls (for example, `build_project`, `launch_app`) without a timeout, which leads to hours of idle time.
-
-**Mechanism:** immediately after launching a background agent the orchestrator **MUST** set a timer via `ScheduleWakeup` (delaySeconds ≈ 270, within the cache). On each timer fire — check the agent and reset the timer until the agent finishes. Without a timer the orchestrator will "forget" to check — it has no built-in clock.
-
-**Monitoring procedure:**
-1. Read the last lines of the agent output file (parse JSONL: find the latest `timestamp` and `tool_use` name)
-2. If the last activity is older than **10 minutes** — the agent is likely hung
-3. **Action on hang:** stop (`TaskStop`), kill orphaned OS processes (Designer, 1cv8), read the context recorded by the agent, relaunch with instructions to continue from the last completed step
-4. LOG: `HANG_DETECTED: {role} stuck on {tool} for {N} min → killed → relaunched`
-
-**Known hanging tools (PROHIBITED or use with caution):**
-
-- `build_project` — safe but slow (5-8 min), monitor but do not kill prematurely
-- `dump_config` — safe but slow (3-5 min), monitor but do not kill prematurely
-- `launch_app` — usually fast (<1 min), if >5 min — likely hung
-
-### 2c. Project skills
+### 2b. Project skills
 
 At the start of work the orchestrator **MUST** obtain the list of available project skills — the `SKILL.md` files in the project skills directory (usually located at the root of the project next to the IDE/agent configuration). It is enough to read the names and descriptions (frontmatter); do not read the skill contents.
 
@@ -279,7 +261,7 @@ You do not do the work — you launch the subagent and handle its result.
       Ответы → ЛОГ ← USER_INPUT → повторный запуск сабагента
    f. Передать артефакт на следующую фазу
 
-6. ОБЯЗАТЕЛЬНО: финальный cross-provider-review всей задачи (spec + design + code + tests).
+6. ОБЯЗАТЕЛЬНО: финальный cross-provider-review всей задачи (spec + design + код + тесты).
    ЛОГ ← CROSS_REVIEW: final → результат
    Если критические замечания → вернуться к нужной фазе.
 7. ЗАПУСТИТЬ финализацию → final-report.md
