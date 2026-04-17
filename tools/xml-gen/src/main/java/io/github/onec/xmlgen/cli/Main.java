@@ -38,7 +38,7 @@ public class Main {
         System.out.println("  epf add-template      - Add template to EPF");
         System.out.println("  epf add-attribute     - Add attribute to EPF");
         System.out.println("  epf add-tabular-section - Add tabular section to EPF");
-        System.out.println("  form compile          - Compile form from JSON DSL");
+        System.out.println("  form compile          - Compile form from JSON DSL or metadata (--from-object)");
         System.out.println("  form add-attribute    - Add attribute to form");
         System.out.println("  form add-element      - Add element to form");
         System.out.println("  form add-command      - Add command to form");
@@ -51,6 +51,7 @@ public class Main {
         System.out.println("  skd add-parameter     - Add parameter to SKD");
         System.out.println("  skd add-field         - Add field to SKD dataset");
         System.out.println("  mxl compile           - Compile MXL from JSON DSL");
+        System.out.println("  edit replace-text     - Byte-safe text replacement in XML files");
         System.out.println("  validate              - Validate 1C XML files");
         System.out.println();
         System.out.println("Options:");

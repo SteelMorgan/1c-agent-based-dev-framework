@@ -152,12 +152,11 @@
 | tool-usage | `tech-log-analysis` | Технологический журнал: диагностика производительности и блокировок | `search_tech_log`, `logc_get_techlog_config`, `logc_save_techlog`, `logc_configure_techlog`, `logc_get_actual_log_timestamp`, `logc_restore_techlog`, `logc_disable_techlog`, `navigate_symbol` |
 | tool-usage | `query-execution` | Валидация запросов при ревью и оценке производительности | `validate_query`, `execute_query`, `get_metadata_structure` |
 | tool-usage | `syntax-checking` | Проверка синтаксиса при ревью | `check_syntax`, `get_diagnostics` |
-| tool-usage | `codex-review` | Независимое ревью через Codex CLI (GPT) | — (внешний CLI) |
+| tool-usage | `cross-provider-review` | Cross-family второе мнение (Claude↔Codex, изолированный sandbox, read-only) | `.agents/skills/cross-provider-review/scripts/{claude_opus_review,codex_review}.py` |
 | tool-usage | `gemini-review` | Независимое ревью через Gemini | — (внешний CLI) |
-| tool-usage | `opus-review` | Независимое ревью через Opus-субагент | Task tool |
 | spec-writing | `spec-standard` | Контроль соответствия реализации спецификации | — |
 
-**Пример рабочего сценария:** СА ревьюирует реализацию модуля скидок. Агент через `code-navigation` строит граф вызовов модуля, через `syntax-checking` проверяет отсутствие ошибок, применяет правила `coding-standards` и `error-handling` для валидации паттернов, а затем запускает `opus-review` для получения независимого второго мнения от Opus-субагента.
+**Пример рабочего сценария:** СА ревьюирует реализацию модуля скидок. Агент через `code-navigation` строит граф вызовов модуля, через `syntax-checking` проверяет отсутствие ошибок, применяет правила `coding-standards` и `error-handling` для валидации паттернов, а затем запускает `cross-provider-review` для получения независимого второго мнения от opposite-family модели (Claude↔Codex).
 
 **Незакрытые зоны:**
 - Нагрузочное тестирование и профилирование — нет MCP-инструментов
@@ -201,9 +200,8 @@
 | tool-usage | `role-dsl` | JSON DSL для ролей и прав | — (CLI) |
 | tool-usage | `skd-dsl` | JSON DSL для СКД-отчётов | — (CLI) |
 | **tool-usage / review** | | | |
-| tool-usage | `codex-review` | Ревью через Codex CLI (GPT) | — (внешний CLI) |
+| tool-usage | `cross-provider-review` | Cross-family ревью (Claude↔Codex, sandbox, read-only) | CLI-адаптеры |
 | tool-usage | `gemini-review` | Ревью через Gemini | — (внешний CLI) |
-| tool-usage | `opus-review` | Ревью через Opus-субагент | Task tool |
 | **bsl-practices** | | | |
 | bsl-practices | `coding-standards` | Стандарты кодирования 1С | — |
 | bsl-practices | `error-handling` | Обработка ошибок, транзакции | — |
@@ -222,7 +220,7 @@
 | framework-meta | `agent-development` | Разработка субагентов | — |
 | framework-meta | `agent-development-ext` | Разработка субагентов (1С) | — |
 
-**Пример рабочего сценария:** Программист реализует справочник «ПромоКоды» с формой. Агент: (1) через `search-before-write` ищет аналоги в конфигурации, (2) через `epf-operations` / `form-dsl` генерирует XML-метаданные справочника и формы, (3) пишет BSL-код модуля по `coding-standards`, (4) через `syntax-checking` проверяет синтаксис, (5) через `test-execution` запускает YaxUnit-тесты, (6) через `visual-check` проверяет отображение формы в браузере, (7) через `opus-review` получает ревью кода.
+**Пример рабочего сценария:** Программист реализует справочник «ПромоКоды» с формой. Агент: (1) через `search-before-write` ищет аналоги в конфигурации, (2) через `epf-operations` / `form-dsl` генерирует XML-метаданные справочника и формы, (3) пишет BSL-код модуля по `coding-standards`, (4) через `syntax-checking` проверяет синтаксис, (5) через `test-execution` запускает YaxUnit-тесты, (6) через `visual-check` проверяет отображение формы в браузере, (7) через `cross-provider-review` получает второе мнение от opposite-family модели.
 
 **Незакрытые зоны:**
 - Работа с жизненным циклом ТЖ — покрыто навыком `tech-log-analysis`
@@ -251,11 +249,10 @@
 | tool-usage | `tech-log-analysis` | Анализ ТЖ на блокировки и исключения | `search_tech_log`, `navigate_symbol` |
 | tool-usage | `code-navigation` | Трассировка кода при расследовании падений тестов | `navigate_symbol`, `get_call_graph`, `get_diagnostics`, `get_code_actions` |
 | bsl-practices | `form-visual-requirements` | Чеклист визуальных требований к формам (используется как верификационный чеклист, а не руководство по разработке) | — |
-| tool-usage | `codex-review` | Ревью кода через GPT | — (внешний CLI) |
+| tool-usage | `cross-provider-review` | Cross-family ревью кода (Claude↔Codex) | CLI-адаптеры |
 | tool-usage | `gemini-review` | Ревью кода через Gemini | — (внешний CLI) |
-| tool-usage | `opus-review` | Ревью кода через Opus | Task tool |
 
-**Пример рабочего сценария:** QA проверяет реализацию промокодов. Агент: (1) через `test-execution` запускает YaxUnit-тесты модуля, (2) через `visual-check` открывает форму справочника в браузере и проверяет элементы по чеклисту `form-visual-requirements`, (3) через `event-log-analysis` ищет ошибки в ЖР, через `tech-log-analysis` — блокировки и исключения в ТЖ, (4) через `opus-review` инициирует финальное ревью.
+**Пример рабочего сценария:** QA проверяет реализацию промокодов. Агент: (1) через `test-execution` запускает YaxUnit-тесты модуля, (2) через `visual-check` открывает форму справочника в браузере и проверяет элементы по чеклисту `form-visual-requirements`, (3) через `event-log-analysis` ищет ошибки в ЖР, через `tech-log-analysis` — блокировки и исключения в ТЖ, (4) через `cross-provider-review` инициирует финальное ревью.
 
 **Незакрытые зоны:**
 - Визуальная регрессия (сравнение скриншотов) — нет инструмента
@@ -287,25 +284,24 @@
 | 15 | `mxl-dsl` | tool-usage | | | | ● | |
 | 16 | `role-dsl` | tool-usage | | | | ● | |
 | 17 | `skd-dsl` | tool-usage | | | | ● | |
-| 18 | `codex-review` | tool-usage | | | ● | ● | ◐ |
+| 18 | `cross-provider-review` | tool-usage | | | ● | ● | ◐ |
 | 19 | `gemini-review` | tool-usage | | | ● | ● | ◐ |
-| 20 | `opus-review` | tool-usage | | | ● | ● | ◐ |
-| 21 | `coding-standards` | bsl-practices | | | ● | ● | |
-| 22 | `error-handling` | bsl-practices | | | ● | ● | |
-| 23 | `form-patterns` | bsl-practices | | | ● | ● | |
-| 24 | `form-visual-requirements` | bsl-practices | | ◐ | ◐ | ● | ● |
-| 25 | `query-patterns` | bsl-practices | | | ● | ● | |
-| 26 | `ssl-patterns` | bsl-practices | | | ● | ● | |
-| 27 | `test-writing` | bsl-practices | | | | ● | ◐ |
-| 28 | `spec-standard` | spec-writing | ● | ● | ◐ | ◐ | |
-| 29 | `task-breakdown-subagent` | spec-writing | ● | ● | | ◐ | |
-| 30 | `task-breakdown-linear` | spec-writing | ● | ● | | ◐ | |
-| 31 | `1c-ai-agent-cli` | framework-meta | | | | ● | |
-| 32 | `skill-creator` | framework-meta | | | | ● | |
-| 33 | `skill-creator-ext` | framework-meta | | | | ● | |
-| 34 | `agent-development` | framework-meta | | | | ● | |
-| 35 | `agent-development-ext` | framework-meta | | | | ● | |
-| | **Итого навыков:** | | **4¹** | **8** | **17** | **35** | **10** |
+| 20 | `coding-standards` | bsl-practices | | | ● | ● | |
+| 21 | `error-handling` | bsl-practices | | | ● | ● | |
+| 22 | `form-patterns` | bsl-practices | | | ● | ● | |
+| 23 | `form-visual-requirements` | bsl-practices | | ◐ | ◐ | ● | ● |
+| 24 | `query-patterns` | bsl-practices | | | ● | ● | |
+| 25 | `ssl-patterns` | bsl-practices | | | ● | ● | |
+| 26 | `test-writing` | bsl-practices | | | | ● | ◐ |
+| 27 | `spec-standard` | spec-writing | ● | ● | ◐ | ◐ | |
+| 28 | `task-breakdown-subagent` | spec-writing | ● | ● | | ◐ | |
+| 29 | `task-breakdown-linear` | spec-writing | ● | ● | | ◐ | |
+| 30 | `1c-ai-agent-cli` | framework-meta | | | | ● | |
+| 31 | `skill-creator` | framework-meta | | | | ● | |
+| 32 | `skill-creator-ext` | framework-meta | | | | ● | |
+| 33 | `agent-development` | framework-meta | | | | ● | |
+| 34 | `agent-development-ext` | framework-meta | | | | ● | |
+| | **Итого навыков:** | | **4¹** | **8** | **16** | **34** | **9** |
 
 > ¹ БА — входной контекст вне агентной цепочки; навыки доступны, но агентная автоматизация начинается с ФА.
 
@@ -328,7 +324,7 @@
 | **Не требуют навыка** | | | | |
 | `launch_app` | mcp-onec-test-runner | Запуск клиентов 1С | — | ⚪ YaxUnit запускает клиент автоматически через `run_tests`; интерактивная работа с толстым/тонким клиентом агенту недоступна; веб-клиент покрыт `visual-check` |
 | `explain_1c_syntax` | spring-mcp-1c-copilot | Объяснение конструкций BSL | — | ⚪ Современный агент справляется без инструмента |
-| `check_1c_code` | spring-mcp-1c-copilot | AI-проверка кода через copilot (старая модель) | — | ⚪ Слабее `opus-review`/`codex-review`; ревью закрыто review-навыками |
+| `check_1c_code` | spring-mcp-1c-copilot | AI-проверка кода через copilot (старая модель) | — | ⚪ Слабее `cross-provider-review`; ревью закрыто review-навыками |
 | `range` | mcp-bsl-lsp-bridge | Анализ диапазона кода | Программист | 🟡 Инструмент доступен; навык не нужен — низкоуровневой LSP-операции достаточно |
 | `hover` | mcp-bsl-lsp-bridge | Информация о символе при наведении | Программист | ⚪ Системный LSP, неявно через `code-navigation` |
 | `definition` | mcp-bsl-lsp-bridge | Переход к определению | Программист | ⚪ Системный LSP, неявно через `code-navigation` |
@@ -344,7 +340,7 @@
 | `get_code_actions` | lsp-bsl-bridge | Быстрые исправления | Программист | 🟢 `code-navigation` |
 | `rename_symbol` | lsp-bsl-bridge | Переименование символа | Программист | 🟢 `code-navigation` |
 | `search_ssl_functions` | lsp-bsl-bridge | Поиск функций БСП | СА, Программист | 🟢 `search-before-write` |
-| `check_syntax` | test-runner | Проверка синтаксиса (абстрагирует `check_syntax_edt`, `check_syntax_designer_config`, `check_syntax_designer_modules`) | Программист, QA | 🟢 `syntax-checking`, `test-execution` |
+| `check_syntax` | test-runner | Проверка синтаксиса (абстрагирует `check_syntax_edt`, `check_syntax_designer_modules`) | Программист, QA | 🟢 `syntax-checking`, `test-execution` |
 | `run_tests` | test-runner | Запуск тестов (абстрагирует `run_all_tests`, `run_module_tests`) | Программист, QA | 🟢 `test-execution` |
 | `build_project` | test-runner | Сборка проекта | Программист, QA | 🟢 `test-execution` |
 | `dump_config` | test-runner | Выгрузка конфигурации | Программист | 🟢 `metadata-discovery` |
@@ -458,15 +454,13 @@ framework/skills/tool-usage/
 │   └── skd-dsl/
 │       └── SKILL.md                   # JSON DSL для СКД-отчётов
 │
-├── codex-review/
-│   ├── SKILL.md                       # Ревью через Codex CLI (GPT)
-│   └── references/
-│       └── prompt-template.md         # Шаблон промпта для ревью
-│
-└── opus-review/
-    ├── SKILL.md                       # Ревью через Opus-субагент
-    └── references/
-        └── prompt-template.md         # Шаблон промпта для ревью
+└── cross-provider-review/
+    ├── SKILL.md                       # Cross-family second opinion (Claude↔Codex)
+    ├── references/
+    │   └── review-prompt.md           # Шаблон reviewer prompt
+    └── scripts/
+        ├── claude_opus_review.py      # Адаптер для Claude/Opus reviewer
+        └── codex_review.py            # Адаптер для Codex/GPT reviewer
 ```
 
 **Соседние категории:**

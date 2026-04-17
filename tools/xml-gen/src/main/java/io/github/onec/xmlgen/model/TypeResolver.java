@@ -37,7 +37,18 @@ public class TypeResolver {
         if (dslType == null || dslType.isEmpty()) {
             throw new IllegalArgumentException("Type cannot be null or empty");
         }
-        
+
+        // Runtime-типы 1С — не существуют в XML-схеме формы, вызывают XDTO-ошибку при загрузке.
+        // Используйте CatalogObject.X/DocumentObject.X/DataProcessorObject.X, ValueTable, ValueTree.
+        if ("FormDataStructure".equals(dslType)
+                || "FormDataCollection".equals(dslType)
+                || "FormDataTree".equals(dslType)) {
+            throw new IllegalArgumentException(
+                    "Forbidden runtime type '" + dslType + "' — не существует в XML-схеме формы. "
+                    + "Используйте CatalogObject.X / DocumentObject.X / DataProcessorObject.X, "
+                    + "ValueTable или ValueTree.");
+        }
+
         // String types
         Matcher stringMatcher = STRING_PATTERN.matcher(dslType);
         if (stringMatcher.matches()) {
@@ -160,17 +171,40 @@ public class TypeResolver {
             String name = dslType.substring("ReportObject.".length());
             return new TypeInfo("cfg:ReportObject." + name, null);
         }
-        
+
+        // DynamicList (используется bare в Form.xml без v8/cfg префикса)
+        if ("DynamicList".equals(dslType)) {
+            return new TypeInfo("DynamicList", null);
+        }
+
+        // InformationRegister* / AccumulationRegister* / AccountingRegister*
+        if (dslType.startsWith("InformationRegisterRecordSet.")
+                || dslType.startsWith("InformationRegisterRecordManager.")
+                || dslType.startsWith("AccumulationRegisterRecordSet.")
+                || dslType.startsWith("AccountingRegisterRecordSet.")) {
+            return new TypeInfo("cfg:" + dslType, null);
+        }
+
+        // ChartOfAccountsObject / ChartOfCharacteristicTypesObject / ExchangePlanObject и подобные
+        if (dslType.startsWith("ChartOfAccountsObject.")
+                || dslType.startsWith("ChartOfCharacteristicTypesObject.")
+                || dslType.startsWith("ChartOfCalculationTypesObject.")
+                || dslType.startsWith("ExchangePlanObject.")
+                || dslType.startsWith("BusinessProcessObject.")
+                || dslType.startsWith("TaskObject.")) {
+            return new TypeInfo("cfg:" + dslType, null);
+        }
+
         // Общий паттерн для *Ref.Name (CatalogRef, DocumentRef и т.д.)
         if (dslType.contains("Ref.")) {
             return new TypeInfo("cfg:" + dslType, null);
         }
-        
+
         // Общий паттерн для *Object.Name
         if (dslType.contains("Object.")) {
             return new TypeInfo("cfg:" + dslType, null);
         }
-        
+
         throw new IllegalArgumentException("Unknown type: " + dslType);
     }
     

@@ -9,6 +9,7 @@ Java-модуль для генерации XML метаданных 1С из JS
 - Генерация ролей (Rights.xml)
 - Генерация макетов табличных документов (MXL)
 - Генерация схем компоновки данных (SKD)
+- Побайтовая замена текста в XML (edit replace-text) — сохраняет BOM, bare LF, CRLF
 - Поддержка форматов Designer и EDT
 
 ## Требования
@@ -52,6 +53,7 @@ JSON DSL → DSL Models → Model Layer → Writers → XML + структура
 - **dsl/** — Jackson POJO для JSON DSL
 - **model/** — Нормализация данных, TypeResolver, IdGenerator, UuidGenerator
 - **writer/** — Генераторы XML (XmlWriter, EpfWriter, FormWriter, RoleWriter, MxlWriter, DcsWriter)
+- **editor/** — Редакторы XML (FormEditor, RoleEditor, SkdEditor, EpfEditor, ConfigEditor, SubsystemEditor, ObjectContainerEditor, ExtensionEditor, ReplaceTextEditor, ByteSafeFileHandler)
 - **format/** — OutputFormat, DesignerLayout, EdtLayout
 
 ## Зависимости
@@ -140,7 +142,23 @@ JSON DSL → DSL Models → Model Layer → Writers → XML + структура
   - testSkdWithConditionalAppearance (новый — проверка условного оформления)
   - testJsonDslRoundtrip
 
-**Всего тестов:** 36 (все проходят)
+- ✅ `ByteSafeFileHandlerTest` (7 тестов)
+  - readFileWithBom, readFileWithoutBom
+  - writeBackPreservesBom, writeBackNoBomWhenOriginalHadNone
+  - utf8EncodingIgnoresBom, backupCreatesFile, computeSizeWithBom
+- ✅ `ReplaceTextEditorTest` (10 тестов)
+  - bomPreservation — BOM сохраняется после замены
+  - bareLfPreservation — bare LF (0x0A) не превращается в CRLF
+  - mixedLineEndingsWithBom — интеграционный: BOM + mixed LF/CRLF
+  - notFoundReturnsZeroReplacements
+  - replaceAllFlag — --all vs первое вхождение
+  - dryRunDoesNotModifyFile
+  - multipleReplacementPairs — несколько --old/--new
+  - backupCreatesFile
+  - resultContainsByteSizes
+  - onlyReplacedBytesChange — побайтовое сравнение
+
+**Всего тестов:** 53 (все проходят)
 
 **Roundtrip-тесты:**
 - Проверка структуры файлов

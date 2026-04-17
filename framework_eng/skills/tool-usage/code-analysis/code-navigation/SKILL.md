@@ -1,13 +1,13 @@
 ---
 name: code-navigation
-description: Code navigation (Code Navigation). The skill teaches the agent to **effectively move through BSL code** using LSP (Language Server Protocol).
+description: Code Navigation (Code Navigation). The skill teaches the agent to **efficiently navigate BSL code** using LSP (Language Server Protocol).
 ---
 
 # Code Navigation (Code Navigation)
 
-Don’t guess where the code is — use LSP. Precise results from the project index.
+Don't guess where the code lives — use LSP. Precise results are based on the project index.
 
-## When to use
+## When to apply
 
 | Trigger | Action |
 |---------|--------|
@@ -17,8 +17,8 @@ Don’t guess where the code is — use LSP. Precise results from the project in
 | Project-wide rename | `rename_symbol` (start with `preview: true`) |
 | Quick Fixes | `get_code_actions` |
 | File diagnostics | `get_diagnostics` |
-| Exploring unknown code | `navigate_symbol` → `get_call_graph` → hover |
-| “method not found” error on a platform type | `getMembers` / `getMember` / `getConstructors` |
+| Investigating unfamiliar code | `navigate_symbol` → `get_call_graph` → hover |
+| "method not found" error on a platform type | `getMembers` / `getMember` / `getConstructors` |
 
 ## Algorithms
 
@@ -30,25 +30,25 @@ Don’t guess where the code is — use LSP. Precise results from the project in
 ### Project-wide rename
 
 1. `navigate_symbol` → `uri`, `line`, `character`
-2. `rename_symbol(..., preview: true)` → verify `changes`
+2. `rename_symbol(..., preview: true)` → review `changes`
 3. `rename_symbol(..., preview: false)`
-4. `check_syntax`
+4. `get_diagnostics` for the affected files
 
 ### Quick Fixes
 
-1. `get_diagnostics(uri)` → list of diagnostics
-2. `get_code_actions(uri, range, diagnostic)` → apply
+1. `get_diagnostics(uri)` → list the diagnostics
+2. `get_code_actions(uri, range, diagnostic)` → apply them
 
 ### Platform API verification after an error
 
-**Trigger:** “Object method not found” / “Wrong number of parameters” on a platform type. Don’t guess repeatedly — verify.
+**Trigger:** "Object method not found" / "Wrong number of parameters" error on a platform type. Don't guess again — verify.
 
-1. `search_syntax_reference(query: "ТипОбъекта")` → confirm the name, get `id`
-2. `getMembers(typeId)` → exact list of methods/properties
-3. `getMember(typeId, member)` → signature of the specific method
-4. `getConstructors(typeId)` → if the error mentions parameters of `Новый`
+1. `search_syntax_reference(query: "ТипОбъекта")` → confirm the name, get the `id`
+2. `getMembers(typeId)` → the exact list of methods/properties
+3. `getMember(typeId, member)` → the signature of the specific method
+4. `getConstructors(typeId)` → if the error refers to `Новый` parameters
 
-**Note:** Only react when an error occurs, not as a preventive search.
+**Important:** Only react after an error appears, not proactively search.
 
 ## Capabilities
 
@@ -60,17 +60,17 @@ Don’t guess where the code is — use LSP. Precise results from the project in
 | `get_diagnostics` | LSP file diagnostics |
 | `get_code_actions` | Quick Fixes |
 | `search_syntax_reference` | Platform type lookup |
-| `getMembers` / `getMember` | Methods/properties of a platform type |
+| `getMembers` / `getMember` | Methods/properties of the platform type |
 | `getConstructors` | Constructors of the type (`Новый`) |
 
-## Common issues
+## Typical errors
 
-| Issue | Workaround |
-|--------|-----------|
+| Error | Workaround |
+|-------|------------|
 | LSP is not connected | Check `lsp_status`; start the BSL Language Server |
-| Symbol not found | Verify the name (case, language); fuzzy search via `ask_ai_assistant` |
-| `get_call_graph` timeout | Reduce `depth` |
-| `rename_symbol` not applicable | Check the cursor position; protected area → edit manually |
+| Symbol not found | Verify the name (case, language); `ask_ai_assistant` (SEARCH_DOCS template from `buddy-prompting`) by method/type name |
+| `get_call_graph` timeout | Decrease `depth` |
+| `rename_symbol` not applicable | Check the cursor position; protected region → edit manually |
 | File not indexed | Wait for the LSP indexing |
 
 ---

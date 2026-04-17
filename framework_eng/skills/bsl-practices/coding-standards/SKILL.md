@@ -394,9 +394,55 @@ See `error-handling`, rule 1.
 
 ---
 
+## Rule 18a: Always close privileged mode
+
+If a procedure calls `SetPrivilegedMode(True)` / `УстановитьПривилегированныйРежим(Истина)`, it **MUST** call `SetPrivilegedMode(False)` / `УстановитьПривилегированныйРежим(Ложь)` in the same procedure before returning. Privileged mode must not leak beyond the procedure boundary.
+
+If the procedure contains `Try/Except`, the mode reset must be guaranteed in both the normal flow and the exception branch.
+
+```bsl
+// Правильно — режим закрывается в обоих путях
+Процедура ЗаписатьДанныеВРегистр(Данные)
+
+    УстановитьПривилегированныйРежим(Истина);
+
+    Попытка
+        НаборЗаписей = РегистрыСведений.МойРегистр.СоздатьНаборЗаписей();
+        // ... запись ...
+        НаборЗаписей.Записать();
+    Исключение
+        УстановитьПривилегированныйРежим(Ложь);
+        ЗаписьЖурналаРегистрации("Ошибка записи", УровеньЖурналаРегистрации.Ошибка,,,
+            ОбработкаОшибок.ПодробноеПредставлениеОшибки(ИнформацияОбОшибке()));
+        ВызватьИсключение;
+    КонецПопытки;
+
+    УстановитьПривилегированныйРежим(Ложь);
+
+КонецПроцедуры
+```
+
+```bsl
+// Неправильно — режим не закрывается
+Процедура ПрочитатьДанные()
+    УстановитьПривилегированныйРежим(Истина);
+    // ... чтение ...
+    // забыли УстановитьПривилегированныйРежим(Ложь)
+КонецПроцедуры
+```
+
+---
+
 ## Rule 19: Aggregate server calls from the form
 
 See `form-patterns`.
+
+---
+
+## Verification through Buddy
+
+- **Verification of code against standards and BSP analogs:** `ask_ai_assistant` (template VALIDATE_BSL from `buddy-prompting`). Provide a code snippet to receive standard violations and recommendations for replacing the code with BSP/platform methods.
+- **Verification of the standard against the primary source:** `ask_ai_assistant` (template SEARCH_ITS from `buddy-prompting`). When the skill diverges from ITS, ITS takes precedence.
 
 ---
 depends_on: []

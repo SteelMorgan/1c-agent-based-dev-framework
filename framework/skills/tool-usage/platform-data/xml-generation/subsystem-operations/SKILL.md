@@ -26,8 +26,12 @@ description: Операции с подсистемами и командным 
 Генерация подсистемы из JSON.
 
 ```bash
-xml-gen subsystem compile <subsystem.json> <output_dir>
+xml-gen subsystem compile <subsystem.json> <output_dir> [--parent <parentSubsystem.xml>] [--no-stubs]
 ```
+
+**Параметры:**
+- `--parent <path>` — bottom-up регистрация: новая подсистема добавляется в ChildObjects родительской (а не в Configuration.xml).
+- `--no-stubs` — отключить автоматическое создание stub-XML для declared `content` items и `children`, у которых отсутствует файл объекта. По умолчанию включено — нужно чтобы валидация конфигурации не падала в промежуточном состоянии.
 
 ### subsystem info
 
@@ -46,7 +50,7 @@ xml-gen subsystem edit <subsystemPath> --op <operation> --value <value>
 **Операции:**
 - `add-content` — добавить объект: `"Catalog.Товары"` или `["Catalog.Товары","Document.Заказ"]`
 - `remove-content` — удалить объект
-- `add-child` — добавить дочернюю подсистему
+- `add-child` — добавить дочернюю подсистему. Если файл `<Parent>/Subsystems/<childName>.xml` отсутствует — создаётся stub-XML (чтобы валидация не ломалась).
 - `remove-child` — удалить дочернюю подсистему
 - `set-property` — `"IncludeInCommandInterface=true"`, `"Synonym=Торговля"`, `"Picture=CommonPicture.ТорговляИСклад"`
 

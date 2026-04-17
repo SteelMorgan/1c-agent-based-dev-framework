@@ -52,10 +52,11 @@ xml-gen config edit <configPath> --op <operation> --value <value>
 
 **Операции:**
 - `modify-property` — изменить свойство: `--value "CompatibilityMode=Version8_3_24"`
-- `add-child` — добавить объект в ChildObjects: `--value "Catalog.Товары"`
-- `remove-child` — удалить объект: `--value "Catalog.Товары"`
-- `add-default-role` — добавить роль по умолчанию: `--value "ОсновнаяРоль"`
-- `remove-default-role` — удалить роль по умолчанию
+- `add-childObject` — добавить объект в ChildObjects: `--value "Catalog.Товары"`. Guard: файл объекта (`Catalogs/Товары.xml`) должен существовать — иначе throw. Опционально `--no-file-check` отключает guard.
+- `remove-childObject` — удалить объект: `--value "Catalog.Товары"`
+- `add-defaultRole` — добавить роль по умолчанию: `--value "ОсновнаяРоль"`
+- `remove-defaultRole` — удалить роль по умолчанию
+- `set-defaultRoles` — заменить список ролей: `--value "Роль1 ;; Роль2"`
 
 ### config validate
 

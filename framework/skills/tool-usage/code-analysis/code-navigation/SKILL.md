@@ -32,7 +32,7 @@ description: Навигация по коду (Code Navigation). Навык уч
 1. `navigate_symbol` → `uri`, `line`, `character`
 2. `rename_symbol(..., preview: true)` → проверить `changes`
 3. `rename_symbol(..., preview: false)`
-4. `check_syntax`
+4. `get_diagnostics` по затронутым файлам
 
 ### Quick Fixes
 
@@ -68,7 +68,7 @@ description: Навигация по коду (Code Navigation). Навык уч
 | Ошибка | Обходной путь |
 |--------|---------------|
 | LSP не подключён | Проверить `lsp_status`; запустить BSL Language Server |
-| Символ не найден | Проверить имя (регистр, язык); нечёткий поиск через `ask_ai_assistant` |
+| Символ не найден | Проверить имя (регистр, язык); `ask_ai_assistant` (шаблон SEARCH_DOCS из `buddy-prompting`) по имени метода/типа |
 | `get_call_graph` таймаут | Уменьшить `depth` |
 | `rename_symbol` не применим | Проверить позицию курсора; защищённая область → ручное редактирование |
 | Файл не индексирован | Дождаться индексации LSP |

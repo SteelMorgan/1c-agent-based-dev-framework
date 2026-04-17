@@ -82,39 +82,59 @@ public class FormDsl {
          * Имя реквизита.
          */
         String name;
-        
+
         /**
          * Заголовок.
          */
         String title;
-        
+
         /**
          * Тип (DSL формат: string(100), number(10,2) и т.д.).
          */
         String type;
-        
+
         /**
          * Основной реквизит (Объект).
          */
         Boolean main;
-        
+
         /**
          * Колонки (для ValueTable/ValueTree).
          */
         List<Column> columns;
-        
+
+        /**
+         * Настройки DynamicList: {@code {"mainTable":"Catalog.XXX", "dynamicDataRead":true}}.
+         */
+        Map<String, Object> settings;
+
+        /**
+         * Флаг SavedData (для InformationRegisterRecordManager и подобных).
+         */
+        Boolean savedData;
+
+        /** Полный конструктор (используется from-object генерацией и JSON DSL). */
         @JsonCreator
         public Attribute(
                 @JsonProperty("name") String name,
                 @JsonProperty("title") String title,
                 @JsonProperty("type") String type,
                 @JsonProperty("main") Boolean main,
-                @JsonProperty("columns") List<Column> columns) {
+                @JsonProperty("columns") List<Column> columns,
+                @JsonProperty("settings") Map<String, Object> settings,
+                @JsonProperty("savedData") Boolean savedData) {
             this.name = name;
             this.title = title;
             this.type = type;
             this.main = main;
             this.columns = columns;
+            this.settings = settings;
+            this.savedData = savedData;
+        }
+
+        /** Обратно-совместимый 5-аргументный конструктор. */
+        public Attribute(String name, String title, String type, Boolean main, List<Column> columns) {
+            this(name, title, type, main, columns, null, null);
         }
     }
     

@@ -300,7 +300,11 @@ public class MetaWriter {
         if (hierarchical) {
             writeElement(sb, 3, "HierarchyType",
                     getString(root, "hierarchyType", "HierarchyFoldersAndItems"));
-            writeElement(sb, 3, "FoldersOnTop", "true");
+            writeElement(sb, 3, "LimitLevelCount",
+                    String.valueOf(getBool(root, "limitLevelCount", false)));
+            writeElement(sb, 3, "LevelCount", String.valueOf(getInt(root, "levelCount", 2)));
+            writeElement(sb, 3, "FoldersOnTop",
+                    String.valueOf(getBool(root, "foldersOnTop", true)));
         }
 
         // Code & description
@@ -316,7 +320,7 @@ public class MetaWriter {
         writeElement(sb, 3, "PredefinedDataUpdate",
                 getString(root, "predefinedDataUpdate", "Auto"));
 
-        // Owners
+        // Owners + subordination
         List<String> owners = getStringList(root, "owners");
         if (owners.isEmpty()) {
             writeEmptyElement(sb, 3, "Owners");
@@ -328,11 +332,15 @@ public class MetaWriter {
             }
             sb.append(indent(3)).append("</Owners>\n");
         }
+        if (!owners.isEmpty() || root.has("subordinationUse")) {
+            writeElement(sb, 3, "SubordinationUse",
+                    getString(root, "subordinationUse", "ToItems"));
+        }
 
         // Common behavior
-        writeElement(sb, 3, "EditType", "InDialog");
-        writeElement(sb, 3, "QuickChoice", "true");
-        writeElement(sb, 3, "ChoiceMode", "BothWays");
+        writeElement(sb, 3, "EditType", getString(root, "editType", "InDialog"));
+        writeElement(sb, 3, "QuickChoice", String.valueOf(getBool(root, "quickChoice", true)));
+        writeElement(sb, 3, "ChoiceMode", getString(root, "choiceMode", "BothWays"));
         writeBehaviorProperties(sb, root);
     }
 
@@ -909,13 +917,19 @@ public class MetaWriter {
             writeEmptyElement(sb, 5, "ToolTip");
             writeElement(sb, 5, "MarkNegatives", "false");
             writeEmptyElement(sb, 5, "Mask");
-            writeElement(sb, 5, "MultiLine", "false");
+            writeElement(sb, 5, "MultiLine",
+                    String.valueOf(dim.flags.contains("multiline")));
             writeElement(sb, 5, "ExtendedEdit", "false");
             boolean dimNonneg = dim.flags.contains("nonneg");
             writeMinValue(sb, 5, dimNonneg);
             sb.append(indent(5)).append("<MaxValue xsi:nil=\"true\"/>\n");
-            writeElement(sb, 5, "FillFromFillingValue", "true");
-            sb.append(indent(5)).append("<FillValue xsi:nil=\"true\"/>\n");
+            // FillFromFillingValue/FillValue/DataHistory валидны только для InformationRegister;
+            // для Accumulation/Accounting/Calculation вызывают XSD-ошибку при загрузке.
+            boolean dimIsInfoReg = "InformationRegister".equals(type);
+            if (dimIsInfoReg) {
+                writeElement(sb, 5, "FillFromFillingValue", "true");
+                sb.append(indent(5)).append("<FillValue xsi:nil=\"true\"/>\n");
+            }
 
             writeElement(sb, 5, "FillChecking",
                     dim.flags.contains("req") ? "ShowError" : "DontCheck");
@@ -936,7 +950,9 @@ public class MetaWriter {
             writeElement(sb, 5, "Indexing", indexing);
 
             writeElement(sb, 5, "FullTextSearch", "Use");
-            writeElement(sb, 5, "DataHistory", "Use");
+            if (dimIsInfoReg) {
+                writeElement(sb, 5, "DataHistory", "Use");
+            }
 
             // Dimension-specific properties
             writeElement(sb, 5, "Master",
@@ -980,13 +996,18 @@ public class MetaWriter {
             writeEmptyElement(sb, 5, "ToolTip");
             writeElement(sb, 5, "MarkNegatives", "false");
             writeEmptyElement(sb, 5, "Mask");
-            writeElement(sb, 5, "MultiLine", "false");
+            writeElement(sb, 5, "MultiLine",
+                    String.valueOf(res.flags.contains("multiline")));
             writeElement(sb, 5, "ExtendedEdit", "false");
             boolean resNonneg = res.flags.contains("nonneg");
             writeMinValue(sb, 5, resNonneg);
             sb.append(indent(5)).append("<MaxValue xsi:nil=\"true\"/>\n");
-            writeElement(sb, 5, "FillFromFillingValue", "true");
-            sb.append(indent(5)).append("<FillValue xsi:nil=\"true\"/>\n");
+            // FillFromFillingValue/FillValue/DataHistory — только для InformationRegister.
+            boolean resIsInfoReg = "InformationRegister".equals(type);
+            if (resIsInfoReg) {
+                writeElement(sb, 5, "FillFromFillingValue", "true");
+                sb.append(indent(5)).append("<FillValue xsi:nil=\"true\"/>\n");
+            }
 
             writeElement(sb, 5, "FillChecking",
                     res.flags.contains("req") ? "ShowError" : "DontCheck");
@@ -1001,7 +1022,9 @@ public class MetaWriter {
 
             writeElement(sb, 5, "Indexing", "DontIndex");
             writeElement(sb, 5, "FullTextSearch", "Use");
-            writeElement(sb, 5, "DataHistory", "Use");
+            if (resIsInfoReg) {
+                writeElement(sb, 5, "DataHistory", "Use");
+            }
 
             sb.append(indent(4)).append("</Properties>\n");
             sb.append(indent(3)).append("</Resource>\n");
@@ -1033,7 +1056,8 @@ public class MetaWriter {
             writeEmptyElement(sb, 5, "ToolTip");
             writeElement(sb, 5, "MarkNegatives", "false");
             writeEmptyElement(sb, 5, "Mask");
-            writeElement(sb, 5, "MultiLine", "false");
+            writeElement(sb, 5, "MultiLine",
+                    String.valueOf(attr.flags.contains("multiline")));
             writeElement(sb, 5, "ExtendedEdit", "false");
             boolean attrNonneg = attr.flags.contains("nonneg");
             writeMinValue(sb, 5, attrNonneg);
@@ -1152,7 +1176,8 @@ public class MetaWriter {
         writeEmptyElement(sb, 7, "ToolTip");
         writeElement(sb, 7, "MarkNegatives", "false");
         writeEmptyElement(sb, 7, "Mask");
-        writeElement(sb, 7, "MultiLine", "false");
+        writeElement(sb, 7, "MultiLine",
+                String.valueOf(attr.flags.contains("multiline")));
         writeElement(sb, 7, "ExtendedEdit", "false");
         boolean tsNonneg = attr.flags.contains("nonneg");
         writeMinValue(sb, 7, tsNonneg);
@@ -1761,6 +1786,7 @@ public class MetaWriter {
         if ("Index".equals(indexing)) flags.add("index");
         if ("IndexWithAdditionalOrder".equals(indexing)) flags.add("indexadditional");
         if (getBool(node, "nonneg", false)) flags.add("nonneg");
+        if (getBool(node, "multiLine", false)) flags.add("multiline");
 
         // Register-specific dimension flags (object form)
         if (getBool(node, "master", false)) flags.add("master");
@@ -1790,7 +1816,28 @@ public class MetaWriter {
         return new AttrDef(name, type, null, null, flags);
     }
 
-    private record AttrDef(String name, String type, String synonym, String comment, Set<String> flags) {}
+    private record AttrDef(String name, String type, String synonym, String comment, Set<String> flags) {
+        AttrDef {
+            if (RESERVED_ATTR_NAMES.contains(name)) {
+                throw new IllegalArgumentException(
+                        "Attribute name '" + name + "' is reserved (standard attribute of the object). "
+                        + "Reserved names: " + RESERVED_ATTR_NAMES);
+            }
+        }
+    }
+
+    /**
+     * Зарезервированные имена стандартных реквизитов 1С. Использование любого из них
+     * как имени пользовательского реквизита ломает загрузку конфигурации.
+     */
+    private static final Set<String> RESERVED_ATTR_NAMES = Set.of(
+            "Ref", "Code", "Description", "Parent", "Owner", "IsFolder",
+            "DeletionMark", "PostingMode", "DataVersion", "Predefined",
+            "PredefinedDataName", "Posted", "Date", "Number", "ThisObject",
+            // Русские стандартные имена
+            "Ссылка", "Код", "Наименование", "Родитель", "Владелец", "ЭтоГруппа",
+            "ПометкаУдаления", "РежимПроведения", "ВерсияДанных", "Предопределенный",
+            "ИмяПредопределенныхДанных", "Проведен", "Дата", "Номер");
 
     // ==================== Type Name Normalization ====================
 

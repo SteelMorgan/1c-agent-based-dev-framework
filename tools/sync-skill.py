@@ -195,7 +195,7 @@ def translate_file(ru_path: Path, en_path: Path) -> bool:
     else:
         cmd = [
             "codex", "exec",
-            "-m", "gpt-5.1-codex-mini",
+            "-m", "gpt-5.4-mini",
             "--dangerously-bypass-approvals-and-sandbox",
             "--ephemeral",
             "-o", str(done_file),

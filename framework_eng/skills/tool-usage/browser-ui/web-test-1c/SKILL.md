@@ -5,7 +5,7 @@ description: Automation of 1C via the web client — navigation across sections,
 
 # web-test-1c — 1C web client automation
 
-A semantic layer on top of Playwright for the DOM of the 1C:Предприятие web client.
+A semantic layer on top of Playwright for the DOM of the 1C:Enterprise web client.
 
 ## Installation
 
@@ -45,7 +45,7 @@ node $RUN stop                          # logout + close (releases licensing)
 
 ## API — Navigation
 
-| Функция | Описание |
+| Function | Description |
 |---------|----------|
 | `navigateSection(name)` | Go to a section (fuzzy match), returns `{ navigated, sections, commands }` |
 | `openCommand(name)` | Open a command from the function panel → form state |
@@ -54,35 +54,47 @@ node $RUN stop                          # logout + close (releases licensing)
 
 ## API — Reading
 
-| Функция | Описание |
+| Function | Description |
 |---------|----------|
-| `getFormState()` | All fields, buttons, tabs, table, and errors in a single call |
-| `readTable({ maxRows?, offset? })` | Table with pagination: `{ columns, rows, total }` |
-| `readSpreadsheet()` | Report (SpreadsheetDocument) after “Сформировать” |
+| `getFormState()` | All fields, buttons, tabs, tables, and errors in a single call |
+| `readTable({ maxRows?, offset?, table? })` | Table with pagination: `{ columns, rows, total }`. `table` selects the grid by name |
+| `readSpreadsheet()` | Report (SpreadsheetDocument) after “Generate”. Supports text-only and reports with numeric headers |
 
-`getFormState()` returns: **fields** (name, value, actions, required), **table** (summary), **reportSettings** (СКД filters), **errorModal**, **confirmation**.
+`getFormState()` returns: **fields** (name, value, actions, required), **table** (back-compat: first grid), **tables[]** (all visible grids: `{name, columns, rowCount, label}`), **openForms[]**, **formCount**, **modal**, **openTabs[]**, **navigation** (form navigation panel), **reportSettings** (human-readable СКД settings), **errors.stateText** (info-bar SpreadsheetDocument), **errorModal**, **confirmation**.
+
+Tree rows are marked `_kind: 'group'|'parent'`, `_tree: 'expanded'|'collapsed'`, `_level`, `_selected`.
 
 ## API — Actions
 
-| Функция | Описание |
+| Function | Description |
 |---------|----------|
-| `fillFields({ name: value })` | Fill fields (fuzzy match, auto-type: справочник/checkbox/radio) |
-| `selectValue(field, search, opts?)` | Choose from a справочник (dropdown / selection form) |
-| `clickElement(text, { dblclick? })` | Click a button/link/row (dblclick opens the item) |
-| `fillTableRow(fields, opts)` | Fill a tabular section row (`{ tab, add }`) |
-| `deleteTableRow(row, { tab? })` | Remove a row |
+| `fillFields({ name: value })` | Fill fields (fuzzy match, auto-type: catalog/checkbox/radio) |
+| `fillField(name, value)` | Single-field version of `fillFields` |
+| `selectValue(field, search, opts?)` | Choose from a catalog (dropdown / selection form) |
+| `clickElement(text, opts?)` | Click a button/link/row. `opts`: `dblclick`, `table` (scope the command panel to a specific grid), `toggle`/`expand` (tree), `modifier: 'ctrl'\|'shift'` (multi-select), `timeout` |
+| `clickElement(target, opts?)` with `{row, column}` | Drill-down in SpreadsheetDocument: `{row: 0, column: 'К6'}`, `{row: {'К1': 'Материалы'}, column: 'К6'}`, `{row: 'totals', column: 'К6'}` |
+| `fillTableRow(fields, opts)` | Fill a tabular-section row (`{ tab, add, row, table }`) |
+| `deleteTableRow(row, { tab?, table? })` | Delete a row |
 | `filterList(text, opts?)` / `unfilterList()` | Filter lists (simple / `{ field }`) |
 | `closeForm({ save? })` | Close with confirmation handling |
-| `switchTab(name)` | Switch tabs |
+| `switchTab(name)` | Switch the form tab or an open tab (tab bar) |
+| `navigateLink(url)` | Open an object by metadata (Shift+F11), supports Russian names |
+| `openFile(path)` | Open EPF/ERF through File→Open with security dialog handling |
 
-## API — Utilities
+## API — Utilities and recording
 
-| Функция | Описание |
+| Function | Description |
 |---------|----------|
 | `screenshot()` | PNG screenshot |
 | `wait(seconds)` | Wait + form state |
 | `getPage()` | Playwright Page (non-standard scenarios) |
-| `startRecording(path)` / `stopRecording()` | Video recording |
+| `startRecording(path, opts?)` / `stopRecording()` | Video recording (can be disabled at the CLI level with `--no-record`) |
+| `addNarration(videoPath, opts?)` | Overlay TTS narration (node-edge-tts) |
+| `showCaption(text, opts?)` / `hideCaption()` | Caption over the video |
+| `showTitleSlide(text)` / `hideTitleSlide()` | Title slide |
+| `showImage(path, opts?)` / `hideImage()` | Image overlay |
+| `highlight(text, opts?)` / `unhighlight()` / `setHighlight(on)` | Highlight elements |
+| `fetchErrorStack(formNum, hasReport)` | Extract the call stack from the 1C error modal |
 | `getSections()` / `getCommands()` | Section panel |
 
 ## Important features
@@ -91,17 +103,21 @@ node $RUN stop                          # logout + close (releases licensing)
 - **Ctrl+V** instead of `page.fill()` — 1C reacts only to trusted events
 - **Fuzzy matching** — exact > startsWith > includes; ё→е and \u00a0→space are normalized automatically
 - **Graceful logout** — `stop` → POST `/e1cib/logout` (releases the license)
-- **Auto error detection** — modals, balloons, confirmations are captured in the response
-- **Max 2 attempts** — after two failures, report the issue instead of retrying
+- **Auto error detection** — modals, balloons, confirmations are included in the response; for modal errors, the stack (`fetchErrorStack`) and screenshot are fetched automatically
+- **Multi-table** — if a form has multiple grids, `tables[]` lists them all; pass `{ table: 'Outgoing' }` to `readTable`/`clickElement`/`fillTableRow`/`deleteTableRow` to target the right one
+- **Tree nodes** — by default, click selects; `{expand: true}` expands/collapses
+- **Multi-select** — `clickElement(..., { modifier: 'ctrl' })` or `'shift'`
+- **1C browser extension** — if installed in Chrome/Edge, it is picked up automatically; you can override it via `extensionPath` in `.v8-project.json`
+- **Max 2 attempts** — after two failures, tell the user
 
 ## 1C hotkeys
 
-| Клавиша | Контекст | Действие |
+| Key | Context | Action |
 |---------|----------|----------|
-| `F8` | Ссылочное поле | Create a new element |
-| `Shift+F4` | Ссылочное поле | Clear the value |
-| `F4` | Ссылочное поле | Open the selection form |
-| `Alt+F` | Список/таблица | Advanced search |
+| `F8` | Reference field | Create a new element |
+| `Shift+F4` | Reference field | Clear the value |
+| `F4` | Reference field | Open the selection form |
+| `Alt+F` | List/table | Advanced search |
 
 ---
 depends_on: []
@@ -109,5 +125,5 @@ requires:
   - tools
 metadata:
   category: 1c-development
-  version: "1.0"
+  version: "1.1"
 ---

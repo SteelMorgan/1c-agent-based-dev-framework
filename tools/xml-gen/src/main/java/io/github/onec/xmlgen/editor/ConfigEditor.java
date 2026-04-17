@@ -1,5 +1,7 @@
 package io.github.onec.xmlgen.editor;
 
+import io.github.onec.xmlgen.model.MetadataTypeRegistry;
+
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -37,6 +39,7 @@ public class ConfigEditor {
     private final Path configXmlPath;
     private String content;
     private boolean hasBom;
+    private boolean skipFileCheck = false;
 
     public ConfigEditor(Path configXmlPath) throws IOException {
         this.configXmlPath = configXmlPath;
@@ -237,11 +240,24 @@ public class ConfigEditor {
         }
     }
 
+    /**
+     * Отключить guard «файл объекта существует» перед регистрацией в ChildObjects.
+     * По умолчанию guard включён: без файла объекта получается "висящая" регистрация
+     * в Configuration.xml, конфигуратор упадёт при загрузке.
+     */
+    public void setSkipFileCheck(boolean skip) {
+        this.skipFileCheck = skip;
+    }
+
     private void insertChildObject(String type, String name) {
         // Validate type
         if (!CHILD_TYPE_ORDER.contains(type)) {
             throw new IllegalArgumentException("Unknown ChildObject type: '" + type
                     + "'. Valid types: " + CHILD_TYPE_ORDER);
+        }
+
+        if (!skipFileCheck) {
+            ensureObjectFileExists(type, name);
         }
 
         String entry = "<" + type + ">" + escapeXml(name) + "</" + type + ">";
@@ -330,5 +346,47 @@ public class ConfigEditor {
         if (s == null) return "";
         return s.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
                 .replace("\"", "&quot;").replace("'", "&apos;");
+    }
+
+    private void ensureObjectFileExists(String type, String name) {
+        Path configDir = configXmlPath.getParent();
+        if (configDir == null) return;
+        String dir = resolveDirectoryForType(type);
+        Path objFile = configDir.resolve(dir).resolve(name + ".xml");
+        if (!Files.exists(objFile)) {
+            throw new IllegalArgumentException(
+                    "Object file not found: " + objFile
+                    + ". Создайте объект (meta/subsystem/role compile) или отключите проверку через --no-file-check.");
+        }
+    }
+
+    private static String resolveDirectoryForType(String type) {
+        MetadataTypeRegistry.TypeDescriptor td = MetadataTypeRegistry.get(type);
+        if (td != null) return td.directory();
+        // Fallback для типов вне основного реестра (Subsystem, Role, Language и др.)
+        return switch (type) {
+            case "Subsystem" -> "Subsystems";
+            case "Role" -> "Roles";
+            case "Language" -> "Languages";
+            case "Style" -> "Styles";
+            case "StyleItem" -> "StyleItems";
+            case "CommonPicture" -> "CommonPictures";
+            case "SessionParameter" -> "SessionParameters";
+            case "CommonTemplate" -> "CommonTemplates";
+            case "FilterCriterion" -> "FilterCriteria";
+            case "CommonAttribute" -> "CommonAttributes";
+            case "XDTOPackage" -> "XDTOPackages";
+            case "WSReference" -> "WSReferences";
+            case "SettingsStorage" -> "SettingsStorages";
+            case "FunctionalOption" -> "FunctionalOptions";
+            case "FunctionalOptionsParameter" -> "FunctionalOptionsParameters";
+            case "CommonCommand" -> "CommonCommands";
+            case "CommandGroup" -> "CommandGroups";
+            case "CommonForm" -> "CommonForms";
+            case "DocumentNumerator" -> "DocumentNumerators";
+            case "Sequence" -> "Sequences";
+            case "IntegrationService" -> "IntegrationServices";
+            default -> type + "s";
+        };
     }
 }

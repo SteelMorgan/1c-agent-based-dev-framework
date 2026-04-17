@@ -1,4 +1,5 @@
 # Generated artifacts (do not commit)
+output/
 
 # Reference sources (local only)
 src_temp/
@@ -8,6 +9,10 @@ src_temp/
 .cursor/
 .agents/
 .kilocode/
+.mcp.json
+
+# Node
+node_modules/
 
 # Python
 __pycache__/
@@ -24,6 +29,12 @@ tools/fast-install/
 
 # Local rules (not shared)
 .claude/rules/CLAUDE.md
+
+# Claude Code runtime artefacts
+.claude/scheduled_tasks.lock
+
+# Codex CLI marker (empty file)
+.codex
 
 # Agent session reports (transient artifacts)
 **/PHASE*-REPORT.md

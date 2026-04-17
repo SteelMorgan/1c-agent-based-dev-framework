@@ -150,20 +150,32 @@ public class MetaValidator {
                 validatePositiveInt(props, "CodeLength", false);
                 validatePositiveInt(props, "DescriptionLength", false);
                 validateEnum(props, "CodeType", "String", "Number");
+                validateEnum(props, "CodeAllowedLength", "Variable", "Fixed");
+                validateEnum(props, "CodeSeries",
+                        "WholeCatalog", "WithinOwnerSubordination", "WithinSubordination");
                 validateEnum(props, "HierarchyType",
                         "HierarchyFoldersAndItems", "HierarchyItemsOnly");
                 validateEnum(props, "DefaultPresentation", "AsDescription", "AsCode");
+                validateEnum(props, "SubordinationUse",
+                        "ToItems", "ToFolders", "ToFoldersAndItems");
+                validateEnum(props, "ChoiceMode", "BothWays", "FromChoiceForm", "QuickChoice");
+                validateEnum(props, "EditType", "InDialog", "InList", "BothWays");
                 validateHierarchyConsistency(props);
                 break;
 
             case "Document":
                 validatePositiveInt(props, "NumberLength", false);
                 validateEnum(props, "NumberType", "String", "Number");
+                validateEnum(props, "NumberAllowedLength", "Variable", "Fixed");
                 validateEnum(props, "Posting", "Allow", "Deny");
                 validateEnum(props, "NumberPeriodicity",
                         "Nonperiodical", "Year", "Quarter", "Month", "Day");
                 validateEnum(props, "DefaultPresentation", "AsDescription", "AsCode");
                 validateEnum(props, "RealTimePosting", "Allow", "Deny");
+                validateEnum(props, "RegisterRecordsDeletion",
+                        "AutoDelete", "AutoDeleteOff", "DoNotDelete");
+                validateEnum(props, "RegisterRecordsWritingOnPost",
+                        "WriteSelected", "WriteModified");
                 break;
 
             case "Enum":
@@ -197,17 +209,26 @@ public class MetaValidator {
                 } else if (!coct.startsWith("ChartOfCalculationTypes.")) {
                     warn(type + ": ChartOfCalculationTypes reference format — expected 'ChartOfCalculationTypes.Name'");
                 }
+                validateEnum(props, "Periodicity", "Day", "Month", "Quarter", "Year");
+                validateEnum(props, "ActionPeriodUse", "DontUse", "Use");
+                validateEnum(props, "RequireCalculationTypes", "DontUse", "Use");
                 break;
 
             case "ChartOfAccounts":
                 validatePositiveInt(props, "MaxExtDimensionCount", false);
                 validatePositiveInt(props, "CodeLength", false);
+                validateEnum(props, "CodeType", "String", "Number");
+                validateEnum(props, "CodeAllowedLength", "Variable", "Fixed");
+                validateEnum(props, "CodeSeries",
+                        "WholeCatalog", "WithinOwnerSubordination", "WithinSubordination");
+                validateEnum(props, "DefaultPresentation", "AsDescription", "AsCode");
                 break;
 
             case "ChartOfCharacteristicTypes":
                 validatePositiveInt(props, "CodeLength", false);
                 validatePositiveInt(props, "DescriptionLength", false);
                 validateEnum(props, "CodeType", "String", "Number");
+                validateEnum(props, "CodeAllowedLength", "Variable", "Fixed");
                 validateEnum(props, "DefaultPresentation", "AsDescription", "AsCode");
                 break;
 
@@ -215,6 +236,7 @@ public class MetaValidator {
                 validatePositiveInt(props, "CodeLength", false);
                 validatePositiveInt(props, "DescriptionLength", false);
                 validateEnum(props, "CodeType", "String", "Number");
+                validateEnum(props, "CodeAllowedLength", "Variable", "Fixed");
                 break;
 
             case "CommonModule":
@@ -294,11 +316,13 @@ public class MetaValidator {
                 validatePositiveInt(props, "CodeLength", false);
                 validatePositiveInt(props, "DescriptionLength", false);
                 validateEnum(props, "CodeType", "String", "Number");
+                validateEnum(props, "CodeAllowedLength", "Variable", "Fixed");
                 break;
 
             case "BusinessProcess":
                 validatePositiveInt(props, "NumberLength", false);
                 validateEnum(props, "NumberType", "String", "Number");
+                validateEnum(props, "NumberAllowedLength", "Variable", "Fixed");
                 validateEnum(props, "NumberPeriodicity",
                         "Nonperiodical", "Year", "Quarter", "Month", "Day");
                 break;
@@ -307,6 +331,7 @@ public class MetaValidator {
                 validatePositiveInt(props, "NumberLength", false);
                 validatePositiveInt(props, "DescriptionLength", false);
                 validateEnum(props, "NumberType", "String", "Number");
+                validateEnum(props, "NumberAllowedLength", "Variable", "Fixed");
                 String addressing = props.childText("AddressingType");
                 if (addressing != null && !addressing.isEmpty()) {
                     if (!"InformationRegister".equals(addressing) && !"ChartOfCharacteristicTypes".equals(addressing)) {

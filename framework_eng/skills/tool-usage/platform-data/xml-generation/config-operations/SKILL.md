@@ -14,7 +14,7 @@ Working with 1C configurations (Configuration.xml).
 | Need to create a new configuration | `config init --name <Name> <output_dir>` |
 | Need to inspect the configuration composition | `config info <configPath>` |
 | Need to change a configuration property | `config edit <configPath> --op modify-property --value "PropName=Value"` |
-| Need to add/remove an object from ChildObjects | `config edit <configPath> --op add-child --value "Type.Name"` |
+| Need to add/remove an object from ChildObjects | `config edit <configPath> --op add-childObject --value "Type.Name"` |
 | Need to validate Configuration.xml | `config validate <configPath>` |
 
 ## Commands
@@ -52,10 +52,11 @@ xml-gen config edit <configPath> --op <operation> --value <value>
 
 **Operations:**
 - `modify-property` — change a property: `--value "CompatibilityMode=Version8_3_24"`
-- `add-child` — add an object to ChildObjects: `--value "Catalog.Товары"`
-- `remove-child` — remove an object: `--value "Catalog.Товары"`
-- `add-default-role` — add a default role: `--value "ОсновнаяРоль"`
-- `remove-default-role` — remove a default role
+- `add-childObject` — add an object to ChildObjects: `--value "Catalog.Товары"`. Guard: the object file (`Catalogs/Товары.xml`) must exist — otherwise throw. Optionally `--no-file-check` disables the guard.
+- `remove-childObject` — remove an object: `--value "Catalog.Товары"`
+- `add-defaultRole` — add a default role: `--value "ОсновнаяРоль"`
+- `remove-defaultRole` — remove a default role
+- `set-defaultRoles` — replace the role list: `--value "Role1 ;; Role2"`
 
 ### config validate
 
@@ -65,7 +66,7 @@ Validation of Configuration.xml (10 checks).
 xml-gen config validate <configPath>
 ```
 
-**Checks:** structure of XML, namespace, UUID, InternalInfo (7 ClassId), Properties, enum values (11 properties), ChildObjects (order of 44 types, duplicates), DefaultLanguage, language files, object catalogs.
+**Checks:** XML structure, namespace, UUID, InternalInfo (7 ClassId), Properties, enum values (11 properties), ChildObjects (order of 44 types, duplicates), DefaultLanguage, language files, object directories.
 
 ## ChildObjects — order of 44 types
 

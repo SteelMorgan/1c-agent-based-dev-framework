@@ -1,6 +1,6 @@
 ---
 name: quick-fix
-description: Quick fix in a single file without cross-review.
+description: Quick fix in one file without cross-review.
 ---
 
 # Workflow: Quick Fix
@@ -11,17 +11,17 @@ description: Quick fix in a single file without cross-review.
 
 ### 1. Find (Explorer → Economy)
 
-`navigate_symbol` + `get_call_graph` → path to the module, dependencies, ensure the change is localized.
+`navigate_symbol` + `get_call_graph` → path to the module, its dependencies, make sure the change is localized.
 
 ### 2. Fix (Developer → Mid)
 
-The minimally necessary change according to `coding-standards`. No “improvements” beyond the task scope.
+The minimally required change according to `coding-standards`. No “improvements” beyond the task scope.
 
-### 3. Check (Developer → Mid)
+### 3. Verify (Developer → Mid)
 
-1. `check_syntax` — required
+1. `get_diagnostics` — quick check of the changed file
 2. `run_tests` — if there are tests for the module
-3. `get_diagnostics` — no LSP errors
+3. `check_syntax` — final check before commit
 
 ## Escalation to Full-cycle
 
@@ -30,7 +30,7 @@ The minimally necessary change according to `coding-standards`. No “improvemen
 | Tests fail after the change | Fix or escalate |
 | Multiple modules / architecture / review / > 20 lines | Full-cycle |
 
-**Protocol:** log the state → hand off to the orchestrator → full-cycle starting with Phase 1 (or Phase 3 if a spec exists).
+**Protocol:** record the state → hand off to the orchestrator → full-cycle with Phase 1 (or Phase 3 if there is a spec).
 
 ---
 depends_on:

@@ -1,6 +1,6 @@
 ---
 name: xml-gen-cli
-description: Правила работы с XmlGen CLI — validate (form/role/skd/mxl/epf/config/subsystem/interface/meta/extension), edit-команды и универсальные операции (form/template/help add/remove). Используй при валидации XML и модификации существующих Form, Role, EPF, SKD.
+description: Правила работы с XmlGen CLI — validate, edit-команды (form/role/epf/skd), edit replace-text (побайтовая замена) и универсальные операции (form/template/help add/remove). Используй при валидации XML и модификации существующих файлов.
 ---
 
 # XmlGen CLI — validate и edit-команды
@@ -30,6 +30,42 @@ xml-gen form remove <objectPath> <formName>
 xml-gen template add <objectPath> <name> --type <spreadsheet|html|text|dcs|binary>
 xml-gen template remove <objectPath> <name>
 xml-gen help add <objectPath>
+```
+
+## Побайтовая замена текста (edit replace-text)
+
+Безопасная замена текста в XML без нормализации line endings. Сохраняет bare LF (0x0A) внутри `<v8:content>`, CRLF между тегами, UTF-8 BOM.
+
+**Используй вместо Claude Code Edit tool** когда файл содержит мультилайн контент в тегах `<v8:content>` (тултипы, описания).
+
+```bash
+xml-gen edit replace-text <file> --old "<old_text>" --new "<new_text>" [--all] [--dry-run] [--backup] [--validate] [--encoding utf-8-sig|utf-8]
+```
+
+| Флаг | Описание |
+|------|----------|
+| `--old` / `--new` | Пара для замены. Можно указать несколько: `--old "A" --new "B" --old "C" --new "D"` |
+| `--all` | Заменить все вхождения (по умолчанию — только первое) |
+| `--dry-run` | Показать результат без записи файла |
+| `--backup` | Создать .bak перед записью |
+| `--validate` | Проверить XML well-formedness после замены |
+| `--encoding` | `utf-8-sig` (default, сохраняет BOM) или `utf-8` (без BOM) |
+
+Exit codes: 0=замена выполнена, 1=текст не найден, 2=ошибка.
+
+Вывод (stdout): JSON `{"file": "...", "replacements": N, "bytes_before": N, "bytes_after": N}`
+
+```bash
+# Замена Type на TypeSet
+xml-gen edit replace-text src/xml/Documents/биг_Операция.xml \
+  --old '<v8:Type>cfg:DocumentRef.big_Order_OKX</v8:Type>' \
+  --new '<v8:TypeSet>cfg:DefinedType.биг_ОрдерБиржи</v8:TypeSet>'
+
+# Множественная замена во всех вхождениях с dry-run
+xml-gen edit replace-text Form.xml \
+  --old 'cfg:DefinedType.биг_ДокументыПозиций' \
+  --new 'cfg:DefinedType.биг_ПозицияБиржи' \
+  --all --dry-run
 ```
 
 ## Edit-команды
@@ -98,6 +134,7 @@ xml-gen role add-object --name Catalog.Номенклатура --rights Read,Vi
 | "Parent element not found" | Проверь точное имя родителя в Form.xml (регистр важен) |
 | "Object already exists" (role) | `role add-right` вместо `add-object` |
 | "DataSet not found" (skd) | Проверь имя набора данных в Schema.xml |
+| Edit tool ломает line endings в XML | Используй `xml-gen edit replace-text` вместо Claude Code Edit |
 
 ---
 depends_on: []

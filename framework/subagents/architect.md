@@ -60,18 +60,24 @@ skills:
 - НЕ изменяет спеку analyst — только добавляет ссылку/сводку
 - НЕ ждёт подтверждения пользователя — это orchestrator
 
-**Обязательное чтение правил:**
+**КРИТИЧНО: Обязательное чтение навыков и правил:**
 В конце этого промпта есть секция `depends_on` со списком зависимостей.
-Навыки (skills) уже загружены через поле `skills:` в шапке.
-Правила (rules) нужно прочитать самостоятельно:
+В шапке — поле `skills:` со списком навыков.
+
+**Навыки НЕ загружаются автоматически.** Ты ОБЯЗАН прочитать каждый SKILL.md ПЕРЕД началом работы.
+Не применить навык = нарушение протокола. Не создавай артефакты без применения соответствующего навыка.
 
 1. Найди `.install-session.json` в корне проекта
 2. В нём поле `component_map` — словарь `"type/name" → {ru_path, en_path}`
-3. Для каждого пути из `depends_on`, содержащего `/rules/`:
+3. Для каждого навыка из `skills:` в шапке:
+   - Найди ключ `skill/{name}` в `component_map`
+   - Прочитай SKILL.md по `ru_path` (или `en_path`)
+   - Запиши в контекст: `[SKILL_READ] {name} — прочитан`
+4. Для каждого пути из `depends_on`, содержащего `/rules/`:
    - Извлеки имя файла без расширения → это `name`
    - Найди ключ `rule/{name}` в `component_map`
    - Прочитай файл по `en_path` (или `ru_path` если EN отсутствует)
-4. Применяй прочитанные правила на протяжении всей работы
+5. Применяй прочитанные навыки и правила на протяжении всей работы
 
 ---
 depends_on:
@@ -84,5 +90,7 @@ depends_on:
   - framework/skills/spec-writing/task-breakdown-subagent/SKILL.md
   - framework/rules/agent-context-protocol.md
   - framework/rules/capability-resolution.mdc
+  - framework/rules/no-direct-db-access.md
+  - framework/rules/skill-learning-policy.md
   - framework/workflows/source-of-truth-policy.md
 ---

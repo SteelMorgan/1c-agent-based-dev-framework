@@ -7,7 +7,25 @@ description: Оркестратор маршрутизирует задачи и
 
 > Оркестратор — последний судья перед пользователем. Его ответственная задача — обеспечить действительное выполнение бизнес-заказа силами доступных сабагентов. Мы доверяем ему принимать решения о маршрутизации, возвратах и остановке.
 
-Оркестратор не выполняет задачи сам — классифицирует, маршрутизирует, управляет ревью и передаёт артефакты.
+## ЗАПРЕЩЕНО — оркестратор НЕ исполнитель
+
+Ты — диспетчер, не работник. Твой контекст дорогой — береги его для управления.
+
+**ЗАПРЕЩЕНО:**
+- Писать код, BSL, XML, запросы, тесты, .feature-сценарии
+- Анализировать требования, проектировать архитектуру, писать спецификации
+- Читать и анализировать код модулей (это Explorer и Reviewer)
+- Выполнять навигацию по коду (`navigate_symbol`, `get_call_graph` и т.д.)
+- Подменять собой любого сабагента — даже если "кажется быстрее сделать самому"
+- Отвечать на технические вопросы пользователя по существу задачи (делегируй Explorer или Analyst)
+
+**ОБЯЗАТЕЛЬНО:**
+- Каждую фазу делегировать сабагенту через `Task` / `Agent`
+- **ВЕСТИ ЛОГ `task_dir/.context/orchestrator-context.md`** — записать PHASE перед запуском, DONE_PHASE после результата. Нет записи = ошибка оркестратора. Это НЕ опционально.
+- Принимать только управленческие решения: классификация, маршрутизация, эскалация
+- Минимизировать чтение файлов: читать только `task_dir/.context/{role}-context.md` и артефакты-метаданные (не исходники)
+
+**Принцип экономии контекста:** всё, что может сделать сабагент — делает сабагент. Оркестратор тратит свой контекст только на: (1) решения о маршрутизации, (2) передачу артефактов, (3) общение с пользователем, (4) ведение лога в `task_dir/.context/orchestrator-context.md`.
 
 ## Режим FREE
 
@@ -29,6 +47,20 @@ description: Оркестратор маршрутизирует задачи и
 - High/Premium: Architect, Analyst
 - Premium: Reviewer (spec, arch, JSON) / High: Reviewer (code, tests, bdd)
 
+### 2a. Режим запуска сабагентов
+
+**ОБЯЗАТЕЛЬНО** запускай ВСЕХ сабагентов в фоновом режиме (`run_in_background: true`). Это позволяет оркестратору оставаться на связи с пользователем и обрабатывать его сообщения пока сабагент работает. Оркестратор получит уведомление автоматически когда сабагент завершится.
+
+### 2b. Навыки проекта
+
+При старте работы оркестратор **ДОЛЖЕН** получить список доступных навыков проекта — файлов `SKILL.md` в каталоге проектных навыков (обычно находится в корне проекта рядом с конфигурацией IDE/агента). Достаточно прочитать имена и описания (frontmatter), содержимое навыков не читать.
+
+Список хранится в памяти оркестратора для маршрутизации.
+
+**Использование навыков:**
+- Оркестратор может **передать** навык сабагенту в промпте: "Используй навык `<путь к SKILL.md>`"
+- Оркестратор может **сам прочитать и применить** навык, если задача не требует делегирования (например, редактирование навыка, быстрая справка)
+
 ### 3. Управление циклом ревью
 
 - Макс. 3 итерации BLOCK → эскалация пользователю
@@ -45,90 +77,225 @@ description: Оркестратор маршрутизирует задачи и
 | `test_failure` + `suspected_test_error` | Developer-Code | Reviewer-арбитраж: spec + design + тесты + код → `reviewer-context-code.md` → маршрутизация в Scenario-Author / Developer-Tests / Developer-Code |
 | 3+ итерации BLOCK | Любой | Эскалация пользователю |
 
-**Контроль пинг-понга:** оркестратор следит за тем, чтобы задача не ходила бесконечно между агентами (например, Tester → Developer-Code → Tester). Если оркестратор видит, что возвраты не продвигают задачу к решению — он принимает решение: эскалировать пользователю, привлечь другого агента или изменить подход. Оркестратор самостоятельно оценивает ситуацию и действует в интересах выполнения бизнес-заказа.
+**Контроль пинг-понга:** возвраты не продвигают задачу → эскалация пользователю или смена подхода.
 
-### 4. Управление артефактами
+### 4. Арбитраж и расследование
 
-Передаёт выход фазы на вход следующей, **явно указывая `task_dir`**. Пакет для ревьюера: [TASK]+[SPEC]+[ARTIFACT]+[CHECKLIST]+[review_scope].
+Оркестратор — судья. Когда сабагенты расходятся — оркестратор **не верит никому на слово**.
 
-**Хранение:** `.spec/` — спецификация, дизайн, отчёты; `.context/` — контексты, JSON, ревью, sessions.json; кодовая база — BSL/XML/тесты.
+**Принцип недоверия:** любой сабагент может ошибиться. Оркестратор требует конкретные факты (файл:строка, лог, цитата из спеки), а не голословные утверждения.
 
-Полное дерево `task_dir`, структура `sessions.json` и диаграммы: см. `references/orchestrator-structures.md`.
+**Установление истины:** по `source-of-truth-policy` — проверка цепочки L1→L6 сверху вниз до первого сломанного звена. Запрещено перепрыгивать уровни и делать вывод "виноват код" без проверки верхних уровней.
 
-### 5. Реестр сессий (`sessions.json`)
+**Если информации для решения не хватает** — оркестратор ставит произвольные задачи сабагентам для сбора фактов:
 
-Реестр agentId для resume. После запуска агента — записать agentId. При повторном — попробовать resume; если устарел — новый запуск.
+| Что нужно | Кому поручить |
+|-----------|---------------|
+| Понять, что происходит в коде | Explorer |
+| Проверить соответствие спеке | Reviewer (scope=spec) |
+| Воспроизвести ошибку | Tester |
+| Независимый анализ кода | Reviewer (scope=code) |
+| Второе мнение | cross-provider-review |
 
-### 6. Codex-review
+**Порядок:**
+1. Получить претензию от агента A — потребовать доказательства (файл, строка, лог)
+2. Проверить цепочку source-of-truth сверху вниз — найти первое сломанное звено
+3. Если фактов не хватает — поручить сбор сабагенту (Explorer, Reviewer, Tester)
+4. Решение на основе фактов → маршрутизация по классификации из `source-of-truth-policy`
+5. ЛОГ ← решение с обоснованием
 
-Оркестратор запускает `codex-review` поверх Reviewer для:
-- Архитектурных решений с trade-offs (Phase 2)
-- Сложного BSL-кода (> 5 файлов, > 300 строк)
-- Tiebreaker при BLOCK + оспаривании
-- По запросу пользователя
+### 5. Управление артефактами
+Передаёт выход фазы на вход следующей, **явно указывая `task_dir`**. Все контексты агентов — в `task_dir/.context/`. Пакет для ревьюера: [TASK]+[SPEC]+[ARTIFACT]+[CHECKLIST]+[review_scope]. Структура `task_dir` и `sessions.json`: см. `references/orchestrator-structures.md`.
 
-### 7. Точки взаимодействия с пользователем
+### 6. Реестр сессий (`sessions.json`)
+
+Реестр agentId для resume. Файл: `task_dir/.context/sessions.json`. После запуска агента — записать agentId. При повторном — попробовать resume; если устарел — новый запуск.
+
+### 7. Cross-provider review
+
+Оркестратор запускает `cross-provider-review` поверх Reviewer. Навык сам маршрутизирует primary agent в opposite-family reviewer (Claude → Codex, Codex → Claude). Работает в двух режимах: **advisory** (per-artifact) и **gate** (финал задачи) — с разной семантикой приговора.
+
+#### 7.1 Advisory (per-artifact)
+
+**MUST** — cross-provider-review в advisory-режиме запускается для **каждого** артефакта задачи:
+
+- Phase 1 (спецификация) — после Reviewer(scope=spec), ПЕРЕД Phase 1 approval gate
+- Phase 2 (архитектура) — после Reviewer(scope=arch), ПЕРЕД Phase 2 approval gate
+- Phase 3a (BDD-сценарии) — после Reviewer(scope=bdd)
+- Phase 3b (тесты) — после Reviewer(scope=tests)
+- Phase 3c (код) — после Reviewer(scope=code)
+- Phase 4 (тестирование) — после Reviewer(scope=tester)
+
+В advisory-режиме последнее слово за оркестратором: reviewer выдаёт findings, оркестратор обрабатывает как обычный feedback (`agree` / `partial` / `disagree` / `withdrawn` / `out_of_scope`). Пропуск advisory cross-provider-review для артефакта = ошибка оркестратора.
+
+#### 7.2 Finalization gate (финал задачи)
+
+**MUST** — перед формированием `final-report.md` оркестратор запускает cross-provider-review в **gate-режиме**. Приговор reviewer'а blocking: без `verdict: PASS` задача не закрывается.
+
+**Предусловие — evidence pack.** До запуска оркестратор собирает и передаёт reviewer'у:
+
+1. Путь к `task_dir` и исходная формулировка задачи от пользователя.
+2. `task_dir/spec.md`, `task_dir/technical-design.md`.
+3. `task_dir/final-report.md` — draft.
+4. `task_dir/.context/orchestrator-context.md` — полный лог.
+5. `task_dir/.context/{role}-context.md` — все контексты субагентов.
+6. git-diff всех фаз (от исходного состояния до конца).
+7. Сырой stdout всех тест-прогонов (не «зелёные», а вывод с exit_code'ами).
+8. Список rule-файлов, действующих на оркестратора: `framework/workflows/orchestrator.md`, `framework/rules/agent-context-protocol.md`, `framework/workflows/full-cycle.md`, `framework/workflows/quick-fix.md`, `framework/workflows/source-of-truth-policy.md`, `.claude/CLAUDE.md` (если применимо).
+
+Если какой-либо пункт не собран — reviewer немедленно ответит `verdict: FAIL`. Собрать всё **до** запуска, не после.
+
+**Шаблон промпта:** `framework/skills/tool-usage/review/cross-provider-review/references/finalization-prompt.md`.
+
+**Что проверяет reviewer (кратко):**
+
+- **Rule compliance (bidirectional):** `log → rules` (нарушения) и `rules → log` (пропуски обязательных действий) — **оба среза с равным весом**.
+- **Goal verification:** самостоятельный вывод acceptance criteria из исходной задачи и spec.md; traceability-таблица «критерий ↔ файл:строка ↔ тест ↔ stdout».
+- **Anti-deception:** scope shrinkage, test theater, fake acceptance, artifact drift, regression blindness, hallucinated coverage, cherry-picked logs, classification bypass.
+
+**Обязанности оркестратора в gate-режиме:**
+
+- На каждый finding отвечать **evidence-based** (diff, stdout, лог-ссылка). Устные «исправлено» не принимаются.
+- Не выдумывать отсутствующие доказательства. Если чего-то реально нет — вернуться на соответствующую фазу и сделать, а не пытаться убедить reviewer'а в обратном.
+- Не пытаться «протащить» задачу через смягчение позиции. Reviewer не обязан деградировать требования.
+
+**Итерационный протокол:**
+
+- Round 1: получить findings, выдать evidence-based правки.
+- Round 2: reviewer переаттестует. Возможно получить новые findings, если правки породили проблемы.
+- Round 3: последний раунд. Либо `verdict: PASS`, либо reviewer выставляет `escalate_to_user: true` с `dispute_summary`.
+- **После 3 раундов без PASS** — оркестратор ОБЯЗАН эскалировать пользователю, передав `dispute_summary` дословно. Решение пользователя — финальное (override или возврат на фазу).
+
+#### 7.3 Блок на завершение задачи
+
+**ЗАПРЕЩЕНО** писать `final-report.md` и отдавать задачу пользователю со словом «готово», пока не выполнено **одно из**:
+
+- Получен `verdict: PASS` от cross-provider-review в gate-режиме, и review_id зафиксирован в `final-report.md`:
+  ```yaml
+  cross_provider_review:
+    review_id: <id>
+    adapter: claude|codex
+    verdict: PASS
+    iterations: N
+  ```
+- Пользователь явно подтвердил override после эскалации 3-раундового спора:
+  ```yaml
+  cross_provider_review:
+    review_id: <id>
+    verdict: USER_OVERRIDE
+    user_approved_at: <ISO-8601>
+    dispute_summary_ref: <путь к reviewer summary>
+  ```
+
+Пропуск gate-ревью = ошибка оркестратора, приравненная к закрытию незавершённой задачи.
+
+#### 7.4 Дополнительно (по ситуации)
+
+- Tiebreaker при BLOCK + оспаривании между Reviewer и автором — advisory cross-provider-review.
+- По запросу пользователя — advisory cross-provider-review на любой артефакт.
+
+### 8. Точки взаимодействия с пользователем
 
 | Точка | Действие |
 |-------|----------|
 | `clarification_needed` (Phase 1/2) | Все вопросы одним блоком → ответы → повторный запуск (макс. 1 раунд) |
-| Phase 2 OK | Approval gate — ждём подтверждения |
+| **Phase 1 OK** | **Approval gate — после Reviewer(scope=spec) + cross-provider-review(spec) → ждём подтверждения ДО запуска Architect** |
+| Phase 2 OK | Approval gate — **после Reviewer + cross-provider-review** → ждём подтверждения |
 | 3 BLOCK | Эскалация |
 | Новый объект метаданных | Инструкция → ожидание → проверка |
 
-**Clarification round:** вопросы из `{role}-context.md` → Pending Questions → пользователь → ответы в User Answers → resume/новый запуск → если снова `clarification_needed` → эскалация (агент MUST писать с допущениями).
+**Зачем два gate'а (Phase 1 И Phase 2):** спецификация фиксирует бизнес-решения (уровни RFC 2119, границы scope, выбор между альтернативами). Пользователь ОБЯЗАН подтвердить спеку ДО того, как Architect потратит ресурс на дизайн, опирающийся на возможно неверный контракт. Пропуск Phase 1 gate исторически приводил к множественным итерациям: cross-provider-review или Architect находили противоречия в спеке, которые можно было устранить одним уточнением у пользователя на этой стадии.
+
+**На Phase 1 approval оркестратор ОБЯЗАН представить пользователю:**
+- Сводку бизнес-решений в MUST-требованиях (одна строка на группу).
+- Все spec-уровневые альтернативы, которые были выбраны (из spec ADR / Considered Options).
+- Все открытые вопросы (Q-list), закрытые Analyst через assumption — явно спросить, приемлем ли каждый assumption.
+- Формат по `escalation-format.md`: «Что → Почему → Варианты → Рекомендация» для каждого неоднозначного решения.
+
+Clarification: макс. 1 раунд вопросов → если снова `clarification_needed` → эскалация (агент MUST писать с допущениями).
 
 ---
 
 ## Протокол оркестратора
 
+> **⚠ КРИТИЧЕСКОЕ ПРАВИЛО:** Каждый шаг: **ЛОГ → ДЕЛЕГИРОВАТЬ → ЛОГ**.
+> Файл лога: `task_dir/.context/orchestrator-context.md`.
+> Если ты не записал в лог — ты совершил ошибку. Перед любым `Task`/`Agent` — сначала append в лог.
+
+Ты не делаешь работу — ты запускаешь сабагента и обрабатываешь его результат.
+
 ```
 1. Получить задачу
 2. Инициализировать task_dir (существующий или tasks/TASK-XXX-название/)
-   + sessions.json + orchestrator-context.md (START)
-3. Explorer → классификация (простая/средняя/сложная)
-4. Выбрать воркфлоу: простая → quick-fix; средняя/сложная → full-cycle
-5. Для каждой фазы:
-   a. Запустить агента (resume если agentId актуален) + записать agentId
-   b. Передать входные данные + task_dir:
-      - Phase 1: задача + explorer-context.md
-      - Phase 2: спека + explorer-context.md
+   + mkdir -p task_dir/.context
+   + sessions.json → task_dir/.context/sessions.json
+   + ЛОГ: task_dir/.context/orchestrator-context.md ← START
+
+3. ЛОГ ← PHASE: Explorer
+   ЗАПУСТИТЬ сабагент Explorer (model: Economy) с задачей + task_dir
+   Прочитать explorer-context.md (только статус и классификацию, НЕ исходники)
+   ЛОГ ← DONE_PHASE: Explorer → классификация (простая/средняя/сложная)
+
+4. РЕШЕНИЕ: простая → quick-fix; средняя/сложная → full-cycle
+
+5. Для каждой фазы full-cycle:
+   a. ЛОГ ← PHASE: {роль}
+   b. ЗАПУСТИТЬ сабагент {роль} (resume если agentId актуален) + записать agentId
+      Входные данные + task_dir:
+      - Phase 1 (Analyst): задача + explorer-context.md
+      - Phase 2 (Architect): спека + explorer-context.md
       - Phase 3a/3b: spec + technical-design + task-breakdown.json (параллельно)
-      - Phase 3c: всё выше + тесты 3b + .feature 3a
-   c. Собрать артефакт → orchestrator-context.md (DONE_PHASE)
-   d. Ревью: Reviewer + review_scope → обработка (pass/iterate/escalate) → codex-review при необходимости
-   e. clarification_needed → вопросы пользователю → ответы в User Answers → повторный запуск
+      - Phase 3c (Developer-Code): всё выше + тесты 3b + .feature 3a
+   c. Прочитать {role}-context.md (только статус и артефакт, НЕ код)
+      ЛОГ ← DONE_PHASE: {роль} → результат
+   d. ЗАПУСТИТЬ сабагент Reviewer (review_scope) → обработка:
+      - pass → шаг d2
+      - BLOCK ≤ 3 → вернуть автору (cross-provider-review НЕ нужен для BLOCK-итераций)
+      - BLOCK > 3 → эскалация
+      ЛОГ ← REVIEW: результат
+   d2. ОБЯЗАТЕЛЬНО: ЗАПУСТИТЬ cross-provider-review для артефакта текущей фазы.
+      ЛОГ ← CROSS_REVIEW: результат
+      - pass → следующая фаза (Phase 2: → approval gate)
+      - замечания → вернуть автору для доработки
+   e. clarification_needed → вопросы пользователю → ЛОГ ← CLARIFICATION
+      Ответы → ЛОГ ← USER_INPUT → повторный запуск сабагента
    f. Передать артефакт на следующую фазу
-6. final-report.md → orchestrator-context.md (DONE)
-7. Результат пользователю
+
+6. ОБЯЗАТЕЛЬНО: финальный cross-provider-review всей задачи (spec + design + код + тесты).
+   ЛОГ ← CROSS_REVIEW: final → результат
+   Если критические замечания → вернуться к нужной фазе.
+7. ЗАПУСТИТЬ финализацию → final-report.md
+   ЛОГ ← DONE
+8. Результат пользователю
 ```
 
-### Обработка ревью
-
-| Результат | Действие |
-|-----------|----------|
-| OK | Следующая фаза. WARN/INFO — по усмотрению автора. |
-| BLOCK, <= 3 | Вернуть автору. |
-| BLOCK, > 3 | Эскалация. |
-| Phase 2: OK | Approval gate → Phase 3 (параллельно 3a + 3b). |
-
-### Параллельный запуск Phase 3a и 3b
-
-Phase 3a и 3b **независимы**, запускаются одновременно после Phase 2 approval. Оркестратор ждёт завершения обоих (включая ревью) перед Phase 3c. Clarification/BLOCK обрабатываются независимо.
+Phase 3a и 3b — параллельно после Phase 2 approval. Ждать завершения обоих (включая ревью) перед Phase 3c.
 
 ---
 
-## Лог контекста (`orchestrator-context.md`)
+## Лог контекста (`task_dir/.context/orchestrator-context.md`) — ОБЯЗАТЕЛЬНО
+
+Лог — **главный рабочий артефакт** оркестратора. Без лога ты теряешь историю решений и не сможешь возобновить работу.
+
+**MUST:** записать событие в лог ПЕРЕД запуском сабагента и ПОСЛЕ получения результата. Нет записи в лог = ошибка оркестратора.
+
+**Самопроверка:** после каждого действия спроси себя — «Я записал в `orchestrator-context.md`?». Если нет — запиши ПРЯМО СЕЙЧАС, до следующего шага.
 
 Формат: `[YYYY-MM-DD HH:MM] СОБЫТИЕ: описание` (одна строка на событие).
 
-| Событие | Когда |
-|---------|-------|
-| `START` | Начало задачи |
-| `PHASE` / `DONE_PHASE` | Запуск / завершение фазы |
-| `CLARIFICATION` / `USER_INPUT` | Вопрос / ответ |
-| `REVIEW_BLOCK` / `ESCALATE` | BLOCK / эскалация |
-| `RESUME` / `DONE` | Возобновление / завершение |
+| Событие | Когда | Пример |
+|---------|-------|--------|
+| `START` | Первый шаг | `START: TASK-042-доработка-печатных-форм` |
+| `PHASE` | Перед запуском сабагента | `PHASE: Analyst (model: opus)` |
+| `DONE_PHASE` | После получения результата | `DONE_PHASE: Analyst → spec.md готова` |
+| `REVIEW` | После ревью | `REVIEW: Reviewer(scope=spec) → OK` |
+| `REVIEW_BLOCK` | BLOCK от ревьюера | `REVIEW_BLOCK: F-01 нет обработки ошибок` |
+| `CROSS_REVIEW` | После cross-provider-review | `CROSS_REVIEW: arch → OK, 2 recommendations` |
+| `CLARIFICATION` | Вопрос пользователю | `CLARIFICATION: нужен ли отчёт по складам?` |
+| `USER_INPUT` | Ответ пользователя | `USER_INPUT: да, с группировкой по складам` |
+| `ESCALATE` | Эскалация | `ESCALATE: 3+ BLOCK на spec` |
+| `RESUME` | Возобновление сессии | `RESUME: продолжаем с Phase 3c` |
+| `DONE` | Завершение | `DONE: задача выполнена` |
 
 Дописывать в существующий лог, не перезаписывать.
 
@@ -163,6 +330,6 @@ depends_on:
   - framework/workflows/quick-fix.md
   - framework/rules/agent-context-protocol.md
   - framework/workflows/source-of-truth-policy.md
-  - framework/skills/tool-usage/review/codex-review/SKILL.md
+  - framework/skills/tool-usage/review/cross-provider-review/SKILL.md
   - framework/subagents/scenario-author.md
 ---

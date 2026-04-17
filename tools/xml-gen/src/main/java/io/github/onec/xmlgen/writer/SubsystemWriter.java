@@ -2,6 +2,7 @@ package io.github.onec.xmlgen.writer;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import io.github.onec.xmlgen.model.MetadataTypeRegistry;
 import io.github.onec.xmlgen.model.UuidGenerator;
 
 import java.io.IOException;
@@ -13,20 +14,37 @@ import java.util.List;
 
 /**
  * Генератор подсистемы 1С из JSON DSL.
- * Создаёт XML подсистемы, CommandInterface.xml (пустой), регистрирует в Configuration.xml.
+ * Создаёт XML подсистемы, CommandInterface.xml (пустой), регистрирует в Configuration.xml
+ * либо в родительской подсистеме при наличии parentPath.
  */
 public class SubsystemWriter {
 
     private static final byte[] BOM = {(byte) 0xEF, (byte) 0xBB, (byte) 0xBF};
 
+    private boolean writeStubs = true;
+
+    /**
+     * Управление созданием XML-заглушек для declared content и children,
+     * у которых отсутствует файл объекта. По умолчанию включено:
+     * без stub-а регистрация остаётся «висящей» и валидация конфигурации падает.
+     */
+    public void setWriteStubs(boolean writeStubs) {
+        this.writeStubs = writeStubs;
+    }
+
+    public void compile(Path jsonPath, Path outputDir) throws IOException {
+        compile(jsonPath, outputDir, null);
+    }
+
     /**
      * Создать подсистему из JSON.
-     * Регистрация в Configuration.xml делается отдельно через {@code config edit --op add-childObject}.
      *
-     * @param jsonPath  путь к JSON-определению
-     * @param outputDir каталог Subsystems/ (или родительский Subsystems/ для вложенных)
+     * @param jsonPath   путь к JSON-определению
+     * @param outputDir  каталог Subsystems/ верхнего уровня
+     * @param parentPath путь к XML родительской подсистемы (для вложенных); если null —
+     *                   регистрация выполняется вызывающим через config edit
      */
-    public void compile(Path jsonPath, Path outputDir) throws IOException {
+    public void compile(Path jsonPath, Path outputDir, Path parentPath) throws IOException {
         ObjectMapper mapper = new ObjectMapper();
         JsonNode root = mapper.readTree(jsonPath.toFile());
 
@@ -49,18 +67,41 @@ public class SubsystemWriter {
                 useOneCommand, explanation, picture, content, children, uuid);
 
         // 2. Create directory structure if needed
+        Path subsystemDir = outputDir.resolve(name);
         if (!children.isEmpty() || includeInCI) {
-            Path subsystemDir = outputDir.resolve(name);
-
-            // Ext/CommandInterface.xml (empty stub)
             Path extDir = subsystemDir.resolve("Ext");
             Files.createDirectories(extDir);
             writeEmptyCommandInterface(extDir.resolve("CommandInterface.xml"));
 
-            // Subsystems/ for children
             if (!children.isEmpty()) {
                 Files.createDirectories(subsystemDir.resolve("Subsystems"));
             }
+        }
+
+        // 3. Stub XML for declared content / children (если файлы отсутствуют).
+        if (writeStubs) {
+            // Content: ссылки на объекты конфигурации типа "Catalog.Товары".
+            // Путь к корню конфигурации — родитель Subsystems/.
+            Path configRoot = outputDir.getParent();
+            if (configRoot != null) {
+                for (String item : content) {
+                    ensureContentStub(configRoot, item);
+                }
+            }
+            // Children: <ChildName> внутри ChildObjects → Subsystems/ChildName.xml рядом с собой
+            Path childrenDir = subsystemDir.resolve("Subsystems");
+            for (String childName : children) {
+                Path childFile = childrenDir.resolve(childName + ".xml");
+                if (!Files.exists(childFile)) {
+                    Files.createDirectories(childrenDir);
+                    writeSubsystemStub(childFile, childName);
+                }
+            }
+        }
+
+        // 4. Регистрация в родительской подсистеме (bottom-up --parent).
+        if (parentPath != null) {
+            registerChildInParent(parentPath, name);
         }
     }
 
@@ -212,5 +253,140 @@ public class SubsystemWriter {
         if (s == null) return "";
         return s.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
                 .replace("\"", "&quot;").replace("'", "&apos;");
+    }
+
+    /**
+     * Создать stub-XML для элемента Content ("Type.Name"), если файл объекта отсутствует.
+     * Нужен чтобы валидация конфигурации не падала при промежуточном состоянии создания.
+     */
+    private void ensureContentStub(Path configRoot, String contentItem) throws IOException {
+        int dot = contentItem.indexOf('.');
+        if (dot <= 0) return;
+        String type = contentItem.substring(0, dot);
+        String name = contentItem.substring(dot + 1);
+        String dir = resolveDirectoryForType(type);
+        Path objFile = configRoot.resolve(dir).resolve(name + ".xml");
+        if (Files.exists(objFile)) return;
+        Files.createDirectories(objFile.getParent());
+        writeMetaStub(objFile, type, name);
+    }
+
+    private static String resolveDirectoryForType(String type) {
+        MetadataTypeRegistry.TypeDescriptor td = MetadataTypeRegistry.get(type);
+        if (td != null) return td.directory();
+        return switch (type) {
+            case "Subsystem" -> "Subsystems";
+            case "Role" -> "Roles";
+            case "CommonCommand" -> "CommonCommands";
+            case "CommandGroup" -> "CommandGroups";
+            case "CommonForm" -> "CommonForms";
+            case "CommonTemplate" -> "CommonTemplates";
+            case "CommonAttribute" -> "CommonAttributes";
+            case "FilterCriterion" -> "FilterCriteria";
+            case "DocumentNumerator" -> "DocumentNumerators";
+            case "Sequence" -> "Sequences";
+            default -> type + "s";
+        };
+    }
+
+    private void writeSubsystemStub(Path file, String name) throws IOException {
+        String uuid = UuidGenerator.generate();
+        StringBuilder sb = new StringBuilder();
+        sb.append("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n");
+        sb.append("<MetaDataObject xmlns=\"http://v8.1c.ru/8.3/MDClasses\"\n");
+        sb.append("\txmlns:v8=\"http://v8.1c.ru/8.1/data/core\"\n");
+        sb.append("\txmlns:xr=\"http://v8.1c.ru/8.3/xcf/readable\"\n");
+        sb.append("\txmlns:xs=\"http://www.w3.org/2001/XMLSchema\"\n");
+        sb.append("\txmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\"\n");
+        sb.append("\tversion=\"2.17\">\n");
+        sb.append("\t<Subsystem uuid=\"").append(uuid).append("\">\n");
+        sb.append("\t\t<Properties>\n");
+        sb.append("\t\t\t<Name>").append(escapeXml(name)).append("</Name>\n");
+        sb.append("\t\t\t<Synonym>\n");
+        sb.append("\t\t\t\t<v8:item>\n");
+        sb.append("\t\t\t\t\t<v8:lang>ru</v8:lang>\n");
+        sb.append("\t\t\t\t\t<v8:content>").append(escapeXml(name)).append("</v8:content>\n");
+        sb.append("\t\t\t\t</v8:item>\n");
+        sb.append("\t\t\t</Synonym>\n");
+        sb.append("\t\t\t<Comment/>\n");
+        sb.append("\t\t\t<IncludeHelpInContents>true</IncludeHelpInContents>\n");
+        sb.append("\t\t\t<IncludeInCommandInterface>true</IncludeInCommandInterface>\n");
+        sb.append("\t\t\t<UseOneCommand>false</UseOneCommand>\n");
+        sb.append("\t\t\t<Explanation/>\n");
+        sb.append("\t\t\t<Picture/>\n");
+        sb.append("\t\t\t<Content/>\n");
+        sb.append("\t\t</Properties>\n");
+        sb.append("\t\t<ChildObjects/>\n");
+        sb.append("\t</Subsystem>\n");
+        sb.append("</MetaDataObject>\n");
+        writeWithBom(file, sb.toString());
+    }
+
+    /**
+     * Минимальная stub-XML для объекта метаданных (Properties только Name + Synonym),
+     * чтобы конфигуратор проходил проверку в промежуточном состоянии.
+     */
+    private void writeMetaStub(Path file, String type, String name) throws IOException {
+        String uuid = UuidGenerator.generate();
+        StringBuilder sb = new StringBuilder();
+        sb.append("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n");
+        sb.append("<MetaDataObject xmlns=\"http://v8.1c.ru/8.3/MDClasses\"\n");
+        sb.append("\txmlns:v8=\"http://v8.1c.ru/8.1/data/core\"\n");
+        sb.append("\txmlns:xs=\"http://www.w3.org/2001/XMLSchema\"\n");
+        sb.append("\txmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\"\n");
+        sb.append("\tversion=\"2.17\">\n");
+        sb.append("\t<").append(type).append(" uuid=\"").append(uuid).append("\">\n");
+        sb.append("\t\t<Properties>\n");
+        sb.append("\t\t\t<Name>").append(escapeXml(name)).append("</Name>\n");
+        sb.append("\t\t\t<Synonym>\n");
+        sb.append("\t\t\t\t<v8:item>\n");
+        sb.append("\t\t\t\t\t<v8:lang>ru</v8:lang>\n");
+        sb.append("\t\t\t\t\t<v8:content>").append(escapeXml(name)).append("</v8:content>\n");
+        sb.append("\t\t\t\t</v8:item>\n");
+        sb.append("\t\t\t</Synonym>\n");
+        sb.append("\t\t\t<Comment/>\n");
+        sb.append("\t\t</Properties>\n");
+        sb.append("\t\t<ChildObjects/>\n");
+        sb.append("\t</").append(type).append(">\n");
+        sb.append("</MetaDataObject>\n");
+        writeWithBom(file, sb.toString());
+    }
+
+    /**
+     * Добавить подсистему в ChildObjects родительской подсистемы.
+     * Сохраняет форматирование файла, идемпотентно (дубликаты не создаются).
+     */
+    private void registerChildInParent(Path parentPath, String childName) throws IOException {
+        if (!Files.exists(parentPath)) {
+            throw new IOException("Parent subsystem file not found: " + parentPath);
+        }
+        byte[] raw = Files.readAllBytes(parentPath);
+        boolean hasBom = raw.length >= 3 && raw[0] == BOM[0] && raw[1] == BOM[1] && raw[2] == BOM[2];
+        String content = hasBom
+                ? new String(raw, 3, raw.length - 3, StandardCharsets.UTF_8)
+                : new String(raw, StandardCharsets.UTF_8);
+
+        String entry = "<Subsystem>" + escapeXml(childName) + "</Subsystem>";
+        if (content.contains(entry)) return;
+
+        if (content.contains("<ChildObjects/>")) {
+            content = content.replace("<ChildObjects/>",
+                    "<ChildObjects>\n\t\t\t" + entry + "\n\t\t</ChildObjects>");
+        } else if (content.contains("</ChildObjects>")) {
+            content = content.replace("</ChildObjects>",
+                    "\t\t\t" + entry + "\n\t\t</ChildObjects>");
+        } else {
+            throw new IOException("Parent subsystem has no ChildObjects section: " + parentPath);
+        }
+
+        byte[] bytes = content.getBytes(StandardCharsets.UTF_8);
+        if (hasBom) {
+            byte[] out = new byte[BOM.length + bytes.length];
+            System.arraycopy(BOM, 0, out, 0, BOM.length);
+            System.arraycopy(bytes, 0, out, BOM.length, bytes.length);
+            Files.write(parentPath, out);
+        } else {
+            Files.write(parentPath, bytes);
+        }
     }
 }

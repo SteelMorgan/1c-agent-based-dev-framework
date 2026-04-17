@@ -17,7 +17,9 @@ Explorer исследует кодовую базу → модули, графы
 
 ### Phase 1: Анализ (Analyst → Mid/High)
 
-Вход: задача + `explorer-context.md`. Analyst создаёт спеку MADR 4.0 + RFC 2119. Ревью Reviewer (Premium). Макс. 3 итерации BLOCK.
+Вход: задача + `explorer-context.md`. Analyst создаёт спеку MADR 4.0 + RFC 2119. Ревью Reviewer (Premium). Макс. 3 итерации BLOCK. Ревью + cross-provider-review + **STOP: ждём ОК пользователя**.
+
+Approval gate Phase 1 нужен, потому что спецификация фиксирует бизнес-решения (уровни RFC 2119, границы scope, выбор между альтернативами), которые пользователь ОБЯЗАН подтвердить ДО того, как Architect потратит ресурс на дизайн, опирающийся на возможно неверный контракт. Пропуск этого gate исторически приводил к множественным итерациям: cross-provider-review или Architect находили противоречия в спеке, которые можно было устранить одним уточнением у пользователя на этой стадии.
 
 ### Phase 2: Архитектура (Architect → High/Premium)
 
@@ -63,6 +65,7 @@ Tester запускает все тесты, дописывает edge-cases, и
 |----------|----------|
 | BLOCK, <= 3 итерации | Вернуть автору |
 | BLOCK, > 3 | Эскалация пользователю |
+| Пользователь отклонил Phase 1 | Analyst перерабатывает |
 | Пользователь отклонил Phase 2 | Architect перерабатывает |
 | `test_failure` в Phase 3c | Developer-Code: если свой код → исправить; если тест → `suspected_test_error` → Reviewer-арбитраж |
 | `test_failure` в Phase 4 | Tester: свой тест → исправить; баг в коде → `implementation_error` → Developer |

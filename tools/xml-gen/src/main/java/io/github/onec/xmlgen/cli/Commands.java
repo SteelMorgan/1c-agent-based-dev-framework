@@ -33,6 +33,8 @@ import io.github.onec.xmlgen.info.SubsystemInfoPrinter;
 import io.github.onec.xmlgen.info.MetaInfoPrinter;
 import io.github.onec.xmlgen.info.ExtensionDiffPrinter;
 
+import io.github.onec.xmlgen.editor.ReplaceTextEditor;
+
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -40,7 +42,9 @@ import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 /**
@@ -85,6 +89,9 @@ public class Commands {
                 break;
             case "extension":
                 executeExtension(args);
+                break;
+            case "edit":
+                executeEdit(args);
                 break;
             case "validate":
                 executeValidate(args);
@@ -433,24 +440,53 @@ public class Commands {
         OutputFormat format = OutputFormat.DESIGNER;
         Path inputJson = null;
         Path outputXml = null;
-        
+
+        boolean fromObject = false;
+        String presetName = "erp-standard";
+        Path presetDir = null;
+        Path explicitObject = null;
+
         for (int i = 1; i < args.length; i++) {
             if ("--format".equals(args[i]) && i + 1 < args.length) {
                 format = OutputFormat.fromString(args[++i]);
-            } else if (inputJson == null) {
+            } else if ("--from-object".equals(args[i])) {
+                fromObject = true;
+            } else if ("--preset".equals(args[i]) && i + 1 < args.length) {
+                presetName = args[++i];
+            } else if ("--preset-dir".equals(args[i]) && i + 1 < args.length) {
+                presetDir = Paths.get(args[++i]);
+            } else if ("--object".equals(args[i]) && i + 1 < args.length) {
+                explicitObject = Paths.get(args[++i]);
+            } else if (!fromObject && inputJson == null) {
                 inputJson = Paths.get(args[i]);
             } else if (outputXml == null) {
                 outputXml = Paths.get(args[i]);
             }
         }
-        
+
+        if (fromObject) {
+            if (outputXml == null) {
+                throw new IllegalArgumentException("output XML file is required");
+            }
+            try {
+                io.github.onec.xmlgen.form.fromobject.FormFromObjectGenerator gen =
+                        new io.github.onec.xmlgen.form.fromobject.FormFromObjectGenerator();
+                FormDsl dsl = gen.generate(explicitObject, outputXml, presetName, presetDir);
+                FormWriter writer = new FormWriter(format);
+                writer.create(dsl, outputXml);
+            } catch (Exception e) {
+                throw new RuntimeException("Failed to compile form from object: " + e.getMessage(), e);
+            }
+            return;
+        }
+
         if (inputJson == null) {
-            throw new IllegalArgumentException("input JSON file is required");
+            throw new IllegalArgumentException("input JSON file is required (or pass --from-object)");
         }
         if (outputXml == null) {
             throw new IllegalArgumentException("output XML file is required");
         }
-        
+
         try {
             ObjectMapper mapper = new ObjectMapper();
             FormDsl dsl = mapper.readValue(inputJson.toFile(), FormDsl.class);
@@ -1297,12 +1333,15 @@ public class Commands {
         Path file = null;
         String operation = null;
         String value = null;
+        boolean noFileCheck = false;
 
         for (int i = 1; i < args.length; i++) {
             if ("--op".equals(args[i]) && i + 1 < args.length) {
                 operation = args[++i];
             } else if ("--value".equals(args[i]) && i + 1 < args.length) {
                 value = args[++i];
+            } else if ("--no-file-check".equals(args[i])) {
+                noFileCheck = true;
             } else if (file == null) {
                 file = Paths.get(args[i]);
             }
@@ -1310,11 +1349,12 @@ public class Commands {
 
         if (file == null || operation == null || value == null) {
             throw new IllegalArgumentException(
-                    "Usage: xml-gen config edit <Configuration.xml> --op <operation> --value <value>");
+                    "Usage: xml-gen config edit <Configuration.xml> --op <operation> --value <value> [--no-file-check]");
         }
 
         try {
             ConfigEditor editor = new ConfigEditor(file);
+            editor.setSkipFileCheck(noFileCheck);
 
             switch (operation) {
                 case "modify-property":
@@ -1446,14 +1486,20 @@ public class Commands {
     }
 
     /**
-     * xml-gen subsystem compile <jsonPath> <outputDir>
+     * xml-gen subsystem compile <jsonPath> <outputDir> [--parent &lt;parentSubsystem.xml&gt;] [--no-stubs]
      */
     private static void subsystemCompile(String[] args) {
         Path jsonPath = null;
         Path outputDir = null;
+        Path parentPath = null;
+        boolean noStubs = false;
 
         for (int i = 1; i < args.length; i++) {
-            if (jsonPath == null) {
+            if ("--parent".equals(args[i]) && i + 1 < args.length) {
+                parentPath = Paths.get(args[++i]);
+            } else if ("--no-stubs".equals(args[i])) {
+                noStubs = true;
+            } else if (jsonPath == null) {
                 jsonPath = Paths.get(args[i]);
             } else if (outputDir == null) {
                 outputDir = Paths.get(args[i]);
@@ -1462,11 +1508,13 @@ public class Commands {
 
         if (jsonPath == null || outputDir == null) {
             throw new IllegalArgumentException(
-                    "Usage: xml-gen subsystem compile <jsonPath> <outputDir>");
+                    "Usage: xml-gen subsystem compile <jsonPath> <outputDir> [--parent <parentSubsystem.xml>] [--no-stubs]");
         }
 
         try {
-            new SubsystemWriter().compile(jsonPath, outputDir);
+            SubsystemWriter writer = new SubsystemWriter();
+            writer.setWriteStubs(!noStubs);
+            writer.compile(jsonPath, outputDir, parentPath);
             System.out.println("Subsystem created in: " + outputDir);
         } catch (IOException e) {
             throw new RuntimeException("Failed to compile subsystem: " + e.getMessage(), e);
@@ -2181,6 +2229,117 @@ public class Commands {
             new ExtensionDiffPrinter().diff(extPath, configPath, mode);
         } catch (IOException e) {
             throw new RuntimeException("Extension diff failed: " + e.getMessage(), e);
+        }
+    }
+
+    // ── edit ──────────────────────────────────────────────────────────────
+
+    private static void executeEdit(String[] args) {
+        if (args.length == 0) {
+            throw new IllegalArgumentException("Edit subcommand required: replace-text");
+        }
+        String subcommand = args[0].toLowerCase();
+        switch (subcommand) {
+            case "replace-text":
+                editReplaceText(args);
+                break;
+            default:
+                throw new IllegalArgumentException(
+                        "Unknown edit subcommand: " + args[0] + ". Supported: replace-text");
+        }
+    }
+
+    /**
+     * xml-gen edit replace-text {@literal <file>} --old "old" --new "new" [--all] [--dry-run]
+     *         [--backup] [--validate] [--encoding utf-8-sig|utf-8]
+     */
+    private static void editReplaceText(String[] args) {
+        List<String> oldTexts = new ArrayList<>();
+        List<String> newTexts = new ArrayList<>();
+        boolean replaceAll = false;
+        boolean dryRun = false;
+        boolean backup = false;
+        boolean validate = false;
+        String encoding = "utf-8-sig";
+        Path file = null;
+
+        for (int i = 1; i < args.length; i++) {
+            switch (args[i]) {
+                case "--old" -> {
+                    if (i + 1 < args.length) oldTexts.add(args[++i]);
+                    else throw new IllegalArgumentException("--old requires a value");
+                }
+                case "--new" -> {
+                    if (i + 1 < args.length) newTexts.add(args[++i]);
+                    else throw new IllegalArgumentException("--new requires a value");
+                }
+                case "--all" -> replaceAll = true;
+                case "--dry-run" -> dryRun = true;
+                case "--backup" -> backup = true;
+                case "--validate" -> validate = true;
+                case "--encoding" -> {
+                    if (i + 1 < args.length) encoding = args[++i].toLowerCase();
+                    else throw new IllegalArgumentException("--encoding requires a value");
+                }
+                default -> {
+                    if (!args[i].startsWith("--")) {
+                        file = Paths.get(args[i]);
+                    } else {
+                        throw new IllegalArgumentException("Unknown option: " + args[i]);
+                    }
+                }
+            }
+        }
+
+        if (oldTexts.isEmpty()) {
+            throw new IllegalArgumentException("--old is required");
+        }
+        if (oldTexts.size() != newTexts.size()) {
+            throw new IllegalArgumentException(
+                    "Each --old must have a matching --new (got "
+                            + oldTexts.size() + " old, " + newTexts.size() + " new)");
+        }
+        if (file == null) {
+            throw new IllegalArgumentException("File argument required");
+        }
+        if (!Files.exists(file)) {
+            throw new IllegalArgumentException("File not found: " + file);
+        }
+
+        List<ReplaceTextEditor.Replacement> pairs = new ArrayList<>();
+        for (int i = 0; i < oldTexts.size(); i++) {
+            pairs.add(new ReplaceTextEditor.Replacement(oldTexts.get(i), newTexts.get(i)));
+        }
+
+        try {
+            ReplaceTextEditor editor = new ReplaceTextEditor();
+            ReplaceTextEditor.Result result = editor.execute(
+                    file, pairs, replaceAll, encoding, dryRun, backup, validate);
+
+            // Dry-run: show replacement info to stderr
+            if (dryRun && result.replacements() > 0) {
+                System.err.println("[DRY-RUN] Would replace " + result.replacements()
+                        + " occurrence(s) in " + result.file());
+            }
+
+            // JSON output to stdout
+            Map<String, Object> json = new LinkedHashMap<>();
+            json.put("file", result.file().toString());
+            json.put("replacements", result.replacements());
+            json.put("bytes_before", result.bytesBefore());
+            json.put("bytes_after", result.bytesAfter());
+            if (dryRun) {
+                json.put("dry_run", true);
+            }
+            ObjectMapper mapper = new ObjectMapper();
+            System.out.println(mapper.writeValueAsString(json));
+
+            if (result.replacements() == 0) {
+                System.err.println("Text not found in " + file);
+                System.exit(1);
+            }
+        } catch (IOException e) {
+            throw new RuntimeException("Replace-text failed: " + e.getMessage(), e);
         }
     }
 }

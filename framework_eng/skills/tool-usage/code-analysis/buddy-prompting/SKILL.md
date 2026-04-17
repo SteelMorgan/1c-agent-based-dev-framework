@@ -1,0 +1,160 @@
+---
+name: buddy-prompting
+description: Crafting prompts for 1С Buddy (ask_ai_assistant). The skill teaches the agent to interact correctly with a weak LLM that has a solid knowledge base — via strict templates that match Buddy's internal instructions.
+---
+
+# Prompts for 1С Buddy (Buddy Prompting)
+
+## Decision Table — template selection
+
+| Agent task | Template | When |
+|------------|----------|------|
+| Platform API, syntax, methods, types, events | `SEARCH_DOCS` | Question about the built-in language or the behavior of platform objects |
+| Standards, methodology, БСП, typical configurations | `SEARCH_ITS` | Question about development rules, EDT, Configurator, 1С products |
+| Full text of a specific ITS document | `FETCH_ITS` | Document id already available after SEARCH_ITS |
+| Changes between platform versions | `DIFF_VERSIONS` | Migration, compatibility, "what has changed" |
+| Code validation for standards and searching analogs in БСП | `VALIDATE_BSL` | Review of a BSL fragment: syntax + compliance with standards + recommendations for using БСП |
+
+## Prompt templates
+
+### SEARCH_DOCS — platform documentation
+
+```
+Задача: ответить на вопрос по документации платформы 1С.
+
+Обязательно используй внутренний инструмент: Search_Documentation
+
+Ограничения:
+- Не отвечай по памяти.
+- Не используй Search_ITS.
+- Если документации нет — так и скажи.
+
+Вход:
+Версия платформы: {version}
+Вопрос: {query}
+
+Формат ответа:
+1. Краткий ответ по найденной документации.
+2. Найденные методы/свойства с параметрами и возвращаемыми значениями.
+3. Если неоднозначность — перечисли варианты.
+```
+
+**Forming the query:** for general topics add "List of all...", "General information about...". Example: "Form parameters" → "List of all parameters of the managed form". Empty result → rephrase the query.
+
+### SEARCH_ITS — standards and methodology
+
+```
+Задача: найти материалы в базе ИТС.
+
+Обязательно используй внутренний инструмент: Search_ITS
+
+Ограничения:
+- Не отвечай по памяти.
+- Не используй Search_Documentation.
+- Не пересказывай статьи — найди документы.
+
+Вход:
+Поисковый запрос: {query}
+Контекст: {context}
+
+Формат ответа:
+1. 3–5 наиболее релевантных документов.
+2. Для каждого: id, заголовок, почему релевантен.
+3. Если ничего не найдено — скажи явно.
+4. Приведи ссылки (https://...).
+```
+
+### FETCH_ITS — full text of an ITS document
+
+Only after SEARCH_ITS, when a document id is already available.
+
+```
+Задача: получить содержание документа ИТС.
+
+Обязательно используй внутренний инструмент: Fetch_ITS
+
+Ограничения:
+- Не выполняй новый поиск.
+- Не отвечай по памяти.
+
+Вход:
+ID документа: {doc_id}
+Что извлечь: {focus}
+
+Формат ответа:
+1. Структурированное содержание документа.
+2. Ответ на вопрос: {question}
+3. Важные ограничения и исключения из документа.
+```
+
+**Orchestration of SEARCH_ITS → FETCH_ITS** — two separate `ask_ai_assistant` calls:
+
+1. Call 1: SEARCH_ITS → list of documents with ids
+2. Agent selects the best id
+3. Call 2: FETCH_ITS with the selected id → full text
+
+### DIFF_VERSIONS — version differences
+
+```
+Задача: сравнить документацию платформы между версиями.
+
+Обязательно используй внутренний инструмент: Diff_Documentation_Versions
+
+Ограничения:
+- Не отвечай по памяти.
+- Сравни именно указанные версии.
+
+Вход:
+Тема: {topic}
+Версия (старая): {version_old}
+Версия (новая): {version_new}
+
+Формат ответа:
+1. Что добавилось.
+2. Что изменилось.
+3. Что удалено или несовместимо.
+4. Практический вывод для разработчика.
+```
+
+### VALIDATE_BSL — code validation for standards and БСП analogs
+
+```
+Задача: проверить код 1С на соответствие стандартам разработки
+и предложить аналоги из БСП, если они есть.
+
+Обязательно используй внутренний инструмент: syntax-checker__validate
+Используй режим extended (обогащение стандартами 1С).
+
+Ограничения:
+- Не анализируй код по памяти.
+- Проверь именно приведённый код.
+- Проверка без глобального контекста — ошибки "необъявленная переменная"
+  на глобальные методы/переменные могут быть ложными, укажи это.
+
+Вход:
+Код:
+```bsl
+{code}
+```
+
+Формат ответа:
+1. Синтаксические ошибки и предупреждения (место, причина, исправление).
+2. Нарушения стандартов разработки 1С.
+3. Рекомендации: какие фрагменты можно заменить методами БСП/платформы.
+4. Если проблем нет — скажи явно.
+```
+
+## Errors and limitations
+
+| Problem | Workaround |
+|---------|------------|
+| Empty SEARCH_DOCS result | Rephrase the query: "List of all..."; verify the version |
+| Irrelevant SEARCH_ITS results | Clarify the query with ITS terminology; narrow the request |
+| Buddy answered from memory without invoking the tool | Emphasize: "FORBIDDEN to answer without the tool" |
+| False VALIDATE_BSL errors | "Undeclared variable" on global methods is normal; filter these |
+| FETCH_ITS without an id | First SEARCH_ITS → choose an id → then FETCH_ITS |
+| No project context (session_id) | Do NOT try to trigger FindRelated, FindSimilar, GetObject |
+
+---
+depends_on: []
+---
