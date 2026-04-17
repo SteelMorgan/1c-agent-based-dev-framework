@@ -2152,6 +2152,25 @@ def install_xml_gen(script_dir: Path, dry_run: bool = False) -> bool:
     jar_src = gradlew.parent / "build" / "libs" / "xml-gen-0.1.0-SNAPSHOT.jar"
     need_build = not jar_src.exists()
 
+    # Проверка устаревшего JAR: если любой .java в src новее JAR — пересобираем.
+    # Иначе agent-изменения теряются в stale JAR (см. baseline regression OC-22444).
+    if jar_src.exists():
+        try:
+            jar_mtime = jar_src.stat().st_mtime
+            src_root = gradlew.parent / "src" / "main"
+            latest_src_mtime = 0.0
+            if src_root.exists():
+                for p in src_root.rglob("*.java"):
+                    m = p.stat().st_mtime
+                    if m > latest_src_mtime:
+                        latest_src_mtime = m
+            if latest_src_mtime > jar_mtime:
+                print(yellow(f"  ⚠ JAR устарел — исходники новее на "
+                             f"{int(latest_src_mtime - jar_mtime)}s. Пересборка…"))
+                need_build = True
+        except OSError:
+            pass  # если mtime недоступен — не рискуем, доверяем существованию JAR
+
     if not need_build:
         print(green(f"  ✓ JAR уже собран: {jar_src}"))
     else:

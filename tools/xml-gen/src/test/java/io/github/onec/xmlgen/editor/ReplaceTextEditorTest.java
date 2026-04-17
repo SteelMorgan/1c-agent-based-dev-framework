@@ -321,4 +321,25 @@ class ReplaceTextEditorTest {
         }
         return result;
     }
+
+    // ── Test N: multiline pattern with --all ──
+    @Test
+    void multilinePatternWithReplaceAll_replacesAllOccurrences() throws Exception {
+        String content =
+                "<a>\n\t<b>old</b>\n</a>\n" +
+                "<c>\n\t<b>old</b>\n</c>\n" +
+                "<d>\n\t<b>old</b>\n</d>\n";
+        Path file = createFile("multiline.xml", content);
+
+        ReplaceTextEditor editor = new ReplaceTextEditor();
+        ReplaceTextEditor.Result result = editor.execute(
+                file,
+                List.of(new ReplaceTextEditor.Replacement("\n\t<b>old</b>\n", "\n\t<b>new</b>\n")),
+                true, "utf-8-sig", false, false, false);
+
+        assertEquals(3, result.replacements());
+        String written = Files.readString(file, StandardCharsets.UTF_8);
+        assertFalse(written.contains("<b>old</b>"), "all old patterns should be replaced");
+        assertEquals(3, written.split("<b>new</b>", -1).length - 1);
+    }
 }

@@ -471,10 +471,26 @@ public class FormValidator implements XmlValidator {
                     valueType.getLine(), nodePath + "/ValueType"));
         }
 
-        // Случай 2: прямой потомок <Type>, у которого вложенные <Type> идут БЕЗ префикса v8.
-        // Допустимо: пустой <Type/> или <Type> с дочерними <v8:Type>.
-        XmlNode typeNode = node.child("Type");
-        if (typeNode != null) {
+        // Случаи 2 и 3: перебираем все прямые Type-потомки (независимо от префикса).
+        // Допустимо: outer <Type> (без префикса) с inner <v8:Type>. Недопустимо:
+        //   — outer <v8:Type> (или любой другой prefix) вместо чистого <Type>
+        //   — inner <Type> без префикса v8 внутри outer <Type>.
+        for (XmlNode typeNode : node.getChildren()) {
+            if (!"Type".equals(typeNode.getName())) continue;
+
+            String outerPrefix = typeNode.getPrefix();
+            if (outerPrefix != null && !outerPrefix.isEmpty()) {
+                issues.add(ValidationIssue.error("FORM-115",
+                        "Non-canonical outer type wrapper <" + outerPrefix + ":Type> in '"
+                                + contextLabel + "'. Canonical: <Type><v8:Type>X</v8:Type></Type> "
+                                + "(outer element must be <Type> without namespace prefix).",
+                        typeNode.getLine(), nodePath + "/" + outerPrefix + ":Type"));
+                // Не проверяем внутренности: outer уже некорректен, сообщение
+                // о вложенном <Type> запутает пользователя.
+                continue;
+            }
+
+            // outer <Type> — проверяем inner
             for (XmlNode child : typeNode.getChildren()) {
                 if (!"Type".equals(child.getName())) continue;
                 String prefix = child.getPrefix();

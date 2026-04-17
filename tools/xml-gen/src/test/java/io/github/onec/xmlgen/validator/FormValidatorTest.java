@@ -355,6 +355,49 @@ class FormValidatorTest {
         return file;
     }
 
+    // ==================== FORM-115: outer v8:Type wrapper ====================
+
+    @Test
+    void form115_outerV8TypePrefix_reported() throws Exception {
+        Path file = writeXml("Form.xml",
+                "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n" +
+                "<Form xmlns=\"http://v8.1c.ru/8.3/xcf/logform\" xmlns:v8=\"http://v8.1c.ru/8.1/data/core\" version=\"2.17\">\n" +
+                "\t<AutoCommandBar name=\"FormCommandBar\" id=\"-1\"/>\n" +
+                "\t<Attributes>\n" +
+                "\t\t<Attribute name=\"ОбъектКонтекста\" id=\"1\">\n" +
+                "\t\t\t<v8:Type>\n" +
+                "\t\t\t\t<v8:Type>cfg:CatalogRef.Товары</v8:Type>\n" +
+                "\t\t\t</v8:Type>\n" +
+                "\t\t</Attribute>\n" +
+                "\t</Attributes>\n" +
+                "\t<ChildItems/>\n" +
+                "</Form>\n");
+        XmlDocument doc = reader.parse(file);
+        List<ValidationIssue> issues = validator.validate(doc, ValidationLevel.SEMANTIC);
+        assertThat(issues).anyMatch(i -> i.getCode().equals("FORM-115")
+                && i.getMessage().contains("outer"));
+    }
+
+    @Test
+    void form115_canonicalOuterType_ok() throws Exception {
+        Path file = writeXml("Form.xml",
+                "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n" +
+                "<Form xmlns=\"http://v8.1c.ru/8.3/xcf/logform\" xmlns:v8=\"http://v8.1c.ru/8.1/data/core\" version=\"2.17\">\n" +
+                "\t<AutoCommandBar name=\"FormCommandBar\" id=\"-1\"/>\n" +
+                "\t<Attributes>\n" +
+                "\t\t<Attribute name=\"X\" id=\"1\">\n" +
+                "\t\t\t<Type>\n" +
+                "\t\t\t\t<v8:Type>cfg:CatalogRef.X</v8:Type>\n" +
+                "\t\t\t</Type>\n" +
+                "\t\t</Attribute>\n" +
+                "\t</Attributes>\n" +
+                "\t<ChildItems/>\n" +
+                "</Form>\n");
+        XmlDocument doc = reader.parse(file);
+        List<ValidationIssue> issues = validator.validate(doc, ValidationLevel.SEMANTIC);
+        assertThat(issues).noneMatch(i -> i.getCode().equals("FORM-115"));
+    }
+
     // ==================== FORM-117: Companions ====================
 
     @Test
