@@ -1,6 +1,6 @@
 ---
 name: form-dsl
-description: JSON DSL for generating 1С managed forms with UI elements, attributes, and commands. Use it during form compile and when editing forms via xml-gen-cli.
+description: JSON DSL for generating 1С managed forms with UI elements, attributes, and commands. Use it for form compile and editing forms through xml-gen-cli.
 ---
 
 # Form DSL
@@ -9,12 +9,27 @@ description: JSON DSL for generating 1С managed forms with UI elements, attribu
 
 ```bash
 xml-gen form compile [--format designer|edt] <input.json> <output.xml>
+
+# Generate a form from an object's metadata (Catalog/Document/Register and other objects)
+# Object type and purpose are derived from the OutputPath path.
+xml-gen form compile --from-object [--preset erp-standard] [--object <path>] <output.xml>
+
 xml-gen form info <Form.xml>
 ```
 
 Editing existing forms (add-attribute, add-element, move-element, etc.) — see [xml-gen-cli](../xml-gen-cli/)
 
-## DSL structure
+## `--from-object` Mode
+
+Generates `Form.xml` automatically from the object's XML description. Coverage: `Catalog` (item/folder/list/choice), `Document` (item/list/choice), `InformationRegister` (record/list), `AccumulationRegister` (list), `ChartOfCharacteristicTypes`, `ExchangePlan`, `ChartOfAccounts`, `DataProcessor`/`Report` (stub).
+
+Purpose is determined by the form folder name: `ФормаСписка`→list, `ФормаВыбора`→choice, `ФормаГруппы`→folder, `ФормаЗаписи`→record, otherwise item/default.
+
+Layout is controlled through the `erp-standard` JSON preset (built in) — overridden by the `<project-root>/presets/skills/form/erp-standard.json` file.
+
+Guardrails: `ValueStorage`-attributes are automatically skipped; `FormDataStructure/Collection/Tree` in an attribute → `FromObjectException`.
+
+## DSL Structure
 
 Minimal form: `{"attributes": [], "elements": []}`
 
@@ -26,17 +41,19 @@ Minimal form: `{"attributes": [], "elements": []}`
 
 **Types:** `string`, `string(N)`, `number`, `number(D,F)`, `boolean`, `date`, `uuid`, `CatalogRef.Name`, `DocumentRef.Name`, `ValueTable`
 
-### UI elements (elements)
+**Forbidden runtime types:** `FormDataStructure`, `FormDataCollection`, `FormDataTree` — they do not exist in the form XML schema and cause an XDTO error on load. The compiler throws `IllegalArgumentException`, and the validator returns `FORM-114 ERROR`. Use `CatalogObject.X` / `DocumentObject.X` / `DataProcessorObject.X`, `ValueTable`, `ValueTree`.
+
+### UI Elements (elements)
 
 | DSL type | XML type | Description |
-|----------|----------|-------------|
+|----------|---------|----------|
 | `input` | InputField | Input field |
 | `group` | UsualGroup | Group (`"group": "Vertical"/"Horizontal"`, `children`) |
 | `table` | Table | Table (`dataPath`, `columns`) |
 | `button` | Button | Button (`commandName`) |
 | `label` | LabelDecoration | Label decoration |
 | `checkbox` | CheckBoxField | Checkbox field |
-| `pages` | Pages | Pages container |
+| `pages` | Pages | Container for pages |
 | `page` | Page | Page (only inside `pages`) |
 
 ### Commands (commands)
@@ -51,18 +68,18 @@ Minimal form: `{"attributes": [], "elements": []}`
 {"events": {"onCreateAtServer": "ПриСозданииНаСервере", "onOpen": "ПриОткрытии"}}
 ```
 
-The DSL only sets the procedure name. Add the compiler directive in the form module manually:
+The DSL specifies only the procedure name. Set the compiler directive in the form module manually:
 
 | DSL event | Directive |
-|-----------|-----------|
+|-------------|-----------|
 | `onCreateAtServer` | `&НаСервере` |
 | `onOpen`, `onClose`, `beforeClose` | `&НаКлиенте` |
 
-Mixing contexts = compilation error or server objects unavailable on the client.
+Mixing contexts = compilation error or server objects being unavailable on the client.
 
-## Automatic generation
+## Automatic Generation
 
-UUID, ID, ContextMenu, ExtendedTooltip are generated automatically. Arbitrary nesting: group → group → input, pages → page → table.
+UUID, ID, ContextMenu, ExtendedTooltip are created automatically. Arbitrary nesting: group → group → input, pages → page → table.
 
 ## Correct / Incorrect
 

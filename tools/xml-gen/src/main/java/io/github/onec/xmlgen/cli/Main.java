@@ -38,7 +38,7 @@ public class Main {
         System.out.println("  epf add-template      - Add template to EPF");
         System.out.println("  epf add-attribute     - Add attribute to EPF");
         System.out.println("  epf add-tabular-section - Add tabular section to EPF");
-        System.out.println("  form compile          - Compile form from JSON DSL");
+        System.out.println("  form compile          - Compile form from JSON DSL or metadata (--from-object)");
         System.out.println("  form add-attribute    - Add attribute to form");
         System.out.println("  form add-element      - Add element to form");
         System.out.println("  form add-command      - Add command to form");

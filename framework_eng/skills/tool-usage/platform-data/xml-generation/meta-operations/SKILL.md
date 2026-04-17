@@ -59,6 +59,10 @@ xml-gen meta compile <meta.json> <output_dir>
 }
 ```
 
+**Full Catalog properties:** `hierarchical`, `hierarchyType` (HierarchyFoldersAndItems|HierarchyItemsOnly), `limitLevelCount`, `levelCount`, `foldersOnTop`, `codeLength`, `codeType` (String|Number), `codeAllowedLength` (Variable|Fixed), `codeSeries` (WholeCatalog|WithinOwnerSubordination|WithinSubordination), `descriptionLength`, `autonumbering`, `checkUnique`, `defaultPresentation` (AsDescription|AsCode), `subordinationUse` (ToItems|ToFolders|ToFoldersAndItems), `quickChoice`, `choiceMode` (BothWays|FromChoiceForm|QuickChoice), `editType` (InDialog|InList|BothWays), `owners` (array of strings, e.g. `["Catalog.Контрагенты"]`).
+
+**`multiLine` attribute flag** — makes a string field multiline (`<MultiLine>true</MultiLine>`). Applicable to Dimension/Resource/Attribute/TS attribute. In shorthand: `"Description: String(500) | multiline"`.
+
 ### meta info
 
 Object analysis: properties, attributes, TS, forms.
@@ -108,6 +112,10 @@ xml-gen meta validate <objectPath>
 ```
 
 **Checks:** XML structure, UUID, Properties (Name, Synonym), boolean properties, type-specific rules (22 types), StandardAttributes, forbidden properties, ChildObjects, InternalInfo/GeneratedType, file structure.
+
+**Compilation invariants:**
+- `FillFromFillingValue` / `FillValue` / `DataHistory` are written only for InformationRegister attributes (for other registers they cause an XSD load error).
+- Attribute names that match standard ones (Ref, Code, Description, Parent, Owner, IsFolder, DeletionMark, PostingMode, DataVersion, Predefined, PredefinedDataName, Posted, Date, Number + Russian synonyms Ссылка, Код, Наименование, Родитель, Владелец, ЭтоГруппа, ПометкаУдаления, РежимПроведения, ВерсияДанных, Предопределенный, ИмяПредопределенныхДанных, Проведен, Дата, Номер) are rejected during compilation.
 
 ### meta remove
 

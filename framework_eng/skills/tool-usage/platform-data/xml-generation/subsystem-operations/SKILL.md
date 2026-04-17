@@ -26,8 +26,12 @@ Working with 1C subsystems and the command interface.
 Generate a subsystem from JSON.
 
 ```bash
-xml-gen subsystem compile <subsystem.json> <output_dir>
+xml-gen subsystem compile <subsystem.json> <output_dir> [--parent <parentSubsystem.xml>] [--no-stubs]
 ```
+
+**Parameters:**
+- `--parent <path>` — bottom-up registration: the new subsystem is added to the parent’s ChildObjects (not to Configuration.xml).
+- `--no-stubs` — disable automatic creation of stub XML for declared `content` items and `children` whose object file is missing. Enabled by default — needed so configuration validation does not fail in an intermediate state.
 
 ### subsystem info
 
@@ -46,7 +50,7 @@ xml-gen subsystem edit <subsystemPath> --op <operation> --value <value>
 **Operations:**
 - `add-content` — add an object: `"Catalog.Товары"` or `["Catalog.Товары","Document.Заказ"]`
 - `remove-content` — remove an object
-- `add-child` — add a child subsystem
+- `add-child` — add a child subsystem. If the file `<Parent>/Subsystems/<childName>.xml` is missing, a stub XML is created (so validation does not break).
 - `remove-child` — remove a child subsystem
 - `set-property` — `"IncludeInCommandInterface=true"`, `"Synonym=Торговля"`, `"Picture=CommonPicture.ТорговляИСклад"`
 
@@ -88,7 +92,6 @@ xml-gen interface validate <ciPath>
 - `Catalog.Товары.StandardCommand.Create` — standard command
 - `Catalog.Товары.Command.ПечатьЭтикетки` — object command
 - `0:<uuid>` — UUID reference
-
 
 ---
 depends_on: []

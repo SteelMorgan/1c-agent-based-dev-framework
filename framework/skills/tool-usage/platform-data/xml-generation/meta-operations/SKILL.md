@@ -59,6 +59,10 @@ xml-gen meta compile <meta.json> <output_dir>
 }
 ```
 
+**Полные свойства Catalog:** `hierarchical`, `hierarchyType` (HierarchyFoldersAndItems|HierarchyItemsOnly), `limitLevelCount`, `levelCount`, `foldersOnTop`, `codeLength`, `codeType` (String|Number), `codeAllowedLength` (Variable|Fixed), `codeSeries` (WholeCatalog|WithinOwnerSubordination|WithinSubordination), `descriptionLength`, `autonumbering`, `checkUnique`, `defaultPresentation` (AsDescription|AsCode), `subordinationUse` (ToItems|ToFolders|ToFoldersAndItems), `quickChoice`, `choiceMode` (BothWays|FromChoiceForm|QuickChoice), `editType` (InDialog|InList|BothWays), `owners` (массив строк, напр. `["Catalog.Контрагенты"]`).
+
+**Флаг реквизита `multiLine`** — делает строковое поле многострочным (`<MultiLine>true</MultiLine>`). Применимо к Dimension/Resource/Attribute/TS-атрибуту. В shorthand: `"Описание: String(500) | multiline"`.
+
 ### meta info
 
 Анализ объекта: свойства, реквизиты, ТЧ, формы.
@@ -107,7 +111,11 @@ xml-gen meta edit <objectPath> --op <operation> "<value>"
 xml-gen meta validate <objectPath>
 ```
 
-**Проверки:** структура XML, UUID, Properties (Name, Synonym), boolean-свойства, type-specific правила (22 типа), StandardAttributes, forbidden properties, ChildObjects, InternalInfo/GeneratedType, файловая структура.
+**Проверки:** структура XML, UUID, Properties (Name, Synonym), boolean-свойства, type-specific правила (22 типа), строгая enum-валидация значений (HierarchyType, SubordinationUse, ChoiceMode, EditType, CodeAllowedLength, CodeSeries, NumberAllowedLength, RegisterRecordsDeletion, RegisterRecordsWritingOnPost, Periodicity, RequireCalculationTypes и др.), StandardAttributes, forbidden properties, ChildObjects, InternalInfo/GeneratedType, файловая структура.
+
+**Инварианты компиляции:**
+- `FillFromFillingValue` / `FillValue` / `DataHistory` — пишутся только для реквизитов InformationRegister (для других регистров вызывают XSD-ошибку при загрузке).
+- Имена реквизитов, совпадающие со стандартными (Ref, Code, Description, Parent, Owner, IsFolder, DeletionMark, PostingMode, DataVersion, Predefined, PredefinedDataName, Posted, Date, Number + русские синонимы Ссылка, Код, Наименование, Родитель, Владелец, ЭтоГруппа, ПометкаУдаления, РежимПроведения, ВерсияДанных, Предопределенный, ИмяПредопределенныхДанных, Проведен, Дата, Номер), отклоняются при компиляции.
 
 ### meta remove
 

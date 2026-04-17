@@ -195,7 +195,12 @@ public class FormWriter extends XmlWriter {
         if (attr.getMain() != null && attr.getMain()) {
             writeElement("MainAttribute", "true");
         }
-        
+
+        // SavedData
+        if (attr.getSavedData() != null && attr.getSavedData()) {
+            writeElement("SavedData", "true");
+        }
+
         // Columns (для ValueTable/ValueTree)
         if (attr.getColumns() != null && !attr.getColumns().isEmpty()) {
             startElement("Columns");
@@ -205,10 +210,43 @@ public class FormWriter extends XmlWriter {
             }
             endElement(); // Columns
         }
-        
+
+        // ExtInfo для DynamicList (settings.mainTable, settings.dynamicDataRead)
+        if (attr.getSettings() != null && "DynamicList".equals(attr.getType())) {
+            writeDynamicListExtInfo(attr.getSettings());
+        }
+
         indentLevel = 2;
         writer.writeCharacters("\t\t");
         writer.writeEndElement(); // Attribute
+        writer.writeCharacters("\n");
+    }
+
+    /** Эмитит <ExtInfo xsi:type="DynamicListExtInfo">…</ExtInfo>. */
+    @SuppressWarnings("unchecked")
+    private void writeDynamicListExtInfo(Map<String, Object> settings) throws XMLStreamException {
+        writer.writeCharacters("\t\t\t");
+        writer.writeStartElement("ExtInfo");
+        writer.writeAttribute("http://www.w3.org/2001/XMLSchema-instance", "type", "DynamicListExtInfo");
+        writer.writeCharacters("\n");
+        Object mainTable = settings.get("mainTable");
+        if (mainTable != null) {
+            writer.writeCharacters("\t\t\t\t");
+            writer.writeStartElement("MainTable");
+            writer.writeCharacters(String.valueOf(mainTable));
+            writer.writeEndElement();
+            writer.writeCharacters("\n");
+        }
+        Object ddr = settings.get("dynamicDataRead");
+        if (ddr instanceof Boolean && (Boolean) ddr) {
+            writer.writeCharacters("\t\t\t\t");
+            writer.writeStartElement("DynamicDataRead");
+            writer.writeCharacters("true");
+            writer.writeEndElement();
+            writer.writeCharacters("\n");
+        }
+        writer.writeCharacters("\t\t\t");
+        writer.writeEndElement(); // ExtInfo
         writer.writeCharacters("\n");
     }
     

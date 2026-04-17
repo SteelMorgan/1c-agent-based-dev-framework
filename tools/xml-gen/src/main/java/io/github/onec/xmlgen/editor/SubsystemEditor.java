@@ -24,6 +24,7 @@ public class SubsystemEditor {
     private final Path filePath;
     private String content;
     private boolean hasBom;
+    private boolean writeStubs = true;
 
     public SubsystemEditor(Path filePath) throws IOException {
         this.filePath = filePath;
@@ -32,6 +33,14 @@ public class SubsystemEditor {
         this.content = hasBom
                 ? new String(raw, 3, raw.length - 3, StandardCharsets.UTF_8)
                 : new String(raw, StandardCharsets.UTF_8);
+    }
+
+    /**
+     * Управление созданием stub-XML для добавляемых детей/content при отсутствии файлов.
+     * По умолчанию включено.
+     */
+    public void setWriteStubs(boolean writeStubs) {
+        this.writeStubs = writeStubs;
     }
 
     /**
@@ -80,7 +89,8 @@ public class SubsystemEditor {
     }
 
     /**
-     * Добавить дочернюю подсистему в ChildObjects.
+     * Добавить дочернюю подсистему в ChildObjects. При включённом writeStubs (по умолчанию) —
+     * создаёт stub-XML ребёнка, если файл отсутствует, чтобы валидация не падала.
      */
     public void addChild(String childName) {
         String entry = "<Subsystem>" + escapeXml(childName) + "</Subsystem>";
@@ -92,12 +102,74 @@ public class SubsystemEditor {
         if (content.contains("<ChildObjects/>")) {
             content = content.replace("<ChildObjects/>",
                     "<ChildObjects>\n\t\t\t" + entry + "\n\t\t</ChildObjects>");
-            return;
+        } else {
+            // Insert before </ChildObjects>
+            content = content.replace("</ChildObjects>",
+                    "\t" + entry + "\n\t\t</ChildObjects>");
         }
 
-        // Insert before </ChildObjects>
-        content = content.replace("</ChildObjects>",
-                "\t" + entry + "\n\t\t</ChildObjects>");
+        // Stub XML для ребёнка, если файл отсутствует.
+        if (writeStubs) {
+            try {
+                ensureSubsystemChildStub(childName);
+            } catch (IOException e) {
+                throw new RuntimeException("Failed to write subsystem stub for " + childName, e);
+            }
+        }
+    }
+
+    /**
+     * Создать минимальный XML дочерней подсистемы, если файл отсутствует.
+     * Путь: <parentDir>/<parentName>/Subsystems/<childName>.xml
+     */
+    private void ensureSubsystemChildStub(String childName) throws IOException {
+        // filePath = .../Subsystems/<ParentName>.xml
+        // child goes to .../Subsystems/<ParentName>/Subsystems/<childName>.xml
+        Path parentDir = filePath.getParent();
+        if (parentDir == null) return;
+        String parentFileName = filePath.getFileName().toString();
+        if (!parentFileName.endsWith(".xml")) return;
+        String parentBase = parentFileName.substring(0, parentFileName.length() - 4);
+        Path childrenDir = parentDir.resolve(parentBase).resolve("Subsystems");
+        Path childFile = childrenDir.resolve(childName + ".xml");
+        if (Files.exists(childFile)) return;
+        Files.createDirectories(childrenDir);
+
+        String uuid = java.util.UUID.randomUUID().toString();
+        StringBuilder sb = new StringBuilder();
+        sb.append("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n");
+        sb.append("<MetaDataObject xmlns=\"http://v8.1c.ru/8.3/MDClasses\"\n");
+        sb.append("\txmlns:v8=\"http://v8.1c.ru/8.1/data/core\"\n");
+        sb.append("\txmlns:xr=\"http://v8.1c.ru/8.3/xcf/readable\"\n");
+        sb.append("\txmlns:xs=\"http://www.w3.org/2001/XMLSchema\"\n");
+        sb.append("\txmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\"\n");
+        sb.append("\tversion=\"2.17\">\n");
+        sb.append("\t<Subsystem uuid=\"").append(uuid).append("\">\n");
+        sb.append("\t\t<Properties>\n");
+        sb.append("\t\t\t<Name>").append(escapeXml(childName)).append("</Name>\n");
+        sb.append("\t\t\t<Synonym>\n");
+        sb.append("\t\t\t\t<v8:item>\n");
+        sb.append("\t\t\t\t\t<v8:lang>ru</v8:lang>\n");
+        sb.append("\t\t\t\t\t<v8:content>").append(escapeXml(childName)).append("</v8:content>\n");
+        sb.append("\t\t\t\t</v8:item>\n");
+        sb.append("\t\t\t</Synonym>\n");
+        sb.append("\t\t\t<Comment/>\n");
+        sb.append("\t\t\t<IncludeHelpInContents>true</IncludeHelpInContents>\n");
+        sb.append("\t\t\t<IncludeInCommandInterface>true</IncludeInCommandInterface>\n");
+        sb.append("\t\t\t<UseOneCommand>false</UseOneCommand>\n");
+        sb.append("\t\t\t<Explanation/>\n");
+        sb.append("\t\t\t<Picture/>\n");
+        sb.append("\t\t\t<Content/>\n");
+        sb.append("\t\t</Properties>\n");
+        sb.append("\t\t<ChildObjects/>\n");
+        sb.append("\t</Subsystem>\n");
+        sb.append("</MetaDataObject>\n");
+
+        byte[] data = sb.toString().getBytes(StandardCharsets.UTF_8);
+        byte[] out = new byte[BOM.length + data.length];
+        System.arraycopy(BOM, 0, out, 0, BOM.length);
+        System.arraycopy(data, 0, out, BOM.length, data.length);
+        Files.write(childFile, out);
     }
 
     /**

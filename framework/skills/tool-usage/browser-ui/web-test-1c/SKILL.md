@@ -56,33 +56,45 @@ node $RUN stop                          # logout + закрытие (освоб�
 
 | Функция | Описание |
 |---------|----------|
-| `getFormState()` | Все поля, кнопки, вкладки, таблица, ошибки одним вызовом |
-| `readTable({ maxRows?, offset? })` | Таблица с пагинацией: `{ columns, rows, total }` |
-| `readSpreadsheet()` | Отчёт (SpreadsheetDocument) после «Сформировать» |
+| `getFormState()` | Все поля, кнопки, вкладки, таблицы, ошибки одним вызовом |
+| `readTable({ maxRows?, offset?, table? })` | Таблица с пагинацией: `{ columns, rows, total }`. `table` выбирает сетку по имени |
+| `readSpreadsheet()` | Отчёт (SpreadsheetDocument) после «Сформировать». Поддерживает text-only и отчёты с числовыми шапками |
 
-`getFormState()` возвращает: **fields** (имя, значение, actions, required), **table** (сводка), **reportSettings** (фильтры СКД), **errorModal**, **confirmation**.
+`getFormState()` возвращает: **fields** (имя, значение, actions, required), **table** (back-compat: первая сетка), **tables[]** (все видимые сетки: `{name, columns, rowCount, label}`), **openForms[]**, **formCount**, **modal**, **openTabs[]**, **navigation** (панель навигации формы), **reportSettings** (human-readable настройки СКД), **errors.stateText** (info-bar SpreadsheetDocument), **errorModal**, **confirmation**.
+
+Строки дерева помечаются `_kind: 'group'|'parent'`, `_tree: 'expanded'|'collapsed'`, `_level`, `_selected`.
 
 ## API — Действия
 
 | Функция | Описание |
 |---------|----------|
 | `fillFields({ name: value })` | Заполнение полей (fuzzy match, автотип: справочник/чекбокс/радио) |
+| `fillField(name, value)` | Одиночный аналог `fillFields` |
 | `selectValue(field, search, opts?)` | Выбор из справочника (выпадающий / форма выбора) |
-| `clickElement(text, { dblclick? })` | Клик по кнопке/ссылке/строке (dblclick открывает элемент) |
-| `fillTableRow(fields, opts)` | Заполнение строки табличной части (`{ tab, add }`) |
-| `deleteTableRow(row, { tab? })` | Удаление строки |
+| `clickElement(text, opts?)` | Клик по кнопке/ссылке/строке. `opts`: `dblclick`, `table` (scope командной панели конкретной сетки), `toggle`/`expand` (дерево), `modifier: 'ctrl'\|'shift'` (multi-select), `timeout` |
+| `clickElement(target, opts?)` с `{row, column}` | Drill-down в SpreadsheetDocument: `{row: 0, column: 'К6'}`, `{row: {'К1': 'Материалы'}, column: 'К6'}`, `{row: 'totals', column: 'К6'}` |
+| `fillTableRow(fields, opts)` | Заполнение строки ТЧ (`{ tab, add, row, table }`) |
+| `deleteTableRow(row, { tab?, table? })` | Удаление строки |
 | `filterList(text, opts?)` / `unfilterList()` | Фильтрация списков (простой / `{ field }`) |
 | `closeForm({ save? })` | Закрытие с обработкой подтверждения |
-| `switchTab(name)` | Переключение вкладки |
+| `switchTab(name)` | Переключение вкладки формы или открытой вкладки (tab bar) |
+| `navigateLink(url)` | Открытие объекта по метаданным (Shift+F11), поддержка русских имён |
+| `openFile(path)` | Открытие EPF/ERF через File→Open с обработкой security dialog |
 
-## API — Утилиты
+## API — Утилиты и запись
 
 | Функция | Описание |
 |---------|----------|
 | `screenshot()` | PNG скриншот |
 | `wait(seconds)` | Ожидание + form state |
 | `getPage()` | Playwright Page (нестандартные сценарии) |
-| `startRecording(path)` / `stopRecording()` | Видеозапись |
+| `startRecording(path, opts?)` / `stopRecording()` | Видеозапись (можно отключить на уровне CLI флагом `--no-record`) |
+| `addNarration(videoPath, opts?)` | Наложение TTS-озвучки (node-edge-tts) |
+| `showCaption(text, opts?)` / `hideCaption()` | Подпись поверх видео |
+| `showTitleSlide(text)` / `hideTitleSlide()` | Титульный слайд |
+| `showImage(path, opts?)` / `hideImage()` | Оверлей картинки |
+| `highlight(text, opts?)` / `unhighlight()` / `setHighlight(on)` | Подсветка элементов |
+| `fetchErrorStack(formNum, hasReport)` | Достать call stack из модального окна ошибки 1С |
 | `getSections()` / `getCommands()` | Панель разделов |
 
 ## Важные особенности
@@ -91,7 +103,11 @@ node $RUN stop                          # logout + закрытие (освоб�
 - **Ctrl+V** вместо `page.fill()` — 1С реагирует только на trusted events
 - **Fuzzy matching** — exact > startsWith > includes; ё→е и \u00a0→пробел автоматически
 - **Graceful logout** — `stop` → POST `/e1cib/logout` (освобождает лицензию)
-- **Автодетект ошибок** — модальные, balloon, подтверждения включаются в ответ
+- **Автодетект ошибок** — модальные, balloon, подтверждения включаются в ответ; при модальной ошибке автоматически подтягивается stack (`fetchErrorStack`) и скриншот
+- **Multi-table** — если на форме несколько сеток, `tables[]` перечисляет все; передавай `{ table: 'Исходящие' }` в `readTable`/`clickElement`/`fillTableRow`/`deleteTableRow` чтобы указать нужную
+- **Tree nodes** — по умолчанию клик выбирает, `{expand: true}` раскрывает/сворачивает
+- **Multi-select** — `clickElement(..., { modifier: 'ctrl' })` или `'shift'`
+- **1C browser extension** — если установлена в Chrome/Edge, автоматически подхватывается; можно переопределить через `extensionPath` в `.v8-project.json`
 - **Макс. 2 попытки** — после двух неудач — сообщи пользователю
 
 ## Горячие клавиши 1С
@@ -109,5 +125,5 @@ requires:
   - tools
 metadata:
   category: 1c-development
-  version: "1.0"
+  version: "1.1"
 ---

@@ -440,24 +440,53 @@ public class Commands {
         OutputFormat format = OutputFormat.DESIGNER;
         Path inputJson = null;
         Path outputXml = null;
-        
+
+        boolean fromObject = false;
+        String presetName = "erp-standard";
+        Path presetDir = null;
+        Path explicitObject = null;
+
         for (int i = 1; i < args.length; i++) {
             if ("--format".equals(args[i]) && i + 1 < args.length) {
                 format = OutputFormat.fromString(args[++i]);
-            } else if (inputJson == null) {
+            } else if ("--from-object".equals(args[i])) {
+                fromObject = true;
+            } else if ("--preset".equals(args[i]) && i + 1 < args.length) {
+                presetName = args[++i];
+            } else if ("--preset-dir".equals(args[i]) && i + 1 < args.length) {
+                presetDir = Paths.get(args[++i]);
+            } else if ("--object".equals(args[i]) && i + 1 < args.length) {
+                explicitObject = Paths.get(args[++i]);
+            } else if (!fromObject && inputJson == null) {
                 inputJson = Paths.get(args[i]);
             } else if (outputXml == null) {
                 outputXml = Paths.get(args[i]);
             }
         }
-        
+
+        if (fromObject) {
+            if (outputXml == null) {
+                throw new IllegalArgumentException("output XML file is required");
+            }
+            try {
+                io.github.onec.xmlgen.form.fromobject.FormFromObjectGenerator gen =
+                        new io.github.onec.xmlgen.form.fromobject.FormFromObjectGenerator();
+                FormDsl dsl = gen.generate(explicitObject, outputXml, presetName, presetDir);
+                FormWriter writer = new FormWriter(format);
+                writer.create(dsl, outputXml);
+            } catch (Exception e) {
+                throw new RuntimeException("Failed to compile form from object: " + e.getMessage(), e);
+            }
+            return;
+        }
+
         if (inputJson == null) {
-            throw new IllegalArgumentException("input JSON file is required");
+            throw new IllegalArgumentException("input JSON file is required (or pass --from-object)");
         }
         if (outputXml == null) {
             throw new IllegalArgumentException("output XML file is required");
         }
-        
+
         try {
             ObjectMapper mapper = new ObjectMapper();
             FormDsl dsl = mapper.readValue(inputJson.toFile(), FormDsl.class);
@@ -1304,12 +1333,15 @@ public class Commands {
         Path file = null;
         String operation = null;
         String value = null;
+        boolean noFileCheck = false;
 
         for (int i = 1; i < args.length; i++) {
             if ("--op".equals(args[i]) && i + 1 < args.length) {
                 operation = args[++i];
             } else if ("--value".equals(args[i]) && i + 1 < args.length) {
                 value = args[++i];
+            } else if ("--no-file-check".equals(args[i])) {
+                noFileCheck = true;
             } else if (file == null) {
                 file = Paths.get(args[i]);
             }
@@ -1317,11 +1349,12 @@ public class Commands {
 
         if (file == null || operation == null || value == null) {
             throw new IllegalArgumentException(
-                    "Usage: xml-gen config edit <Configuration.xml> --op <operation> --value <value>");
+                    "Usage: xml-gen config edit <Configuration.xml> --op <operation> --value <value> [--no-file-check]");
         }
 
         try {
             ConfigEditor editor = new ConfigEditor(file);
+            editor.setSkipFileCheck(noFileCheck);
 
             switch (operation) {
                 case "modify-property":
@@ -1453,14 +1486,20 @@ public class Commands {
     }
 
     /**
-     * xml-gen subsystem compile <jsonPath> <outputDir>
+     * xml-gen subsystem compile <jsonPath> <outputDir> [--parent &lt;parentSubsystem.xml&gt;] [--no-stubs]
      */
     private static void subsystemCompile(String[] args) {
         Path jsonPath = null;
         Path outputDir = null;
+        Path parentPath = null;
+        boolean noStubs = false;
 
         for (int i = 1; i < args.length; i++) {
-            if (jsonPath == null) {
+            if ("--parent".equals(args[i]) && i + 1 < args.length) {
+                parentPath = Paths.get(args[++i]);
+            } else if ("--no-stubs".equals(args[i])) {
+                noStubs = true;
+            } else if (jsonPath == null) {
                 jsonPath = Paths.get(args[i]);
             } else if (outputDir == null) {
                 outputDir = Paths.get(args[i]);
@@ -1469,11 +1508,13 @@ public class Commands {
 
         if (jsonPath == null || outputDir == null) {
             throw new IllegalArgumentException(
-                    "Usage: xml-gen subsystem compile <jsonPath> <outputDir>");
+                    "Usage: xml-gen subsystem compile <jsonPath> <outputDir> [--parent <parentSubsystem.xml>] [--no-stubs]");
         }
 
         try {
-            new SubsystemWriter().compile(jsonPath, outputDir);
+            SubsystemWriter writer = new SubsystemWriter();
+            writer.setWriteStubs(!noStubs);
+            writer.compile(jsonPath, outputDir, parentPath);
             System.out.println("Subsystem created in: " + outputDir);
         } catch (IOException e) {
             throw new RuntimeException("Failed to compile subsystem: " + e.getMessage(), e);

@@ -327,9 +327,24 @@ public class FormValidator implements XmlValidator {
             // FORM-107: Тип атрибута
             XmlNode type = attr.child("Type");
             if (type != null) {
-                XmlNode typeNode = type.child("Type");
-                // Тип может содержать TypeDescription → Type → TypeId
-                // Пропускаем глубокую валидацию типов для MVP
+                // FORM-114: runtime-типы (FormDataStructure/Collection/Tree) не валидны в XML-схеме.
+                for (XmlNode t : type.children("Type")) {
+                    String typeText = t.getText();
+                    if (typeText == null) continue;
+                    String ts = typeText.trim();
+                    if ("FormDataStructure".equals(ts)
+                            || "FormDataCollection".equals(ts)
+                            || "FormDataTree".equals(ts)
+                            || ts.endsWith(":FormDataStructure")
+                            || ts.endsWith(":FormDataCollection")
+                            || ts.endsWith(":FormDataTree")) {
+                        issues.add(ValidationIssue.error("FORM-114",
+                                "Runtime type '" + ts
+                                + "' запрещён в реквизите формы (не существует в XML-схеме). "
+                                + "Используйте CatalogObject/DocumentObject/DataProcessorObject/ValueTable/ValueTree.",
+                                t.getLine(), attrPath + "/Type"));
+                    }
+                }
             }
 
             // FORM-108: StringQualifiers.AllowedLength
