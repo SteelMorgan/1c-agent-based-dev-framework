@@ -51,7 +51,19 @@ According to the [decision tree](#classification-decision-tree).
 
 **MANDATORY** launch ALL subagents in background mode (`run_in_background: true`). This allows the orchestrator to stay connected to the user and handle their messages while the subagent runs. The orchestrator will receive a notification automatically when the subagent finishes.
 
-### 2b. Project skills
+### 2b. Periodic health-check of long-running subagents
+
+The completion notification arrives only on exit. Until then a subagent may hang, fall into a zombie state, or silently do the wrong work (dirty configuration, wrong scope). To avoid losing hours on "it's still working over there", the orchestrator **MUST** periodically check status.
+
+**Rules:**
+- For background subagents and background bash tasks lasting **> 5 min** the orchestrator performs a short health-check **roughly every 15 min**: Read of the output file (tail / latest entries), `ls` of artifacts, `grep` for key markers in the subagent logs or its `{role}-context.md`.
+- The health-check is **NOT recorded** in `orchestrator-context.md` (that would be noise). An entry is added ONLY when an anomaly is found — and then it is a regular log event (`HEALTHCHECK_ANOMALY:`, `RESTART:`, `SCOPE_CORRECTION:`).
+- If a process is stuck / doing the wrong thing / artifacts are not growing — the orchestrator has the right to interrupt (`TaskStop`) and re-launch the subagent with the correct scope.
+- This does NOT replace the notification-driven flow for short tasks (< 5 min); it is a safety net for long ones.
+
+**Sign of violation:** the orchestrator sits silent for hours waiting for a notification while the subagent could have hung in the first 10 minutes.
+
+### 2c. Project skills
 
 At the start of work the orchestrator **MUST** obtain the list of available project skills — the `SKILL.md` files in the project skills directory (usually located at the root of the project next to the IDE/agent configuration). It is enough to read the names and descriptions (frontmatter); do not read the skill contents.
 
@@ -244,8 +256,10 @@ You do not do the work — you launch the subagent and handle its result.
       Входные данные + task_dir:
       - Phase 1 (Analyst): задача + explorer-context.md
       - Phase 2 (Architect): спека + explorer-context.md
-      - Phase 3a/3b: spec + technical-design + task-breakdown.json (параллельно)
-      - Phase 3c (Developer-Code): всё выше + тесты 3b + .feature 3a
+      - Phase 3a (Scenario-Author): spec + technical-design + task-breakdown.json
+      - Phase 3b (Developer-Tests): spec + technical-design + task-breakdown.json
+      - Phase 3c (Scenario-Coder): technical-design + `.feature` 3a
+      - Phase 3d (Developer-Code): всё выше + тесты 3b + Red-executable `.feature` из 3c
    c. Прочитать {role}-context.md (только статус и артефакт, НЕ код)
       ЛОГ ← DONE_PHASE: {роль} → результат
    d. ЗАПУСТИТЬ сабагент Reviewer (review_scope) → обработка:
@@ -332,4 +346,5 @@ depends_on:
   - framework/workflows/source-of-truth-policy.md
   - framework/skills/tool-usage/review/cross-provider-review/SKILL.md
   - framework/subagents/scenario-author.md
+  - framework/subagents/scenario-coder.md
 ---
