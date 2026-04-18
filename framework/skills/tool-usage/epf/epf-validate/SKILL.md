@@ -33,8 +33,15 @@ allowed-tools:
 ## Команда
 
 ```bash
-python3 scripts/epf-validate.py -ObjectPath "<путь>"
+xmlgen validate --type epf "<ObjectPath>"
 ```
+
+С JSON-отчётом:
+```bash
+xmlgen validate --type epf --output json "<ObjectPath>"
+```
+
+> Реализация: Java-CLI `xmlgen validate` (замена Python-скрипта). Коды ошибок — `EPF-001..006` (структура), `EPF-007..010` (семантика: дубли, идентификаторы, Form.xml, GUID).
 
 ## Выполняемые проверки
 

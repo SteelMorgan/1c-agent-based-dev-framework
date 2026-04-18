@@ -1,5 +1,9 @@
 package io.github.onec.xmlgen.editor;
 
+import io.github.onec.xmlgen.dsl.FormDsl;
+import io.github.onec.xmlgen.form.edit.CompanionKind;
+import io.github.onec.xmlgen.form.edit.FormElementKind;
+import io.github.onec.xmlgen.form.edit.FormTypeEmitter;
 import io.github.onec.xmlgen.validator.XmlDocument;
 import io.github.onec.xmlgen.validator.XmlNode;
 
@@ -10,42 +14,145 @@ import static io.github.onec.xmlgen.editor.EditorUtils.findOrCreateChild;
 
 public class FormEditor {
 
+    /** Нижний порог ID в режиме расширения — параллельно Python form-edit. */
+    public static final int EXTENSION_ID_FLOOR = 1_000_000;
+
     private final XmlDocument document;
+    /** Единый аллокатор для обратной совместимости (возвращается {@link #getIdAllocator()}). */
     private final IdAllocator idAllocator;
+    private final IdAllocator attributeIds;
+    private final IdAllocator commandIds;
+    private final IdAllocator elementIds;
+    private final FormTypeEmitter typeEmitter = new FormTypeEmitter();
+    private final boolean isExtension;
 
     public FormEditor(XmlDocument document) {
         this.document = document;
         this.idAllocator = new IdAllocator(document);
+
+        XmlNode root = document.getRoot();
+        this.attributeIds = new IdAllocator();
+        this.commandIds = new IdAllocator();
+        this.elementIds = new IdAllocator();
+
+        if (root != null) {
+            XmlNode attributes = root.child("Attributes");
+            if (attributes != null) attributeIds.scan(attributes);
+
+            XmlNode commands = root.child("Commands");
+            if (commands != null) commandIds.scan(commands);
+
+            XmlNode childItems = root.child("ChildItems");
+            if (childItems != null) elementIds.scan(childItems);
+
+            XmlNode autoCommandBar = root.child("AutoCommandBar");
+            if (autoCommandBar != null) elementIds.scan(autoCommandBar);
+        }
+
+        this.isExtension = root != null && root.child("BaseForm") != null;
+        if (isExtension) {
+            attributeIds.bumpFloor(EXTENSION_ID_FLOOR);
+            commandIds.bumpFloor(EXTENSION_ID_FLOOR);
+            elementIds.bumpFloor(EXTENSION_ID_FLOOR);
+        }
+    }
+
+    public IdAllocator getIdAllocator() {
+        return idAllocator;
+    }
+
+    public XmlDocument getDocument() {
+        return document;
+    }
+
+    public boolean isExtension() {
+        return isExtension;
     }
 
     // --- Attributes ---
 
+    /**
+     * Минимальная форма: добавить атрибут с именем и простым XML-типом.
+     * Типовая строка может быть raw XML-типом ({@code xs:string}) или DSL
+     * ({@code string(100)}, {@code decimal(10,2)}, {@code CatalogRef.Товары}) —
+     * второе проходит через {@link FormTypeEmitter}.
+     */
     public void addAttribute(String name, String type) {
+        addAttribute(name, null, type, null, null, null);
+    }
+
+    /**
+     * Расширенная форма: добавить атрибут с type DSL, main/savedData флагами и колонками
+     * (для ValueTable/ValueTree).
+     */
+    public void addAttribute(String name, String titleText, String type, Boolean main,
+                             Boolean savedData, List<FormDsl.Column> columns) {
         XmlNode attributes = findOrCreateChild(document.getRoot(), "Attributes");
 
         XmlNode attr = createNode("Attribute");
         attr.setAttribute("name", name);
-        attr.setAttribute("id", idAllocator.nextId());
+        attr.setAttribute("id", attributeIds.nextId());
 
+        attr.addChild(multilingualTitle(titleText != null ? titleText : name));
+        attr.addChild(emitType(type));
+
+        if (Boolean.TRUE.equals(main)) {
+            XmlNode flag = createNode("MainAttribute");
+            flag.setText("true");
+            attr.addChild(flag);
+        }
+        if (Boolean.TRUE.equals(savedData)) {
+            XmlNode flag = createNode("SavedData");
+            flag.setText("true");
+            attr.addChild(flag);
+        }
+
+        if (columns != null && !columns.isEmpty()) {
+            XmlNode columnsNode = createNode("Columns");
+            for (FormDsl.Column col : columns) {
+                XmlNode c = createNode("Column");
+                c.setAttribute("name", col.getName());
+                c.setAttribute("id", attributeIds.nextId());
+                c.addChild(multilingualTitle(col.getTitle() != null ? col.getTitle() : col.getName()));
+                c.addChild(emitType(col.getType()));
+                columnsNode.addChild(c);
+            }
+            attr.addChild(columnsNode);
+        }
+
+        attributes.addChild(attr);
+    }
+
+    private XmlNode multilingualTitle(String text) {
         XmlNode title = createNode("Title");
         XmlNode v8Item = createNode("v8:item");
         XmlNode v8Lang = createNode("v8:lang");
         v8Lang.setText("ru");
         XmlNode v8Content = createNode("v8:content");
-        v8Content.setText(name); // Default title = name
-
+        v8Content.setText(text);
         v8Item.addChild(v8Lang);
         v8Item.addChild(v8Content);
         title.addChild(v8Item);
-        attr.addChild(title);
+        return title;
+    }
 
-        XmlNode typeNode = createNode("Type");
-        XmlNode v8Type = createNode("v8:Type");
-        v8Type.setText(type);
-        typeNode.addChild(v8Type);
-        attr.addChild(typeNode);
-
-        attributes.addChild(attr);
+    /**
+     * Эмитит {@code <Type>} через DSL-парсер. Для обратной совместимости: если
+     * {@code type} выглядит как raw XML-тип с префиксом ({@code xs:*}, {@code v8:*},
+     * {@code cfg:*}), эмитим его как единственный {@code <v8:Type>} без квалификаторов.
+     */
+    private XmlNode emitType(String type) {
+        if (type != null && (type.startsWith("xs:") || type.startsWith("v8:")
+                || type.startsWith("cfg:") || type.startsWith("v8ui:")
+                || type.startsWith("dcsset:") || type.startsWith("dcscor:")
+                || type.startsWith("dcssch:") || type.startsWith("mxl:"))) {
+            XmlNode t = createNode("Type");
+            XmlNode v8Type = createNode("v8:Type");
+            v8Type.setText(type);
+            t.addChild(v8Type);
+            return t;
+        }
+        return typeEmitter.emit(type);
     }
 
     // --- Commands ---
@@ -55,7 +162,7 @@ public class FormEditor {
 
         XmlNode cmd = createNode("Command");
         cmd.setAttribute("name", name);
-        cmd.setAttribute("id", idAllocator.nextId());
+        cmd.setAttribute("id", commandIds.nextId());
 
         XmlNode title = createNode("Title");
         XmlNode v8Item = createNode("v8:item");
@@ -80,21 +187,31 @@ public class FormEditor {
 
     // --- Elements ---
 
+    /**
+     * Добавить UI-элемент формы с автоматическим набором companion-элементов.
+     *
+     * <p>{@code type} может быть XML-тегом ({@code InputField}, {@code Table}) или
+     * JSON-ключом DSL ({@code input}, {@code table}) — оба разрешаются через
+     * {@link FormElementKind#resolve(String)}. Если kind не распознан, используется
+     * минимальный набор companion'ов (ContextMenu + ExtendedTooltip) для совместимости.</p>
+     */
     public void addElement(String type, String name, String dataPath, String parentName, String afterName) {
-        XmlNode parent = null;
+        XmlNode parent;
         if (parentName != null) {
             parent = findElement(parentName);
             if (parent == null) {
                  throw new IllegalArgumentException("Parent element not found: " + parentName);
             }
         } else {
-            // Default parent is ChildItems (root container)
             parent = findOrCreateChild(document.getRoot(), "ChildItems");
         }
 
-        XmlNode element = createNode(type); // e.g. "InputField", "Button"
+        FormElementKind kind = FormElementKind.resolve(type);
+        String xmlTag = kind != null ? kind.getXmlTag() : type;
+
+        XmlNode element = createNode(xmlTag);
         element.setAttribute("name", name);
-        element.setAttribute("id", idAllocator.nextId());
+        element.setAttribute("id", elementIds.nextId());
 
         if (dataPath != null) {
             XmlNode dataPathNode = createNode("DataPath");
@@ -102,18 +219,17 @@ public class FormEditor {
             element.addChild(dataPathNode);
         }
 
-        // Auto ContextMenu & ExtendedTooltip
-        XmlNode contextMenu = createNode("ContextMenu");
-        contextMenu.setAttribute("name", name + "ContextMenu");
-        contextMenu.setAttribute("id", idAllocator.nextId());
-        element.addChild(contextMenu);
+        // Companion-элементы согласно типу; для неизвестного kind — минимальный набор.
+        List<CompanionKind> companions = kind != null
+                ? kind.getCompanions()
+                : List.of(CompanionKind.CONTEXT_MENU, CompanionKind.EXTENDED_TOOLTIP);
+        for (CompanionKind c : companions) {
+            XmlNode companion = createNode(c.getXmlTag());
+            companion.setAttribute("name", c.nameFor(name));
+            companion.setAttribute("id", elementIds.nextId());
+            element.addChild(companion);
+        }
 
-        XmlNode extTooltip = createNode("ExtendedTooltip");
-        extTooltip.setAttribute("name", name + "ExtendedTooltip");
-        extTooltip.setAttribute("id", idAllocator.nextId());
-        element.addChild(extTooltip);
-
-        // Insert logic
         if (afterName != null) {
              insertAfter(parent, element, afterName);
         } else {

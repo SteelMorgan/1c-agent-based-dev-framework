@@ -10,7 +10,7 @@ allowed-tools:
 
 # /form-validate — Form validator
 
-Checks the Form.xml of a managed form for structural issues: uniqueness of IDs, presence of companion elements, correctness of DataPath references, and command consistency.
+Checks the Form.xml of a managed form for structural errors: unique IDs, presence of companion elements, correctness of DataPath references, and commands.
 
 ## Usage
 
@@ -20,23 +20,30 @@ Checks the Form.xml of a managed form for structural issues: uniqueness of IDs, 
 
 ## Parameters
 
-| Parameter  | Required | Default | Description                         |
-|------------|:--------:|---------|-------------------------------------|
-| FormPath   | yes      | —       | Path to the Form.xml file            |
-| MaxErrors  | no       | 30      | Stop after N errors                  |
+| Parameter  | Required | Default | Description                    |
+|-----------|:------------:|--------------|-----------------------------|
+| FormPath  | yes           | —            | Path to the Form.xml file       |
+| MaxErrors | no          | 30           | Stop after N errors |
 
 ## Command
 
 ```bash
-python3 scripts/form-validate.py -FormPath "<path>"
+xmlgen validate --type form "<FormPath>"
 ```
+
+With a JSON report:
+```bash
+xmlgen validate --type form --output json "<FormPath>"
+```
+
+> Implementation: Java CLI `xmlgen validate` (replacement for the Python script). Error codes are `FORM-001..008` (structure), `FORM-101..120` (semantics).
 
 ## Checks
 
 | # | Check | Severity |
 |---|---|---|
 | 1 | Root element `<Form>`, version="2.17" | ERROR / WARN |
-| 2 | `<AutoCommandBar>` is present with id="-1" | ERROR |
+| 2 | `<AutoCommandBar>` is present, id="-1" | ERROR |
 | 3 | Unique element IDs (separate pool) | ERROR |
 | 4 | Unique attribute IDs (separate pool) | ERROR |
 | 5 | Unique command IDs (separate pool) | ERROR |
@@ -46,7 +53,7 @@ python3 scripts/form-validate.py -FormPath "<path>"
 | 9 | Events have non-empty handler names | ERROR |
 | 10 | Commands have an Action (handler) | ERROR |
 | 11 | No more than one MainAttribute | ERROR |
-| 12 | BaseForm: existence and version (when extending) | OK / WARN |
+| 12 | BaseForm: presence and version (when extending) | OK / WARN |
 | 13 | callType values: Before, After, Override | ERROR |
 | 14 | Extension IDs >= 1000000 for added attrs/commands | WARN |
 | 15 | callType without BaseForm — invalid structure | WARN |
@@ -75,6 +82,6 @@ All checks passed.
 
 Exit code: 0 = all checks passed, 1 = errors found.
 
-Checks 12–15 activate automatically when `<BaseForm>` is detected.
+Checks 12–15 are activated automatically when `<BaseForm>` is detected.
 
-Use after `/form-compile`, `/form-edit`, or manual edits to Form.xml to catch structural issues before building an EPF.
+Use after `/form-compile`, `/form-edit`, or manual edits to Form.xml to catch structural errors before building an EPF.

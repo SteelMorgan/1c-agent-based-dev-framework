@@ -161,4 +161,77 @@ class EpfValidatorTest {
         Files.writeString(file, content, StandardCharsets.UTF_8);
         return file;
     }
+
+    // ==================== EPF-007: Duplicate child names ====================
+
+    @Test
+    void epf007_duplicateFormNames_reported() throws Exception {
+        Path file = writeXml("Test.xml",
+                "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n" +
+                "<MetaDataObject xmlns=\"http://v8.1c.ru/8.3/MDClasses\">\n" +
+                "  <ExternalDataProcessor uuid=\"a1b2c3d4-e5f6-4789-abcd-0123456789ab\">\n" +
+                "    <Properties><Name>MyEpf</Name></Properties>\n" +
+                "    <ChildObjects>\n" +
+                "      <Form>Форма1</Form>\n" +
+                "      <Form>Форма1</Form>\n" +
+                "    </ChildObjects>\n" +
+                "  </ExternalDataProcessor>\n" +
+                "</MetaDataObject>\n");
+
+        XmlDocument doc = reader.parse(file);
+        List<ValidationIssue> issues = validator.validate(doc, ValidationLevel.SEMANTIC);
+        assertThat(issues).anyMatch(i -> i.getCode().equals("EPF-007"));
+    }
+
+    // ==================== EPF-008: Identifier pattern ====================
+
+    @Test
+    void epf008_nameStartingWithDigit_reported() throws Exception {
+        Path file = writeXml("Test.xml",
+                "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n" +
+                "<MetaDataObject xmlns=\"http://v8.1c.ru/8.3/MDClasses\">\n" +
+                "  <ExternalDataProcessor uuid=\"a1b2c3d4-e5f6-4789-abcd-0123456789ab\">\n" +
+                "    <Properties><Name>1Epf</Name></Properties>\n" +
+                "    <ChildObjects/>\n" +
+                "  </ExternalDataProcessor>\n" +
+                "</MetaDataObject>\n");
+
+        XmlDocument doc = reader.parse(file);
+        List<ValidationIssue> issues = validator.validate(doc, ValidationLevel.SEMANTIC);
+        assertThat(issues).anyMatch(i -> i.getCode().equals("EPF-008"));
+    }
+
+    @Test
+    void epf008_validRussianName_ok() throws Exception {
+        Path file = writeXml("Test.xml",
+                "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n" +
+                "<MetaDataObject xmlns=\"http://v8.1c.ru/8.3/MDClasses\">\n" +
+                "  <ExternalDataProcessor uuid=\"a1b2c3d4-e5f6-4789-abcd-0123456789ab\">\n" +
+                "    <Properties><Name>МояОбработка</Name></Properties>\n" +
+                "    <ChildObjects><Form>ФормаТовара</Form></ChildObjects>\n" +
+                "  </ExternalDataProcessor>\n" +
+                "</MetaDataObject>\n");
+
+        XmlDocument doc = reader.parse(file);
+        List<ValidationIssue> issues = validator.validate(doc, ValidationLevel.SEMANTIC);
+        assertThat(issues).noneMatch(i -> i.getCode().equals("EPF-008"));
+    }
+
+    // ==================== EPF-010: GUID format ====================
+
+    @Test
+    void epf010_malformedUuid_reported() throws Exception {
+        Path file = writeXml("Test.xml",
+                "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n" +
+                "<MetaDataObject xmlns=\"http://v8.1c.ru/8.3/MDClasses\">\n" +
+                "  <ExternalDataProcessor uuid=\"not-a-guid\">\n" +
+                "    <Properties><Name>Test</Name></Properties>\n" +
+                "    <ChildObjects/>\n" +
+                "  </ExternalDataProcessor>\n" +
+                "</MetaDataObject>\n");
+
+        XmlDocument doc = reader.parse(file);
+        List<ValidationIssue> issues = validator.validate(doc, ValidationLevel.SEMANTIC);
+        assertThat(issues).anyMatch(i -> i.getCode().equals("EPF-010"));
+    }
 }

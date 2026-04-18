@@ -28,6 +28,8 @@ public class TypeResolver {
     
     private static final Pattern STRING_PATTERN = Pattern.compile("string(!)?(?:\\((\\d+)\\))?");
     private static final Pattern NUMBER_PATTERN = Pattern.compile("number([+])?\\((\\d+)(?:,(\\d+))?\\)");
+    /** Python form-edit синтаксис: decimal(10,2) / decimal(10,2,nonneg). */
+    private static final Pattern DECIMAL_PATTERN = Pattern.compile("decimal\\((\\d+),(\\d+)(?:,(nonneg))?\\)");
     private static final Pattern REF_PATTERN = Pattern.compile("ref:(.+)\\.(.+)");
     
     /**
@@ -84,6 +86,18 @@ public class TypeResolver {
                 new NumberQualifiers(15, 2, "Any")
             );
         }
+
+        // Python form-edit синтаксис: decimal(N,S) / decimal(N,S,nonneg)
+        Matcher decimalMatcher = DECIMAL_PATTERN.matcher(dslType);
+        if (decimalMatcher.matches()) {
+            int digits = Integer.parseInt(decimalMatcher.group(1));
+            int fraction = Integer.parseInt(decimalMatcher.group(2));
+            boolean nonneg = decimalMatcher.group(3) != null;
+            return new TypeInfo(
+                "xs:decimal",
+                new NumberQualifiers(digits, fraction, nonneg ? "Nonnegative" : "Any")
+            );
+        }
         
         // Boolean
         if ("boolean".equals(dslType)) {
@@ -97,7 +111,7 @@ public class TypeResolver {
         if ("time".equals(dslType)) {
             return new TypeInfo("xs:dateTime", new DateQualifiers(DateFractions.TIME));
         }
-        if ("datetime".equals(dslType)) {
+        if ("datetime".equalsIgnoreCase(dslType) || "dateTime".equals(dslType)) {
             return new TypeInfo("xs:dateTime", new DateQualifiers(DateFractions.DATE_TIME));
         }
         

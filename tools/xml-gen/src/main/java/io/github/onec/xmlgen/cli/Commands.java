@@ -2,6 +2,8 @@ package io.github.onec.xmlgen.cli;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.github.onec.xmlgen.dsl.FormDsl;
+import io.github.onec.xmlgen.dsl.FormEditDsl;
+import io.github.onec.xmlgen.form.edit.FormEditApplier;
 import io.github.onec.xmlgen.dsl.MxlDsl;
 import io.github.onec.xmlgen.dsl.RoleDsl;
 import io.github.onec.xmlgen.dsl.SkdDsl;
@@ -42,10 +44,12 @@ import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 
 /**
  * Диспетчер команд CLI.
@@ -288,7 +292,7 @@ public class Commands {
 
     private static void executeForm(String[] args) {
         if (args.length == 0) {
-            throw new IllegalArgumentException("Form subcommand required: info, add, remove, compile, add-attribute, add-element, add-command, remove-element, move-element");
+            throw new IllegalArgumentException("Form subcommand required: info, add, remove, compile, edit, add-attribute, add-element, add-command, remove-element, move-element");
         }
 
         String subcommand = args[0];
@@ -300,6 +304,8 @@ public class Commands {
             formRemove(args);
         } else if ("compile".equals(subcommand.toLowerCase())) {
             formCompile(args);
+        } else if ("edit".equals(subcommand.toLowerCase())) {
+            formEditJson(args);
         } else if (subcommand.startsWith("add-") || subcommand.endsWith("-element")) {
             formEdit(args);
         } else {
@@ -533,6 +539,44 @@ public class Commands {
             saveAndValidate(doc, file, "form", args);
         } catch (Exception e) {
             throw new RuntimeException("Form editor failed: " + e.getMessage(), e);
+        }
+    }
+
+    /**
+     * xml-gen form edit <form.xml> --json <spec.json>
+     *
+     * Применяет JSON-спецификацию мутаций к существующей Form.xml
+     * (атрибуты, элементы, команды, события). Замена Python form-edit.py.
+     */
+    private static void formEditJson(String[] args) {
+        Path formFile = null;
+        Path jsonFile = null;
+
+        for (int i = 1; i < args.length; i++) {
+            if ("--json".equals(args[i]) && i + 1 < args.length) {
+                jsonFile = Paths.get(args[++i]);
+            } else if (formFile == null) {
+                formFile = Paths.get(args[i]);
+            }
+        }
+
+        if (formFile == null || jsonFile == null) {
+            throw new IllegalArgumentException(
+                "Usage: xml-gen form edit <form.xml> --json <spec.json>");
+        }
+
+        try {
+            XmlDocument doc = new XmlStructureReader().parse(formFile);
+            // Snapshot pre-existing errors, чтобы diff-gate не блокировался на них
+            Set<String> preEditErrors = snapshotErrors(doc, "form", args);
+            FormEditor editor = new FormEditor(doc);
+            ObjectMapper mapper = new ObjectMapper();
+            FormEditDsl spec = mapper.readValue(jsonFile.toFile(), FormEditDsl.class);
+            // formFile передаётся, чтобы BslStubWriter мог найти соседний Module.bsl
+            new FormEditApplier(editor, formFile).apply(spec);
+            saveAndValidate(doc, formFile, "form", args, preEditErrors);
+        } catch (Exception e) {
+            throw new RuntimeException("Form edit failed: " + e.getMessage(), e);
         }
     }
 
@@ -1169,45 +1213,93 @@ public class Commands {
     }
     
     private static void saveAndValidate(XmlDocument doc, Path file, String type, String[] args) throws Exception {
-        // Validate in-memory before writing
+        saveAndValidate(doc, file, type, args, null);
+    }
+
+    /**
+     * Сохранить документ и отвалидировать. Если {@code preEditSnapshot != null},
+     * gate срабатывает только на НОВЫЕ ошибки, появившиеся после редактирования
+     * (pre-existing issues выводятся как warning). Это позволяет редактировать
+     * формы, в которых уже есть известные проблемы, не теряя блокировку регрессий.
+     *
+     * <p>Если {@code preEditSnapshot == null} — старое поведение (строгий gate).</p>
+     */
+    private static void saveAndValidate(XmlDocument doc, Path file, String type, String[] args,
+                                         Set<String> preEditSnapshot) throws Exception {
         MetadataTypeValidator metadataValidator = createMetadataValidator(args);
         GenValidator genValidator = new GenValidator(metadataValidator);
-        
+
         List<ValidationIssue> issues = new ArrayList<>();
-        
-        // 1. Run general validation (including type checks)
-        // Assume default format "designer" for now if not specified in args logic, 
-        // but here we just need to know if we expect BOM. 
-        // In "edit" commands we usually preserve format, but for validation we can be strict.
-        // Let's assume designer format (expect BOM) for metadata files.
         boolean expectBom = isMetadataFile(type);
         issues.addAll(genValidator.validate(doc, type, expectBom));
-
-        // 2. Run specific validator
         issues.addAll(new ValidatorFactory().getValidator(type)
                 .map(v -> v.validate(doc, ValidationLevel.SEMANTIC))
                 .orElse(List.of()));
-                
-        boolean hasErrors = issues.stream().anyMatch(i -> i.getSeverity() == Severity.ERROR);
-        
-        if (hasErrors) {
-            System.err.println("Validation failed after modification:");
-            ValidationResult result = new ValidationResult(file, type, "designer", issues);
+
+        List<ValidationIssue> blockers;
+        if (preEditSnapshot != null) {
+            blockers = issues.stream()
+                    .filter(i -> i.getSeverity() == Severity.ERROR)
+                    .filter(i -> !preEditSnapshot.contains(issueKey(i)))
+                    .toList();
+            long preExistingErrors = issues.stream()
+                    .filter(i -> i.getSeverity() == Severity.ERROR)
+                    .filter(i -> preEditSnapshot.contains(issueKey(i)))
+                    .count();
+            if (preExistingErrors > 0) {
+                System.err.println("[WARN] " + preExistingErrors
+                        + " pre-existing validation error(s) present in " + file.getFileName()
+                        + " — kept as-is (use xmlgen validate to inspect).");
+            }
+        } else {
+            blockers = issues.stream()
+                    .filter(i -> i.getSeverity() == Severity.ERROR)
+                    .toList();
+        }
+
+        if (!blockers.isEmpty()) {
+            System.err.println(preEditSnapshot != null
+                    ? "Edit introduced new validation errors:"
+                    : "Validation failed after modification:");
+            ValidationResult result = new ValidationResult(file, type, "designer", blockers);
             System.err.println(new TextReporter().format(result));
             System.exit(1);
         }
-        
-        // Atomic save: write to temp file, then move (as per SPEC-004 rollback protocol)
+
         Path tmpFile = file.resolveSibling(file.getFileName() + ".tmp");
         try {
             new XmlDocumentWriter().write(doc, tmpFile);
             Files.move(tmpFile, file, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
         } catch (Exception e) {
-            // Cleanup temp file on failure
             try { Files.deleteIfExists(tmpFile); } catch (Exception ignored) {}
             throw new RuntimeException("Failed to write file: " + e.getMessage(), e);
         }
         System.out.println("Modified " + file);
+    }
+
+    /** Уникальный ключ ошибки для diff pre/post (code + element + message). */
+    private static String issueKey(ValidationIssue i) {
+        return i.getCode() + "\u0001" + i.getElement() + "\u0001" + i.getMessage();
+    }
+
+    /**
+     * Сделать snapshot текущих errors для последующего diff-based gate в
+     * {@link #saveAndValidate(XmlDocument, Path, String, String[], Set)}.
+     */
+    private static Set<String> snapshotErrors(XmlDocument doc, String type, String[] args) {
+        MetadataTypeValidator metadataValidator = createMetadataValidator(args);
+        GenValidator genValidator = new GenValidator(metadataValidator);
+        boolean expectBom = isMetadataFile(type);
+        List<ValidationIssue> issues = new ArrayList<>(genValidator.validate(doc, type, expectBom));
+        new ValidatorFactory().getValidator(type)
+                .ifPresent(v -> issues.addAll(v.validate(doc, ValidationLevel.SEMANTIC)));
+        Set<String> keys = new HashSet<>();
+        for (ValidationIssue i : issues) {
+            if (i.getSeverity() == Severity.ERROR) {
+                keys.add(issueKey(i));
+            }
+        }
+        return keys;
     }
 
     // ============================================================

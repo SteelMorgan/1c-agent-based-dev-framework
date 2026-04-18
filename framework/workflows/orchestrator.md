@@ -51,7 +51,19 @@ description: Оркестратор маршрутизирует задачи и
 
 **ОБЯЗАТЕЛЬНО** запускай ВСЕХ сабагентов в фоновом режиме (`run_in_background: true`). Это позволяет оркестратору оставаться на связи с пользователем и обрабатывать его сообщения пока сабагент работает. Оркестратор получит уведомление автоматически когда сабагент завершится.
 
-### 2b. Навыки проекта
+### 2b. Periodic health-check долгих сабагентов
+
+Notification о завершении приходит только по exit. До этого сабагент может зависнуть, упасть в zombie state или молча выполнять неверную работу (грязная конфигурация, неверный scope). Чтобы не терять часы на «он там что-то делает», оркестратор **ОБЯЗАН** периодически проверять статус.
+
+**Правила:**
+- Для background-сабагентов и background-bash длительностью **> 5 мин** оркестратор делает короткий health-check **примерно раз в 15 мин**: Read output-файла (tail / последние записи), `ls` артефактов, `grep` по ключевым маркерам в логах сабагента или его {role}-context.md.
+- Health-check **НЕ фиксируется** в `orchestrator-context.md` (это шум). Запись добавляется ТОЛЬКО если найдена аномалия — и тогда обычный лог-event (`HEALTHCHECK_ANOMALY:`, `RESTART:`, `SCOPE_CORRECTION:`).
+- Если процесс залип / делает не то / артефакты не растут — оркестратор имеет право прервать (`TaskStop`) и переразвернуть сабагент с правильным scope.
+- Это НЕ заменяет notification-driven flow для коротких задач (< 5 мин); это страховка для долгих.
+
+**Признак нарушения:** оркестратор молчит часами, ожидая notification, при том что сабагент мог уйти в зависание ещё в первые 10 минут.
+
+### 2c. Навыки проекта
 
 При старте работы оркестратор **ДОЛЖЕН** получить список доступных навыков проекта — файлов `SKILL.md` в каталоге проектных навыков (обычно находится в корне проекта рядом с конфигурацией IDE/агента). Достаточно прочитать имена и описания (frontmatter), содержимое навыков не читать.
 
@@ -75,6 +87,8 @@ description: Оркестратор маршрутизирует задачи и
 | Ошибка в тесте | Tester (`test_error`) | Tester исправляет сам |
 | Тесты упали | Developer-Code (`test_failure`) | Reviewer определяет причину → маршрутизация |
 | `test_failure` + `suspected_test_error` | Developer-Code | Reviewer-арбитраж: spec + design + тесты + код → `reviewer-context-code.md` → маршрутизация в Scenario-Author / Developer-Tests / Developer-Code |
+| `test_failure` + `suspected_step_error` (сценарный тест) | Developer-Code | Reviewer-арбитраж: spec + design + `.feature` + реализованные шаги + код → маршрутизация в Scenario-Author / Scenario-Coder / Developer-Code |
+| `clarification_needed` от Scenario-Coder (нет API в design) | Scenario-Coder | Вернуть в Phase 2 к Architect для доопределения контракта |
 | 3+ итерации BLOCK | Любой | Эскалация пользователю |
 
 **Контроль пинг-понга:** возвраты не продвигают задачу → эскалация пользователю или смена подхода.
@@ -121,9 +135,10 @@ description: Оркестратор маршрутизирует задачи и
 
 - Phase 1 (спецификация) — после Reviewer(scope=spec), ПЕРЕД Phase 1 approval gate
 - Phase 2 (архитектура) — после Reviewer(scope=arch), ПЕРЕД Phase 2 approval gate
-- Phase 3a (BDD-сценарии) — после Reviewer(scope=bdd)
-- Phase 3b (тесты) — после Reviewer(scope=tests)
-- Phase 3c (код) — после Reviewer(scope=code)
+- Phase 3a (BDD-сценарии, intent) — после Reviewer(scope=bdd)
+- Phase 3b (unit-тесты) — после Reviewer(scope=tests)
+- Phase 3c (реализация шагов Vanessa) — после Reviewer(scope=bdd-steps)
+- Phase 3d (код) — после Reviewer(scope=code)
 - Phase 4 (тестирование) — после Reviewer(scope=tester)
 
 В advisory-режиме последнее слово за оркестратором: reviewer выдаёт findings, оркестратор обрабатывает как обычный feedback (`agree` / `partial` / `disagree` / `withdrawn` / `out_of_scope`). Пропуск advisory cross-provider-review для артефакта = ошибка оркестратора.
@@ -244,8 +259,10 @@ Clarification: макс. 1 раунд вопросов → если снова `
       Входные данные + task_dir:
       - Phase 1 (Analyst): задача + explorer-context.md
       - Phase 2 (Architect): спека + explorer-context.md
-      - Phase 3a/3b: spec + technical-design + task-breakdown.json (параллельно)
-      - Phase 3c (Developer-Code): всё выше + тесты 3b + .feature 3a
+      - Phase 3a (Scenario-Author): spec + technical-design + task-breakdown.json
+      - Phase 3b (Developer-Tests): spec + technical-design + task-breakdown.json
+      - Phase 3c (Scenario-Coder): technical-design + `.feature` 3a
+      - Phase 3d (Developer-Code): всё выше + тесты 3b + Red-executable `.feature` из 3c
    c. Прочитать {role}-context.md (только статус и артефакт, НЕ код)
       ЛОГ ← DONE_PHASE: {роль} → результат
    d. ЗАПУСТИТЬ сабагент Reviewer (review_scope) → обработка:
@@ -269,7 +286,7 @@ Clarification: макс. 1 раунд вопросов → если снова `
 8. Результат пользователю
 ```
 
-Phase 3a и 3b — параллельно после Phase 2 approval. Ждать завершения обоих (включая ревью) перед Phase 3c.
+Phase 3 идёт строго последовательно: 3a → 3b → 3c → 3d. Каждая следующая фаза стартует только после Reviewer + advisory cross-provider-review предыдущей.
 
 ---
 
@@ -332,4 +349,5 @@ depends_on:
   - framework/workflows/source-of-truth-policy.md
   - framework/skills/tool-usage/review/cross-provider-review/SKILL.md
   - framework/subagents/scenario-author.md
+  - framework/subagents/scenario-coder.md
 ---
