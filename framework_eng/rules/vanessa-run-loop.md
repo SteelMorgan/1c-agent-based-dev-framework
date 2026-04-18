@@ -11,6 +11,7 @@ description: Policy requiring mandatory execution and artifact analysis after ch
 
 | Requirement | Description |
 |------------|-------------|
+| Pre-run config sanity | Before launching `vrunner` the agent MUST read the selected `vrunner-va-run-*.json` and the related `va-params-run-*.json` and confirm that `КаталогФич` (feature directory) points to the feature folder of the **current task**. On mismatch — recreate a task-dedicated config (`vrunner-va-run-<taskID>.json` + `va-params-run-<taskID>.json`) and launch with it; the CLI flag `--vanessasettings` is only a safety net, not the primary mechanism |
 | Mandatory execution | After changing a scenario the agent MUST perform a scenario run |
 | Event log monitoring during execution | The agent MUST poll the event log every **20 seconds** while the test is running |
 | Abort on error | If `Error`-level entries appear in the event log, the agent MUST abort the test and move to diagnostics |
@@ -31,6 +32,18 @@ The minimal success indicator:
 5. the number of executed steps is > 0.
 
 Vanessa considers the run successful even if no step was found or some steps were skipped — this is a **false success**. The agent MUST detect such cases.
+
+## Pre-run config check
+
+Before starting `vrunner` the runner agent performs the following procedure:
+
+1. Read the selected `vrunner-va-run-*.json` → find the `--vanessasettings` key (path to `va-params-run-*.json`).
+2. Read the referenced `va-params-run-*.json` → grep the value of `КаталогФич` (feature directory).
+3. Compare it with the expected `vanessa-tests/features/tasks/<taskID>/`.
+4. On mismatch — create a task-dedicated pair of config files (using the templates in `tools/runtime/vanessa/`), substitute the paths, and launch with them.
+5. Record the config file used and the feature directory in `{role}-context.md`.
+
+**Why:** the shared `vrunner-va-run.json` / `va-params-run.json` in the project usually carry a "stale" `КаталогФич` from the previous task. Running without a pre-check picks up a foreign feature directory and silently runs another task's scenarios for tens of minutes. The pre-check inside the runner agent is the primary defense; the CLI flag `--vanessasettings` is only a safety net.
 
 The detailed procedure for monitoring, post-validation, and diagnostics is described by the skills rather than by this rule.
 
