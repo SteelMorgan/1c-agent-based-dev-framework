@@ -18,8 +18,10 @@ import hashlib
 import json
 import os
 import re
+import signal
 import subprocess
 import sys
+import tempfile
 import textwrap
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
@@ -38,7 +40,6 @@ TRANSLATABLE_EXTS = {".md", ".mdc"}
 
 CODEX_PROFILE = "cx_gpt-5-codex-mini"
 CODEX_DONE_MARKER = "OK"
-CODEX_POLL_INTERVAL = 3   # секунды между проверками файла -o
 CODEX_TIMEOUT = 180       # максимальное время ожидания в секундах (3 мин)
 DEFAULT_WORKERS = 8       # параллельных переводов по умолчанию
 
@@ -154,6 +155,83 @@ def _extract_backmatter(text: str) -> tuple[str, str]:
     return body, backmatter
 
 
+def run_codex_prompt(prompt: str) -> str:
+    """Безопасно запускает Codex CLI и возвращает финальный текст из `-o`.
+
+    На таймауте убивает всю process group, чтобы в контейнере не оставались
+    дочерние процессы `codex`.
+    """
+    prompt_file = tempfile.NamedTemporaryFile(
+        mode="w",
+        suffix=".txt",
+        prefix="codex-prompt-",
+        delete=False,
+        encoding="utf-8",
+    )
+    result_file = tempfile.NamedTemporaryFile(
+        suffix=".txt",
+        prefix="codex-result-",
+        delete=False,
+    )
+    result_file.close()
+
+    try:
+        prompt_file.write(prompt)
+        prompt_file.close()
+
+        if is_codex_custom_mode():
+            cmd = (
+                f'codex exec -p {CODEX_PROFILE}'
+                f' --dangerously-bypass-approvals-and-sandbox'
+                f' --ephemeral'
+                f' -o "{result_file.name}"'
+                f' - < "{prompt_file.name}"'
+            )
+        else:
+            cmd = (
+                'codex exec -m gpt-5.4-mini'
+                ' --dangerously-bypass-approvals-and-sandbox'
+                ' --ephemeral'
+                f' -o "{result_file.name}"'
+                f' - < "{prompt_file.name}"'
+            )
+
+        proc = subprocess.Popen(
+            cmd,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            cwd=str(REPO_ROOT),
+            text=False,
+            start_new_session=True,
+            shell=True,
+        )
+
+        try:
+            stdout, stderr = proc.communicate(timeout=CODEX_TIMEOUT)
+        except subprocess.TimeoutExpired:
+            try:
+                os.killpg(os.getpgid(proc.pid), signal.SIGKILL)
+            except (ProcessLookupError, OSError):
+                proc.kill()
+            proc.wait()
+            raise RuntimeError(f"Codex timed out after {CODEX_TIMEOUT}s")
+
+        if proc.returncode != 0:
+            err = stderr.decode("utf-8", errors="replace").strip()
+            out = stdout.decode("utf-8", errors="replace").strip()
+            details = (err or out or f"codex exited with code {proc.returncode}")[:500]
+            raise RuntimeError(f"Codex failed rc={proc.returncode}: {details}")
+
+        result_path = Path(result_file.name)
+        if not result_path.exists() or result_path.stat().st_size == 0:
+            raise RuntimeError("Codex produced empty output")
+
+        return result_path.read_text(encoding="utf-8", errors="replace").strip()
+    finally:
+        Path(prompt_file.name).unlink(missing_ok=True)
+        Path(result_file.name).unlink(missing_ok=True)
+
+
 def translate_file(ru_path: Path, en_path: Path) -> bool:
     """
     Переводит ru_path → en_path через Codex CLI.
@@ -163,8 +241,6 @@ def translate_file(ru_path: Path, en_path: Path) -> bool:
     2. Python пост-обработкой гарантирует backmatter из RU-файла
     3. Если модель потеряла pre_backmatter — Python инжектит его
     """
-    import time
-
     ru_rel = relative(ru_path)
     en_rel = relative(en_path)
     prompt = make_translate_prompt(ru_rel, en_rel)
@@ -173,84 +249,42 @@ def translate_file(ru_path: Path, en_path: Path) -> bool:
     ru_text = ru_path.read_text(encoding="utf-8")
     ru_body, ru_backmatter = _extract_backmatter(ru_text)
 
-    unique = f"{int(time.time())}-{ru_path.stem}"
-    done_file = Path(f"/tmp/sync-skill-done-{unique}.txt")
-
     en_path.parent.mkdir(parents=True, exist_ok=True)
 
     print(f"  → Translating {ru_rel} ...", end="", flush=True)
 
-    # --dangerously-bypass-approvals-and-sandbox: bwrap sandbox не работает
-    # в WSL2/devcontainer (user namespaces отключены), а перевод безопасен —
-    # codex эфемерный и пишет только в framework_eng/.
-    if is_codex_custom_mode():
-        cmd = [
-            "codex", "exec",
-            "-p", CODEX_PROFILE,
-            "--dangerously-bypass-approvals-and-sandbox",
-            "--ephemeral",
-            "-o", str(done_file),
-            prompt,
-        ]
-    else:
-        cmd = [
-            "codex", "exec",
-            "-m", "gpt-5.4-mini",
-            "--dangerously-bypass-approvals-and-sandbox",
-            "--ephemeral",
-            "-o", str(done_file),
-            prompt,
-        ]
-
     try:
-        proc = subprocess.Popen(
-            cmd,
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
-            cwd=str(REPO_ROOT),
-        )
+        result = run_codex_prompt(prompt)
     except FileNotFoundError:
         print(" ERROR")
         print("    ✗ `codex` CLI not found. Install: npm install -g @openai/codex")
         return False
+    except RuntimeError as e:
+        print(" ERROR")
+        print(f"    ✗ {e}")
+        return False
 
-    # Polling: ждём появления done_file
-    elapsed = 0
-    while elapsed < CODEX_TIMEOUT:
-        time.sleep(CODEX_POLL_INTERVAL)
-        elapsed += CODEX_POLL_INTERVAL
+    if result != CODEX_DONE_MARKER:
+        print(" ERROR")
+        print(f"    ✗ Unexpected Codex completion marker: {result[:120]!r}")
+        return False
 
-        if done_file.exists():
-            done_file.unlink(missing_ok=True)
-            proc.wait()
+    if not en_path.exists() or en_path.stat().st_size == 0:
+        print(" ERROR")
+        print(f"    ✗ Codex finished but {en_rel} was not created")
+        return False
 
-            if not en_path.exists() or en_path.stat().st_size == 0:
-                print(" ERROR")
-                print(f"    ✗ Codex finished but {en_rel} was not created")
-                return False
+    # ── Пост-обработка: гарантируем backmatter и pre_backmatter ──
+    en_text = en_path.read_text(encoding="utf-8")
+    en_body, en_backmatter = _extract_backmatter(en_text)
 
-            # ── Пост-обработка: гарантируем backmatter и pre_backmatter ──
-            en_text = en_path.read_text(encoding="utf-8")
-            en_body, en_backmatter = _extract_backmatter(en_text)
+    # Backmatter: всегда берём из RU (пути файлов, перевод не нужен)
+    if ru_backmatter:
+        en_text = en_body.rstrip() + "\n" + ru_backmatter
+        en_path.write_text(en_text, encoding="utf-8")
 
-            # Backmatter: всегда берём из RU (пути файлов, перевод не нужен)
-            if ru_backmatter:
-                en_text = en_body.rstrip() + "\n" + ru_backmatter
-                en_path.write_text(en_text, encoding="utf-8")
-
-            print(" OK")
-            return True
-
-        if proc.poll() is not None and not done_file.exists():
-            print(" ERROR")
-            print(f"    ✗ Codex exited (code {proc.returncode}) without creating done marker")
-            return False
-
-    proc.terminate()
-    done_file.unlink(missing_ok=True)
-    print(" TIMEOUT")
-    print(f"    ✗ Translation timed out after {CODEX_TIMEOUT}s")
-    return False
+    print(" OK")
+    return True
 
 
 # ─── Команды ──────────────────────────────────────────────────────────────────
