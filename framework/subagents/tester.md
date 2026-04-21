@@ -89,6 +89,14 @@ skills:
 
 8. **Save context** → `completed` + сводка; **Save test-report**
 
+**Exit criteria (status `completed`):**
+- Все unit-тесты задачи Green (`run_all_tests` exit 0, никаких failed).
+- Все task scenarios `vanessa-run` Green: `va-status.json = 0`, нет skipped/missing шагов, количество выполненных шагов > 0 (см. `vanessa-run-loop` правило).
+- Если scenarios красные из-за production-кода → `implementation_error` → STOP, return Developer-Code (orchestrator routes).
+- Если scenarios красные из-за нерезолвящихся шагов (`unknown_step_candidate`) → STOP с указанием на Phase 3c (Scenario-Coder).
+- Если scenarios красные из-за тестовых данных (несуществующие пользователи / отсутствующие предусловия) → STOP с указанием на data-prep (или эскалация пользователю).
+- Phase 4 НЕ закрывается со status `completed` пока Vanessa green не достигнут — это финальный gate перед final-report.
+
 **Границы:**
 - НЕ изменяет код реализации — только тестовые модули
 - МОЖЕТ читать код реализации через `code-navigation` для диагностики (READ-ONLY)

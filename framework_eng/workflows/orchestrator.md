@@ -87,6 +87,8 @@ The list is stored in the orchestrator's memory for routing.
 | Error in a test | Tester (`test_error`) | Tester fixes it themselves |
 | Tests failed | Developer-Code (`test_failure`) | Reviewer determines the cause → routing |
 | `test_failure` + `suspected_test_error` | Developer-Code | Reviewer arbitration: spec + design + tests + code → `reviewer-context-code.md` → routing to Scenario-Author / Developer-Tests / Developer-Code |
+| `test_failure` + `suspected_step_error` (scenario test) | Developer-Code | Reviewer arbitration: spec + design + `.feature` + implemented steps + code → routing to Scenario-Author / Scenario-Coder / Developer-Code |
+| `clarification_needed` from Scenario-Coder (no API in design) | Scenario-Coder | Return to Phase 2 to the Architect for contract refinement |
 | 3+ BLOCK iterations | Any | Escalate to the user |
 
 **Ping-pong control:** returns do not move the task forward → escalate to the user or change the approach.
@@ -116,6 +118,31 @@ The orchestrator is the judge. When subagents disagree — the orchestrator **do
 4. Make a decision based on facts → route according to the classification from `source-of-truth-policy`
 5. LOG ← decision with justification
 
+#### "Delegate, don't ask" principle (filter before escalating to the user)
+
+Escalation to the user is the **last resort**. Before composing a user-facing message per `escalation-format.md`, the orchestrator MUST pass the filter.
+
+**Escalate to the user if at least one condition holds:**
+- **Admin operation** — creating DB entities, issuing/refreshing tokens, prod permission changes, manual test-data preparation, access to accounts.
+- **L1-L2 contract change** — business goal, REQ-* in the approved spec, task scope, new metadata object.
+- **Business choice** — UX trade-off, feature priority, user-visible name, choice between business cases of equal technical quality.
+- **3+ BLOCK iterations** on one artifact (see § 8 "User interaction points").
+- **`clarification_needed`** from a subagent that requires business knowledge OUTSIDE the code/spec context.
+- **Scope extension** — a pre-existing bug or work outside the original task is discovered; "fix or not" is a business decision.
+
+**DO NOT escalate — decide yourself via a subagent — when:**
+- **Technical choice** within the approved spec (which Vanessa step, which XML Group, which code pattern, which BSP role).
+- **Diagnostics** — which form opened, what is in the log, where exactly it failed. This is Explorer / Tester / Reviewer work.
+- **Choice between alternative implementations** of the same spec requirement.
+- **Facts can be gathered** via a subagent — delegate, do not ask.
+- **Test-artifact edits** (.feature, tests, fixtures in code) when business meaning does not change.
+
+**Anti-pattern (the main trap):** "I found options A/B/C/D — asking." If A/B/C/D are **your own technical steps** (e.g., different diagnostics or a technical edit), the orchestrator MUST pick one itself, justify it in `orchestrator-context.md`, and execute. Escalating in this situation = shifting responsibility onto the user who should not be deciding this.
+
+**Self-check before escalating:** "Can I rephrase this question as a fact-gathering task for a subagent or as a technical edit?" If yes — delegate. If no — it is a business/scope/admin question, escalate per `escalation-format.md`.
+
+**If your question list mixes** real business questions with your own technical steps: escalate ONLY the business part. Do the technical steps yourself in parallel or afterwards; do not put them up for a vote.
+
 ### 5. Artifact management
 Passes the output of one phase to the input of the next, **explicitly indicating `task_dir`**. All agent contexts are in `task_dir/.context/`. The reviewer package: [TASK]+[SPEC]+[ARTIFACT]+[CHECKLIST]+[review_scope]. Structure of `task_dir` and `sessions.json`: see `references/orchestrator-structures.md`.
 
@@ -133,9 +160,10 @@ The orchestrator launches `cross-provider-review` on top of Reviewer. The skill 
 
 - Phase 1 (specification) — after Reviewer(scope=spec), BEFORE Phase 1 approval gate
 - Phase 2 (architecture) — after Reviewer(scope=arch), BEFORE Phase 2 approval gate
-- Phase 3a (BDD scenarios) — after Reviewer(scope=bdd)
-- Phase 3b (tests) — after Reviewer(scope=tests)
-- Phase 3c (code) — after Reviewer(scope=code)
+- Phase 3a (BDD scenarios, intent) — after Reviewer(scope=bdd)
+- Phase 3b (unit tests) — after Reviewer(scope=tests)
+- Phase 3c (Vanessa step implementation) — after Reviewer(scope=bdd-steps)
+- Phase 3d (code) — after Reviewer(scope=code)
 - Phase 4 (testing) — after Reviewer(scope=tester)
 
 In advisory mode the final word belongs to the orchestrator: the reviewer issues findings, the orchestrator handles them as ordinary feedback (`agree` / `partial` / `disagree` / `withdrawn` / `out_of_scope`). Skipping advisory cross-provider-review for an artifact = orchestrator error.
@@ -261,7 +289,7 @@ You do not do the work — you launch the subagent and handle its result.
       - Phase 3c (Scenario-Coder): technical-design + `.feature` 3a
       - Phase 3d (Developer-Code): всё выше + тесты 3b + Red-executable `.feature` из 3c
    c. Прочитать {role}-context.md (только статус и артефакт, НЕ код)
-      ЛОГ ← DONE_PHASE: {роль} → результат
+      ЛОГ ← DONE_PHASE: {role} → результат
    d. ЗАПУСТИТЬ сабагент Reviewer (review_scope) → обработка:
       - pass → шаг d2
       - BLOCK ≤ 3 → вернуть автору (cross-provider-review НЕ нужен для BLOCK-итераций)
@@ -275,7 +303,7 @@ You do not do the work — you launch the subagent and handle its result.
       Ответы → ЛОГ ← USER_INPUT → повторный запуск сабагента
    f. Передать артефакт на следующую фазу
 
-6. ОБЯЗАТЕЛЬНО: финальный cross-provider-review всей задачи (spec + design + код + тесты).
+6. ОБЯЗАТЕЛЬНО: финальный cross-provider-review всей задачи (spec + design + code + tests).
    ЛОГ ← CROSS_REVIEW: final → результат
    Если критические замечания → вернуться к нужной фазе.
 7. ЗАПУСТИТЬ финализацию → final-report.md

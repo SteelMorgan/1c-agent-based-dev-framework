@@ -54,11 +54,23 @@ The specification MUST be written in **Russian** — section headings, descripti
 
 ## План тестирования (TDD)
 
-## Приёмочные сценарии (BDD)
+### Test Users
 
-## Открытые вопросы
+If tests (unit / BDD / integration) depend on user roles, rights, or context, the spec MUST contain a "Test Users" section (or equivalent) with the following rules:
 
-## Журнал решений (ADR)
+- List **only users that actually exist** in the target database (login + role composition + source reference: pre-loaded profile, fixture, related task's final-report, etc.).
+- **Placeholder names are forbidden** ("User1", "TestUser", "Manager_NoRole"), as well as fictional full names without confirmed correspondence to a real account in the database ("Sidorov", "Ivanov" — if no such user exists in the database).
+- For each test user specify at minimum: login, role composition, source, test scenario application.
+- If a suitable user is **unknown** or **does not exist** — Analyst raises `clarification_needed` to the user in a clarification round rather than inventing a name. It is acceptable to suggest candidates to the user for creation (with role list), but the name must be confirmed.
+- If a test user must be **created by the administrator** before the run (manual data prep) — this is explicitly recorded as a separate item in `manual-test-scenario.md` or an equivalent artifact, with creation steps described.
+
+**Why:** placeholder names in the spec lead to Vanessa scenarios like "Could not connect TestClient <Sidorov>" and fail the entire Vanessa layer. Tester / Scenario-Coder cannot "guess" a real user and lose hours on diagnostics.
+
+## Acceptance scenarios (BDD)
+
+## Open questions
+
+## Decision log (ADR)
 ```
 
 ---
@@ -91,16 +103,16 @@ The quality control process is outside this skill: `task-breakdown-subagent` (cr
 
 Checklist for review:
 
-- [ ] «Context» describes who has the problem and what is broken.
-- [ ] Every MUST is covered by a point in the «Test Plan».
-- [ ] «Boundaries» clearly separate «In scope» and «Out of scope».
-- [ ] «Considered options» contains at least 2 alternatives.
-- [ ] «Chosen solution» includes rationale and consequences.
-- [ ] «Technical design» separates user tasks (metadata) and agent tasks (code).
+- [ ] "Context" describes who has the problem and what is broken.
+- [ ] Every MUST is covered by a point in the "Test Plan".
+- [ ] "Boundaries" clearly separate "In scope" and "Out of scope".
+- [ ] "Considered options" contains at least 2 alternatives.
+- [ ] "Chosen solution" includes rationale and consequences.
+- [ ] "Technical design" separates user tasks (metadata) and agent tasks (code).
 - [ ] There are no contradictions between sections.
 - [ ] Requirements are formulated using RFC 2119 (MUST/SHOULD/MAY/MUST NOT).
 - [ ] There is a link/summary to a separate Task Breakdown JSON.
-- [ ] «Acceptance scenarios» contain business-level Gherkin scenarios (Given/When/Then) for MUST requirements.
+- [ ] "Acceptance scenarios" contain business-level Gherkin scenarios (Given/When/Then) for MUST requirements.
 - [ ] The document is written in Russian (except for code identifiers).
 
 ---
