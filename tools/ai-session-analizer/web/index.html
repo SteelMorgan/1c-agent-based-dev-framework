@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>AI Session Analizer</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <main class="shell">
+      <section class="hero">
+        <div>
+          <p class="eyebrow">Claude Code + Codex</p>
+          <h1>AI Session Analizer</h1>
+          <p class="lede">
+            Локальный разбор токенов по проектам, задачам, агентам и типам шагов.
+          </p>
+        </div>
+        <div class="hero-meta">
+          <div class="chip"><span>Главный разрез</span><strong>working_directory + task_id</strong></div>
+          <div class="chip"><span>Спец. категории</span><strong>Vanessa / Screenshots / Code</strong></div>
+          <div class="chip"><span>Generated</span><strong id="generatedAt">loading...</strong></div>
+        </div>
+      </section>
+
+      <section class="panel filters">
+        <div class="filter-grid">
+          <label>
+            <span>Provider</span>
+            <select id="providerFilter"></select>
+          </label>
+          <label>
+            <span>Working Directory</span>
+            <select id="workingDirectoryFilter"></select>
+          </label>
+          <label>
+            <span>Task ID</span>
+            <select id="taskFilter"></select>
+          </label>
+          <label>
+            <span>Agent Type</span>
+            <select id="agentFilter"></select>
+          </label>
+          <label>
+            <span>Step Type</span>
+            <select id="stepFilter"></select>
+          </label>
+        </div>
+        <div class="filter-actions">
+          <button id="reloadButton" class="neon-button">Refresh View</button>
+          <span id="statusText" class="status-text">Loading summary…</span>
+        </div>
+      </section>
+
+      <section class="metrics" id="metrics"></section>
+
+      <section class="panel dual">
+        <div>
+          <div class="section-head">
+            <h2>Токены по типам шагов</h2>
+            <p>Где именно тратится контекст.</p>
+          </div>
+          <div id="stepChart" class="bars"></div>
+        </div>
+        <div>
+          <div class="section-head">
+            <h2>Токены по рабочим каталогам</h2>
+            <p>Чтобы разные 1С-проекты не смешивались.</p>
+          </div>
+          <div id="directoryChart" class="bars"></div>
+        </div>
+      </section>
+
+      <section class="panel dual">
+        <div>
+          <div class="section-head">
+            <h2>Токены по задачам</h2>
+            <p>Основной task-level срез.</p>
+          </div>
+          <div id="taskTable"></div>
+        </div>
+        <div>
+          <div class="section-head">
+            <h2>Токены по агентам</h2>
+            <p>Суммарные затраты по профилям и ролям.</p>
+          </div>
+          <div id="agentTable"></div>
+        </div>
+      </section>
+
+      <section class="panel">
+        <div class="section-head">
+          <h2>Детальные записи</h2>
+          <p>Каждая запись — отдельный нормализованный кусок токенов.</p>
+        </div>
+        <div id="recordsTable"></div>
+      </section>
+    </main>
+
+    <script src="/app.js" type="module"></script>
+  </body>
+</html>

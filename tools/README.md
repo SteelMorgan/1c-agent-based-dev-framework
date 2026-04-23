@@ -43,6 +43,33 @@ python3 tools/validate-framework-deps.py --fix
 
 CLI (clone, install). См. `python tools/install.py --help`.
 
+## ai-session-analizer
+
+Локальный анализатор сессий `Claude Code` и `Codex`.
+
+Позволяет разбирать локальные логи по:
+- `working_directory`
+- `task_id`
+- `task_dir`
+- `agent_type`
+- `step_type`
+
+Поддерживает эвристические категории шагов:
+- `vanessa_log_analysis`
+- `screenshot_analysis`
+- `code_reading`
+- `code_writing`
+- `test_execution`
+- `review`
+- `planning`
+
+Запуск:
+
+```bash
+python3 tools/ai-session-analizer/analyzer.py build
+python3 tools/ai-session-analizer/analyzer.py serve --port 8765
+```
+
 ## Файлы
 
 - `validate-framework-deps.py` — валидатор зависимостей
