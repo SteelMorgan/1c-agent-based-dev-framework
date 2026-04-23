@@ -1,6 +1,6 @@
 ---
 name: form-edit
-description: Adding elements, attributes, commands, and events to an existing managed 1С form through xmlgen CLI. Use when you need to surgically modify a ready-made form.
+description: "Adding elements, attributes, commands, and events to an existing managed 1С form through xmlgen CLI. Use when you need to precisely modify a ready-made form."
 argument-hint: <FormPath> <JsonPath>
 allowed-tools:
   - Bash
@@ -9,7 +9,7 @@ allowed-tools:
   - Glob
 ---
 
-# /form-edit — Form editing
+# /form-edit — Form Editing
 
 Adds elements, attributes, commands, and events to an existing `Form.xml`. Implementation: Java CLI `xmlgen form edit` (replacement for the Python script). Automatically:
 
@@ -26,10 +26,10 @@ Adds elements, attributes, commands, and events to an existing `Form.xml`. Imple
 
 ## Parameters
 
-| Parameter  | Required | Description                         |
+| Parameter | Required | Description |
 |-----------|:------------:|----------------------------------|
-| FormPath  | yes           | Path to the existing Form.xml    |
-| JsonPath  | yes           | Path to the JSON specification of the additions |
+| FormPath  | yes      | Path to the existing Form.xml |
+| JsonPath  | yes      | Path to the JSON specification of the additions |
 
 ## Command
 
@@ -37,7 +37,7 @@ Adds elements, attributes, commands, and events to an existing `Form.xml`. Imple
 xmlgen form edit "<FormPath>" --json "<JsonPath>"
 ```
 
-## JSON format
+## JSON Format
 
 ```json
 {
@@ -60,7 +60,7 @@ xmlgen form edit "<FormPath>" --json "<JsonPath>"
 }
 ```
 
-### Element types (`kind`)
+### Element Types (`kind`)
 
 You can specify either a short DSL alias (`input`) or the direct XML tag name (`InputField`).
 
@@ -87,18 +87,18 @@ Groups and tables support `children` for nested elements.
 
 | Key | Default | Description |
 |------|-------------|----------|
-| `into` | root ChildItems | Name of the group/table/page into which to insert |
+| `into` | root ChildItems | Name of the group/table/page to insert into |
 | `after` | end | Name of the element after which to insert |
 
-### Attributes — type system
+### Attributes - Type System
 
 `string`, `string(100)`, `decimal(15,2)`, `decimal(15,2,nonneg)`, `boolean`, `date`, `dateTime`, `time`, `CatalogRef.X`, `DocumentObject.X`, `ValueTable` (+ `columns:[]`), `ValueTree`, `DynamicList`, `TypeA | TypeB` (composite).
 
-Russian synonyms: `строка(100)`, `число(15,2)`, `дата`, `булево`, `справочникСсылка.X` — are recognized and converted into the canonical English names.
+Russian synonyms: `строка(100)`, `число(15,2)`, `дата`, `булево`, `справочникСсылка.X` are recognized and converted into canonical English names.
 
 Attribute flags:
 - `"main": true` — marks the attribute as main (`<MainAttribute>true</MainAttribute>`).
-- `"savedData": true` — saves it in the form settings.
+- `"savedData": true` — saves it in form settings.
 - `"columns": [{ "name": "…", "type": "…" }]` — columns for `ValueTable`/`ValueTree`.
 
 ### Events (`on`, `formEvents`, `elementEvents`)
@@ -132,7 +132,7 @@ Explicit handler override through `handlers`:
 }
 ```
 
-### Buttons bound to a command
+### Buttons Bound to a Command
 
 ```json
 { "kind": "button", "name": "БтнВыполнить", "command": "Выполнить" }

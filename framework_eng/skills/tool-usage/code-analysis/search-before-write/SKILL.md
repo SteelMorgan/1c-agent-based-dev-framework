@@ -1,6 +1,6 @@
 ---
 name: search-before-write
-description: Search Before Write (Search Before Write). The skill teaches the agent **to always perform a search before writing new code**.
+description: "Search Before Write (Search Before Write). The skill teaches the agent **to always perform a search before writing new code**."
 ---
 
 # Search Before Write (Search Before Write)
@@ -14,7 +14,7 @@ Each next step happens only if the previous one produced no results:
 | Step | Tool | What we search for |
 |-----|------------|----------|
 | 1 | `navigate_symbol` (LSP) | Analogous functions/procedures in the project |
-| 2 | `list_metadata_objects`, `get_metadata_structure` | Configuration objects (справочники, регистры, документы) |
+| 2 | `list_metadata_objects`, `get_metadata_structure` | Configuration objects (catalogs, registers, documents) |
 | 3 | `search_syntax_reference`, `get_type_info` | Built-in types/methods of the platform |
 | 4 | `search_ssl_functions` | БСП functions (if the configuration contains БСП) |
 | 5a | `ask_ai_assistant` (SEARCH_DOCS template) | Platform documentation — when the question is about API, methods, types |

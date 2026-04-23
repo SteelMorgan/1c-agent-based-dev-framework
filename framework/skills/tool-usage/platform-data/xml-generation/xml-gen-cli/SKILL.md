@@ -1,6 +1,6 @@
 ---
 name: xml-gen-cli
-description: Правила работы с XmlGen CLI — validate, edit-команды (form/role/epf/skd), edit replace-text (побайтовая замена) и универсальные операции (form/template/help add/remove). Используй при валидации XML и модификации существующих файлов.
+description: "Правила работы с XmlGen CLI — validate, edit-команды (form/role/epf/skd), edit replace-text (побайтовая замена) и универсальные операции (form/template/help add/remove). Используй при валидации XML и модификации существующих файлов."
 ---
 
 # XmlGen CLI — validate и edit-команды

@@ -1,6 +1,6 @@
 ---
 name: 1c-ai-agent-cli
-description: CLI 1C BSL Agent Framework — tools/install.py (clone, install). Используй при клонировании репозитория, установке компонентов в проект, настройке IDE (Cursor, Claude Code, Windsurf, VS Code+Continue).
+description: "CLI 1C BSL Agent Framework — tools/install.py (clone, install). Используй при клонировании репозитория, установке компонентов в проект, настройке IDE (Cursor, Claude Code, Windsurf, VS Code+Continue)."
 ---
 
 # 1c-ai-agent CLI — install.py

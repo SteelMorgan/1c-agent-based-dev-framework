@@ -1,6 +1,6 @@
 ---
 name: xml-generation
-description: Generation of 1С metadata XML from a compact JSON DSL. Supports 11 domains — EPF, Form, MXL, SKD, Role, Config, Subsystem, Interface, Meta (23 object types), Extension (CFE) + utilities (template, help). ~45 CLI operations in Designer format. Use when creating configurations, external processors, metadata objects, forms, roles, reports, print forms, extensions.
+description: "Generation of 1С metadata XML from a compact JSON DSL. Support for 11 domains — EPF, Form, MXL, SKD, Role, Config, Subsystem, Interface, Meta (23 object types), Extension (CFE) + utilities (template, help). ~45 Designer-format CLI operations. Use when creating configurations, external processors, metadata objects, forms, roles, reports, print forms, and extensions."
 ---
 
 # XML Generation Module
@@ -10,7 +10,7 @@ description: Generation of 1С metadata XML from a compact JSON DSL. Supports 11
 `xml-gen` is installed automatically (`python tools/install.py`, requires JDK 17+).
 If unavailable: `python tools/install.py --install-xml-gen`
 
-## Routing by type
+## Type Routing
 
 | Type | Command | Skill |
 |-----|---------|-------|
@@ -25,9 +25,9 @@ If unavailable: `python tools/install.py --install-xml-gen`
 | Extension (CFE) | `extension init/borrow/diff` | [extension-operations](../extension-operations/) |
 | Validation / edit / utilities | `validate`, `form add`, `template add`, `help add` | [xml-gen-cli](../xml-gen-cli/) |
 
-**Do not use** when: EDT format is required, DataSetUnion/CalculatedFields in SKD are needed (workaround: calculations in queries).
+**Do not use** when: EDT format is needed, DataSetUnion/CalculatedFields are needed in SKD (workaround: calculations in queries).
 
-## Key commands
+## Key Commands
 
 ```bash
 # EPF
@@ -64,7 +64,7 @@ xml-gen validate form Form.xml
 
 ## Limitations
 
-- **Designer format only** — EDT will be added later
+- **Only Designer format** — EDT will be added later
 - **SKD ~90%** — no DataSetObject/Union or CalculatedFields → workaround via queries
 
 ## Correct / Incorrect

@@ -1,6 +1,6 @@
 ---
 name: task-breakdown-subagent
-description: Декомпозиция задач для сабагентного режима. Определяет отдельный Task Breakdown JSON, cross-review и BLOCK-итерации.
+description: "Декомпозиция задач для сабагентного режима. Определяет отдельный Task Breakdown JSON, cross-review и BLOCK-итерации."
 ---
 
 # Навык декомпозиции задач (subagent mode)

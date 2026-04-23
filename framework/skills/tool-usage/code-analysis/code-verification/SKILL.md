@@ -1,6 +1,6 @@
 ---
 name: code-verification
-description: Комплексная верификация BSL-кода после правок. Оркестрирует LSP-диагностику, проверку через Напарника (VALIDATE_BSL) и верификацию платформенного API через bsl-platform-context.
+description: "Комплексная верификация BSL-кода после правок. Оркестрирует LSP-диагностику, проверку через Напарника (VALIDATE_BSL) и верификацию платформенного API через bsl-platform-context."
 ---
 
 # Верификация кода (Code Verification)

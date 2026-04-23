@@ -1,6 +1,6 @@
 ---
 name: task-breakdown-subagent
-description: Task breakdown for subagent mode. Defines a separate Task Breakdown JSON, cross-review, and BLOCK iterations.
+description: "Task breakdown for subagent mode. Defines a separate Task Breakdown JSON, cross-review, and BLOCK iterations."
 ---
 
 # Task breakdown skill (subagent mode)

@@ -1,6 +1,6 @@
 ---
 name: config-operations
-description: Операции с конфигурацией 1С (CF) — init, info, edit, validate. Используй при создании конфигурации, анализе структуры, изменении свойств и ChildObjects, валидации Configuration.xml.
+description: "Операции с конфигурацией 1С (CF) — init, info, edit, validate. Используй при создании конфигурации, анализе структуры, изменении свойств и ChildObjects, валидации Configuration.xml."
 ---
 
 # Config Operations

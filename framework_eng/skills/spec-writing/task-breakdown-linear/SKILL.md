@@ -1,6 +1,6 @@
 ---
 name: task-breakdown-linear
-description: Task decomposition for linear single-agent mode. Defines a separate Task Breakdown JSON and conducts a self-check without a reviewer agent.
+description: "Task decomposition for linear single-agent mode. Defines a separate Task Breakdown JSON and conducts a self-check without a reviewer agent."
 ---
 
 # Task decomposition skill (linear single-agent mode)

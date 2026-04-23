@@ -1,6 +1,6 @@
 ---
 name: ssl-patterns
-description: Patterns for working with БСП (Library of Standard Subsystems). This skill teaches the agent to correctly use БСП (Library of Standard Subsystems, English abbreviation).
+description: "Patterns for working with БСП (Library of Standard Subsystems). This skill teaches the agent to correctly use БСП (Library of Standard Subsystems, English abbreviation)."
 ---
 
 # Patterns for working with БСП (Library of Standard Subsystems)
@@ -11,18 +11,18 @@ description: Patterns for working with БСП (Library of Standard Subsystems). 
 
 ## Rule 1: Module ОбщегоНазначения — the main "Swiss army knife"
 
-Before writing your own implementation, check whether БСП already has a ready function.
+Before writing your own implementation, check whether БСП already has a ready-made function.
 
 | Function | When to use |
 |---------|-------------------|
 | `ЗначениеРеквизитаОбъекта()` | Instead of `Ссылка.Реквизит` (avoid dotted notation) |
-| `ЗначенияРеквизитовОбъекта()` | Multiple attributes with one call |
+| `ЗначенияРеквизитовОбъекта()` | Multiple attributes in one call |
 | `СообщитьПользователю()` | Field-bound message (instead of `Сообщить()`) |
 | `МенеджерОбъектаПоСсылке()` | Instead of `Выполнить("Справочники." + Имя)` |
-| `ПодсистемаСуществует()` | Conditional module invocation |
+| `ПодсистемаСуществует()` | Conditional module call |
 | `ОбщийМодуль()` | Dynamic call of a БСП module |
 | `ЭтоСсылка()` | Parameter validation |
-| `СсылкаСуществует()` | Check before accessing |
+| `СсылкаСуществует()` | Check before access |
 
 ```bsl
 // ПЛОХО: три обращения к БД через точку
@@ -44,11 +44,11 @@ The module contains optimized functions that handle edge cases correctly.
 
 | Function | When to use |
 |---------|-------------------|
-| `ПодставитьПараметрыВСтроку()` | Analog of `СтрШаблон()` with additional checks |
-| `СтрокаСЧисломПредметов()` | Declension: "5 документов", "1 документ" |
+| `ПодставитьПараметрыВСтроку()` | Equivalent of `СтрШаблон()`, with additional checks |
+| `СтрокаСЧисломПредметов()` | Declension: "5 documents", "1 document" |
 | `ЕстьНедопустимыеСимволы()` | Input validation |
-| `ТолькоЦифрыВСтроке()` | Validation for ИНН, КПП |
-| `РазложитьСтрокуВМассивПодстрок()` | Parsing by a delimiter |
+| `ТолькоЦифрыВСтроке()` | Validation for INN, KPP |
+| `РазложитьСтрокуВМассивПодстрок()` | Parsing by delimiter |
 
 ```bsl
 // Склонение: «1 документ», «2 документа», «5 документов»
@@ -97,7 +97,7 @@ Directive `&НаКлиентеНаСервереБезКонтекста` is ava
 
 ---
 
-## Rule 5: Working with the journal using БСП
+## Rule 5: Working with the registration journal using БСП
 
 See `error-handling`, rule 7.
 
@@ -105,7 +105,7 @@ See `error-handling`, rule 7.
 
 ## Rule 6: РаботаСФайлами — instead of direct FileSystem calls
 
-Direct work with files skips access rights, temporary files, and cross-platform concerns.
+Direct work with files does not account for access rights, temporary files, and cross-platform compatibility.
 
 ```bsl
 ИмяВременногоФайла = ПолучитьИмяВременногоФайла("xlsx");
@@ -186,13 +186,13 @@ Direct work with files skips access rights, temporary files, and cross-platform 
 | `КлиентСервер` | Both environments | `ОбщегоНазначенияКлиентСервер` |
 | `ПовтИсп` | Server with caching | `ОбщегоНазначенияПовтИсп` |
 
-For client form code — look first in `*КлиентСервер`, then `*Клиент`. For server code — check the main module (without a suffix). `*ПовтИсп` is for frequently requested reference data.
+For client form code, look first in `*КлиентСервер`, then in `*Клиент`. For server code, check the main module (without a suffix). `*ПовтИсп` is for frequently requested reference data.
 
 ---
 
 ## Finding analogs via Buddy
 
-If `search_ssl_functions` yields no result — `ask_ai_assistant` (VALIDATE_BSL template from `buddy-prompting`): send a code snippet and get recommendations on replacing it with БСП methods. Also use `SEARCH_DOCS` for documentation on a specific БСП method.
+If `search_ssl_functions` yields no result, use `ask_ai_assistant` (the `VALIDATE_BSL` template from `buddy-prompting`): send a code snippet and get recommendations for replacing it with БСП methods. Also use `SEARCH_DOCS` for documentation on a specific БСП method.
 
 ---
 depends_on: []

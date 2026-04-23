@@ -1,6 +1,6 @@
 ---
 name: vanessa-run
-description: Running Vanessa Automation scenario tests. Use when you need to execute a feature scenario, verify the run baseline, read run artifacts, or determine how to launch Vanessa in the project.
+description: "Running Vanessa Automation scenario tests. Use when you need to execute a feature scenario, verify the run baseline, read run artifacts, or determine how to launch Vanessa in the project."
 ---
 
 # Running Vanessa Automation
@@ -66,7 +66,7 @@ Before launching, prepare two files in `<project_root>/vanessa-tests/runtime/`:
 }
 ```
 
-**`va-params-run.json`** — bddRunner settings. Take the template `tools/runtime/vanessa/va-params.template.json` and replace all `$workspaceRoot` with the absolute path to the project. `КаталогФич` points to the directory containing the `.feature` files to run.
+**`va-params-run.json`** — bddRunner settings. Take the template `tools/runtime/vanessa/va-params.template.json` and replace all `$workspaceRoot` with the absolute path to the project. The `FeatureCatalog` field points to the directory containing the `.feature` files to run.
 
 ---
 
@@ -79,7 +79,7 @@ Before launching, prepare two files in `<project_root>/vanessa-tests/runtime/`:
 
 If structural changes were loaded into the database since the last update, Vanessa will fail when accessing new objects. A database update run is required first.
 
-**Required when** (changes to СУБД structure or permissions):
+**Required when** (changes to DBMS structure or permissions):
 - New role or change to role composition
 - New attribute / metadata object (catalog, document, register)
 - New predefined element
@@ -105,7 +105,7 @@ DISPLAY=:99 /opt/1cv8/x86_64/<platform_version>/1cv8c ENTERPRISE \
   /Out"/tmp/1c-update.out"
 ```
 
-> The key name `/C"ЗапуститьОбновлениеИнформационнойБазы"` does not require translation — it is a platform system constant, not a user-visible string. For bases built on English BSP use `/C"StartInfobaseUpdate"` instead.
+> The key name `/C"ЗапуститьОбновлениеИнформационнойБазы"` does not require translation - it is a platform system constant, not a user-visible string. For bases built on English BSP use `/C"StartInfobaseUpdate"` instead.
 
 Wait for the process to complete (the window closes automatically). Check `/tmp/1c-update.out` for errors.
 
@@ -171,8 +171,8 @@ Display `:99` is used by default. After the run completes close the display to f
 | `va-status.json` was not created | Check the X11/GUI, then `event-log` |
 | `DISPLAY` is not up | Start/use a working X11 display |
 | Runner finished without artifacts | Treat as invalid and proceed to diagnostics |
-| `Предупреждение безопасности` | Rule `vanessa-security-warning` |
-| `Неопределена информационная база` | Wrong `--ibconnection` format; for server bases use `/Sserver\base` |
+| `Security warning` | Rule `vanessa-security-warning` |
+| `Infobase is undefined` | Wrong `--ibconnection` format; for server bases use `/Sserver\base` |
 | Scenario list empty (0 executed) | Check tags — the `@draft` tag excludes a scenario from the run |
 
 ---

@@ -1,6 +1,6 @@
 ---
 name: epf-dump
-description: Dump EPF/ERF into XML sources. Use when you need to quickly get the source code of an external processing or report for analysis and temporary modification.
+description: "Parse EPF/ERF into XML source files. Use when you need to quickly get the source code of an external processing object or report for analysis and temporary modification."
 argument-hint: <EpfFile>
 allowed-tools:
   - Bash
@@ -11,7 +11,7 @@ allowed-tools:
 
 # /epf-dump
 
-Use the Python script from this directory. On Codex/Linux do not use the PowerShell variant from upstream.
+Use the Python script from this directory. In Codex/Linux, do not use the upstream PowerShell variant.
 
 ## Command
 
@@ -21,12 +21,12 @@ python3 scripts/epf-dump.py -InputFile "<epf>" -OutputDir "<out>" <параме�
 
 ## Connection parameters
 
-An infobase is required for the dump. Without an infobase, reference types are lost.
+For dump, the infobase is required. Without the IB, reference types are lost.
 
-- file-based infobase: `-InfoBasePath "<path>"`
-- server infobase: `-InfoBaseServer "<server>" -InfoBaseRef "<base>"`
-- when needed: `-UserName "<user>" -Password "<pwd>"`
-- `-V8Path` is optional; if it is not set, the script searches for `1cv8` in `V8_PATH`, `PATH`, `/opt/1cv8/current/1cv8`
+- file IB: `-InfoBasePath "<path>"`
+- server IB: `-InfoBaseServer "<server>" -InfoBaseRef "<base>"`
+- if needed: `-UserName "<user>" -Password "<pwd>"`
+- `-V8Path` is optional; if not specified, the script looks for `1cv8` in `V8_PATH`, `PATH`, `/opt/1cv8/current/1cv8`
 
 ## Examples
 

@@ -1,6 +1,6 @@
 ---
 name: 1c-ai-agent-cli
-description: CLI 1C BSL Agent Framework — tools/install.py (clone, install). Use when cloning the repository, installing components into the project, or configuring IDEs (Cursor, Claude Code, Windsurf, VS Code+Continue).
+description: "CLI 1C BSL Agent Framework — tools/install.py (clone, install). Use when cloning the repository, installing components into the project, or configuring IDEs (Cursor, Claude Code, Windsurf, VS Code+Continue)."
 ---
 
 # 1c-ai-agent CLI — install.py
@@ -11,9 +11,9 @@ Repository: `SteelMorgan/1c-agent-based-dev-framework`. Git must be installed.
 
 ```bash
 python tools/install.py clone                              # в ./1c-agent-based-dev-framework
-python tools/install.py clone -t ./my-framework            # целевая директория
+python tools/install.py clone -t ./my-framework            # target directory
 python tools/install.py clone --depth 1                    # shallow clone
-python tools/install.py clone -b <branch>                  # конкретная ветка
+python tools/install.py clone -b <branch>                  # specific branch
 python tools/install.py clone -t ./fw --install            # clone + интерактивная установка
 ```
 
@@ -31,7 +31,7 @@ python tools/install.py
 Run from the framework repository root:
 
 ```bash
-python tools/install.py [опции]
+python tools/install.py [options]
 ```
 
 ### Invocation examples

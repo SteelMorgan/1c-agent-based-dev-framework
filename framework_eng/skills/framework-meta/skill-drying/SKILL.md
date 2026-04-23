@@ -1,6 +1,6 @@
 ---
 name: skill-drying
-description: Compression of skills and rules to reduce token consumption without losing agent behavior. Use when reviewing skills for redundancy, when a skill exceeds ~150 lines or when prompt size is critical. Applies to SKILL.md, .mdc rules, subagent prompts, and workflows.
+description: "Compression of skills and rules to reduce token consumption without losing agent behavior. Use when reviewing skills for redundancy, when a skill exceeds ~150 lines or when prompt size is critical. Applies to SKILL.md, .mdc rules, subagent prompts, and workflows."
 ---
 
 # Skill Drying
@@ -31,9 +31,9 @@ Ask five questions about each fragment. If the answer is “no” to all of them
 
 **P5. Motivation is one line of consequence.** Multi-paragraph “Why:” blocks are replaced by a single sentence about the consequence of violation. Remove entirely if the agent behaves identically without the block.
 
-**P6. External links—drop the URL, keep the marker.** `[ИТС Standard: “Module Texts”](https://its.1c.ru/...)` → `ИТС Standard: “Module Texts”`. The agent will not open the URL, but the standard name is a useful signal for the LLM.
+**P6. External links—drop the URL, keep the marker.** `[ITS Standard: “Module Texts”](https://its.1c.ru/...)` → `ITS Standard: “Module Texts”`. The agent will not open the URL, but the standard name is a useful signal for the LLM.
 
-**P7. “Sources” and “Related resources”—minimize.** Remove blocks with 3–4 links to ИТС. Keep cross-references only if they affect the workflow (“after this skill—run vanessa-run”).
+**P7. “Sources” and “Related resources”—minimize.** Remove blocks with 3–4 links to ITS. Keep cross-references only if they affect the workflow (“after this skill—run vanessa-run”).
 
 ### Examples
 

@@ -1,6 +1,6 @@
 ---
 name: subsystem-operations
-description: Operations with 1C subsystems and the command interface — compile, info, edit, validate. Use when creating subsystems, controlling their content, and configuring CommandInterface.
+description: "Operations with 1C subsystems and the command interface — compile, info, edit, validate. Use when creating subsystems, controlling their content, and configuring CommandInterface."
 ---
 
 # Subsystem + Interface Operations

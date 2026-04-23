@@ -1,6 +1,6 @@
 ---
 name: technical-design-standard
-description: The technical design standard for 1С development tasks. Defines the structure of technical-design.md, the rules for filling sections (MUST/SHOULD/MAY), the quality checklist, and guidance on the level of detail. Used by the architect (Phase 2) and the reviewer (scope=arch).
+description: "The technical design standard for 1С development tasks. Defines the structure of technical-design.md, the rules for filling sections (MUST/SHOULD/MAY), the quality checklist, and guidance on the level of detail. Used by the architect (Phase 2) and the reviewer (scope=arch)."
 ---
 
 # Technical Design Standard (Technical Design)
@@ -183,7 +183,7 @@ Cross-cutting solutions that span all modules. **SHOULD** document the decision 
 | Aspect | Decision | Justification |
 |--------|---------|-------------|
 | **Error handling** | Попытка/Исключение с ЗаписьЖурналаРегистрации | coding-standards rule 18 |
-| **Logging** | ЖР через БСП (ЗаписьЖурналаРегистрации) | ssl-patterns: standard mechanism |
+| **Logging** | ЖР through БСП (ЗаписьЖурналаРегистрации) | ssl-patterns: standard mechanism |
 | **Access rights** | Role via xml-gen, RLS is not required | Data does not contain organization-level segregation |
 | **Transactions** | НачатьТранзакцию/Попытка for writing to registers | coding-standards rule 18 |
 | **Client/Server** | &НаСервереБезКонтекста for business logic | coding-standards rule 3 |

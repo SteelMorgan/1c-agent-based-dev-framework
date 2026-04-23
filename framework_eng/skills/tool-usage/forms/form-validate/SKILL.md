@@ -1,6 +1,6 @@
 ---
 name: form-validate
-description: Validation of a managed 1C form. Use after creating or modifying the form to verify correctness
+description: "Validation of a managed 1C form. Use after creating or modifying the form to verify correctness"
 argument-hint: <FormPath>
 allowed-tools:
   - Bash

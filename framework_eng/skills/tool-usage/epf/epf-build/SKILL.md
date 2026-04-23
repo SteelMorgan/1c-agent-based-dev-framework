@@ -1,6 +1,6 @@
 ---
 name: epf-build
-description: Build an EPF/ERF from XML sources. Use after making temporary diagnostic tweaks to the parsed external processing.
+description: "Build an EPF/ERF from XML sources. Use after making temporary diagnostic tweaks to the parsed external processing."
 argument-hint: <SourceFile>
 allowed-tools:
   - Bash

@@ -1,6 +1,6 @@
 ---
 name: nav-link
-description: Working with navigation links (Nav Link). The skill teaches an agent **to parse and construct navigation links** in the e1cib/data/... format — extracting the object type and link, generating links from data.
+description: "Working with navigation links (Nav Link). The skill teaches an agent **to parse and construct navigation links** in the e1cib/data/... format — extracting the object type and link, generating links from data."
 ---
 
 # Working with navigation links (Nav Link)

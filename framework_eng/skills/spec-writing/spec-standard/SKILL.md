@@ -1,6 +1,6 @@
 ---
 name: spec-standard
-description: Universal skill for writing specifications (SDD). Defines the spec structure, RFC 2119, and the quality checklist regardless of the task execution mode.
+description: "Universal skill for writing specifications (SDD). Defines the spec structure, RFC 2119, and the quality checklist regardless of the task execution mode."
 ---
 
 # Specification writing skill (SDD)

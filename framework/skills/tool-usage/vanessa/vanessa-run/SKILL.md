@@ -1,6 +1,6 @@
 ---
 name: vanessa-run
-description: Запуск сценарных тестов Vanessa Automation. Используй, когда нужно выполнить feature-сценарий, проверить baseline запуска, прочитать артефакты прогона или понять, чем запускать Vanessa в проекте.
+description: "Запуск сценарных тестов Vanessa Automation. Используй, когда нужно выполнить feature-сценарий, проверить baseline запуска, прочитать артефакты прогона или понять, чем запускать Vanessa в проекте."
 ---
 
 # Запуск Vanessa Automation

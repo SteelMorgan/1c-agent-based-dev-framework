@@ -1,31 +1,31 @@
 ---
 name: subsystem-update
-description: Initialization of the BSP subsystem update — blocking sessions, launching update handlers, checking the outcome via the event log and the ВерсииПодсистем register.
+description: "Initialize the БСП subsystem update — block sessions, launch update handlers, and verify the result through the event log and the ВерсииПодсистем register."
 ---
 
-# Subsystem Update for БСП
+# Updating the БСП subsystem
 
 ## When to Apply
 
-| Триггер | Действие |
+| Trigger | Action |
 |---------|----------|
 | An update handler with a new version was added | Run the full update cycle |
-| A handler needs to be rerun | Reset the version in the register, then run the full cycle |
-| The update did not run successfully | Diagnose via the event log (ЖР) |
+| The handler needs to be run again | Reset the version in the register, then run the full cycle |
+| The update did not work | Diagnose through the event log |
 
 ---
 
-## Preconditions
+## Prerequisites
 
 1. The handler is registered in the subsystem update module (for example `ОбновлениеИнформационнойБазыXXX`)
 2. The subsystem module is registered in `ИнтеграцияПодсистемБСП.ПриДобавленииПодсистем`
-3. The project is built (`build_project`) — the code changes are loaded into the database
+3. The project is built (`build_project`) — code changes are loaded into the database
 
 ---
 
 ## Full Update Cycle
 
-### Step 1. Check the current version
+### Step 1. Check the Current Version
 
 ```
 ВЫБРАТЬ ИмяПодсистемы, Версия
@@ -33,9 +33,9 @@ description: Initialization of the BSP subsystem update — blocking sessions, l
 ГДЕ ИмяПодсистемы = "ИМЯ_ПОДСИСТЕМЫ"
 ```
 
-БСП выполнит обработчик, только если версия в регистре **<** версии обработчика.
+БСП will run the handler only if the version in the register is **<** the handler version.
 
-### Step 2. Lock the infobase
+### Step 2. Lock the database
 
 Handlers with `МонопольныйРежим = Истина` require that no other sessions are active.
 
@@ -61,7 +61,7 @@ rac session list --cluster=<cluster_uuid> --infobase=<infobase_uuid> <ras_host>:
 rac session terminate --cluster=<cluster_uuid> --session=<session_uuid> <ras_host>:<ras_port>
 ```
 
-### Step 3. Run the update
+### Step 3. Start the update
 
 ```bash
 /opt/1cv8/current/1cv8c ENTERPRISE \
@@ -74,9 +74,9 @@ rac session terminate --cluster=<cluster_uuid> --session=<session_uuid> <ras_hos
 
 The `/UC"UpdateIB"` parameter is the permission code that matches the `--permission-code` from step 2.
 
-Expect the process to finish automatically (30–120 seconds depending on the data volume).
+Expected result: the process will finish automatically (30-120 seconds depending on data volume).
 
-### Step 4. Release the lock
+### Step 4. Remove the lock
 
 ```bash
 rac infobase update \
@@ -90,9 +90,9 @@ rac infobase update \
   <ras_host>:<ras_port>
 ```
 
-### Step 5. Verify the result
+### Step 5. Verify the Result
 
-1. **Version in the register** — must update to the target value:
+1. **Version in the register** — should be updated to the target value:
 
 ```
 ВЫБРАТЬ ИмяПодсистемы, Версия
@@ -100,8 +100,8 @@ rac infobase update \
 ГДЕ ИмяПодсистемы = "ИМЯ_ПОДСИСТЕМЫ"
 ```
 
-2. **Event log (ЖР)** — check for errors during the update:
-   - `logc_get_event_log(level='Error', from=<время_запуска>)` — there should be no `Обновление информационной базы` errors
+2. **Event log** — check for errors during the update window:
+   - `logc_get_event_log(level='Error', from=<время_запуска>)` — there should be no `information base update` errors
    - `logc_get_event_log(level='Information', from=<время_запуска>)` — look for entries from your handler
 
 ---
@@ -110,9 +110,9 @@ rac infobase update \
 
 If the handler has already run (the version in the register is >= the handler version), БСП will skip it.
 
-Rerun options:
-- **Increment the handler version** (1.0.0.1 → 1.0.0.2) — recommended approach
-- **Reset the version** in the register via direct SQL to the database — for debugging only
+Ways to rerun it:
+- **Increase the version** of the handler (1.0.0.1 → 1.0.0.2) — recommended approach
+- **Reset the version** in the register via direct SQL to the DBMS — for debugging only
 
 ---
 
@@ -120,7 +120,7 @@ Rerun options:
 
 | Error | Reason | Solution |
 |--------|---------|---------|
-| Cannot set exclusive mode | Active sessions in the infobase | Step 2: block and terminate all sessions |
+| Cannot set exclusive mode | Active sessions in the database | Step 2: block and terminate all sessions |
 | Update is already running | A hung session from the previous attempt | Terminate the hung session via `rac session terminate` |
 | Object method not found (ПередОбновлениемИнформационнойБазы) | The subsystem module lacks the mandatory callback procedures | Add the 6 required stub procedures (see the template below) |
 | The handler did not run (the version did not change) | The version in the register is >= the handler version | Query the current version, and increase it if necessary |

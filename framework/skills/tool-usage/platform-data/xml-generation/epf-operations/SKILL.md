@@ -1,6 +1,6 @@
 ---
 name: epf-operations
-description: Операции с внешними обработками 1С (EPF) — создание, добавление форм и шаблонов. Используй при epf init, add-form, add-template, add-attribute, add-tabular-section.
+description: "Операции с внешними обработками 1С (EPF) — создание, добавление форм и шаблонов. Используй при epf init, add-form, add-template, add-attribute, add-tabular-section."
 ---
 
 # EPF Operations

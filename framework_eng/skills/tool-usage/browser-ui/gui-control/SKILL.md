@@ -1,22 +1,22 @@
 ---
 name: gui-control
-description: GUI control for 1C via X11. The skill trains the agent to detect 1C windows (including error dialogs), capture screenshots, and simulate input (Enter, Escape) to manage the interface unattended.
+description: "Managing 1C GUI via X11. The skill teaches the agent to detect 1C windows (including error dialogs), take screenshots, and simulate input (Enter, Escape) to control the interface without human involvement."
 ---
 
-# GUI Control for 1C via X11
+# Managing 1C GUI via X11
 
-X11 control is an action, not diagnostics. Use it only when a GUI dialog that blocks normal infobase shutdown is detected. Diagnose the cause through the event log (`event-log-analysis`).
+X11 control is an action, not diagnostics. Use only when a GUI dialog is detected that blocks the normal shutdown of the database. Diagnose the cause through the event log (`event-log-analysis`).
 
-For a `Предупреждение безопасности` the X11 window metadata can be incomplete. Rely on the chain: event log → screenshot → keyboard actions.
+For `Security Warning`, X11 window metadata may be incomplete. Rely on the sequence: event log → screenshot → keyboard actions.
 
-## When to apply
+## When to use
 
 | Trigger | Action |
-|---------|--------|
-| No events in the event log after `test_start_time` | Check whether a GUI dialog is stuck |
-| Window title: “Ошибка” / “Предупреждение” | Screenshot → close the dialog → analyze the event log |
-| The infobase does not terminate after tests | Close using Escape + Enter |
-| The event log shows `Предупреждение безопасности` on an EPF | Inspect visually; do not act blindly on titles |
+|---------|----------|
+| No events in the event log after `test_start_time` | Check whether a GUI dialog is hanging |
+| Window title: "Error" / "Warning" | Screenshot → close the dialog → analyze the event log |
+| The database does not shut down after tests | Close with Escape + Enter |
+| The event log shows `Security Warning` on EPF | Visually verify; do not act blindly based on titles |
 
 ## Environment setup
 
@@ -27,7 +27,7 @@ os.environ['DISPLAY'] = ':99'  # before importing Xlib and PIL
 
 ## Workflow
 
-### 1. Detect an error dialog
+### 1. Detect the error dialog
 
 ```python
 import os
@@ -48,13 +48,13 @@ for win in root.query_tree().children:
 print(error_windows)
 ```
 
-- Empty + there are 1C windows → the infobase works normally
-- Empty + no windows → the infobase finished
-- Non-empty → error dialog detected → proceed to step 2
+- Empty + there are 1C windows → the database is operating normally
+- Empty + no windows → the database has shut down
+- Not empty → error dialog → step 2
 
-### 2. Close the dialog and finish the infobase
+### 2. Close the dialog and shut down the database
 
-Sequence: Enter (close the dialog) → Escape (initiate shutdown) → Enter (confirm). After that wait 2–3 seconds and re-check following step 1.
+Sequence: Enter (close the dialog) → Escape (close) → Enter (confirm). After that, wait 2-3 seconds and check again using step 1.
 
 ```python
 import os, time
@@ -100,42 +100,42 @@ for win in root.query_tree().children:
         img = ImageGrab.grab(bbox=(geom.x, geom.y, geom.x + geom.width, geom.y + geom.height))
         path = f'/tmp/onec_{win.id}.png'
         img.save(path)
-        print(f'Скриншот сохранён: {path}')
+        print(f'Screenshot saved: {path}')
 ```
 
-## Pipeline: tests finished but the infobase did not close
+## Pipeline: tests finished, the database did not close
 
 ```
 search_event_log(from=test_start_time, limit=20)
-  ├── there are events without Error → wait
-  ├── there is an Error → screenshot → close → analyze the event log
+  ├── there are events, no Error → wait
+  ├── there is Error → screenshot → close → analyze the event log
   └── no events → detect windows
-        ├── error window → screenshot → close
-        └── no windows → the infobase did not start
+        ├── window with an error → screenshot → close
+        └── no windows → the database did not start
 ```
 
 ## Safety
 
-- **Only Xvfb** — do not apply on production servers with a real display
-- **Only navigation keys** (Enter/Escape) — do not enter data into fields
+- **Xvfb only** — do not use on production servers with a real display
+- **Navigation keys only** (Enter/Escape) — do not enter data into fields
 - **Screenshots go to /tmp/** — they may contain personal data
 
-## Typical mistakes
+## Common mistakes
 
-| Mistake | Workaround |
-|--------|-----------|
-| `DISPLAY` is not set | Set `os.environ['DISPLAY'] = ':99'` before the imports |
+| Error | Workaround |
+|--------|---------------|
+| `DISPLAY` is not set | `os.environ['DISPLAY'] = ':99'` before imports |
 | `python-xlib` is not installed | `pip install python-xlib` |
 | `PIL.ImageGrab` does not work | `pip install Pillow` |
-| Windows are not found, but the process exists | The GUI is not rendered yet — wait 2–3 seconds |
-| XTEST is unavailable | Run Xvfb with the `-extensions XTEST` flag |
+| Windows are not found, but the process exists | The GUI has not been rendered yet - wait 2-3 seconds |
+| XTEST is unavailable | Xvfb with the `-extensions XTEST` flag |
 
 ## Capabilities
 
 | Capability | Purpose |
-|------------|---------|
-| `python-xlib` | Read window metadata, simulate input |
-| `PIL ImageGrab` | Screenshot framebuffer or window |
+|------------|------------|
+| `python-xlib` | Reading window metadata, simulating input |
+| `PIL ImageGrab` | Screenshot of the framebuffer or a window |
 
 ---
 depends_on: []

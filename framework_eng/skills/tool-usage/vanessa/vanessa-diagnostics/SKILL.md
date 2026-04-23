@@ -1,65 +1,65 @@
 ---
 name: vanessa-diagnostics
-description: Diagnostics of Vanessa Automation runs. Use when a feature scenario failed, artifacts were not created, or you need to classify a failure after execution.
+description: "Diagnostics for Vanessa Automation test runs. Use when a feature scenario did not pass, artifacts were not created, or you need to classify a failure after execution."
 ---
 
 # Vanessa Automation Diagnostics
 
-## When to apply
+## When to Use
 
 | Trigger | Action |
 |---------|----------|
-| `va-status.json` not created | Treat the run as failed and proceed to diagnostics |
-| `va-status.json != 0` | Read artifacts and classify the crash |
+| `va-status.json` not created | Treat the run as failed, go to diagnostics |
+| `va-status.json != 0` | Read artifacts and classify the failure |
 | `vanessa-execution.log` contains an error | Determine the error class |
-| Suspicion of a GUI hang | Perform visual diagnostics |
+| Suspected GUI lockup | Visual diagnostics |
 
 ---
 
-## Required diagnostic order
+## Mandatory Diagnostic Order
 
 1. Check `va-status.json`.
 2. Check `vanessa-execution.log`.
-3. Check `event-log`: start with the latest `Error`; if empty — without a level filter.
+3. Check `event-log`: first recent `Error`; if empty, then without a level filter.
 4. If there is a signal for a modal window / security warning — `gui-control` / `screenshot`.
-5. Only if that is insufficient — `tech-log-analysis`.
+5. Only if that is not enough — `tech-log-analysis`.
 
-### Special-case: `Security warning`
+### Special-case: `Security Warning`
 
-If `event-log` contains a `Security warning` entry for `bddRunner.epf` or plugins:
-1. Treat it as a trigger for a visual check.
-2. Open the real display via noVNC or capture a screenshot (do not rely on X11 window titles).
-3. Only after visual confirmation interpret a rerun.
+If `event-log` has an entry about `Security Warning` for `bddRunner.epf` or plugins:
+1. Treat it as a trigger for visual verification.
+2. Open the real screen through noVNC or take a screenshot (do not rely on X11 window titles).
+3. Interpret a rerun only after visual confirmation.
 
 ---
 
-## Error classes
+## Error Classes
 
-| Class | When to set |
+| Class | When to Assign |
 |-------|---------------|
-| `scenario_error` | The scenario is incorrectly formulated or uses an inappropriate flow |
-| `step_resolution_error` | The required step was not found or does not resolve |
-| `assertion_error` | Steps completed, but the validation did not match |
-| `test_data_error` | Depends on missing or unsuitable data |
-| `environment_error` | A problem in X11, the environment, the runner, or client launch |
-| `product_ui_error` | Visible form behavior or UI flow error |
-| `product_logic_error` | Business logic delivers an incorrect result with a correct scenario |
+| `scenario_error` | The scenario is formulated incorrectly or uses an inappropriate flow |
+| `step_resolution_error` | The required step was not found or cannot be resolved |
+| `assertion_error` | The steps ran, but the result check did not match |
+| `test_data_error` | Depends on missing / unsuitable data |
+| `environment_error` | Problem in X11, environment, runner, client startup |
+| `product_ui_error` | Error in the visible behavior of a form or UI flow |
+| `product_logic_error` | Business logic returns an incorrect result for a correct scenario |
 
-### Quick heuristic
+### Quick Heuristic
 
 | Signal | Class |
 |--------|-------|
 | No `va-status.json`, GTK/X11 error | `environment_error` |
-| Missing step | `step_resolution_error` |
-| Form opened, expectation mismatched | `assertion_error` / `product_ui_error` |
-| Business-module error in the event log | `product_logic_error` |
+| Step not found | `step_resolution_error` |
+| Form opened, expectation did not match | `assertion_error` / `product_ui_error` |
+| Error from a business module in the event log | `product_logic_error` |
 | Document/object not found | `test_data_error` |
 
 ---
 
-## Diagnostic outcome
+## Diagnostic Result
 
-The agent should report: the error class, the primary signal source, and the next action path.
+The agent should report: the error class, the main signal source, the next action path.
 
 ```text
 failure_type = test_data_error

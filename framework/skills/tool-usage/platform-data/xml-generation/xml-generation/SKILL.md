@@ -1,6 +1,6 @@
 ---
 name: xml-generation
-description: Генерация XML метаданных 1С из компактного JSON DSL. Поддержка 11 доменов — EPF, Form, MXL, SKD, Role, Config, Subsystem, Interface, Meta (23 типа объектов), Extension (CFE) + утилиты (template, help). ~45 операций CLI в формате Designer. Используй при создании конфигураций, внешних обработок, объектов метаданных, форм, ролей, отчётов, печатных форм, расширений.
+description: "Генерация XML метаданных 1С из компактного JSON DSL. Поддержка 11 доменов — EPF, Form, MXL, SKD, Role, Config, Subsystem, Interface, Meta (23 типа объектов), Extension (CFE) + утилиты (template, help). ~45 операций CLI в формате Designer. Используй при создании конфигураций, внешних обработок, объектов метаданных, форм, ролей, отчётов, печатных форм, расширений."
 ---
 
 # XML Generation Module

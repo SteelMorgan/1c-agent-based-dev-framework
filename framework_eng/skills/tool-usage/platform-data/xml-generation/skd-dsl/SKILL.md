@@ -1,24 +1,24 @@
 ---
 name: skd-dsl
-description: JSON DSL for generating Data Composition Schemas 1С (SKD) with filters, sorting, and conditional formatting. Use it with skd compile for reports.
+description: "JSON DSL for generating 1C data composition schemas (SKD) with filters, sorting, and conditional appearance. Use with skd compile for reports."
 ---
 
 # SKD DSL
 
-JSON DSL for generating Data Composition Schemas 1С (DataCompositionSchema).
+JSON DSL for generating 1C data composition schemas (DataCompositionSchema).
 
 ## When to use
 
 | Trigger | Action |
-|---------|--------|
-| Need to create a report (СКД) | `skd compile` with JSON DSL |
+|---------|----------|
+| Need to create a report (SKD) | `skd compile` with JSON DSL |
 | Need to add a parameter to an existing schema | `skd add-parameter` → [xml-gen-cli](../xml-gen-cli/) |
 | Need to add a field to a DataSet | `skd add-field` → [xml-gen-cli](../xml-gen-cli/) |
 | Need DataSetUnion | Workaround: DataSetQuery with UNION in the query |
-| Need calculated fields | Workaround: calculations in the SELECT of the query |
-| Need to analyze an existing СКД | `skd info <Schema.xml>` |
+| Need calculated fields | Workaround: calculations in the SELECT part of the query |
+| Need to analyze an existing SKD | `skd info <Schema.xml>` |
 
-## Command compile
+## compile command
 
 ```bash
 xml-gen skd compile [--format designer|edt] <input.json> <output.xml>
@@ -26,9 +26,9 @@ xml-gen skd compile [--format designer|edt] <input.json> <output.xml>
 
 **Editing** (add-parameter, add-field) — see [xml-gen-cli](../xml-gen-cli/)
 
-## Command info
+## info command
 
-Analyzes СКД: data sets, fields, parameters, configuration variants.
+Analyze SKD: data sets, fields, parameters, settings variants.
 
 ```bash
 xml-gen skd info <Schema.xml>
@@ -104,11 +104,11 @@ xml-gen skd info <Schema.xml>
 }
 ```
 
-### Filter operators
+### filter operators
 
 `=`, `<>`, `>`, `>=`, `<`, `<=`, `in`, `notIn`, `contains`, `filled`, `notFilled`
 
-### Total fields
+### Total fields (totalFields)
 
 ```json
 {
@@ -135,10 +135,9 @@ xml-gen skd info <Schema.xml>
 "filter": ["Сумма > 0"]
 ```
 
-> The filter parser expects operators from the fixed list. `больше` is not recognized.
+> The filter parser expects operators from a fixed list. `больше` is not recognized.
 
-Fields in selection, order, filter, structure must exist in dataSets — otherwise the СКД will not compose.
-
+Fields in selection, order, filter, structure must exist in dataSets, otherwise the SKD will not be composed.
 
 ---
 depends_on: []

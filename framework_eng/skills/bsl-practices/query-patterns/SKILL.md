@@ -1,6 +1,6 @@
 ---
 name: query-patterns
-description: Query patterns for 1C. This skill teaches an agent how to correctly work with the 1C:Предприятие query language.
+description: "1C query patterns. This skill teaches an agent how to correctly work with the 1C:Предприятие query language."
 ---
 
 # 1C Query Patterns
@@ -9,11 +9,11 @@ description: Query patterns for 1C. This skill teaches an agent how to correctly
 
 ---
 
-## Rule 1: NEVER execute queries inside a loop
+## Rule 1: NEVER execute queries in a loop
 
 For N iterations — N * (network latency + execution time). 1,000 items * 5 ms = 5 seconds just waiting for the network.
 
-ITS standard: “Database queries — restriction on using queries inside a loop.”
+ITS standard: «Database queries — restriction on using queries in a loop».
 
 ### Correct — one query + Correspondence for processing
 
@@ -51,9 +51,9 @@ ITS standard: “Database queries — restriction on using queries inside a loop
 
 ---
 
-## Rule 2: Use temporary tables for complex queries
+## Rule 2: Temporary tables for complex queries
 
-Splitting into stages improves readability, step-by-step debugging, and indexing of intermediate results.
+Breaking the query into stages improves readability, step-by-step debugging, and indexing of intermediate results.
 
 ```bsl
 Запрос = Новый Запрос;
@@ -104,7 +104,7 @@ Rules: use the `вт` prefix (standard); `ИНДЕКСИРОВАТЬ ПО` for j
 
 ## Rule 3: Parameterize queries — do not inject values into the text
 
-Injecting values into the text leads to vulnerabilities, prevents the DBMS from caching execution plans, and causes formatting errors.
+Injecting values into the text is a vulnerability, prevents DBMS plan caching, and causes formatting errors.
 
 ```bsl
 // Correct — via parameters
@@ -121,9 +121,9 @@ Injecting values into the text leads to vulnerabilities, prevents the DBMS from 
 
 ---
 
-## Rule 4: EСTЬNULL() with LEFT JOIN
+## Rule 4: ЕСТЬNULL() with LEFT JOIN
 
-`NULL + 100 = NULL`, `NULL > 0 = ЛОЖЬ`. Unhandled NULLs lead to incorrect calculations and lost rows in filters.
+`NULL + 100 = NULL`, `NULL > 0 = FALSE`. Unhandled NULLs lead to incorrect calculations and lost rows in conditions.
 
 ```bsl
 Запрос.Текст =
@@ -139,20 +139,20 @@ Injecting values into the text leads to vulnerabilities, prevents the DBMS from 
 |   ЕСТЬNULL(ОстаткиТоваров.КоличествоОстаток, 0) > 0";
 ```
 
-### Pitfall — filter without EСTЬNULL
+### Pitfall — filter without ЕСТЬNULL
 
 ```bsl
 // BAD: ГДЕ ОстаткиТоваров.КоличествоОстаток > 0
-// → NULL > 0 = ЛОЖЬ → rows without balances disappear (LEFT JOIN becomes INNER)
+// → NULL > 0 = FALSE → rows without balances disappear (LEFT JOIN becomes INNER)
 ```
 
 ---
 
 ## Rule 5: Virtual register tables — parameters inside
 
-Virtual tables (`Остатки`, `Обороты`, `СрезПоследних`) are parameterized DBMS functions. Parameters inside them yield optimal plans. Parameters in WHERE force the DBMS to compute **all** data first and filter later. The difference is orders of magnitude.
+Virtual tables (`Остатки`, `Обороты`, `СрезПоследних`) are parameterized DBMS functions. Parameters inside them give the optimal plan. Parameters in WHERE make the DBMS compute **all** data first and filter afterward. The difference is by orders of magnitude.
 
-ITS standard: “Use of virtual tables.”
+ITS standard: «Use of virtual tables».
 
 ```bsl
 // Correct — parameters inside the virtual table
@@ -169,10 +169,10 @@ ITS standard: “Use of virtual tables.”
 |   ) КАК Остатки";
 ```
 
-### Wrong — filtering via WHERE
+### Wrong — filtering through WHERE
 
 ```bsl
-// BAD: The DBMS calculates balances for ALL nomenclature on ALL warehouses, then filters
+// BAD: The DBMS will calculate balances for ALL nomenclature on ALL warehouses, then filter
 "ИЗ РегистрНакопления.ТоварыНаСкладах.Остатки КАК Остатки
 |ГДЕ Остатки.Номенклатура В (&СписокНоменклатуры)"
 ```
@@ -181,7 +181,7 @@ ITS standard: “Use of virtual tables.”
 
 ## Rule 6: Batch operations — ТаблицаЗначений as a query parameter
 
-Passing data arrays through `Запрос.УстановитьПараметр("ВТ", ТаблицаЗначений)` feeds a temporary table — one query instead of a loop.
+Passing a data array into a temporary table via `Запрос.УстановитьПараметр("ВТ", ТаблицаЗначений)` means one query instead of a loop.
 
 ```bsl
 ТаблицаДанных = Новый ТаблицаЗначений;
@@ -218,7 +218,7 @@ Passing data arrays through `Запрос.УстановитьПараметр("
 
 ---
 
-## Rule 7: Handling results — Выборка vs Выгрузка
+## Rule 7: Result handling — Selection vs Export
 
 | Method | When to use |
 |--------|-------------|
@@ -227,7 +227,7 @@ Passing data arrays through `Запрос.УстановитьПараметр("
 | `Выгрузить()` → ТаблицаЗначений | Random access, searches, passing data to another procedure, data < 10,000 rows |
 
 ```bsl
-// Выборка — data loads in chunks
+// Выборка — data is loaded in chunks
 Выборка = Запрос.Выполнить().Выбрать();
 Пока Выборка.Следующий() Цикл
     // processing
@@ -242,7 +242,7 @@ Passing data arrays through `Запрос.УстановитьПараметр("
 
 ## Rule 8: Indexing — help the optimizer
 
-Index fields used in WHERE, join conditions (ON), and ORDER BY.
+Index fields in WHERE conditions, join conditions (ON), and ordering fields.
 
 ### Temporary tables — index join fields
 
@@ -271,13 +271,13 @@ Index fields used in WHERE, join conditions (ON), and ORDER BY.
 |       ПО втЗаказы.Номенклатура = Остатки.Номенклатура";
 ```
 
-In the configurator/EDT: Property -> Indexing -> “Индексировать”.
+In the configurator/EDT: Attribute -> Properties -> “Index”.
 
 ---
 
 ## Rule 9: Only required fields (not SELECT *)
 
-Extra fields create excess traffic, prevent covering indexes, and increase fragility when new attributes are added.
+Extra fields mean extra traffic, no covering index, and fragility when attributes are added.
 
 ```bsl
 // Correct — explicit field list
@@ -292,7 +292,7 @@ Extra fields create excess traffic, prevent covering indexes, and increase fragi
 
 ## Rule 10: FIRST N to limit the result
 
-A query without limits can return millions of rows and exhaust memory.
+A query without a limit can return millions of rows and exhaust memory.
 
 ```bsl
 "ВЫБРАТЬ ПЕРВЫЕ 100
@@ -302,13 +302,13 @@ A query without limits can return millions of rows and exhaust memory.
 |УПОРЯДОЧИТЬ ПО Товары.Наименование"
 ```
 
-Use dynamic lists for display — they implement pagination automatically.
+For displaying lists, use dynamic lists — they implement pagination automatically.
 
 ---
 
-## Rule 11: Do not mask duplicates via DISTINCT
+## Rule 11: Do not mask duplicates with DISTINCT
 
-`РАЗЛИЧНЫЕ` requires sorting/hashing all rows. If duplicates come from an unnecessary JOIN — fix the query.
+`РАЗЛИЧНЫЕ` requires sorting/hashing all rows. If duplicates are caused by an unnecessary JOIN, fix the query.
 
 ```bsl
 // Correct — subquery instead of JOIN + РАЗЛИЧНЫЕ
@@ -322,11 +322,11 @@ Use dynamic lists for display — they implement pagination automatically.
 
 ---
 
-## Rule 12: EXPR for composite types
+## Rule 12: ВЫРАЗИТЬ for composite types
 
-If a field has a composite type (e.g., “Регистратор”), the DBMS joins **all** tables of that composite type. `ВЫРАЗИТЬ(Поле КАК Тип)` limits the JOIN to one table.
+If a field has a composite type (for example, “Регистратор”), the DBMS performs a LEFT JOIN to **all** tables of the composite type. `ВЫРАЗИТЬ(Поле КАК Тип)` limits the JOIN to one table.
 
-ITS standard: “Use of the ВЫРАЗИТЬ construction in queries.”
+ITS standard: «Use of the ВЫРАЗИТЬ construction in queries».
 
 ```bsl
 // Correct — JOIN only with one table
@@ -338,22 +338,22 @@ ITS standard: “Use of the ВЫРАЗИТЬ construction in queries.”
 |ГДЕ Движения.Регистратор ССЫЛКА Документ.РеализацияТоваровУслуг"
 ```
 
-### Pitfall — referencing a composite type without EXPR
+### Pitfall — referencing a composite type without ВЫРАЗИТЬ
 
 ```bsl
 // BAD: Движения.Регистратор.Контрагент without ВЫРАЗИТЬ
-// If Регистратор can be 20 types of documents — 20 LEFT JOINs!
+// If Регистратор can be 20 document types — 20 LEFT JOINs!
 ```
 
 ---
 
 ## Rule 13: ON vs WHERE in LEFT JOIN
 
-- A condition in `ПО` filters the right table **BEFORE** the join — rows on the left without a match stay with NULL
-- A condition in `ГДЕ` filters **AFTER** — rows with NULL are dropped, turning the LEFT JOIN into INNER JOIN
+- A condition in `ПО` filters the right table **BEFORE** the join — rows on the left without a match remain NULL
+- A condition in `ГДЕ` filters **AFTER** — rows with NULL are dropped, turning the LEFT JOIN into an INNER JOIN
 
 ```bsl
-// Correct — filtering the right table in virtual table parameters / ON
+// Correct — filtering the right table in virtual table parameters / in ON
 "ВЫБРАТЬ
 |   Номенклатура.Наименование,
 |   ЕСТЬNULL(Цены.Цена, 0) КАК Цена

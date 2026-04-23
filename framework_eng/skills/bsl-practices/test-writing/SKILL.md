@@ -1,6 +1,6 @@
 ---
 name: test-writing
-description: Writing YaxUnit (BSL) tests. The skill teaches an agent to create test modules for the YaxUnit framework — registering tests, assertions, mocking, test data.
+description: "Writing YaxUnit (BSL) tests. The skill teaches an agent to create test modules for the YaxUnit framework — test registration, assertions, mocking, test data."
 ---
 
 # Writing YaxUnit (BSL) Tests
@@ -150,32 +150,6 @@ One test verifies a single assertion. Arrange-Act-Assert pattern:
 ```
 
 Data created via `ЮТест.Данные()` are **automatically deleted** after the test. Do not create data inside `ИсполняемыеСценарии`.
-
----
-
-## Test Data Isolation (MUST)
-
-Every test set that writes to the database **MUST** use `.ВТранзакции()` for automatic rollback. This prevents test data from accumulating in the database across runs.
-
-```bsl
-ЮТТесты
-    .ДобавитьТестовыйНабор("Мой набор")
-        .ВТранзакции()  // All DB changes rolled back after each test
-        .ДобавитьСерверныйТест("МойТест");
-```
-
-### Two mechanisms (use `.ВТранзакции()` by default)
-
-| Mechanism | What it does | When to use |
-|-----------|-------------|-------------|
-| `.ВТранзакции()` | Rolls back **all** DB changes after the test via `RollbackTransaction` | **Default for all tests** — full isolation, nothing persists |
-| `.УдалениеТестовыхДанных()` | Deletes only objects created via `ЮТест.Данные()` | Integration tests where partial persistence is needed |
-
-**Rules:**
-- `.ВТранзакции()` is the default — add it to every test set unless there is a specific reason not to
-- Without `.ВТранзакции()`, each test run creates new catalog items, register records, documents etc. that pile up in the database
-- Nested transactions in tested code (e.g. `BeginTransaction`/`CommitTransaction` inside the procedure under test) work correctly — the inner commit does not persist because the outer test transaction is rolled back
-- `.ВТранзакции()` and `.УдалениеТестовыхДанных()` can be combined for maximum safety, but `.ВТранзакции()` alone is sufficient in most cases
 
 ---
 

@@ -1,6 +1,6 @@
 ---
 name: xml-gen-cli
-description: Rules for working with XmlGen CLI — validate, edit commands (form/role/epf/skd), edit replace-text (byte-by-byte replacement) and universal operations (form/template/help add/remove). Use when validating XML and modifying existing files.
+description: "Rules for working with XmlGen CLI — validate, edit commands (form/role/epf/skd), edit replace-text (byte-by-byte replacement) and universal operations (form/template/help add/remove). Use when validating XML and modifying existing files."
 ---
 
 # XmlGen CLI — validate and edit commands
@@ -132,7 +132,7 @@ xml-gen role add-object --name Catalog.Номенклатура --rights Read,Vi
 | Problem | Solution |
 |----------|---------|
 | "Parent element not found" | Check the exact parent name in Form.xml (case matters) |
-| "Object already exists" (role) | use `role add-right` instead of `add-object` |
+| "Object already exists" (role) | `role add-right` instead of `add-object` |
 | "DataSet not found" (skd) | Check the data set name in Schema.xml |
 | Edit tool breaks line endings in XML | Use `xml-gen edit replace-text` instead of Claude Code Edit |
 

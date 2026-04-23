@@ -1,20 +1,20 @@
 ---
 name: rac-use
-description: 1C cluster server administration via RAC utility — view/terminate sessions, manage locks, connections, infobases, and other cluster objects.
+description: "1C server cluster administration through the RAC utility — viewing/terminating sessions, managing locks, connections, infobases, and other cluster objects."
 ---
 
-# RAC — 1C Cluster Administration Utility
+# RAC — 1C cluster administration utility
 
-## When to Use
+## When to use
 
 | Trigger | Action |
-|---------|--------|
+|---------|----------|
 | Need to check/kill sessions in a database | `session list` / `session terminate` |
 | Need to disconnect connections | `connection list` / `connection disconnect` |
-| Need to block database login | `infobase update --sessions-deny=on` |
-| Need to disable scheduled jobs | `infobase update --scheduled-jobs-deny=on` |
+| Need to block login to the database | `infobase update --sessions-deny=on` |
+| Need to prohibit scheduled jobs | `infobase update --scheduled-jobs-deny=on` |
 | Need to view locks | `lock list` |
-| Need cluster/database information | `cluster list` / `infobase summary list` |
+| Need information about the cluster/databases | `cluster list` / `infobase summary list` |
 
 ---
 
@@ -22,13 +22,13 @@ description: 1C cluster server administration via RAC utility — view/terminate
 
 **Binary:** `/opt/1cv8/current/rac` (always the current version).
 
-**Connection details:** `<project_root>/configs/yaxunit-runner.yml`, section `app.connection` — server, database, login, password.
+**Connection data:** `<project_root>/configs/yaxunit-runner.yml`, section `app.connection` — server, database, login, password.
 
-**Cluster agent address:** defaults to `localhost:1545`. If the server differs — specify explicitly as the last argument: `rac <command> <host>:<port>`.
+**Cluster agent address:** by default `localhost:1545`. If the server differs — specify explicitly as the last argument: `rac <command> <host>:<port>`.
 
 ---
 
-## First Step — Get the Cluster UUID
+## First step — get the cluster UUID
 
 All commands require `--cluster=<uuid>`. Get it first:
 
@@ -36,74 +36,74 @@ All commands require `--cluster=<uuid>`. Get it first:
 /opt/1cv8/current/rac cluster list
 ```
 
-The output contains `cluster : <uuid>` — save it and use in subsequent commands.
+The output contains `cluster : <uuid>` — save it and use it later.
 
 ---
 
-## Common Scenarios
+## Main scenarios
 
-### View Database Sessions
+### Viewing database sessions
 
 ```bash
-# Find the infobase UUID
+# Find the database UUID
 /opt/1cv8/current/rac infobase --cluster=<cluster_uuid> summary list
 
-# List sessions for the infobase
+# List the database sessions
 /opt/1cv8/current/rac session --cluster=<cluster_uuid> list --infobase=<infobase_uuid>
 ```
 
-### Force-Terminate a Session
+### Forcefully terminate a session
 
 ```bash
 /opt/1cv8/current/rac session --cluster=<cluster_uuid> terminate \
   --session=<session_uuid> \
-  --error-message="Session terminated by agent for task execution"
+  --error-message="The session was terminated by the agent to complete the task"
 ```
 
-### Block Database Login
+### Blocking login to the database
 
 ```bash
-# Enable session lock
+# Enable blocking
 /opt/1cv8/current/rac infobase --cluster=<cluster_uuid> update \
   --infobase=<infobase_uuid> \
   --infobase-user=<user> --infobase-pwd=<pwd> \
   --sessions-deny=on \
-  --denied-message="Database locked for maintenance" \
+  --denied-message="The database is blocked for maintenance" \
   --permission-code="secret123"
 
-# Disable session lock
+# Remove blocking
 /opt/1cv8/current/rac infobase --cluster=<cluster_uuid> update \
   --infobase=<infobase_uuid> \
   --infobase-user=<user> --infobase-pwd=<pwd> \
   --sessions-deny=off
 ```
 
-### Manage Scheduled Jobs
+### Managing scheduled jobs
 
 ```bash
-# Disable
+# Prohibit
 /opt/1cv8/current/rac infobase --cluster=<cluster_uuid> update \
   --infobase=<infobase_uuid> \
   --infobase-user=<user> --infobase-pwd=<pwd> \
   --scheduled-jobs-deny=on
 
-# Enable
+# Allow
 /opt/1cv8/current/rac infobase --cluster=<cluster_uuid> update \
   --infobase=<infobase_uuid> \
   --infobase-user=<user> --infobase-pwd=<pwd> \
   --scheduled-jobs-deny=off
 ```
 
-### View Locks
+### Viewing locks
 
 ```bash
 /opt/1cv8/current/rac lock --cluster=<cluster_uuid> list --infobase=<infobase_uuid>
 ```
 
-### View and Disconnect Connections
+### Viewing and disconnecting connections
 
 ```bash
-# List connections for the infobase
+# List database connections
 /opt/1cv8/current/rac connection --cluster=<cluster_uuid> list --infobase=<infobase_uuid>
 
 # Disconnect a specific connection
@@ -113,13 +113,13 @@ The output contains `cluster : <uuid>` — save it and use in subsequent command
 
 ---
 
-## All RAC Modes
+## All RAC modes
 
 | Mode | Purpose |
-|------|---------|
+|-------|-----------|
 | `cluster` | Clusters: list, create, delete, administrators |
-| `infobase` | Infobases: create, update, delete, session/scheduled job locks |
-| `session` | Sessions: list, info, force terminate |
+| `infobase` | Infobases: create, update, delete, session/scheduled job blocking |
+| `session` | Sessions: list, information, forceful termination |
 | `connection` | Connections: list, disconnect |
 | `lock` | Locks: view |
 | `process` | Worker processes |
@@ -136,14 +136,14 @@ Help for any mode: `rac help <mode>`.
 
 ---
 
-## Common Errors
+## Typical errors
 
 | Error | Cause | Solution |
-|-------|-------|----------|
-| `Cluster agent unavailable` | `ragent` not running or wrong address | Check `localhost:1545` or specify the correct address |
-| `Invalid cluster identifier` | UUID copied incorrectly | Repeat `cluster list` |
-| `Insufficient permissions` | Cluster admin credentials required | Add `--cluster-user` / `--cluster-pwd` |
-| `Infobase not found` | Wrong infobase UUID | Check via `infobase summary list` |
+|--------|---------|---------|
+| `Cluster agent unavailable` | `ragent` is not running or the address is incorrect | Check `localhost:1545` or specify the correct address |
+| `Invalid cluster identifier` | The UUID was copied incorrectly | Repeat `cluster list` |
+| `Insufficient permissions` | Cluster administrator credentials are required | Add `--cluster-user` / `--cluster-pwd` |
+| `Infobase not found` | Incorrect database UUID | Check via `infobase summary list` |
 
 ---
 depends_on:

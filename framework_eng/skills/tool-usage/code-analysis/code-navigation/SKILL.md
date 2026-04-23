@@ -1,6 +1,6 @@
 ---
 name: code-navigation
-description: Code Navigation (Code Navigation). The skill teaches the agent to **efficiently navigate BSL code** using LSP (Language Server Protocol).
+description: "Code Navigation (Code Navigation). The skill teaches the agent to **efficiently navigate BSL code** using LSP (Language Server Protocol)."
 ---
 
 # Code Navigation (Code Navigation)

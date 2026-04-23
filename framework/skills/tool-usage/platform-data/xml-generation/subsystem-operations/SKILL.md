@@ -1,6 +1,6 @@
 ---
 name: subsystem-operations
-description: Операции с подсистемами и командным интерфейсом 1С — compile, info, edit, validate. Используй при создании подсистем, управлении составом, настройке CommandInterface.
+description: "Операции с подсистемами и командным интерфейсом 1С — compile, info, edit, validate. Используй при создании подсистем, управлении составом, настройке CommandInterface."
 ---
 
 # Subsystem + Interface Operations

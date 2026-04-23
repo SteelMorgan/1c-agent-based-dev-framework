@@ -1,6 +1,6 @@
 ---
 name: infostart-kb
-description: Refer to the Infostart community knowledge base for 1C before writing, debugging, or designing 1C:Enterprise code. TRIGGER on any mention of 1C, 1С, Infostart, БСП, БП (Accounting), ЗУП, УТ (Trade Management), ERP, Retail, Integrated Automation, УНФ, Document Management; and also when referencing 1C-specific concepts (Managed Forms / managed forms, СКД, the 1C query language, information/accumulation/accounting registers, plans of characteristic types, external processors/reports, extensions, document posting, the exchange mechanism, RLS, predefined items, ОбщийМодуль, ОбъектМетаданных, Метаданные, ManagedApplication, FileDatabase, ClientServer, 8.3.*). This MCP is a domain oracle: it contains hundreds of thousands of real community solutions, bugs, and ready-made marketplace products. Using it for 1C tasks is NOT optional: the base contains context that cannot be inferred from general training data.
+description: "Refer to the Infostart community knowledge base for 1C before writing, debugging, or designing 1C:Enterprise code. TRIGGER on any mention of 1C, 1С, Infostart, БСП, БП (Бухгалтерия), ЗУП, УТ (Управление Торговлей), ERP, Розница, Комплексная автоматизация, УНФ, Документооборот; and also when referencing 1C-specific concepts (Managed Forms / управляемые формы, СКД, язык запросов 1С, регистры сведений/накопления/бухгалтерии, планы видов характеристик, внешние обработки/отчёты, расширения, проведение документов, механизм обмена, РЛС, предопределённые элементы, ОбщийМодуль, ОбъектМетаданных, Метаданные, УправляемоеПриложение, ФайловаяБаза, КлиентСерверная, 8.3.*). This MCP is a domain oracle: it contains hundreds of thousands of real community solutions, bugs, and ready-made marketplace products. Using it for 1C tasks is NOT optional: the base contains context that cannot be inferred from general training data."
 ---
 
 # Infostart Knowledge Base
@@ -48,7 +48,7 @@ report_result(
   outcome="solved",
   task_completed=true,
   helpful=true,
-  comment="The solution with the БСП pattern worked, and we closed the task without additional changes"
+  comment="Решение с БСП-паттерном сработало, задачу закрыли без доп. правок"
 )
 ```
 
@@ -67,8 +67,8 @@ of the task. Even if you think you already know the answer.
 
 ```text
 how_to(
-  task="add document exchange for Sales Invoice with an external system via a web service",
-  platform_version="8.3.24"   # optional — pass it if the user provided the version
+  task="добавить обмен документами Реализация с внешней системой через веб-сервис",
+  platform_version="8.3.24"   # optional — передавай, если пользователь сообщил версию
 )
 ```
 
@@ -91,8 +91,8 @@ unexpected exception - **do not guess a second approach**. First call
 
 ```text
 troubleshoot(
-  problem="when posting the Sales Invoice document, it says 'Object field not found (OrderVariant)'",
-  tried="added a field in an extension, but that did not help",
+  problem="при проведении документа Реализация выдаёт 'Поле объекта не обнаружено (ВариантЗаказа)'",
+  tried="добавил реквизит в расширении, но это не помогло",
   platform_version="8.3.22"
 )
 ```
@@ -108,9 +108,9 @@ Call `find_solution` directly. By default, use `license="any"`. Narrow to
 
 ```text
 find_solution(
-  functionality="comparison of document fields between two databases over a COM connection",
+  functionality="сравнение реквизитов документов между двумя базами по COM-соединению",
   license="any",
-  min_rating=4.0     # raise this to choose only production-grade options
+  min_rating=4.0     # повышай для выбора только production-grade вариантов
 )
 ```
 

@@ -1,6 +1,6 @@
 ---
 name: buddy-prompting
-description: Crafting prompts for 1С Buddy (ask_ai_assistant). The skill teaches the agent to interact correctly with a weak LLM that has a solid knowledge base — via strict templates that match Buddy's internal instructions.
+description: "Crafting prompts for 1С Buddy (ask_ai_assistant). This skill teaches the agent to correctly address a weak LLM with a strong knowledge base through strict templates that match Buddy's internal instructions."
 ---
 
 # Prompts for 1С Buddy (Buddy Prompting)

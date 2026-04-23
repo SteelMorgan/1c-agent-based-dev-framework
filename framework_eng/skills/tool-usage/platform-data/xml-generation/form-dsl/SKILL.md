@@ -1,6 +1,6 @@
 ---
 name: form-dsl
-description: JSON DSL for generating 1С managed forms with UI elements, attributes, and commands. Use it for form compile and editing forms through xml-gen-cli.
+description: "JSON DSL for generating managed 1C forms with UI elements, attributes, and commands. Use for form compile and editing forms through xml-gen-cli."
 ---
 
 # Form DSL
@@ -21,19 +21,19 @@ Editing existing forms (add-attribute, add-element, move-element, etc.) — see 
 
 ## `--from-object` Mode
 
-Generates `Form.xml` automatically from the object's XML description. Coverage: `Catalog` (item/folder/list/choice), `Document` (item/list/choice), `InformationRegister` (record/list), `AccumulationRegister` (list), `ChartOfCharacteristicTypes`, `ExchangePlan`, `ChartOfAccounts`, `DataProcessor`/`Report` (stub).
+Generates `Form.xml` automatically from the object's XML description. Coverage: `Catalog` (item/folder/list/choice), `Document` (item/list/choice), `InformationRegister` (record/list), `AccumulationRegister` (list), `ChartOfCharacteristicTypes`, `ExchangePlan`, `ChartOfAccounts`, `DataProcessor`/`Report` (template).
 
 Purpose is determined by the form folder name: `ФормаСписка`→list, `ФормаВыбора`→choice, `ФормаГруппы`→folder, `ФормаЗаписи`→record, otherwise item/default.
 
-Layout is controlled through the `erp-standard` JSON preset (built in) — overridden by the `<project-root>/presets/skills/form/erp-standard.json` file.
+Layout is controlled through the `erp-standard` JSON preset (built in) — overridden by file `<project-root>/presets/skills/form/erp-standard.json`.
 
-Guardrails: `ValueStorage`-attributes are automatically skipped; `FormDataStructure/Collection/Tree` in an attribute → `FromObjectException`.
+Guardrails: `ValueStorage` attributes are automatically skipped; `FormDataStructure/Collection/Tree` in an attribute → `FromObjectException`.
 
 ## DSL Structure
 
 Minimal form: `{"attributes": [], "elements": []}`
 
-### Attributes (attributes)
+### Attributes
 
 ```json
 {"name": "ИмяРеквизита", "type": "тип", "title": "Заголовок"}
@@ -41,9 +41,9 @@ Minimal form: `{"attributes": [], "elements": []}`
 
 **Types:** `string`, `string(N)`, `number`, `number(D,F)`, `boolean`, `date`, `uuid`, `CatalogRef.Name`, `DocumentRef.Name`, `ValueTable`
 
-**Forbidden runtime types:** `FormDataStructure`, `FormDataCollection`, `FormDataTree` — they do not exist in the form XML schema and cause an XDTO error on load. The compiler throws `IllegalArgumentException`, and the validator returns `FORM-114 ERROR`. Use `CatalogObject.X` / `DocumentObject.X` / `DataProcessorObject.X`, `ValueTable`, `ValueTree`.
+**Prohibited runtime types:** `FormDataStructure`, `FormDataCollection`, `FormDataTree` do not exist in the form XML schema and cause an XDTO error when loading. The compiler throws `IllegalArgumentException`, and the validator returns `FORM-114 ERROR`. Use `CatalogObject.X` / `DocumentObject.X` / `DataProcessorObject.X`, `ValueTable`, `ValueTree`.
 
-### UI Elements (elements)
+### UI Elements
 
 | DSL type | XML type | Description |
 |----------|---------|----------|

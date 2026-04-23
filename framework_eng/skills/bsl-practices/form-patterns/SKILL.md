@@ -1,11 +1,11 @@
 ---
 name: form-patterns
-description: Form module patterns (client-server interaction). This skill teaches the agent to write managed form modules for 1C code correctly.
+description: "Form module patterns (client-server interaction). This skill teaches the agent to write 1C managed form modules correctly."
 ---
 
 # Form module patterns (client-server interaction)
 
-**Key principle:** Minimize the number and size of server calls. Each `&НаСервере` call equals a network round-trip plus serialization of the full form context.
+**Key principle:** Minimize the number and size of server calls. Each `&НаСервере` call is a network round-trip plus serialization of the full form context.
 
 ---
 
@@ -103,13 +103,13 @@ Each server call takes ~100 ms (serialization + round-trip + deserialization). T
 
 ## Rule 3: ДанныеФормыВЗначение / ЗначениеВДанныеФормы
 
-On the server side the form data is not a real object but `ДанныеФормы*`. You must convert it to call object module methods.
+On the server, form data is not a real object but `ДанныеФормы*`. You must convert it to call object module methods.
 
 | Scenario | Does conversion need to happen? |
 |----------|------------------------------|
-| Reading form attributes | No — `Объект.Реквизит` works directly |
+| Reading form attributes | No - `Объект.Реквизит` works directly |
 | Calling object module methods | Yes |
-| Passing the object to a common module | Yes — common modules work with real objects |
+| Passing the object to a common module | Yes - common modules work with real objects |
 
 ```bsl
 &НаСервере
@@ -121,7 +121,7 @@ On the server side the form data is not a real object but `ДанныеФорм�
 КонецПроцедуры
 ```
 
-### Common mistake — forgetting ЗначениеВРеквизитФормы
+### Common mistake - forgetting ЗначениеВРеквизитФормы
 
 ```bsl
 // ПЛОХО: изменения потеряны!

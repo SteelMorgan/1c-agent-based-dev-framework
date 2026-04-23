@@ -1,40 +1,40 @@
 ---
 name: tech-log-analysis
-description: Working with the 1С Tech Log (Tech Log). The skill teaches the agent how to manage the full Tech Log lifecycle — setup, activation, collection, analysis, recovery — and how to diagnose technical issues like slow queries, locks, and exceptions.
+description: "Working with the 1C technological log (Tech Log). The skill teaches the agent to manage the full TLog lifecycle - setup, enablement, collection, analysis, restoration - and diagnose technical problems such as slow queries, locks, and exceptions."
 ---
 
-# Working with the 1С Tech Log (Tech Log)
+# Working with the 1C technological log (Tech Log)
 
-Tech Log puts load on the system. Enable it selectively with the minimum event set. Always restore the configuration after diagnostics.
+TLog loads the system. Enable it selectively, with the minimum set of events. Always restore the configuration after diagnostics.
 
-For Vanessa, the Tech Log is the last resort for diagnostics; start with `event-log-analysis` and visually inspect UI blockers.
+For Vanessa - TLog is the last diagnostics source; first use `event-log-analysis` and visually check UI blockers.
 
-For platform errors and auditing user actions, rely on `event-log-analysis`.
+For errors and auditing user actions - `event-log-analysis`.
 
 ---
 
-## When to use it
+## When to use
 
 | Trigger | Action |
 |---------|----------|
-| Slow query — need to find the SQL | `search_tech_log` with `name: "DBMSSQL"` / `"DBPOSTGRS"` |
+| Slow query - need to find SQL | `search_tech_log` with `name: "DBMSSQL"` / `"DBPOSTGRS"` |
 | Locks, deadlock | `search_tech_log` with `name: "TLOCK"` / `"TDEADLOCK"` / `"TTIMEOUT"` |
-| Platform exception not in the event log | `search_tech_log` with `name: "EXCP"` |
+| Platform exception not in the Event Log | `search_tech_log` with `name: "EXCP"` |
 | Long server call | `search_tech_log` with `name: "CALL"` or `"SCALL"` |
-| Tech Log status unknown | `logc_get_techlog_config` — read the configuration |
-| Tech Log is not active | Full cycle (see algorithm below) |
+| TLog status unknown | `logc_get_techlog_config` - read the configuration |
+| TLog is not running | Full cycle (see algorithm below) |
 
 ---
 
 ## Full diagnostics cycle
 
-Unified procedure for passive (waiting for reproduction) and active (executing a test) modes.
+Unified algorithm for passive (waiting for reproduction) and active (running a test) modes.
 
 **1. Save the configuration**
 ```
 logc_save_techlog()
 ```
-Returns `backup_id` — keep it for step 7.
+Returns `backup_id` - save it for step 7.
 
 **2. Configure events**
 ```
@@ -45,18 +45,18 @@ logc_configure_techlog(
 )
 ```
 
-**3. Ensure collection is running**
+**3. Verify that collection is running**
 ```
 logc_get_actual_log_timestamp()
 ```
 
-**4. Reproduce the issue / wait for reproduction**
+**4. Reproduce the problem / wait for reproduction**
 
 **5. Smart polling for log readiness**
 
-Up to 10 attempts with 3–5 second pauses: `logc_get_actual_log_timestamp() >= target_time`. If the log does not reach that point, inform the user and do not draw conclusions from an incomplete window.
+Up to 10 attempts with a 3-5 sec pause: `logc_get_actual_log_timestamp() >= target_time`. If it has not reached that point, inform the user and do not draw conclusions from an incomplete window.
 
-**6. Read the entries**
+**6. Read entries**
 ```
 search_tech_log(
   from: "2025-02-11T14:00:00Z",
@@ -71,38 +71,38 @@ search_tech_log(
 logc_restore_techlog(backup_id: "...")
 ```
 
-**8. Confirm the status to the user**: `Tech Log restored` / `Tech Log disabled` / `Minimum profile (events: ...)`.
+**8. Confirm the status to the user**: `TLog restored` / `TLog disabled` / `Minimum profile (events: ...)`.
 
-Steps 1 and 7 are **mandatory**. Never leave the Tech Log enabled after diagnostics without explicit approval.
-
----
-
-### Variants of the cycle
-
-**Tech Log already configured by an administrator** — read-only:
-1. `logc_get_techlog_config` → ensure the required events are present.
-2. `logc_get_actual_log_timestamp` → verify that collection is current.
-3. `search_tech_log` → read the entries.
-4. DO NOT modify the configuration — the Tech Log is not ours.
-
-**Immediate shutdown** (disk filling): `logc_disable_techlog()`. After resolving the issue — `logc_restore_techlog(backup_id)`.
-
-**Minimal monitoring** (instead of full shutdown, only by agreement): events ` ["EXCP", "CONN"]`. Record the active events and responsible person in the response.
+Steps 1 and 7 are **mandatory**. Never leave TLog enabled after diagnostics without explicit agreement.
 
 ---
 
-## Tech Log events
+### Cycle variants
+
+**TLog already configured by an administrator** - read-only:
+1. `logc_get_techlog_config` -> make sure the required events are present.
+2. `logc_get_actual_log_timestamp` -> collection is current.
+3. `search_tech_log` -> read entries.
+4. DO NOT change the configuration - TLog is not ours.
+
+**Urgent disable** (disk is filling up): `logc_disable_techlog()`. After the issue is resolved - `logc_restore_techlog(backup_id)`.
+
+**Minimum monitoring** (instead of full disable, only by agreement): events `["EXCP", "CONN"]`. Record the active events and the responsible person in the response.
+
+---
+
+## TLog events
 
 | Event | When to use |
 |---------|--------------------|
-| `EXCP` | Errors not visible in the event log |
+| `EXCP` | Errors not visible in the Event Log |
 | `DBMSSQL` | Slow MS SQL queries |
 | `DBPOSTGRS` | Slow PostgreSQL queries |
-| `TLOCK` | Lock contention |
+| `TLOCK` | Lock conflicts |
 | `TDEADLOCK` | Deadlocks |
 | `TTIMEOUT` | Lock timeouts |
 | `CALL` / `SCALL` | Slow server calls |
-| `CONN` | Connection issues |
+| `CONN` | Connection problems |
 | `SDBL` | Query translation to SQL |
 
 **Standard set:** `["EXCP", "DBMSSQL", "TLOCK", "TDEADLOCK"]`
@@ -113,26 +113,26 @@ Steps 1 and 7 are **mandatory**. Never leave the Tech Log enabled after diagnost
 
 | Capability | Purpose |
 |------------|------------|
-| `search_tech_log` | Search Tech Log entries |
-| `logc_get_techlog_config` | Read the current Tech Log configuration |
-| `logc_save_techlog` | Save the configuration before changes |
+| `search_tech_log` | Search TLog entries |
+| `logc_get_techlog_config` | Read the current TLog configuration |
+| `logc_save_techlog` | Save the configuration before changing it |
 | `logc_configure_techlog` | Configure events, path, retention period |
-| `logc_get_actual_log_timestamp` | Check that collection is active |
+| `logc_get_actual_log_timestamp` | Check that collection is running |
 | `logc_restore_techlog` | Restore the saved configuration |
-| `logc_disable_techlog` | Disable the Tech Log |
-| `navigate_symbol` | Jump to code referenced in a Tech Log entry |
+| `logc_disable_techlog` | Disable TLog |
+| `navigate_symbol` | Go to code by the context from a TLog entry |
 
 ---
 
 ## Common mistakes
 
-| Mistake | Workaround |
+| Error | Workaround |
 |--------|---------------|
 | Forgot `logc_save_techlog` before configuring | Ask the user about the current configuration |
-| Tech Log not active after `configure` | The platform requires service restart |
-| `logc_get_actual_log_timestamp` does not update | Services not restarted or incorrect `location` |
-| Too many events — disk fills up | Limit the event set; reduce `history` |
-| `search_tech_log` returns nothing | Verify the time window; the event must occur after Tech Log activation |
+| TLog is not active after `configure` | The platform requires service restarts |
+| `logc_get_actual_log_timestamp` is not updating | The service was not restarted or the `location` is incorrect |
+| Too many events - disk fills up | Limit the event set; reduce `history` |
+| `search_tech_log` returns empty | Check the time window; the event must be after TLog is enabled |
 
 ---
 depends_on: []

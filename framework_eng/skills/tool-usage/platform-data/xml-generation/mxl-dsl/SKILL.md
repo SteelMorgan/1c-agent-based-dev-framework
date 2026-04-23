@@ -1,13 +1,13 @@
 ---
 name: mxl-dsl
-description: JSON DSL for generating 1С tabular documents (MXL) with areas, cells, fonts, and styles. Use it when running mxl compile for print forms.
+description: "JSON DSL for generating 1С tabular documents (MXL) with areas, cells, fonts, and styles. Use it with mxl compile for print forms."
 ---
 
 # MXL DSL
 
 JSON DSL for generating 1С tabular documents (SpreadsheetDocument).
 
-## When to use
+## When to Use
 
 | Trigger | Action |
 |---------|--------|
@@ -16,7 +16,7 @@ JSON DSL for generating 1С tabular documents (SpreadsheetDocument).
 | Need to use parameters in cells | `parameters` + `[ParameterName]` in the text |
 | Need to apply styles | `fonts` + `styles` + `style` in the cell |
 | Need to analyze an existing layout | `mxl info <Template.xml>` |
-| Need a reverse XML → JSON conversion | `mxl decompile <Template.xml> <output.json>` |
+| Need reverse conversion XML → JSON | `mxl decompile <Template.xml> <output.json>` |
 
 ## Compile command
 

@@ -1,6 +1,6 @@
 ---
 name: web-test-1c
-description: Automation of 1C via the web client — navigation across sections, filling forms, reading tables and reports, filtering lists. Use when you need to test, verify, or automate actions in 1C through a browser.
+description: "Automation of 1C via the web client — navigation across sections, filling forms, reading tables and reports, filtering lists. Use when you need to test, verify, or automate actions in 1C through a browser."
 ---
 
 # web-test-1c — 1C web client automation
@@ -60,7 +60,7 @@ node $RUN stop                          # logout + close (releases licensing)
 | `readTable({ maxRows?, offset?, table? })` | Table with pagination: `{ columns, rows, total }`. `table` selects the grid by name |
 | `readSpreadsheet()` | Report (SpreadsheetDocument) after “Generate”. Supports text-only and reports with numeric headers |
 
-`getFormState()` returns: **fields** (name, value, actions, required), **table** (back-compat: first grid), **tables[]** (all visible grids: `{name, columns, rowCount, label}`), **openForms[]**, **formCount**, **modal**, **openTabs[]**, **navigation** (form navigation panel), **reportSettings** (human-readable СКД settings), **errors.stateText** (info-bar SpreadsheetDocument), **errorModal**, **confirmation**.
+`getFormState()` returns: **fields** (name, value, actions, required), **table** (back-compat: first grid), **tables[]** (all visible grids: `{name, columns, rowCount, label}`), **openForms[]**, **formCount**, **modal**, **openTabs[]**, **navigation** (form navigation panel), **reportSettings** (human-readable Data Composition System settings), **errors.stateText** (info-bar SpreadsheetDocument), **errorModal**, **confirmation**.
 
 Tree rows are marked `_kind: 'group'|'parent'`, `_tree: 'expanded'|'collapsed'`, `_level`, `_selected`.
 
@@ -101,7 +101,7 @@ Tree rows are marked `_kind: 'group'|'parent'`, `_tree: 'expanded'|'collapsed'`,
 
 - **Headed mode** — 1C requires a visible browser, no headless
 - **Ctrl+V** instead of `page.fill()` — 1C reacts only to trusted events
-- **Fuzzy matching** — exact > startsWith > includes; ё→е and \u00a0→space are normalized automatically
+- **Fuzzy matching** — exact > startsWith > includes; the letter `yo` is normalized to `e`, and `\u00a0` is normalized to a space automatically
 - **Graceful logout** — `stop` → POST `/e1cib/logout` (releases the license)
 - **Auto error detection** — modals, balloons, confirmations are included in the response; for modal errors, the stack (`fetchErrorStack`) and screenshot are fetched automatically
 - **Multi-table** — if a form has multiple grids, `tables[]` lists them all; pass `{ table: 'Outgoing' }` to `readTable`/`clickElement`/`fillTableRow`/`deleteTableRow` to target the right one

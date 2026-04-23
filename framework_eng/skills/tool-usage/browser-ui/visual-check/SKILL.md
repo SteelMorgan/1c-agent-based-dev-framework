@@ -1,6 +1,6 @@
 ---
 name: visual-check
-description: Visual check of 1С form via web client and browser automation. Takes a screenshot, checks for JS errors in the console, and analyzes according to the form-visual-requirements checklist.
+description: "Visual check of 1С form via web client and browser automation. Takes a screenshot, checks for JS errors in the console, and analyzes according to the form-visual-requirements checklist."
 ---
 
 # Visual check of forms (Visual Check)
@@ -19,7 +19,7 @@ Prefer Deep Linking — faster than navigation through the interface.
 
 ### 2. Authorization (if redirected to login)
 
-`browser_snapshot` → `browser_fill` (login/password by ref) → `browser_click` (Войти).
+`browser_snapshot` → `browser_fill` (login/password by ref) → `browser_click` (Log in).
 
 ### 3. Screenshot and console
 

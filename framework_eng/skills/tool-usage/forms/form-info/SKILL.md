@@ -1,6 +1,6 @@
 ---
 name: form-info
-description: Analysis of the structure of a managed 1С form (Form.xml) — elements, attributes, commands, events. Use it to understand a form when writing the form module, analyzing handlers, and inspecting elements
+description: "Analysis of the structure of a managed 1С form (Form.xml) — elements, attributes, commands, events. Use it to understand a form when writing the form module, analyzing handlers, and inspecting elements"
 argument-hint: <FormPath>
 allowed-tools:
   - Bash
@@ -20,8 +20,8 @@ allowed-tools:
 
 | Parameter  | Required | Default | Description                                    |
 |-----------|:--------:|---------|------------------------------------------------|
-| FormPath  | yes       | —       | Path to the Form.xml file                      |
-| Limit     | no        | `150`   | Max output rows (overflow protection)          |
+| FormPath  | yes           | —            | Path to the Form.xml file                      |
+| Limit     | no        | `150`    | Max output rows (overflow protection)          |
 | Offset    | no        | `0`     | Skip N rows (for pagination)                   |
 
 ## Command
@@ -35,7 +35,7 @@ With pagination:
 xmlgen form info "<FormPath>" --limit 150 --offset 150
 ```
 
-> Implementation: Java CLI `xmlgen form info` (replacement for the Python script). The result is printed to stdout and has the same structure regardless of platform.
+> Implementation: Java-CLI `xmlgen form info` (replacement for the Python script). The result is printed to stdout and has the same structure regardless of platform.
 
 ## Reading output
 

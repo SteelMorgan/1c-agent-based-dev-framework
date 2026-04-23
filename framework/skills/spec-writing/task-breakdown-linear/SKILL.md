@@ -1,6 +1,6 @@
 ---
 name: task-breakdown-linear
-description: Декомпозиция задач для линейного single-agent режима. Определяет отдельный Task Breakdown JSON и self-check без review-агента.
+description: "Декомпозиция задач для линейного single-agent режима. Определяет отдельный Task Breakdown JSON и self-check без review-агента."
 ---
 
 # Навык декомпозиции задач (linear single-agent mode)
