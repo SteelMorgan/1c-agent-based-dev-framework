@@ -853,6 +853,12 @@
       "en_hash": "sha256:948ef506702ddb26754d570e5ed36e697983466e25a84db443a388903ee119ac",
       "synced_at": "2026-04-18T10:07:09Z",
       "status": "synced"
+    },
+    "framework/skills/other/infostart-kb/SKILL.md": {
+      "ru_hash": "sha256:6c5f19c0aa0b258c18b0094b7b3ce8b6cddae94b086128641c6672ed765109b3",
+      "en_hash": "sha256:2d9c98d8ef7185cee8ed68f247662148c932dd5b42cba9a63bc4ccdb9728b991",
+      "synced_at": "2026-04-23T18:14:02Z",
+      "status": "synced"
     }
   }
 }
