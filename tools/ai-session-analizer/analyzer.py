@@ -28,6 +28,9 @@ TASK_PATTERNS = [
     re.compile(r"\bзадач[аеи]\s*[:#]?\s*([0-9]+)\b", re.IGNORECASE),
 ]
 TASK_DIR_PATTERN = re.compile(r"([/~\w .-]+/tasks/[^\s`'\"<>]+)", re.IGNORECASE)
+ORCHESTRATOR_EVENT_PATTERN = re.compile(
+    r"^\[(?P<timestamp>[^\]]+)\]\s+(?P<tag>[A-Za-z0-9_+ #()./-]+?)(?::\s*(?P<message>.*))?$"
+)
 
 VANESSA_KEYWORDS = [
     "vanessa",
@@ -121,6 +124,52 @@ READ_ONLY_COMMAND_PREFIXES = (
     "tail ",
 )
 
+PHASE_BY_AGENT_TYPE = {
+    "main": "orchestrator",
+    "subagent": "delegated",
+    "explore": "phase0_explorer",
+    "explorer": "phase0_explorer",
+    "analyst": "phase1_spec",
+    "architect": "phase2_arch",
+    "plan": "phase2_arch",
+    "reviewer": "review",
+    "developer-tests": "phase3b_tests",
+    "tester": "phase4_regression",
+    "scenario-author": "phase3a_bdd_author",
+    "scenario-coder": "phase3c_bdd_steps",
+    "developer-code": "phase3d_code",
+}
+
+PHASE_ORDER = {
+    "orchestrator": 0,
+    "phase0_explorer": 1,
+    "phase1_spec": 2,
+    "phase2_arch": 3,
+    "phase3a_bdd_author": 4,
+    "phase3b_tests": 5,
+    "phase3c_bdd_steps": 6,
+    "phase3d_code": 7,
+    "phase4_regression": 8,
+    "review": 9,
+    "finalization": 10,
+    "delegated": 11,
+    "unknown": 99,
+}
+
+WORKFLOW_PHASE_BY_TEXT = {
+    "explorer": "phase0_explorer",
+    "analyst": "phase1_spec",
+    "architect": "phase2_arch",
+    "scenario-author": "phase3a_bdd_author",
+    "developer-tests": "phase3b_tests",
+    "scenario-coder": "phase3c_bdd_steps",
+    "developer-code": "phase3d_code",
+    "tester": "phase4_regression",
+    "review": "review",
+    "финал": "finalization",
+    "final": "finalization",
+}
+
 
 @dataclass
 class SignalBag:
@@ -182,6 +231,16 @@ def normalize_task_id(raw: str) -> str:
     return cleaned.replace("_", "-")
 
 
+def normalize_task_dir(value: str | None) -> str | None:
+    if not value:
+        return None
+    cleaned = value.strip().strip("`'\"")
+    match = re.search(r"(.*/tasks/[^/\s`'\"<>]+)", cleaned)
+    if match:
+        return match.group(1)
+    return cleaned
+
+
 def extract_task_hints(*texts: str | None) -> tuple[str | None, str | None]:
     task_dir: str | None = None
     task_id: str | None = None
@@ -191,7 +250,7 @@ def extract_task_hints(*texts: str | None) -> tuple[str | None, str | None]:
         if task_dir is None:
             match = TASK_DIR_PATTERN.search(text)
             if match:
-                task_dir = match.group(1).strip("`'\"")
+                task_dir = normalize_task_dir(match.group(1))
         if task_id is None:
             for pattern in TASK_PATTERNS:
                 match = pattern.search(text)
@@ -205,7 +264,7 @@ def extract_task_hints(*texts: str | None) -> tuple[str | None, str | None]:
         digits = re.match(r"([0-9]+(?:[-_][a-zA-Z0-9._-]+)?)", last)
         if digits:
             task_id = normalize_task_id(digits.group(1))
-    return task_id, task_dir
+    return task_id, normalize_task_dir(task_dir)
 
 
 def compact_ws(path: str | None) -> str:
@@ -230,6 +289,103 @@ def task_sort_key(value: str) -> tuple[int, str]:
     if match:
         return (int(match.group(1)), value)
     return (sys.maxsize, value)
+
+
+def parse_iso(value: str | None) -> datetime | None:
+    if not value:
+        return None
+    try:
+        return datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except Exception:
+        try:
+            return datetime.strptime(value, "%Y-%m-%d %H:%M").replace(tzinfo=timezone.utc)
+        except Exception:
+            return None
+
+
+def infer_workflow_phase(text: str) -> str:
+    haystack = text.lower()
+    for marker, phase in WORKFLOW_PHASE_BY_TEXT.items():
+        if marker in haystack:
+            return phase
+    if "3a" in haystack:
+        return "phase3a_bdd_author"
+    if "3b" in haystack:
+        return "phase3b_tests"
+    if "3c" in haystack and "developer-code" not in haystack:
+        return "phase3c_bdd_steps"
+    if "3d" in haystack or "developer-code" in haystack:
+        return "phase3d_code"
+    if "phase 0" in haystack:
+        return "phase0_explorer"
+    if "phase 1" in haystack:
+        return "phase1_spec"
+    if "phase 2" in haystack:
+        return "phase2_arch"
+    if "phase 4" in haystack:
+        return "phase4_regression"
+    return "unknown"
+
+
+def classify_workflow_stage(tag: str, message: str) -> str:
+    tag_upper = tag.upper()
+    haystack = f"{tag} {message}".lower()
+    if tag_upper == "START":
+        return "start"
+    if tag_upper == "CLASSIFICATION":
+        return "classification"
+    if tag_upper == "PHASE":
+        return "phase_start"
+    if tag_upper == "DONE_PHASE":
+        return "phase_done"
+    if "review" in haystack:
+        if "cross" in haystack or "codex_review" in haystack or "claude_review" in haystack:
+            return "cross_review"
+        return "review"
+    if "approval_gate" in haystack or "user_input" in haystack or "одобрен" in haystack or "ok" in haystack:
+        return "approval_gate"
+    if "clarification" in haystack or "уточ" in haystack:
+        return "clarification"
+    if "wait" in haystack or "ожидан" in haystack:
+        return "wait"
+    if "test_failure" in haystack or "failure" in haystack or "ошибка" in haystack:
+        return "failure"
+    if "diagnostic" in haystack or "диагност" in haystack:
+        return "diagnostics"
+    if "fix" in haystack or "исправ" in haystack or "rework" in haystack:
+        return "rework"
+    if "final" in haystack or tag_upper == "DONE":
+        return "finalization"
+    if "escalat" in haystack:
+        return "escalation"
+    return "note"
+
+
+def infer_phase(row: dict[str, Any]) -> str:
+    agent_type = str(row.get("agent_type", "")).lower()
+    if agent_type in PHASE_BY_AGENT_TYPE:
+        return PHASE_BY_AGENT_TYPE[agent_type]
+
+    label = f"{row.get('agent_label', '')} {row.get('signal_preview', '')} {row.get('step_type', '')}".lower()
+    if "cross-review" in label or "cross_provider" in label:
+        return "review"
+    if "phase 1" in label or "spec" in label:
+        return "phase1_spec"
+    if "phase 2" in label or "design" in label or "architect" in label:
+        return "phase2_arch"
+    if "scenario-author" in label:
+        return "phase3a_bdd_author"
+    if "developer-tests" in label:
+        return "phase3b_tests"
+    if "scenario-coder" in label:
+        return "phase3c_bdd_steps"
+    if "developer-code" in label:
+        return "phase3d_code"
+    if "tester" in label:
+        return "phase4_regression"
+    if "review" in label:
+        return "review"
+    return "unknown"
 
 
 def aggregate_by(records: list[dict[str, Any]], key: str) -> list[dict[str, Any]]:
@@ -393,6 +549,272 @@ def build_record_rows(records: list[dict[str, Any]], limit: int = 200) -> list[d
         }
         for row in rows
     ]
+
+
+def find_orchestrator_context_path(records: list[dict[str, Any]]) -> Path | None:
+    distinct_task_keys = {
+        str(row.get("task_id"))
+        for row in records
+        if row.get("task_id") and str(row.get("task_id")) != "<unknown>"
+    }
+    if len(distinct_task_keys) > 1:
+        return None
+    task_dirs = Counter(
+        normalize_task_dir(str(row.get("task_dir")))
+        for row in records
+        if row.get("task_dir") and str(row.get("task_dir")) != "<unknown>" and normalize_task_dir(str(row.get("task_dir")))
+    )
+    for task_dir, _count in task_dirs.most_common():
+        candidate = Path(task_dir) / ".context" / "orchestrator-context.md"
+        if candidate.exists():
+            return candidate
+    return None
+
+
+def parse_orchestrator_context(path: Path | None) -> dict[str, Any]:
+    if path is None or not path.exists():
+        return {
+            "source": "missing",
+            "path": None,
+            "events": [],
+            "phase_spans": [],
+            "stage_breakdown": [],
+        }
+
+    raw_events: list[dict[str, Any]] = []
+    for line in path.read_text(encoding="utf-8", errors="replace").splitlines():
+        match = ORCHESTRATOR_EVENT_PATTERN.match(line.strip())
+        if not match:
+            continue
+        event_dt = parse_iso(match.group("timestamp"))
+        if event_dt is None:
+            continue
+        tag = (match.group("tag") or "").strip()
+        message = (match.group("message") or "").strip()
+        raw_events.append(
+            {
+                "timestamp": event_dt,
+                "tag": tag,
+                "message": message,
+                "phase": infer_workflow_phase(f"{tag} {message}"),
+                "stage_type": classify_workflow_stage(tag, message),
+            }
+        )
+
+    raw_events.sort(key=lambda item: item["timestamp"])
+    if not raw_events:
+        return {
+            "source": "empty",
+            "path": str(path),
+            "events": [],
+            "phase_spans": [],
+            "stage_breakdown": [],
+        }
+
+    start = raw_events[0]["timestamp"]
+    end = raw_events[-1]["timestamp"]
+    duration_s = max(60, int((end - start).total_seconds()) or 60)
+
+    phase_spans: list[dict[str, Any]] = []
+    for index, event in enumerate(raw_events):
+        if event["stage_type"] != "phase_start":
+            continue
+        next_event = raw_events[index + 1] if index + 1 < len(raw_events) else None
+        span_end = next_event["timestamp"] if next_event else event["timestamp"]
+        if span_end <= event["timestamp"]:
+            span_end = event["timestamp"]
+        phase_spans.append(
+            {
+                "label": event["message"] or event["tag"],
+                "phase": event["phase"],
+                "start": event["timestamp"].isoformat(),
+                "end": span_end.isoformat(),
+                "start_offset_s": max(0, int((event["timestamp"] - start).total_seconds())),
+                "end_offset_s": max(
+                    int((event["timestamp"] - start).total_seconds()) + 60,
+                    int((span_end - start).total_seconds()),
+                ),
+            }
+        )
+
+    stage_records = [
+        {
+            "stage_type": event["stage_type"],
+            "total_tokens": 0,
+            "records": 1,
+        }
+        for event in raw_events
+    ]
+
+    return {
+        "source": "orchestrator-context",
+        "path": str(path),
+        "range": {
+            "start": start.isoformat(),
+            "end": end.isoformat(),
+            "duration_s": duration_s,
+        },
+        "events": [
+            {
+                "timestamp": event["timestamp"].isoformat(),
+                "tag": event["tag"],
+                "message": event["message"],
+                "phase": event["phase"],
+                "stage_type": event["stage_type"],
+            }
+            for event in raw_events
+        ],
+        "phase_spans": phase_spans,
+        "stage_breakdown": aggregate_by(stage_records, "stage_type"),
+    }
+
+
+def build_task_timeline(records: list[dict[str, Any]]) -> dict[str, Any]:
+    timeline_rows = []
+    for row in records:
+        started_at = parse_iso(str(row.get("timestamp") or ""))
+        if started_at is None:
+            continue
+        timeline_rows.append(
+            {
+                **row,
+                "_dt": started_at,
+                "_phase": infer_phase(row),
+                "_lane": f"{row.get('agent_label') or row.get('agent_type') or row.get('provider')} · {row.get('agent_type')}",
+            }
+        )
+
+    timeline_rows.sort(key=lambda item: item["_dt"])
+    workflow = parse_orchestrator_context(find_orchestrator_context_path(records))
+
+    if not timeline_rows:
+        return {
+            "task_id": "<unknown>",
+            "range": None,
+            "lanes": [],
+            "phase_breakdown": [],
+            "work_kind_breakdown": [],
+            "workflow": workflow,
+            "spans": [],
+            "records": [],
+        }
+
+    start = timeline_rows[0]["_dt"]
+    end = timeline_rows[-1]["_dt"]
+    min_seconds = 90
+    gap_threshold = 10 * 60
+
+    spans: list[dict[str, Any]] = []
+    current: dict[str, Any] | None = None
+    previous_dt: datetime | None = None
+
+    for index, row in enumerate(timeline_rows):
+        row_dt = row["_dt"]
+        next_dt = timeline_rows[index + 1]["_dt"] if index + 1 < len(timeline_rows) else None
+        estimated_end = next_dt if next_dt and (next_dt - row_dt).total_seconds() <= gap_threshold else None
+
+        should_start_new = (
+            current is None
+            or current["lane"] != row["_lane"]
+            or current["phase"] != row["_phase"]
+            or current["work_kind"] != row.get("step_type")
+            or previous_dt is None
+            or (row_dt - previous_dt).total_seconds() > gap_threshold
+        )
+
+        if should_start_new:
+            if current is not None:
+                spans.append(current)
+            current = {
+                "lane": row["_lane"],
+                "agent_type": row.get("agent_type"),
+                "agent_label": row.get("agent_label"),
+                "phase": row["_phase"],
+                "work_kind": row.get("step_type"),
+                "start": row_dt.isoformat(),
+                "end": row_dt.isoformat(),
+                "start_offset_s": max(0.0, (row_dt - start).total_seconds()),
+                "end_offset_s": max(min_seconds, (row_dt - start).total_seconds() + min_seconds),
+                "records": 0,
+                "total_tokens": 0,
+                "input_tokens": 0,
+                "output_tokens": 0,
+                "cache_tokens": 0,
+                "samples": [],
+            }
+
+        assert current is not None
+        current["records"] += 1
+        current["total_tokens"] += int(row.get("total_tokens", 0))
+        current["input_tokens"] += int(row.get("input_tokens", 0))
+        current["output_tokens"] += int(row.get("output_tokens", 0))
+        current["cache_tokens"] += int(row.get("cache_read_tokens", 0)) + int(row.get("cache_creation_tokens", 0))
+        if len(current["samples"]) < 3:
+            current["samples"].append(row.get("signal_preview", ""))
+
+        if estimated_end:
+            current["end"] = estimated_end.isoformat()
+            current["end_offset_s"] = max(
+                current["end_offset_s"],
+                (estimated_end - start).total_seconds(),
+            )
+        else:
+            current["end"] = row_dt.isoformat()
+            current["end_offset_s"] = max(
+                current["end_offset_s"],
+                (row_dt - start).total_seconds() + min_seconds,
+            )
+
+        previous_dt = row_dt
+
+    if current is not None:
+        spans.append(current)
+
+    lanes = []
+    lane_map: dict[str, dict[str, Any]] = {}
+    for span in spans:
+        lane = lane_map.setdefault(
+            span["lane"],
+            {
+                "lane": span["lane"],
+                "agent_label": span["agent_label"],
+                "agent_type": span["agent_type"],
+                "total_tokens": 0,
+                "records": 0,
+            },
+        )
+        lane["total_tokens"] += span["total_tokens"]
+        lane["records"] += span["records"]
+    lanes = sorted(lane_map.values(), key=lambda item: (-item["total_tokens"], item["lane"]))
+
+    phase_breakdown = aggregate_by(
+        [{"phase": row["_phase"], **row} for row in timeline_rows],
+        "phase",
+    )
+    work_kind_breakdown = aggregate_by(timeline_rows, "step_type")
+
+    return {
+        "task_id": timeline_rows[0].get("task_id", "<unknown>"),
+        "scope_label": timeline_rows[0].get("task_id", "<unknown>"),
+        "range": {
+            "start": start.isoformat(),
+            "end": end.isoformat(),
+            "duration_s": max(min_seconds, int((end - start).total_seconds()) or min_seconds),
+        },
+        "lanes": lanes,
+        "phase_breakdown": phase_breakdown,
+        "work_kind_breakdown": work_kind_breakdown,
+        "workflow": workflow,
+        "spans": sorted(
+            spans,
+            key=lambda item: (
+                PHASE_ORDER.get(item["phase"], 999),
+                item["lane"],
+                item["start_offset_s"],
+            ),
+        ),
+        "records": build_record_rows(records, limit=80),
+    }
 
 
 def build_summary(records: list[dict[str, Any]]) -> dict[str, Any]:
@@ -839,6 +1261,10 @@ class AppServer(BaseHTTPRequestHandler):
             records = filter_records(self.dataset.get("records", []), params)
             self._send_json({"records": build_record_rows(records), "summary": build_summary(records)})
             return
+        if parsed.path == "/api/timeline":
+            records = filter_records(self.dataset.get("records", []), params)
+            self._send_json({"timeline": build_task_timeline(records), "summary": build_summary(records)})
+            return
         if parsed.path in {"/", "/index.html"}:
             self._send_file(WEB_ROOT / "index.html", "text/html; charset=utf-8")
             return
@@ -865,7 +1291,7 @@ class AppServer(BaseHTTPRequestHandler):
             self.send_header("Content-Length", str(len(encoded)))
             self.end_headers()
             return
-        if parsed.path in {"/api/directories", "/api/tasks", "/api/agents", "/api/records"}:
+        if parsed.path in {"/api/directories", "/api/tasks", "/api/agents", "/api/records", "/api/timeline"}:
             self.send_response(200)
             self.send_header("Content-Type", "application/json; charset=utf-8")
             self.end_headers()
