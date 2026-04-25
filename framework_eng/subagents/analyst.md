@@ -3,7 +3,7 @@ name: analyst
 description: Analyzes requirements and creates MADR 4.0 specifications for 1С BSL projects.
   Use this agent when a task needs a formal specification before implementation.
   Employ proactively for medium and complex assignments.
-model: claude-4.6-opus-high-thinking
+model: opus
 readonly: true
 skills:
   - spec-standard
@@ -11,6 +11,7 @@ skills:
   - query-execution
   - form-info
   - agent-context-protocol
+  - infostart-kb
 ---
 
 

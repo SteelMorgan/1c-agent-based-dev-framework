@@ -8,7 +8,7 @@ description: >
   BEFORE developer-code (3d). Red-gate - scenarios MUST fail because of missing
   production code, not because of `TODO` in a step.
 
-model: claude-4.5-sonnet-thinking
+model: sonnet
 readonly: false
 skills:
   - vanessa-authoring
@@ -18,6 +18,7 @@ skills:
   - code-navigation
   - form-info
   - agent-context-protocol
+  - infostart-kb
 ---
 
 

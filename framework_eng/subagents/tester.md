@@ -4,7 +4,7 @@ description: Writes and runs YaxUnit tests, analyzes results, and expands covera
   Use this agent in Phase 4 after the developer code has passed review.
   Use proactively to extend coverage with edge cases and regression tests.
 
-model: claude-4.5-sonnet-thinking
+model: sonnet
 readonly: false
 skills:
   - test-execution
@@ -24,6 +24,7 @@ skills:
   - syntax-checking
   - query-execution
   - agent-context-protocol
+  - infostart-kb
 ---
 
 

@@ -2,7 +2,7 @@
 name: reviewer
 description: Reviews any artifact (specification, architecture, code, tests) relative to the task goals. Use this agent after any phase that produces an artifact and requires quality checking. Use proactively after analyst, architect, developer, or tester work. Each run is limited to ONE artifact type — pass review_scope explicitly.
 
-model: gpt-5.3-codex-xhigh
+model: opus
 readonly: true
 skills:
   - coding-standards
@@ -15,6 +15,7 @@ skills:
   - test-writing
   - code-navigation
   - agent-context-protocol
+  - infostart-kb
 ---
 
 

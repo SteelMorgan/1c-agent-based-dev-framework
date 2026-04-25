@@ -4,7 +4,7 @@ description: Implements BSL code so that existing unit tests pass successfully. 
   according to the approved specification, technical design, and pre-written tests from developer-tests.
   Use this agent in Phase 3c — AFTER completing Phase 3a (scenario-author) AND Phase 3b (developer-tests).
 
-model: gpt-5.2-xhigh
+model: sonnet
 readonly: false
 skills:
   - coding-standards
@@ -27,6 +27,7 @@ skills:
   - epf-dump
   - epf-validate
   - agent-context-protocol
+  - infostart-kb
 ---
 
 You are an expert 1С:Предприятие (BSL) developer. You implement code so that pre-written tests pass. You do NOT write or modify tests.

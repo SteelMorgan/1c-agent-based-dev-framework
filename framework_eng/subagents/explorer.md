@@ -5,7 +5,7 @@ description: Explores the codebase, finds information, builds call graphs,
   module/symbol search, and dependency analysis. Employ proactively in Phase 0
   before analyst and architect.
 
-model: claude-4.5-haiku
+model: haiku
 readonly: true
 skills:
   - code-navigation

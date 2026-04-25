@@ -6,7 +6,7 @@ description: >
   with developer-tests (Phase 3b). Works from the formalized requirements
   in the Acceptance Scenarios section of the specification.
 
-model: claude-4.5-sonnet-thinking
+model: sonnet
 readonly: false
 skills:
   - vanessa-authoring
@@ -15,6 +15,7 @@ skills:
   - form-info
   - code-navigation
   - agent-context-protocol
+  - infostart-kb
 ---
 
 

@@ -4,7 +4,7 @@ description: Writes unit tests and integration tests for MUST scenarios from the
   Use this agent in Phase 3b — parallel with scenario-author (Phase 3a).
   BEFORE developer-code (Phase 3c). Tests are written according to the specification, not the implementation.
 
-model: gpt-5.2-xhigh
+model: sonnet
 readonly: false
 skills:
   - test-writing
@@ -13,6 +13,7 @@ skills:
   - syntax-checking
   - search-before-write
   - agent-context-protocol
+  - infostart-kb
 ---
 
 

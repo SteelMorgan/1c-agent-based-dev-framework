@@ -17,7 +17,7 @@ from typing import Any
 
 
 REVIEW_ROOT = Path(".review-sandboxes")
-DEFAULT_MODEL = "gpt-5.4"
+DEFAULT_MODEL = "gpt-5.5"
 DEFAULT_REASONING_EFFORT = "high"
 DEFAULT_SANDBOX = "read-only"
 DEFAULT_TIMEOUT_SEC = 1800
