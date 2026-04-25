@@ -21,9 +21,44 @@ description: "Запуск сценарных тестов Vanessa Automation. �
 
 ---
 
-## Файлы
+## Файлы (НЕ УГАДЫВАТЬ)
 
-**Baseline EPF:** `/opt/onescript/2.0.0/lib/add/bddRunner.epf`
+Используется **только Vanessa-Automation single** (Pr-Mex/vanessa-automation). Никаких альтернативных runner-ов в проектах не применяем.
+
+**Точка входа:** `<framework_repos>/vanessa-automation/dist/vanessa-automation/vanessa-automation-single.epf`
+
+**Каталог инструментов:** `<framework_repos>/vanessa-automation/dist/vanessa-automation` — там же лежит **родной** `plugins/` (4 плагина с 1-параметровой сигнатурой `ОписаниеПлагина(ВозможныеТипыПлагинов)`).
+
+**Антиприём (был корневой причиной VA-ERR-00001):** направить `КаталогИнструментов` на `/opt/onescript/2.0.0/lib/add`. VA-single ищет плагины по пути `КаталогИнструментов + "plugins/"` и в этом случае подхватит чужие плагины с двухпараметровой сигнатурой `ОписаниеПлагина(КонтекстЯдра, ВозможныеТипыПлагинов)` → `Недостаточно фактических параметров` для каждого плагина → шаги уходят в `Pending: Пустой адрес снипета`. **Не повторять.**
+
+### Где взять Vanessa-Automation
+
+Разворачивается **в каталоге фреймворка**, один комплект на все проекты:
+
+```bash
+git clone https://github.com/Pr-Mex/vanessa-automation '<framework_repos>/vanessa-automation'
+cd '<framework_repos>/vanessa-automation'
+gh release download <tag> --repo Pr-Mex/vanessa-automation \
+  --pattern 'vanessa-automation.<tag>.zip' --pattern 'vanessa-automation-single.<tag>.zip'
+unzip vanessa-automation.<tag>.zip -d dist/                # каталог с epf+plugins+locales
+unzip vanessa-automation-single.<tag>.zip -d dist-single/  # single-EPF отдельно
+cp dist-single/vanessa-automation-single.epf dist/vanessa-automation/  # положить single рядом с plugins
+```
+
+После распаковки:
+
+```
+<framework_repos>/vanessa-automation/dist/vanessa-automation/
+├── vanessa-automation.epf            # точка входа полной сборки (резерв)
+├── vanessa-automation-single.epf     # точка входа single-сборки (используем эту)
+├── plugins/                          # 4 РОДНЫХ плагина с 1-параметровой сигнатурой
+│   ├── ЗагрузчикПользовательскихНастроек.epf
+│   ├── ЗапросыИзБД.epf
+│   ├── СериализаторMXL.epf
+│   └── УтвержденияBDD.epf
+├── locales/                          # Messages.epf, Steps.epf
+└── ...                               # tools/, features/, lib/ и т.п.
+```
 
 **Shared runtime templates:** `tools/runtime/vanessa/va-params.template.json`, `va-params-debug.template.json`, `vrunner-va.json`
 
@@ -38,7 +73,7 @@ description: "Запуск сценарных тестов Vanessa Automation. �
 <project_root>/vanessa-tests/reports/cucumber/CucumberJson.json
 ```
 
-**Библиотечные steps:** `/opt/onescript/2.0.0/lib/add/features/libraries`
+**Библиотечные steps:** `<framework_repos>/vanessa-automation/dist/vanessa-automation/features/libraries`
 
 Сценарии и test data проекта — всегда project-local. Shared templates с проектными путями копируются в project-local runtime.
 
@@ -61,12 +96,17 @@ description: "Запуск сценарных тестов Vanessa Automation. �
   },
   "vanessa": {
     "--workspace": "<project_root>",
-    "--vanessasettings": "<project_root>/vanessa-tests/runtime/va-params-run.json"
+    "--vanessasettings": "<project_root>/vanessa-tests/runtime/va-params-run.json",
+    "--pathvanessa": "<framework_repos>/vanessa-automation/dist/vanessa-automation/vanessa-automation-single.epf"
   }
 }
 ```
 
-**`va-params-run.json`** — настройки bddRunner. Взять шаблон `tools/runtime/vanessa/va-params.template.json` и заменить все `$workspaceRoot` на абсолютный путь к проекту. `КаталогФич` указывает на нужный каталог с `.feature`-файлами.
+**`va-params-run.json`** — настройки VA-single. Взять шаблон `tools/runtime/vanessa/va-params.template.json` и:
+- заменить все `$workspaceRoot` на абсолютный путь к проекту;
+- `КаталогФич` указывает на каталог с `.feature`-файлами;
+- `КаталогИнструментов` = `<framework_repos>/vanessa-automation/dist/vanessa-automation` (НЕ `/opt/onescript/2.0.0/lib/add`);
+- `ИспользоватьКомпонентуVanessaExt = "Истина"` — нужно для `(Расширение)`-шагов.
 
 ---
 
@@ -124,9 +164,10 @@ DISPLAY=:99 vrunner vanessa \
   --settings '<project_root>/vanessa-tests/runtime/vrunner-va-run.json' \
   --ibconnection '/S<server>\<base>' \
   --db-user <db_user> \
-  --db-pwd <db_pwd> \
-  --pathvanessa "/opt/onescript/2.0.0/lib/add/bddRunner.epf"
+  --db-pwd <db_pwd>
 ```
+
+`--pathvanessa` берётся из `vrunner-va-run.json` (ключ `vanessa.--pathvanessa` указывает на VA-single — см. секцию «Runtime-конфиг»). Передавать его повторно через CLI не нужно.
 
 ### 2. Через `1cv8c` (запасной)
 
@@ -142,7 +183,7 @@ DISPLAY=:99 /opt/1cv8/x86_64/<platform_version>/1cv8c ENTERPRISE \
   /C"StartFeaturePlayer;workspaceRoot=<project_root>;VBParams=<project_root>/vanessa-tests/runtime/va-params-run.json" \
   /out"/tmp/va-run.out" \
   /TESTMANAGER \
-  /Execute"/opt/onescript/2.0.0/lib/add/bddRunner.epf"
+  /Execute"<framework_repos>/vanessa-automation/dist/vanessa-automation/vanessa-automation-single.epf"
 ```
 
 По умолчанию дисплей `:99`. После завершения прогона закрыть дисплей для освобождения ресурсов X11.

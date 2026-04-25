@@ -254,6 +254,47 @@ Skipping gate review = orchestrator error, equivalent to closing an unfinished t
 
 Clarification: max. 1 round of questions → if `clarification_needed` happens again → escalate (the agent MUST write with assumptions).
 
+### 9. Audit of Infostart effectiveness
+
+> The orchestrator MUST evaluate whether Infostart consultations actually helped solve the task — not just whether they happened. Goal: accumulate evidence on the MCP's real value and detect cargo-cult citations (URL cited but not driving the artifact).
+
+**When to run the audit:**
+- After every phase: scan `{role}-context.md` for the `infostart:` block declared by the `infostart-kb` skill role matrix.
+- Before generating `final-report.md`: aggregate across all phases.
+
+**Per-consultation checks:**
+1. **`report_result` was called** — the agent must have invoked `report_result` with an explicit `outcome` (`solved` / `partially_solved` / `not_helpful` / `not_used`). Missing → orchestrator returns the artifact to the author with a single instruction: "fill `report_result` before the phase closes".
+2. **Traceability into the artifact** — the chosen URL must leave a visible footprint: the spec / design / code / test references the pattern, OR the agent's context explicitly explains why the answer was rejected. URL cited in context but no footprint in the artifact = `cargo_cult` flag (recorded; not a BLOCK, just data).
+3. **Honesty sanity-check** — for every `solved` outcome the orchestrator spot-checks one artifact passage that matches the URL. Inflated `solved` = `cargo_cult`.
+
+**Logging:**
+- Per-phase event in `orchestrator-context.md`:
+  `INFOSTART_AUDIT: phase=<phase>, calls=N, solved=a, partial=b, not_helpful=c, not_used=d, cargo_cult=e`
+- Per-task summary in `final-report.md`, mandatory section `## Infostart usefulness`:
+  ```yaml
+  infostart_audit:
+    total_calls: N
+    solved: a
+    partially_solved: b
+    not_helpful: c
+    not_used: d
+    cargo_cult: e
+    notable_wins:
+      - phase: <phase>
+        url: <url>
+        why_useful: <one line>
+    notable_misses:
+      - phase: <phase>
+        url: <url>
+        why_unhelpful: <one line>
+  ```
+
+**What this audit is NOT:**
+- Not a quality gate — Infostart usefulness alone never blocks phase or task closure.
+- Not punishment for `not_helpful` — that is signal data, not a defect. The point is to learn where the MCP earns its keep.
+
+**Why honesty matters:** if `solved` is inflated to look diligent, the audit becomes meaningless. The spot-check (item 3) is the only way the data stays useful.
+
 ---
 
 ## Orchestrator protocol
@@ -311,7 +352,7 @@ You do not do the work — you launch the subagent and handle its result.
 8. Результат пользователю
 ```
 
-Phase 3a and 3b run in parallel after Phase 2 approval. Wait for both to finish (including reviews) before Phase 3c.
+Phase 3 is strictly sequential: 3a → 3b → 3c → 3d. Each next phase starts only after the previous phase's Reviewer + advisory cross-provider-review.
 
 ---
 
@@ -337,6 +378,7 @@ Format: `[YYYY-MM-DD HH:MM] EVENT: description` (one line per event).
 | `USER_INPUT` | User reply | `USER_INPUT: yes, grouped by warehouses` |
 | `ESCALATE` | Escalation | `ESCALATE: 3+ BLOCK on spec` |
 | `RESUME` | Resume session | `RESUME: continue from Phase 3c` |
+| `INFOSTART_AUDIT` | After each phase | `INFOSTART_AUDIT: phase=3b, calls=2, solved=1, cargo_cult=1` |
 | `DONE` | Completion | `DONE: task completed` |
 
 Append to the existing log, do not overwrite.
@@ -350,6 +392,7 @@ Append to the existing log, do not overwrite.
 ## New metadata objects
 ## Modified objects
 ## What was done
+## Infostart usefulness
 ```
 
 Rules: new objects are NOT duplicated in modified ones; 1C notation `Type.Name`; subobjects via dot; "What was done" — 3-7 sentences.

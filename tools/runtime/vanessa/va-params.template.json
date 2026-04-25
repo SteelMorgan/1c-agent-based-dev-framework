@@ -1,6 +1,6 @@
 {
   "КаталогПроекта": "$workspaceRoot",
-  "КаталогИнструментов": "/opt/onescript/2.0.0/lib/add",
+  "КаталогИнструментов": "$frameworkRepos/vanessa-automation/dist/vanessa-automation",
   "ВыводитьСообщенияВФайл": "$workspaceRoot/vanessa-tests/logs/vanessa-messages.log",
   "КаталогФич": "$workspaceRoot/vanessa-tests/features",
   "КаталогиБиблиотек": [
@@ -26,7 +26,7 @@
   "ИмяФайлаЛогВыполненияСценариев": "$workspaceRoot/vanessa-tests/logs/vanessa-execution.log",
   "ВыгружатьСтатусВыполненияСценариевВФайл": "Истина",
   "ПутьКФайлуДляВыгрузкиСтатусаВыполненияСценариев": "$workspaceRoot/vanessa-tests/reports/va-status.json",
-  "ИспользоватьКомпонентуVanessaExt": "Ложь",
+  "ИспользоватьКомпонентуVanessaExt": "Истина",
   "ИспользоватьПарсерGherkinИзКомпонентыVanessaExt": "Ложь",
   "ИспользоватьВнешнююКомпонентуДляСкриншотов": "Ложь"
 }

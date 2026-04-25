@@ -243,9 +243,9 @@
       "status": "synced"
     },
     "framework/workflows/orchestrator.md": {
-      "ru_hash": "sha256:35296621478c7ee5aa389e5084b8c1a83d66cc20ccb794f9b45fb6c6270e1f02",
-      "en_hash": "sha256:3ae59373292d2b17f48edc859ff2eee9fa603b136e1fa3758ac7daf32f470575",
-      "synced_at": "2026-04-21T07:24:06Z",
+      "ru_hash": "sha256:bbcf0a92060575f7d8a17262977097421584e08669b0e62aaab8ffa4d6cccb07",
+      "en_hash": "sha256:685d8b583f2c6a9cf9076e3d4593737d2efe273b8a2735e9aaacc87f8948a7c9",
+      "synced_at": "2026-04-25T14:47:33Z",
       "status": "synced"
     },
     "framework/workflows/quick-fix.md": {
@@ -675,9 +675,9 @@
       "status": "synced"
     },
     "framework/skills/tool-usage/vanessa/vanessa-run/SKILL.md": {
-      "ru_hash": "sha256:424fa4ad28e41f2fd88aab0cdd770582ef21909597e59e6b5cdfadf176be753d",
-      "en_hash": "sha256:d5e75d54d867462a52a981c1d4e170b2d8478209089f31256a7f2917f980bb7f",
-      "synced_at": "2026-04-23T18:29:41Z",
+      "ru_hash": "sha256:31238661b291d94f3b157b824672e123f60b472511a361db3cf4703149cf290c",
+      "en_hash": "sha256:670baa6631f349ed25c9c35f61a8bc8ab19a9dd35b436c5ca61cb8194dd0e4f1",
+      "synced_at": "2026-04-25T14:47:56Z",
       "status": "synced"
     },
     "framework/skills/tool-usage/vanessa/vanessa-authoring/references/steps.json": {

@@ -11,6 +11,7 @@
   },
   "vanessa": {
     "--workspace": ".",
-    "--vanessasettings": "tools/runtime/vanessa/va-params.template.json"
+    "--vanessasettings": "tools/runtime/vanessa/va-params.template.json",
+    "--pathvanessa": "${FRAMEWORK_REPOS}/vanessa-automation/dist/vanessa-automation/vanessa-automation-single.epf"
   }
 }

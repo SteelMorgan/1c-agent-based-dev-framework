@@ -21,9 +21,44 @@ Connection string, user, and password are in `<project_root>/configs/yaxunit-run
 
 ---
 
-## Files
+## Files (DO NOT GUESS)
 
-**Baseline EPF:** `/opt/onescript/2.0.0/lib/add/bddRunner.epf`
+We always use **Vanessa-Automation single** (Pr-Mex/vanessa-automation). No alternative runners are used in projects.
+
+**Entry point:** `<framework_repos>/vanessa-automation/dist/vanessa-automation/vanessa-automation-single.epf`
+
+**Tools directory:** `<framework_repos>/vanessa-automation/dist/vanessa-automation` — contains the **native** `plugins/` (4 plugins with single-parameter signature `ОписаниеПлагина(ВозможныеТипыПлагинов)`).
+
+**Anti-pattern (was the root cause of VA-ERR-00001):** pointing `КаталогИнструментов` at `/opt/onescript/2.0.0/lib/add`. VA-single resolves plugin path as `КаталогИнструментов + "plugins/"`, so it would pick up foreign plugins with two-parameter signature `ОписаниеПлагина(КонтекстЯдра, ВозможныеТипыПлагинов)` → `Insufficient actual parameters` for every plugin → steps end up in `Pending: Empty snippet address`. **Do not repeat.**
+
+### How to obtain Vanessa-Automation
+
+Deployed **inside the framework directory**, one set serves all projects:
+
+```bash
+git clone https://github.com/Pr-Mex/vanessa-automation '<framework_repos>/vanessa-automation'
+cd '<framework_repos>/vanessa-automation'
+gh release download <tag> --repo Pr-Mex/vanessa-automation \
+  --pattern 'vanessa-automation.<tag>.zip' --pattern 'vanessa-automation-single.<tag>.zip'
+unzip vanessa-automation.<tag>.zip -d dist/                # каталог с epf+plugins+locales
+unzip vanessa-automation-single.<tag>.zip -d dist-single/  # single-EPF отдельно
+cp dist-single/vanessa-automation-single.epf dist/vanessa-automation/  # положить single рядом с plugins
+```
+
+Resulting structure:
+
+```
+<framework_repos>/vanessa-automation/dist/vanessa-automation/
+├── vanessa-automation.epf            # full-build entry point (reserve)
+├── vanessa-automation-single.epf     # single-build entry point (we use this one)
+├── plugins/                          # 4 NATIVE plugins, single-param signature
+│   ├── ЗагрузчикПользовательскихНастроек.epf
+│   ├── ЗапросыИзБД.epf
+│   ├── СериализаторMXL.epf
+│   └── УтвержденияBDD.epf
+├── locales/                          # Messages.epf, Steps.epf
+└── ...                               # tools/, features/, lib/, etc.
+```
 
 **Shared runtime templates:** `tools/runtime/vanessa/va-params.template.json`, `va-params-debug.template.json`, `vrunner-va.json`
 
@@ -38,7 +73,7 @@ Connection string, user, and password are in `<project_root>/configs/yaxunit-run
 <project_root>/vanessa-tests/reports/cucumber/CucumberJson.json
 ```
 
-**Library steps:** `/opt/onescript/2.0.0/lib/add/features/libraries`
+**Library steps:** `<framework_repos>/vanessa-automation/dist/vanessa-automation/features/libraries`
 
 Project scenarios and test data are always project-local. Shared templates with project paths are copied into the project-local runtime.
 
@@ -61,12 +96,17 @@ Before launching, prepare two files in `<project_root>/vanessa-tests/runtime/`:
   },
   "vanessa": {
     "--workspace": "<project_root>",
-    "--vanessasettings": "<project_root>/vanessa-tests/runtime/va-params-run.json"
+    "--vanessasettings": "<project_root>/vanessa-tests/runtime/va-params-run.json",
+    "--pathvanessa": "<framework_repos>/vanessa-automation/dist/vanessa-automation/vanessa-automation-single.epf"
   }
 }
 ```
 
-**`va-params-run.json`** — bddRunner settings. Take the template `tools/runtime/vanessa/va-params.template.json` and replace all `$workspaceRoot` with the absolute path to the project. The `FeatureCatalog` field points to the directory containing the `.feature` files to run.
+**`va-params-run.json`** — VA-single settings. Take the template `tools/runtime/vanessa/va-params.template.json` and:
+- replace all `$workspaceRoot` with the absolute path to the project;
+- `КаталогФич` points to the directory with `.feature` files;
+- `КаталогИнструментов` = `<framework_repos>/vanessa-automation/dist/vanessa-automation` (NOT `/opt/onescript/2.0.0/lib/add`);
+- `ИспользоватьКомпонентуVanessaExt = "Истина"` — required for `(Расширение)` steps.
 
 ---
 
@@ -124,9 +164,10 @@ DISPLAY=:99 vrunner vanessa \
   --settings '<project_root>/vanessa-tests/runtime/vrunner-va-run.json' \
   --ibconnection '/S<server>\<base>' \
   --db-user <db_user> \
-  --db-pwd <db_pwd> \
-  --pathvanessa "/opt/onescript/2.0.0/lib/add/bddRunner.epf"
+  --db-pwd <db_pwd>
 ```
+
+`--pathvanessa` is taken from `vrunner-va-run.json` (the `vanessa.--pathvanessa` key points to the VA-single — see the «Runtime config» section). Passing it again on the CLI is unnecessary.
 
 ### 2. Via `1cv8c` (fallback)
 
@@ -142,7 +183,7 @@ DISPLAY=:99 /opt/1cv8/x86_64/<platform_version>/1cv8c ENTERPRISE \
   /C"StartFeaturePlayer;workspaceRoot=<project_root>;VBParams=<project_root>/vanessa-tests/runtime/va-params-run.json" \
   /out"/tmp/va-run.out" \
   /TESTMANAGER \
-  /Execute"/opt/onescript/2.0.0/lib/add/bddRunner.epf"
+  /Execute"<framework_repos>/vanessa-automation/dist/vanessa-automation/vanessa-automation-single.epf"
 ```
 
 Display `:99` is used by default. After the run completes close the display to free X11 resources.
@@ -154,9 +195,43 @@ Display `:99` is used by default. After the run completes close the display to f
 1. There is a `va-status.json` with value `0`.
 2. There is a `vanessa-execution.log`.
 
+This is the **minimum** indicator. After that, post-validation is mandatory (see below).
+
 ---
 
-## If the run fails
+## Post-validation of a successful run
+
+`va-status.json == 0` does not guarantee real success. Vanessa does **not** treat these as errors:
+- a scenario with no steps (an empty `.feature`);
+- steps that were not found in the library - they are silently skipped;
+- a scenario excluded by a tag.
+
+### Verification procedure
+
+1. **Read `vanessa-execution.log`** — find the summary lines:
+   - Number of executed scenarios and steps
+   - If `0 steps completed` → **false success**, classify as `step_resolution_error`
+
+2. **Read the report** (`CucumberJson.json` or `junit.xml`) — verify:
+   - Each scenario from the `.feature` is present in the report
+   - Each step has status `passed`, not `undefined` / `skipped`
+
+3. **Match against expected steps** — compare steps from the `.feature` with the ones actually executed:
+   - All steps executed → **true success**
+   - Some steps `undefined`/`skipped` → **false success** → classify and report
+
+### False-success classification
+
+| Situation | Error class | Next action |
+|----------|-------------|-------------|
+| 0 steps executed | `step_resolution_error` | Check step binding to the library |
+| Some steps `undefined` | `step_resolution_error` | Find or create the missing steps |
+| Some steps `skipped` | `scenario_error` | Check scenario logic and conditions |
+| Scenario missing from the report | `environment_error` | Check launch tags and filters |
+
+---
+
+## If the launch fails
 
 1. Check `DISPLAY`.
 2. Check `va-status.json` and `vanessa-execution.log`.
@@ -164,16 +239,16 @@ Display `:99` is used by default. After the run completes close the display to f
 
 ---
 
-## Common errors
+## Typical errors
 
 | Error | What to do |
 |--------|------------|
-| `va-status.json` was not created | Check the X11/GUI, then `event-log` |
+| `va-status.json` was not created | Check X11/GUI, then `event-log` |
 | `DISPLAY` is not up | Start/use a working X11 display |
-| Runner finished without artifacts | Treat as invalid and proceed to diagnostics |
+| Runner finished without artifacts | Treat as invalid and go to diagnostics |
 | `Security warning` | Rule `vanessa-security-warning` |
 | `Infobase is undefined` | Wrong `--ibconnection` format; for server bases use `/Sserver\base` |
-| Scenario list empty (0 executed) | Check tags — the `@draft` tag excludes a scenario from the run |
+| Scenario list empty (0 executed) | Check tags - the `@draft` tag excludes a scenario from the run |
 
 ---
 depends_on:
