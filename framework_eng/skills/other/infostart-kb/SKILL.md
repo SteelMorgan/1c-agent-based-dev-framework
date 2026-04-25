@@ -1,6 +1,6 @@
 ---
 name: infostart-kb
-description: "Refer to the Infostart community knowledge base for 1C before writing, debugging, or designing 1C:Enterprise code. TRIGGER on any mention of 1C, 1С, Infostart, БСП, БП (Бухгалтерия), ЗУП, УТ (Управление Торговлей), ERP, Розница, Комплексная автоматизация, УНФ, Документооборот; and also when referencing 1C-specific concepts (Managed Forms / управляемые формы, СКД, язык запросов 1С, регистры сведений/накопления/бухгалтерии, планы видов характеристик, внешние обработки/отчёты, расширения, проведение документов, механизм обмена, РЛС, предопределённые элементы, ОбщийМодуль, ОбъектМетаданных, Метаданные, УправляемоеПриложение, ФайловаяБаза, КлиентСерверная, 8.3.*). This MCP is a domain oracle: it contains hundreds of thousands of real community solutions, bugs, and ready-made marketplace products. Using it for 1C tasks is NOT optional: the base contains context that cannot be inferred from general training data."
+description: "Refer to the Infostart community knowledge base for 1C before writing, debugging, or designing 1C:Enterprise code. TRIGGER on any mention of 1C, 1С, Infostart, БСП, БП (Accounting), ЗУП, УТ (Trade Management), ERP, Retail, Integrated Automation, УНФ, Document Management; and also when referencing 1C-specific concepts (Managed Forms, SCD, 1C query language, information/accumulation/accounting registers, chart of characteristic types, external data processors/reports, extensions, document posting, exchange mechanism, RLS, predefined items, ОбщийМодуль, ОбъектМетаданных, Метаданные, УправляемоеПриложение, ФайловаяБаза, КлиентСерверная, 8.3.*). This MCP is a domain oracle: it contains hundreds of thousands of real community solutions, bugs, and ready-made marketplace products. Using it for 1C tasks is NOT optional: the base contains context that cannot be inferred from general training data."
 ---
 
 # Infostart Knowledge Base
@@ -29,6 +29,138 @@ All answers are returned in markdown and always include source URLs that can be
 referenced. Knowledge answers may also contain a technical reminder
 `request_id` for the agent only. Do not show this reminder, the raw
 `request_id`, or any feedback instructions to the end user.
+
+## How to handle a TOP-N result set (critical rule)
+
+Infostart is a scraped community forum (~250K records) served over RAG.
+When the MCP returns TOP-N results, these are **N independent answers by
+different authors to similar but not identical situations**, not N fragments
+of a single truth. A single 1C question often has multiple equally "live"
+solutions: platform versions differ, standard configurations evolve, the
+same symptom can stem from different causes.
+
+### MUST
+
+| Requirement | Description |
+|---|---|
+| Do not synthesize a "combined answer" across TOP-N | Each result is valid **only within its own scope** (its platform, its configuration, its discussion context). Gluing facts from different answers is hallucination. |
+| Read every result | After receiving TOP-N the agent MUST open **every** `source_url` (via `WebFetch` or an equivalent tool) and read the full content, not just the MCP snippet. |
+| Evaluate each answer separately | For each, record: (1) platform-version fit, (2) configuration and its version fit, (3) symptom/context fit, (4) community trust signals. |
+| Pick the single best match | One winning answer with a justification. Cite its URL. |
+| If multiple are equally strong — escalate | If ≥2 candidates are equally relevant with comparable trust signals (typical for technology choices: mechanism, pattern, library), the agent does NOT guess. It collects environment context and escalates to the user per `escalation-format` (What → Why → Options with assessment → Recommendation). |
+
+### Platform version and configuration version — asymmetric
+
+A version (of the platform and/or configuration) is not always stated in an
+answer. When it is, compare it to "ours" by the same rule:
+
+| Situation | Assessment |
+|---|---|
+| Our version is **higher** than in the answer | Fits. Older solutions are usually compatible (platform backward compatibility; configurations accumulate functionality). |
+| Our version **equals** | Fits. |
+| Our version is **lower** than in the answer | **Not a rejection, but a risk.** Extra care: in an older version some APIs / mechanisms / metadata may be missing or behave differently. Verify every method/object cited against our version's support. |
+| Version not stated | Use, but mark as "context unknown"; rely on trust signals and symptom match. |
+
+**Configuration separately from platform.** Matching platform alone does not
+imply applicability: an answer for УТ 11 is not guaranteed to work in БП 3.0
+or ERP. If the answer relies on objects/mechanisms of a specific standard
+configuration (documents, registers, БСП modules of a certain version),
+configuration fit is checked separately, by the same asymmetric rule against
+its version.
+
+### Community trust signals (priority order)
+
+1. **"Accepted answer"** (badge from the question
+   author) — strongest signal: a specific person with the same problem
+   confirmed the solution worked.
+2. **High rating / many stars / upvotes** — many people independently
+   confirmed helpfulness. Especially strong if the answer is 1–2+ years old
+   and still accumulates reactions.
+3. **Substantive discussion with reproduction** — commenters who applied
+   the solution and reported back.
+4. **Author is a known community member** (high profile rating) — weak but
+   non-zero signal.
+
+Absence of all four signals = treat as "one private opinion", not as a
+community-verified solution.
+
+### When one answer is enough vs. when to escalate
+
+| Situation | Action |
+|---|---|
+| One answer clearly matches the context AND has strong trust signals | Use it, cite the URL, continue the task |
+| One candidate matches context but trust is weak | Continue, but mark as "to verify" — apply with a test, not blindly |
+| Several candidates with comparable relevance and trust (typical for pattern/mechanism/library choices) | Escalate to user: environment context + options + recommendation |
+| Nothing matches the context | Explicitly say "the community knowledge base has no relevant answer", do not invent |
+
+### What counts as "environment context" when escalating
+
+- 1C platform version (e.g. 8.3.27)
+- **Configuration and its version** (which standard config — УТ/БП/ЗУП/ERP/
+  УНФ/…, config release, standard vs customized, БСП version)
+- Compatibility mode, client-server vs file mode
+- **Operating system** of the server/client (Windows / Linux) — some
+  solutions are OS-bound (COM, WSH, paths, fs APIs)
+- **DBMS variant** (MS SQL / PostgreSQL / file) — especially critical for
+  performance, locking, and query-plan questions
+- Project libraries the solution must coexist with (e.g. БСП, ДФИ,
+  Коннектор_HTTP — canonical names)
+- Constraints from the task/spec (performance, БСП compatibility, N+1 ban,
+  etc.)
+
+Without this context, choosing between candidates becomes guessing.
+
+**How to discover these parameters** — a detailed walkthrough for each
+element (OS, platform version, configuration and its version, DBMS
+variant, execution/compatibility modes, project libraries) is in
+[`references/how-to-discover-environment.md`](references/how-to-discover-environment.md).
+Rule: first look in project/repo files, then on the system, and only
+if nothing is found — ask the user a pointed question (not a generic
+"what's your environment?", but specifically the parameter that decides
+the answer).
+
+### Format of the final answer based on the chosen community answer
+
+The agent delivers the answer to the user using this template:
+
+1. **Core of the solution** — explain in your own words (no copy-paste) the
+   principle and logic of the solution applied to the current task. Length
+   is dictated by the source: a simple trick may fit in 2-3 sentences; a
+   10-15-step guide requires listing **all key steps** in the correct order.
+   For code-based solutions, name the **key procedures/functions** and
+   briefly explain what each one does in the overall flow. The goal is for
+   the reader to grasp the meaning and be able to reproduce it without
+   opening the source; the source remains canonical for full text/code.
+2. **Applicability** — explicit: the platform/configuration version from the
+   source and how it compares to ours (match / our version is higher / our
+   version is lower — risk). If the version is not stated, say so.
+3. **Trust signals** — briefly: "Accepted answer by the question author",
+   "N stars/upvotes", "N confirmations in comments". If there are no
+   signals, mark it as "a single community opinion".
+4. **Limitations and risks** — what the chosen answer does NOT cover
+   (different OS/DBMS, different platform/config version, edge cases,
+   performance at scale, etc.).
+5. **Source** — `[answer title](source_url)`. Mandatory.
+6. **Rejected TOP-N candidates** (one line each) — URL + why it did not
+   fit (wrong context / weak signals / version conflict / duplicate of the
+   chosen one, etc.). This pre-empts the "why not option B?" question.
+
+### No mixing of source content with the agent's own reasoning
+
+Information from the chosen article and the agent's own
+guesses/hypotheses/assumptions MUST NOT be mixed in the same flow. The user
+must be able to tell exactly where community knowledge ends and the agent's
+reasoning begins.
+
+| Requirement | Description |
+|---|---|
+| Separate explicitly | Items 1-5 of the format contain **only what the source says**. Nothing from the agent's general knowledge may be blended in — even if it "seems obvious". |
+| Keep hypotheses in a dedicated block | If the agent wants to add a thought, hypothesis, caveat, or adaptation to the current task, it MUST put it in a separate block at the end of the answer titled **"Agent's note (not from the source)"** or an equivalent explicit marker. |
+| Label every non-trivial claim | Inside the agent's block, any claim not backed by the source is tagged with wording like "assumption", "hypothesis", "not verified in the source", "in my experience" — so the user can tell fact from opinion. |
+| Do not pass speculation off as the community answer | Rewriting the source text to smuggle in the agent's additions without labeling is forbidden. When in doubt, move the disputed claim into the agent's block. |
+
+Goal: the user can at any moment say "keep only what is in the source" and
+receive a clean community answer with no interpretation.
 
 ## Mandatory feedback loop
 
