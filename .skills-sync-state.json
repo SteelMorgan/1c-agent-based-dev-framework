@@ -865,6 +865,24 @@
       "en_hash": "sha256:1cf1fa37b83f89036377e186b6e992fcbd96e92d9fd23a39e5263a7a35db9a24",
       "synced_at": "2026-04-25T07:14:24Z",
       "status": "synced"
+    },
+    "framework/skills/tool-usage/content-generation/codex-image-gen/SKILL.md": {
+      "ru_hash": "sha256:d338aebe5498cce0887ae626f722d2e989cf91009c9886aea1fbf13ee9f4e558",
+      "en_hash": "sha256:20ad463369cf4fe020481c55aa7e0506c0b265b5463eabe3e407b940ff5fe943",
+      "synced_at": "2026-05-08T17:16:02Z",
+      "status": "synced"
+    },
+    "framework/skills/tool-usage/content-generation/codex-image-gen/references/prompt-guide.md": {
+      "ru_hash": "sha256:51b4933512b0674f27a3e6297d83a30b1b698285b6aacb8e900e099549e25b8d",
+      "en_hash": "sha256:15b90d8ecbf1053c83d82f472336067c4bef15e65d568f61efb228232bbd1b71",
+      "synced_at": "2026-05-08T17:16:09Z",
+      "status": "synced"
+    },
+    "framework/skills/tool-usage/content-generation/codex-image-gen/scripts/codex_image_gen.py": {
+      "ru_hash": "sha256:8e9d84dfd37e2891e189d0f4aa089734b32b6fb25442e62269a0674223c145f7",
+      "en_hash": "sha256:8e9d84dfd37e2891e189d0f4aa089734b32b6fb25442e62269a0674223c145f7",
+      "synced_at": "2026-05-08T17:15:36Z",
+      "status": "synced"
     }
   }
 }
