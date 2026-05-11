@@ -1,4 +1,4 @@
-# Starting the manager and connecting clients
+# Launching the manager and connecting clients
 
 Only the parameters set by the agent are described. Everything that has sensible defaults is left alone; full reference: `docs/CONFIGURATION.md`.
 
@@ -60,8 +60,8 @@ Behavior when the section is absent is equivalent to `tools_cache: {}` (i.e. the
 
 | Scenario | Command |
 |---|---|
+| Canonical path after installing the framework | `tools/external/v8-session-manager/v8-session-manager --config /path/to/v8project.yaml` |
 | Dev mode from the manager repo | `cargo run --release` (will pick up `./v8project.yaml`) |
-| Ready-made binary | `./v8-session-manager --config /path/to/v8project.yaml` |
 | Production | systemd unit from `docs/INSTALL.md` (`systemctl start v8-session-manager`) |
 
 ENV `V8SM_CONFIG=<path>` is an alternative to `--config`.

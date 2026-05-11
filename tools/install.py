@@ -2299,6 +2299,252 @@ def cmd_clone(args: argparse.Namespace) -> int:
     return 0
 
 
+# ─── Внешние инструменты: pre-built бинари из GitHub Releases ────────────────
+#
+# Скачивает Latest-релиз каждого инструмента и распаковывает в
+# `tools/external/<name>/`. Версии НЕ пиннятся — каждый запуск установщика
+# тянет актуальный Latest. .version-маркер хранит установленный тег для
+# идемпотентности (повторный запуск с той же версией пропускает скачивание).
+#
+# Имена ассетов в релизах стабильны между версиями: меняется только тег.
+# При смене схемы именования — обновить `assets` для соответствующего tool.
+
+EXTERNAL_TOOLS_DIR_NAME = "external"
+
+EXTERNAL_TOOLS = {
+    "v8-runner": {
+        "repo": "alkoleft/v8-runner-rust",
+        "binary": "v8-runner",
+        # (platform.system(), нормализованная machine) → (asset name, kind)
+        "assets": {
+            ("Linux", "x86_64"):   ("v8-runner-linux-x86_64-musl.tar.gz", "tar.gz"),
+            ("Darwin", "x86_64"):  ("v8-runner-macos-x86_64.tar.gz",      "tar.gz"),
+            ("Darwin", "arm64"):   ("v8-runner-macos-aarch64.tar.gz",     "tar.gz"),
+            ("Windows", "x86_64"): ("v8-runner-windows-x86_64.zip",       "zip"),
+        },
+    },
+    "v8-session-manager": {
+        "repo": "1c-neurofish/v8-session-manager",
+        "binary": "v8-session-manager",
+        "assets": {
+            ("Linux", "x86_64"): ("v8-session-manager-linux-x86_64", "raw"),
+        },
+    },
+}
+
+
+def _external_tools_dir(script_dir: Path) -> Path:
+    return script_dir / EXTERNAL_TOOLS_DIR_NAME
+
+
+def _normalize_machine() -> str:
+    """Нормализует `platform.machine()` к ключу из EXTERNAL_TOOLS[...]["assets"]."""
+    m = platform.machine().lower()
+    if m in ("x86_64", "amd64"):
+        return "x86_64"
+    if m in ("arm64", "aarch64"):
+        return "arm64"
+    return m
+
+
+def _fetch_latest_release(repo: str) -> Optional[dict]:
+    """GET https://api.github.com/repos/<repo>/releases/latest. Возвращает JSON или None."""
+    import urllib.request, urllib.error
+    url = f"https://api.github.com/repos/{repo}/releases/latest"
+    req = urllib.request.Request(url, headers={"Accept": "application/vnd.github+json"})
+    try:
+        with urllib.request.urlopen(req, timeout=20) as resp:
+            return json.loads(resp.read())
+    except urllib.error.HTTPError as e:
+        print(yellow(f"    GitHub API: HTTP {e.code} для {repo}"))
+    except Exception as e:
+        print(yellow(f"    GitHub API недоступен ({type(e).__name__}: {e})"))
+    return None
+
+
+def _download_to(url: str, dest: Path, timeout: int = 120) -> bool:
+    import urllib.request, urllib.error
+    try:
+        with urllib.request.urlopen(url, timeout=timeout) as resp:
+            dest.write_bytes(resp.read())
+        return True
+    except Exception as e:
+        print(red(f"    Ошибка скачивания {url}: {type(e).__name__}: {e}"))
+        return False
+
+
+def _sha256_of(path: Path) -> str:
+    import hashlib
+    h = hashlib.sha256()
+    with path.open("rb") as f:
+        for chunk in iter(lambda: f.read(65536), b""):
+            h.update(chunk)
+    return h.hexdigest()
+
+
+def _extract_to(archive: Path, kind: str, dest_dir: Path) -> bool:
+    """Распаковывает архив в dest_dir. Для kind=raw — копирует файл как есть."""
+    import tarfile, zipfile
+    dest_dir.mkdir(parents=True, exist_ok=True)
+    try:
+        if kind == "tar.gz":
+            with tarfile.open(archive, "r:gz") as tf:
+                tf.extractall(dest_dir)
+        elif kind == "zip":
+            with zipfile.ZipFile(archive) as zf:
+                zf.extractall(dest_dir)
+        elif kind == "raw":
+            # Имя сохранится при копировании в `_place_binary`.
+            shutil.copy2(archive, dest_dir / archive.name)
+        else:
+            print(red(f"    Неизвестный тип архива: {kind}"))
+            return False
+        return True
+    except Exception as e:
+        print(red(f"    Ошибка распаковки {archive.name}: {type(e).__name__}: {e}"))
+        return False
+
+
+def _place_binary(tool_dir: Path, binary: str) -> Optional[Path]:
+    """Находит бинарь внутри `tool_dir` (после распаковки) и переносит его
+    на верхний уровень как `tool_dir/<binary>` (или `<binary>.exe` под Windows)."""
+    candidates = list(tool_dir.rglob(binary)) + list(tool_dir.rglob(binary + ".exe"))
+    candidates = [c for c in candidates if c.is_file()]
+    if not candidates:
+        return None
+    src = candidates[0]
+    target_name = binary + ".exe" if src.suffix.lower() == ".exe" else binary
+    target = tool_dir / target_name
+    if src != target:
+        if target.exists():
+            target.unlink()
+        shutil.move(str(src), str(target))
+    try:
+        target.chmod(0o755)
+    except OSError:
+        pass  # Windows
+    return target
+
+
+def _read_version_marker(tool_dir: Path) -> Optional[str]:
+    marker = tool_dir / ".version"
+    return marker.read_text().strip() if marker.is_file() else None
+
+
+def install_external_tool(
+    name: str,
+    spec: dict,
+    base_dir: Path,
+    dry_run: bool = False,
+) -> bool:
+    """Скачивает Latest-релиз указанного инструмента в base_dir/name.
+    Возвращает True, если инструмент в актуальном состоянии после вызова."""
+    tool_dir = base_dir / name
+    repo = spec["repo"]
+    binary = spec["binary"]
+
+    print(f"\n  ── {bold(name)} ({repo}) ──")
+
+    # 1) Платформа поддерживается?
+    plat_key = (platform.system(), _normalize_machine())
+    asset_info = spec["assets"].get(plat_key)
+    if asset_info is None:
+        supported = ", ".join(f"{s}/{m}" for s, m in spec["assets"].keys())
+        print(yellow(f"    Платформа {plat_key[0]}/{plat_key[1]} не поддерживается ({name} ассеты: {supported})."))
+        print(yellow(f"    Установка пропущена."))
+        return False
+    asset_name, kind = asset_info
+
+    # 2) Узнаём Latest-тег. Если API недоступен — fallback на ранее установленный.
+    installed = _read_version_marker(tool_dir)
+    has_binary = (tool_dir / binary).exists() or (tool_dir / (binary + ".exe")).exists()
+
+    release = _fetch_latest_release(repo)
+    if release is None or not release.get("tag_name"):
+        if has_binary:
+            print(yellow(f"    GitHub недоступен — используем уже установленный "
+                         f"{installed or '(версия неизвестна)'}."))
+            return True
+        print(yellow(f"    GitHub недоступен и локальной копии нет — пропуск."))
+        return False
+    tag = release["tag_name"]
+
+    # 3) Уже актуален?
+    if installed == tag and has_binary:
+        print(green(f"    Уже установлен {tag} — пропуск."))
+        return True
+
+    if dry_run:
+        print(f"    [dry-run] Скачал бы {asset_name} из {tag} → {tool_dir / binary}")
+        return True
+
+    # 4) Находим asset URL и (опционально) sha256-sidecar
+    assets = {a["name"]: a["browser_download_url"] for a in release.get("assets", [])}
+    asset_url = assets.get(asset_name)
+    if not asset_url:
+        available = ", ".join(sorted(assets.keys())) or "(пусто)"
+        print(yellow(f"    Ассет '{asset_name}' не найден в релизе {tag}. Доступно: {available}"))
+        return False
+    sha_url = assets.get(asset_name + ".sha256")
+
+    # 5) Скачивание во временный каталог
+    import tempfile
+    with tempfile.TemporaryDirectory() as tmp:
+        tmp_dir = Path(tmp)
+        archive_path = tmp_dir / asset_name
+
+        print(f"    Скачивание {asset_name} (релиз {tag})...")
+        if not _download_to(asset_url, archive_path):
+            return False
+
+        if sha_url:
+            sha_path = tmp_dir / (asset_name + ".sha256")
+            if _download_to(sha_url, sha_path):
+                expected = sha_path.read_text().strip().split()[0].lower()
+                actual = _sha256_of(archive_path)
+                if expected != actual:
+                    print(red(f"    SHA256 не совпал (ожидали {expected[:12]}…, получили {actual[:12]}…)."))
+                    return False
+                print(green("    SHA256 OK"))
+            else:
+                print(yellow("    Sha256 sidecar недоступен — пропускаю верификацию."))
+        else:
+            print(yellow("    Sha256 sidecar в релизе отсутствует — пропускаю верификацию."))
+
+        # 6) Чистим прошлую установку, распаковываем
+        if tool_dir.exists():
+            shutil.rmtree(tool_dir)
+        tool_dir.mkdir(parents=True, exist_ok=True)
+
+        if not _extract_to(archive_path, kind, tool_dir):
+            return False
+
+        binary_path = _place_binary(tool_dir, binary)
+        if binary_path is None:
+            print(red(f"    Не удалось найти бинарь '{binary}' после распаковки."))
+            return False
+
+        (tool_dir / ".version").write_text(tag + "\n")
+        print(green(f"    ✓ {binary_path}  ({tag})"))
+
+    return True
+
+
+def install_all_external_tools(script_dir: Path, dry_run: bool = False) -> None:
+    """Ставит все инструменты из `EXTERNAL_TOOLS` в `tools/external/`.
+    Сетевые/платформенные ошибки — некритичны: пропускаем и идём дальше."""
+    base = _external_tools_dir(script_dir)
+    if not dry_run:
+        base.mkdir(parents=True, exist_ok=True)
+
+    print()
+    print(bold("  ── Внешние инструменты (tools/external/) ──────────────────"))
+    print(f"  {dim('Каждый запуск тянет Latest release. Релиз кешируется через .version-маркер.')}")
+
+    for name, spec in EXTERNAL_TOOLS.items():
+        install_external_tool(name, spec, base, dry_run=dry_run)
+
+
 # ─── Точка входа ─────────────────────────────────────────────────────────────
 
 def find_framework_dir() -> Path:
@@ -2373,6 +2619,10 @@ def main():
                         help="Проверить и пересоздать сломанные симлинки")
     parser.add_argument("--install-xml-gen", action="store_true",
                         help="Собрать xml-gen JAR и установить wrapper ~/.local/bin/xml-gen (без полной установки)")
+    parser.add_argument("--install-external-tools", action="store_true",
+                        help=f"Скачать Latest-релизы внешних инструментов в tools/{EXTERNAL_TOOLS_DIR_NAME}/ (без полной установки)")
+    parser.add_argument("--skip-external-tools", action="store_true",
+                        help="Не ставить внешние инструменты автоматически при полной установке")
     parser.add_argument("--sync", action="store_true",
                         help="Синхронизировать установку: удалить снятые симлинки компонентов")
     parser.add_argument("--estimate-context", action="store_true",
@@ -2409,6 +2659,12 @@ def main():
     # Install xml-gen only
     if args.install_xml_gen:
         install_xml_gen(script_dir=Path(__file__).resolve().parent, dry_run=False)
+        print()
+        return
+
+    # Install external tools only
+    if args.install_external_tools:
+        install_all_external_tools(script_dir=Path(__file__).resolve().parent, dry_run=False)
         print()
         return
 
@@ -2646,6 +2902,13 @@ def main():
         install_xml_gen(script_dir=Path(__file__).resolve().parent, dry_run=False)
     elif xml_gen_needed and args.dry_run:
         install_xml_gen(script_dir=Path(__file__).resolve().parent, dry_run=True)
+
+    # Post-install: внешние инструменты (всегда, если не указан --skip-external-tools)
+    if not args.skip_external_tools:
+        install_all_external_tools(
+            script_dir=Path(__file__).resolve().parent,
+            dry_run=args.dry_run,
+        )
 
     # Post-install: capabilities/ симлинк (если выбран хотя бы один tool-usage навык)
     if _tool_usage_selected(all_resolved, graph):

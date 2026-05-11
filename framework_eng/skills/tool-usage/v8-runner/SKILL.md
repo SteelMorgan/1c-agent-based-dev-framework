@@ -94,7 +94,77 @@ v8-runner init
 - Release artifacts need to be exported or external artifacts published: use `v8-runner make ...` or the `artifacts` alias.
 - Need a 1С UI session: use `v8-runner launch designer`, `launch thin`, `launch thick`, or `launch ordinary`.
 - Need to run onec-client-mcp-devkit inside 1С without VA authoring: use `v8-runner launch mcp ...`.
-- Pair the running 1С client with a running [v8-client-session-manager](https://github.com/SteelMorgan/v8-client-session-manager) over WebSocket: rely on `--mcp-transport=auto` (default - TCP probes `manager_url` for 200 ms). Force WS with `--mcp-transport=ws` (fails if the manager is unavailable) or bypass WS entirely with `--mcp-transport=legacy`. WS-only flags: `--manager-url`, `--client-uid`, `--corr-id`, `--mcp-log-level`, `--mcp-ws-timeout-ms`. The internal `kind` mapping (`v8_runner_client` / `vanessa_test_client` / `yaxunit_runner` / `vanessa_test_client`) is fixed by the entry point and **cannot** be overridden from the CLI. Read `references/project-workflows.md` (section "WS mode with session-manager") for the full payload, defaults, and `--json-message` shape.
+- Pair the running 1С client with a running [v8-client-session-manager](https://github.com/SteelMorgan/v8-client-session-manager) over WebSocket: see the dedicated section "WS pairing parameters" below. WS flags (`--mcp-transport`, `--manager-url`, `--client-uid`, `--corr-id`, `--mcp-log-level`, `--mcp-ws-timeout-ms`) are available identically on `launch ...` and `test ...` commands. Subtle clap structure point: on `test`, the flags go **before** the `yaxunit/va` subcommand (e.g. `v8-runner test --mcp-transport=ws yaxunit module <NAME>`), not after.
+
+## WS Pairing Parameters with session-manager
+
+WS pairing with [v8-client-session-manager](https://github.com/SteelMorgan/v8-client-session-manager) is a mode in which the 1С client-side MCP server connects to the manager over WebSocket instead of local HTTP MCP. The same set of CLI flags or `tools.client_mcp.*` in `v8project.yaml` controls it.
+
+### Applicable entry points
+
+The same set of flags works for:
+
+- `v8-runner launch designer | thin | thick | ordinary` — flags go after `launch`.
+- `v8-runner launch mcp` / `launch mcp va` — flags go after `launch mcp [va]`.
+- `v8-runner test yaxunit all` / `test yaxunit module <NAME>` — flags go **at the `test` level**, BEFORE the `yaxunit` subcommand.
+- `v8-runner test va` — flags go **at the `test` level**, BEFORE the `va` subcommand.
+
+Example (test): `v8-runner test --mcp-transport=ws --mcp-log-level=debug yaxunit module mcp_МспПровайдер_Тесты`. If you put WS flags after `yaxunit` or `module <NAME>`, clap responds with `error: unexpected argument`, because those subcommands do not declare `McpClientWsArgs` of their own.
+
+### CLI flags
+
+- `--mcp-transport={ws|legacy|auto}` — `auto` (default) performs a TCP probe on `manager_url` (~200 ms); `ws` — strictly WS, fails on unreachable; `legacy` — old HTTP mode without probe.
+- `--manager-url <URL>` — override `tools.client_mcp.manager_url` (default `ws://127.0.0.1:4000/sessions`).
+- `--client-uid <UUID>` — override the auto-generated UUID v4.
+- `--corr-id <STR>` — override `vr-<first 8 chars of client_uid>`.
+- `--mcp-log-level={off|error|warn|info|debug|trace}` — log level inside the client.
+- `--mcp-ws-timeout-ms <N>` — WS handshake timeout (default 1000 ms; relevant for `auto` fallback).
+
+Alternative: all of these can be set in `tools.client_mcp.*` in `v8project.yaml` / `v8project.local.yaml` — priority order: CLI → YAML → internal defaults.
+
+```yaml
+tools:
+  client_mcp:
+    transport: auto         # ws | legacy | auto
+    manager_url: ws://127.0.0.1:4000/sessions
+    log_level: info
+    ws_timeout_ms: 1000
+```
+
+`kind` is fixed by the entry point and is not configurable from CLI in any mode.
+
+### Internal `kind` mapping
+
+| Command | `kind` |
+|---|---|
+| `launch mcp` | `v8_runner_client` |
+| `launch mcp va` | `vanessa_test_client` |
+| `test yaxunit ...` | `yaxunit_runner` |
+| `test va ...` | `vanessa_test_client` |
+
+### What v8-runner substitutes into `/C` in the WS branch
+
+```text
+/C"mcpMode=ws;manager_url=<URL>;client_uid=<UUID>;kind=<KIND>;corr_id=<CORR>;mcp_log_level=<LVL>;mcp_ws_timeout_ms=<MS>"
+```
+
+For launch — this is the entire `/C`; for test commands, the WS fragment is appended via `;` to the existing `RunUnitTests=…` / Vanessa player (only if `transport=ws` is chosen via the YAML config).
+
+Full payload, JSON output (`--json-message`), probe rules, and behavior when the manager is unreachable — in `references/project-workflows.md` (section "WS mode with session-manager"). Starting the manager itself is **out of scope** for v8-runner — see the `v8-session-manager` skill.
+
+### Resolved: WS Sessions in `test yaxunit` (DRIVE 2026-05-11)
+
+Symptom: `yaxunit_runner` is NOT registered in the manager's `session_list`, although v8-runner correctly inserts the WS payload into `/C` (`RunUnitTests=...;mcpMode=ws;...;kind=yaxunit_runner;...`).
+
+The root cause is a race condition in the BSL `client_mcp` (`ManagedApplicationModule.bsl`): the idle handler `Мсп_ОтложенныйСтарт_Тик` was scheduled with a **1 second** interval, while YAXUNIT with `closeAfterTests: true` closed the application about 1 second after startup (tests finish in about 200 ms), so the idle handler did not get a chance to tick.
+
+Fix: reduce the idle-handler interval from `1` to `0.1`:
+```bsl
+// exts/client_mcp/Ext/ManagedApplicationModule.bsl
+ПодключитьОбработчикОжидания("Мсп_ОтложенныйСтарт_Тик", 0.1, Истина);
+```
+
+After the fix, yaxunit-Enterprise is registered as `kind=yaxunit_runner` in the manager's `session_list` (confirmed in v8-runner stdout: `[MCP INFO ...] WS session registered: uid=... kind=yaxunit_runner ... tools=24`).
 
 ## Guardrails
 

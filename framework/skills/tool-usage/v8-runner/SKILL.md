@@ -38,7 +38,7 @@ provides_capabilities:
 
 ## Форма команды
 
-Используй доступный бинарник `v8-runner` напрямую. Если его нет в `PATH`, попроси путь к бинарнику или используй wrapper-скрипт из проекта.
+Канонический путь к бинарнику — `tools/external/v8-runner/v8-runner` (в проекте это работает через `tools/`-симлинк на фреймворк). Установщик фреймворка тянет Latest-релиз из [`alkoleft/v8-runner-rust`](https://github.com/alkoleft/v8-runner-rust) при каждом запуске; ручная переустановка — `python tools/install.py --install-external-tools`. Если бинарник по этому пути отсутствует и в `PATH` тоже нет — попроси путь у пользователя или используй wrapper-скрипт из проекта.
 
 `v8project.yaml` — имя конфига проекта по умолчанию. Соседний `v8project.local.yaml` загружается автоматически для машинно-локальных путей, учётных данных, инструментов, тестов и MCP-настроек. Не передавай `--config v8project.yaml`, если пользователь явно не просит нестандартную форму команды или активный путь к конфигу отличается от дефолтного; никогда не передавай `v8project.local.yaml` через `--config`.
 
@@ -94,7 +94,77 @@ v8-runner init
 - Нужно экспортировать релизные артефакты или опубликовать внешние артефакты: используй `v8-runner make ...` или алиас `artifacts`.
 - Нужна UI-сессия 1С: используй `v8-runner launch designer`, `launch thin`, `launch thick` или `launch ordinary`.
 - Нужно запустить onec-client-mcp-devkit внутри 1С без авторинга VA: используй `v8-runner launch mcp ...`.
-- Сопрячь запущенный 1С-клиент с работающим [v8-client-session-manager](https://github.com/SteelMorgan/v8-client-session-manager) по WebSocket: полагайся на `--mcp-transport=auto` (по умолчанию — TCP-проба `manager_url` на 200 ms). Принудительно WS — через `--mcp-transport=ws` (падает, если менеджер недоступен), или полностью обойти WS — через `--mcp-transport=legacy`. WS-only флаги: `--manager-url`, `--client-uid`, `--corr-id`, `--mcp-log-level`, `--mcp-ws-timeout-ms`. Внутренний mapping `kind` (`v8_runner_client` / `vanessa_test_client` / `yaxunit_runner` / `vanessa_test_client`) фиксируется по точке входа и **не** переопределяется из CLI. Прочитай `references/project-workflows.md` (раздел «WS-режим к session-manager») для полного payload, дефолтов и формы вывода `--json-message`.
+- Сопрячь запущенный 1С-клиент с работающим [v8-client-session-manager](https://github.com/SteelMorgan/v8-client-session-manager) по WebSocket: см. отдельный раздел «WS-параметры сопряжения» ниже. WS-флаги (`--mcp-transport`, `--manager-url`, `--client-uid`, `--corr-id`, `--mcp-log-level`, `--mcp-ws-timeout-ms`) доступны на `launch ...` и `test ...` командах одинаково. Тонкий момент clap-структуры: на `test` флаги ставятся **до** подкоманды `yaxunit/va` (например `v8-runner test --mcp-transport=ws yaxunit module <NAME>`), а не после.
+
+## WS-параметры сопряжения с session-manager
+
+WS-сопряжение с [v8-client-session-manager](https://github.com/SteelMorgan/v8-client-session-manager) — режим, в котором клиентский MCP-сервер 1С подключается к менеджеру по WebSocket вместо локального HTTP MCP. Управляется одним и тем же набором CLI-флагов или `tools.client_mcp.*` в `v8project.yaml`.
+
+### Применимые точки входа
+
+Один и тот же набор флагов работает для:
+
+- `v8-runner launch designer | thin | thick | ordinary` — флаги ставятся после `launch`.
+- `v8-runner launch mcp` / `launch mcp va` — флаги ставятся после `launch mcp [va]`.
+- `v8-runner test yaxunit all` / `test yaxunit module <NAME>` — флаги ставятся **на уровне `test`**, ДО подкоманды `yaxunit`.
+- `v8-runner test va` — флаги ставятся **на уровне `test`**, ДО подкоманды `va`.
+
+Пример (test): `v8-runner test --mcp-transport=ws --mcp-log-level=debug yaxunit module mcp_МспПровайдер_Тесты`. Если ставишь WS-флаги после `yaxunit` или `module <NAME>` — clap отвечает `error: unexpected argument`, потому что эти подкоманды свой собственный `McpClientWsArgs` не объявляют.
+
+### CLI-флаги
+
+- `--mcp-transport={ws|legacy|auto}` — `auto` (по умолчанию) делает TCP-пробу `manager_url` ~200 ms; `ws` — строго WS, падает при недоступности; `legacy` — старый HTTP-режим без probe.
+- `--manager-url <URL>` — переопределить `tools.client_mcp.manager_url` (дефолт `ws://127.0.0.1:4000/sessions`).
+- `--client-uid <UUID>` — переопределить автогенерированный UUID v4.
+- `--corr-id <STR>` — переопределить `vr-<первые 8 символов client_uid>`.
+- `--mcp-log-level={off|error|warn|info|debug|trace}` — уровень логирования внутри клиента.
+- `--mcp-ws-timeout-ms <N>` — таймаут WS-handshake (дефолт 1000 ms; релевантен `auto`-fallback).
+
+Альтернатива: всё это можно прописать в `tools.client_mcp.*` в `v8project.yaml` / `v8project.local.yaml` — порядок приоритета: CLI → yaml → внутренние дефолты.
+
+```yaml
+tools:
+  client_mcp:
+    transport: auto         # ws | legacy | auto
+    manager_url: ws://127.0.0.1:4000/sessions
+    log_level: info
+    ws_timeout_ms: 1000
+```
+
+`kind` фиксируется точкой входа и из CLI не переопределяется ни в одном режиме.
+
+### Внутренний mapping `kind`
+
+| Команда | `kind` |
+|---|---|
+| `launch mcp` | `v8_runner_client` |
+| `launch mcp va` | `vanessa_test_client` |
+| `test yaxunit ...` | `yaxunit_runner` |
+| `test va ...` | `vanessa_test_client` |
+
+### Что v8-runner подставляет в `/C` в WS-ветке
+
+```text
+/C"mcpMode=ws;manager_url=<URL>;client_uid=<UUID>;kind=<KIND>;corr_id=<CORR>;mcp_log_level=<LVL>;mcp_ws_timeout_ms=<MS>"
+```
+
+Для launch — это весь `/C`; для test-команд WS-фрагмент дописывается через `;` к существующему `RunUnitTests=…` / Vanessa-плееру (если transport=ws выбран через yaml-конфиг).
+
+Полный payload, JSON-форму вывода (`--json-message`), правила probe и поведение при недоступности менеджера — в `references/project-workflows.md` (раздел «WS-режим к session-manager»). Подъём самого менеджера в v8-runner **не входит** — см. навык `v8-session-manager`.
+
+### Resolved: WS-сессии в `test yaxunit` (DRIVE 2026-05-11)
+
+Симптом: yaxunit_runner НЕ регистрируется в `session_list` менеджера, хотя v8-runner правильно подставляет WS-payload в `/C` (`RunUnitTests=...;mcpMode=ws;...;kind=yaxunit_runner;...`).
+
+Корень — race condition в BSL `client_mcp` (`ManagedApplicationModule.bsl`): idle-handler `Мсп_ОтложенныйСтарт_Тик` ставился с интервалом **1 секунда**, а YAXUNIT с `closeAfterTests: true` закрывал приложение через ~1с от старта (тесты прогоняются за ~200ms), поэтому idle-handler не успевал тикнуть.
+
+Фикс: уменьшить интервал idle-handler с `1` до `0.1`:
+```bsl
+// exts/client_mcp/Ext/ManagedApplicationModule.bsl
+ПодключитьОбработчикОжидания("Мсп_ОтложенныйСтарт_Тик", 0.1, Истина);
+```
+
+После фикса yaxunit-Enterprise регистрируется как `kind=yaxunit_runner` в `session_list` менеджера (подтверждение в stdout v8-runner: `[MCP INFO ...] WS-сессия зарегистрирована: uid=... kind=yaxunit_runner ... tools=24`).
 
 ## Защитные правила
 

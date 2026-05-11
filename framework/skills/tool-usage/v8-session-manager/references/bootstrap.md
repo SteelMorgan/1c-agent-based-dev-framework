@@ -60,9 +60,11 @@ tools_cache:
 
 | Сценарий | Команда |
 |---|---|
+| Канонический путь после установки фреймворка | `tools/external/v8-session-manager/v8-session-manager --config /path/to/v8project.yaml` |
 | Dev-режим из репо менеджера | `cargo run --release` (подхватит `./v8project.yaml`) |
-| Готовый бинарь | `./v8-session-manager --config /path/to/v8project.yaml` |
 | Production | systemd-юнит из `docs/INSTALL.md` (`systemctl start v8-session-manager`) |
+
+Бинарник тянется Latest-релизом из [`1c-neurofish/v8-session-manager`](https://github.com/1c-neurofish/v8-session-manager) при каждом запуске установщика фреймворка. Ручная переустановка — `python tools/install.py --install-external-tools`.
 
 ENV `V8SM_CONFIG=<path>` — альтернатива `--config`.
 

@@ -27,6 +27,9 @@ test-output/
 tools/fast-install/
 .claude/fast-install.mdc
 
+# External tool binaries (downloaded by tools/install.py from GitHub Releases)
+tools/external/
+
 # Local rules (not shared)
 .claude/rules/CLAUDE.md
 
