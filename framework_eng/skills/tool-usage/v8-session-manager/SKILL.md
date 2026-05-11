@@ -4,8 +4,12 @@ description: Use when working with the 1С session manager (v8-session-manager) 
 provides_capabilities:
   # Built-in manager tools — always available while the manager is running.
   - session_list
-  # Tools that the manager proxies from connected 1С clients
-  # (availability depends on which client is connected via WS).
+  - tools_cache_reset
+  # Tools that the manager proxies from connected 1С clients.
+  # WARNING: their names in tools/list are read from the persistent
+  # tools-cache (ADR-0035) — having a name does NOT guarantee the call
+  # will succeed. Without a live session of the required kind the call
+  # returns an MCP tool error `isError:true, _meta.error_code="no_live_session"`.
   # client_mcp / system:
   - infobase_info
   - system_spawn_1c_client
@@ -36,13 +40,26 @@ A thin MCP aggregator: accepts WS connections from 1С clients and publishes the
 
 | Capability | Source |
 |---|---|
-| One built-in tool — `session_list` (read-only) | manager |
+| Built-in tool — `session_list` (read-only registry snapshot) | manager |
+| Built-in tool — `tools_cache_reset` (full reset or by `config_id`) | manager (ADR-0035) |
 | Showcase of proxied tools from connected clients | 1С extensions |
+| Persistent showcase cache (`workPath/tools_cache.json`, TTL 5d) | manager (ADR-0035) |
 | Routing a call to the correct session by `session_id` | manager |
 | Soft-reconnect of a client by `client_uid` | manager |
 | FIFO order of calls into one session | manager |
 
 Everything else (domain tools - form descriptions, test runs, navigation, etc.) is added by **1С extensions**, not by the manager. There is a separate skill for each extension.
+
+## Proxied tools cache (ADR-0035) — key point
+
+The manager's `tools/list` is served from a **persistent on-disk cache**, not only from live WS sessions. Implications for the agent:
+
+- **A tool name in `tools/list` ≠ a successful call.** The cache outlives client disconnect and manager restart — the name stays on the showcase, but a call without a live session returns an MCP tool error `isError:true, _meta.error_code="no_live_session"`. This is not a bug, it is the contract.
+- **Why it works this way:** some MCP harnesses (Claude Code in particular) handle `notifications/tools/list_changed` unreliably. The persistent cache removes the dependency on stable notification handling.
+- **When to use `tools_cache_reset`:** when a tool has been intentionally removed from an extension and will not come back (or the configuration is fully retired). Otherwise it lingers until TTL expires (default 5 days from the last `session.register`). Full reset — no arguments; targeted — `{"config_id": "<id>"}` (taken from `session_list[*].config_id`).
+- **What the cache does NOT do:** it does not start 1С, does not replay the tool response, does not replace a live session. It only stores names and `inputSchema`.
+
+Details — `references/sessions-and-tools.md` § «Persistent cache and `tools_cache_reset`».
 
 ## Boundaries
 
