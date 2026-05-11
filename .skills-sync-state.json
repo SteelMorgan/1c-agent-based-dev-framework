@@ -892,9 +892,9 @@
     },
     "framework/skills/tool-usage/v8-runner/references/testing.md": {
       "ru_hash": "sha256:bd25ad65ec4f3ee731922cbba4196df8d7b0bf94b7bc22aa9817f8b41cdff4c3",
-      "en_hash": "sha256:d431635224e829981cae0b6a7263258d95ed9aa7643f65d0e1cdf3e2b2e9d796",
-      "synced_at": "2026-05-09T08:34:26Z",
-      "status": "dirty"
+      "en_hash": "sha256:da750933fe7b40473d5f887cbfdff64ed872447b52895e2594ade2e696c11a1f",
+      "synced_at": "2026-05-11T16:17:11Z",
+      "status": "synced"
     },
     "framework/skills/tool-usage/v8-runner/references/troubleshooting.md": {
       "ru_hash": "sha256:89c855e4ad51aabe8524da6230e1e889b195a43dab14ddf8e862faf9d737228f",
