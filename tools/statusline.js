@@ -149,6 +149,13 @@ async function main() {
     const pctUsed = size > 0 ? Math.round((current / size) * 100) : 0;
     const tokensLeft = Math.max(0, size - current);
 
+    // RLM context-monitor hook reads this file (~/.claude/hooks/context-monitor.sh).
+    // Schema: {"pct":<0-100>,"tokens":<current>,"limit":<size>}.
+    try {
+      const stateFile = path.join(os.tmpdir(), 'claude-ctx-state.json');
+      fs.writeFileSync(stateFile, JSON.stringify({ pct: pctUsed, tokens: current, limit: size }));
+    } catch (_) { /* best effort, never break statusline */ }
+
     const sep = ` ${c.dim}|${c.reset} `;
     const barWidth = 15;
     const col1w = 30;

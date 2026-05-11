@@ -52,7 +52,7 @@ description: "Поиск перед записью (Search Before Write). Нав
 | Ошибка | Обходной путь |
 |--------|---------------|
 | Пропуск поиска | Жёсткое правило: создание кода → первый шаг = поиск |
-| `list_metadata_objects` пусто | Конфигурация загружена? `dump_config`; проверить metaType/nameMask |
+| `list_metadata_objects` пусто | Конфигурация загружена? `v8-runner build` (или `v8-runner dump --mode incremental` если ИБ — источник правды); проверить metaType/nameMask |
 | `navigate_symbol` пусто | Уточнить имя (рус/лат, регистр); `ask_ai_assistant` (шаблон SEARCH_DOCS) |
 | `ask_ai_assistant` пустой результат | Переформулировать query; см. правила в `buddy-prompting` |
 | `search_ssl_functions` недоступен | Без БСП — `search_syntax_reference` + `navigate_symbol` по общим модулям |

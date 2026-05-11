@@ -1,18 +1,25 @@
 ---
 name: syntax-checking
 description: "Проверка синтаксиса (Syntax Checking). Навык учит агента **правильно использовать возможности проверки синтаксиса** BSL-кода."
+uses_capabilities:
+  - get_diagnostics
+  - syntax_check_designer_modules
+  - syntax_check_designer_config
+  - syntax_check_edt
 ---
 
 # Проверка синтаксиса (Syntax Checking)
 
 Любое изменение BSL-кода → немедленная проверка. Без проверки агент может «успешно» завершить задачу с нерабочим кодом.
 
-**Два инструмента — разная стоимость:**
+**Два уровня проверки — разная стоимость:**
 
 | Инструмент | Скорость | Когда использовать |
 |------------|----------|-------------------|
-| `get_diagnostics` | Быстро (секунды) | После каждого изменения, промежуточные проверки |
-| `check_syntax` | Медленно (десятки секунд — минуты) | Финальная проверка: перед коммитом, перед PR, после крупного рефакторинга |
+| `get_diagnostics` (LSP) | Быстро (секунды) | После каждого изменения, промежуточные проверки |
+| `v8-runner syntax …` | Медленно (десятки секунд — минуты) | Финальная проверка: перед коммитом, перед PR, после крупного рефакторинга |
+
+Серверная проверка теперь делается **только через CLI v8-runner** — отдельные MCP-tools `check_syntax`/`build_project`/`dump_config` упразднены. Подробности команд и правил выбора — в навыке `v8-runner` (`framework/skills/tool-usage/v8-runner/`).
 
 ## Когда применять
 
@@ -22,8 +29,8 @@ description: "Проверка синтаксиса (Syntax Checking). Навы�
 | Итеративная правка (цикл edit → check) | `get_diagnostics` |
 | После рефакторинга / `rename_symbol` | `get_diagnostics` по затронутым файлам |
 | Ошибка компиляции | `get_diagnostics` для локализации |
-| **Перед коммитом / перед PR** | **`check_syntax`** — финальная проверка |
-| **Завершение задачи** | **`check_syntax`** — финальный вердикт |
+| **Перед коммитом / перед PR** | **`v8-runner syntax …`** — финальная проверка |
+| **Завершение задачи** | **`v8-runner syntax …`** — финальный вердикт |
 
 ## Алгоритм проверки
 
@@ -35,21 +42,25 @@ description: "Проверка синтаксиса (Syntax Checking). Навы�
 
 ### Финальная проверка (перед коммитом)
 
-1. `check_syntax(target: "путь/Module.bsl", mode: "edt")` — режим по умолчанию.
-2. `success = false` → прочитать `errors`, исправить, повторить.
-3. EDT недоступен → fallback: `mode: "designer_modules"` (CheckModules). Требует подключения к ИБ.
-4. После рефакторинга нескольких модулей — `target: "all"` или по каждому.
+Выбор команды зависит от `format`/`builder` в `v8project.yaml` (см. `v8-runner/references/config-and-backends.md`):
 
-### Preflight: проверка доступности сеанса Конфигуратора
+```bash
+# Designer-модули (требует Designer + Designer-формат)
+v8-runner build
+v8-runner syntax designer-modules --server --thin-client
 
-**ОБЯЗАТЕЛЬНО** перед любым вызовом инструмента, работающего через Конфигуратор (`check_syntax_designer_modules`, `build_project`, `dump_config`, `launch_app`):
+# Designer-конфигурация
+v8-runner build
+v8-runner syntax designer-config
 
-1. Проверить отсутствие висящих сеансов:
-   ```bash
-   ps aux | grep "1cv8.*DESIGNER" | grep -v grep
-   ```
-2. Если найден живой процесс Designer — **убить его** (`kill <PID>`) перед запуском нового.
-3. Два одновременных сеанса Конфигуратора на одну ИБ = deadlock. Это основная причина зависаний.
+# EDT
+v8-runner build
+v8-runner syntax edt
+```
+
+Тесты (`v8-runner test yaxunit …`, `test va`) делают `build` сами — отдельный `build` перед ними не нужен.
+
+При расхождении LSP и `v8-runner syntax` — ориентироваться на v8-runner как финальный вердикт.
 
 ## Интерпретация результатов
 
@@ -58,29 +69,30 @@ description: "Проверка синтаксиса (Syntax Checking). Навы�
 | `success: true` | Продолжать |
 | `success: false` | Исправить `errors` (каждая: `file`, `line`, `message`, `severity`) |
 | `warnings` | Оценить критичность |
-| Таймаут | Сузить `target` до отдельных модулей |
+| Таймаут | Сузить scope (`--source-set <NAME>`) или вернуться к LSP по конкретным модулям |
 
 Severity: `error` (блокирует компиляцию) > `warning` > `information` / `hint`.
 
-При расхождении `get_diagnostics` и `check_syntax` — ориентироваться на `check_syntax` как финальный вердикт.
+## Capabilities и инструменты
 
-## Capabilities
-
-| Capability | Назначение | Стоимость |
-|------------|------------|-----------|
-| `get_diagnostics` | LSP-диагностика файла | Быстро — основной инструмент |
-| `check_syntax` | Формальная проверка компилятором | Медленно — только финальная проверка |
+| Capability / CLI | Назначение | Стоимость |
+|------------------|------------|-----------|
+| `get_diagnostics` (MCP `lsp-bsl-bridge`) | LSP-диагностика файла | Быстро — основной инструмент |
+| `v8-runner syntax designer-modules` | Проверка Designer-модулей через платформу | Медленно — только финальная проверка |
+| `v8-runner syntax designer-config` | Проверка Designer-конфигурации | Медленно |
+| `v8-runner syntax edt` | Проверка EDT-проекта | Медленно |
 
 ## Типичные ошибки
 
 | Ошибка | Обходной путь |
 |--------|---------------|
-| LSP не запущен | `check_syntax` как fallback |
-| EDT не запущен | `get_diagnostics` или `designer_modules` |
-| Таймаут `target: "all"` | Проверять по модулям |
-| Проект EDT не найден | Проверить путь, `sourceSet`; использовать Designer |
+| LSP не запущен | `v8-runner syntax …` как fallback |
+| Команда `syntax …` не поддерживается для текущего `format`/`builder` | См. `v8-runner/references/config-and-backends.md`; не изобретать raw `1cv8`/`ibcmd`-флаги |
+| Таймаут на полной проверке | Сузить через `--source-set <NAME>`; LSP по конкретным модулям |
+| Проект EDT не найден | Проверить `format`/`builder` и `source-set` в `v8project.yaml` |
 | Непонятные `errors` | `navigate_symbol` к месту ошибки; `ask_ai_assistant` |
 
 ---
-depends_on: []
+depends_on:
+  - framework/skills/tool-usage/v8-runner/SKILL.md
 ---

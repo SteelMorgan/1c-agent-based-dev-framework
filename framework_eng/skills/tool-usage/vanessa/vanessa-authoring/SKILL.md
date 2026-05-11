@@ -1,6 +1,9 @@
 ---
 name: vanessa-authoring
 description: "Creating and refining Vanessa Automation feature scenarios from real project requirements. Use when you need to write or update a scenario test, not just run it."
+uses_capabilities:
+  - run_vanessa
+  - build_project
 ---
 
 # Authoring Vanessa Automation Scenarios

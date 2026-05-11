@@ -39,5 +39,5 @@ depends_on:
   - framework/subagents/developer-code.md
   - framework/skills/bsl-practices/coding-standards/SKILL.md
   - framework/skills/tool-usage/code-analysis/syntax-checking/SKILL.md
-  - framework/skills/tool-usage/code-analysis/test-execution/SKILL.md
+  - framework/skills/tool-usage/v8-runner/SKILL.md
 ---

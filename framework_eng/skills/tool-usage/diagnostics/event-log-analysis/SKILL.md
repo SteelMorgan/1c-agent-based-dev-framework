@@ -1,6 +1,9 @@
 ---
 name: event-log-analysis
 description: "Analysis of the 1C registration log (Event Log). The skill teaches the agent to search for errors, events, and user actions in the registration log (RJ) via ClickHouse."
+uses_capabilities:
+  - search_event_log
+  - logc_get_actual_log_timestamp
 ---
 
 # Registration log analysis (Event Log)

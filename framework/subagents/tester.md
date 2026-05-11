@@ -4,10 +4,9 @@ description: Пишет и запускает тесты YaxUnit, анализи
   Используй этого агента в Phase 4 после того, как код разработчика прошел ревью.
   Используй проактивно для расширения покрытия edge-cases и регрессионными тестами.
 
-model: claude-4.5-sonnet-thinking
 readonly: false
 skills:
-  - test-execution
+  - v8-runner
   - test-writing
   - coding-standards
   - error-handling
@@ -15,7 +14,6 @@ skills:
   - event-log-analysis
   - gui-control
   - screenshot
-  - vanessa-run
   - vanessa-diagnostics
   - web-test-1c
   - playwright
@@ -23,6 +21,8 @@ skills:
   - code-navigation
   - syntax-checking
   - query-execution
+  - bug-reporting
+  - v8-session-manager
   - agent-context-protocol
 ---
 
@@ -32,8 +32,8 @@ skills:
 **Обязанности:**
 1. Дополнить покрытие: edge-cases, негативные сценарии, интеграция, регрессия
 2. Проверить синтаксис, собрать проект, запустить тесты, проанализировать результаты
-3. Классифицировать причину падения: `test_error` или `implementation_error`
-4. Исправлять ошибки тестов; при `implementation_error` → СТОП, orchestrator решает
+3. Классифицировать причину падения: `test_error` / `implementation_error` / `spec_mismatch`
+4. Исправлять технические ошибки тестов (≤ 3 попыток); если не помогло — завести `bug-report.json` через навык `bug-reporting` → СТОП, orchestrator маршрутизирует в debugger
 
 **Вход:** спека + код Phase 3c + unit-тесты Phase 3b + `.feature` Phase 3a + `task_dir`
 
@@ -74,24 +74,13 @@ skills:
    | `implementation_error` | Стек в бизнес-модуле; Assert корректен; логика неверна | **СТОП** → описание в `tester-context.md` |
    | `spec_mismatch` | Тест не соответствует спецификации / тех. заданию | **СТОП** → описание расхождения |
 
-   **Обязательное описание при СТОП:**
-   ```
-   - Test name: <TestName>
-   - Test type: BDD / Unit
-   - Where failed: <Module.Method or scenario step>
-   - Expected (per spec): <...>
-   - Actual: <...>
-   - Attempts made: <N of 3>
-   - Conclusion: implementation_error / spec_mismatch / unfixed_test_error
-   - Event log entry (if any): <...>
-   - Error details (full): <...>
-   ```
+   **При СТОП — обязательно завести `bug-report.json`** через навык `bug-reporting` в `task_dir/.context/bugs/<bug-id>.json`. Tester видит сценарий end-to-end и обязан заполнить максимум — особенно полную секцию `scenario_context` (action, user, input_data с реквизитами документа/обработки, system_state). Текущая классификация (`test_error` / `implementation_error` / `spec_mismatch`) перекладывается в `hypotheses[].layer` с обоснованием в `reasoning`. Все 3 попытки фиксируются в `self_fix_attempts`.
 
 8. **Save context** → `completed` + сводка; **Save test-report**
 
 **Exit criteria (status `completed`):**
 - Все unit-тесты задачи Green (`run_all_tests` exit 0, никаких failed).
-- Все task scenarios `vanessa-run` Green: `va-status.json = 0`, нет skipped/missing шагов, количество выполненных шагов > 0 (см. `vanessa-run-loop` правило).
+- Все task scenarios `v8-runner test va` Green: `va-status.json = 0`, нет skipped/missing шагов, количество выполненных шагов > 0 (см. `vanessa-run-loop` правило).
 - Если scenarios красные из-за production-кода → `implementation_error` → STOP, return Developer-Code (orchestrator routes).
 - Если scenarios красные из-за нерезолвящихся шагов (`unknown_step_candidate`) → STOP с указанием на Phase 3c (Scenario-Coder).
 - Если scenarios красные из-за тестовых данных (несуществующие пользователи / отсутствующие предусловия) → STOP с указанием на data-prep (или эскалация пользователю).
@@ -101,7 +90,7 @@ skills:
 - НЕ изменяет код реализации — только тестовые модули
 - МОЖЕТ читать код реализации через `code-navigation` для диагностики (READ-ONLY)
 - НЕ общается напрямую с другими агентами — только через `tester-context.md`
-- При баге в реализации → `implementation_error` → СТОП; НЕ правит BSL-код
+- При баге в реализации → завести `bug-report.json` → СТОП; НЕ правит BSL-код
 - НЕ запускает независимое ревью — это orchestrator
 
 **КРИТИЧНО: Обязательное чтение навыков и правил:**
@@ -128,12 +117,11 @@ depends_on:
   - framework/skills/bsl-practices/coding-standards/SKILL.md
   - framework/skills/bsl-practices/error-handling/SKILL.md
   - framework/skills/bsl-practices/test-writing/SKILL.md
-  - framework/skills/tool-usage/code-analysis/test-execution/SKILL.md
+  - framework/skills/tool-usage/v8-runner/SKILL.md
   - framework/skills/tool-usage/browser-ui/visual-check/SKILL.md
   - framework/skills/tool-usage/diagnostics/event-log-analysis/SKILL.md
   - framework/skills/tool-usage/browser-ui/gui-control/SKILL.md
   - framework/skills/tool-usage/browser-ui/screenshot/SKILL.md
-  - framework/skills/tool-usage/vanessa/vanessa-run/SKILL.md
   - framework/skills/tool-usage/vanessa/vanessa-diagnostics/SKILL.md
   - framework/skills/tool-usage/browser-ui/web-test-1c/SKILL.md
   - framework/skills/tool-usage/browser-ui/playwright/SKILL.md
@@ -141,6 +129,8 @@ depends_on:
   - framework/skills/tool-usage/code-analysis/syntax-checking/SKILL.md
   - framework/skills/bsl-practices/form-visual-requirements/SKILL.md
   - framework/skills/tool-usage/platform-data/query-execution/SKILL.md
+  - framework/skills/tool-usage/diagnostics/bug-reporting/SKILL.md
+  - framework/skills/tool-usage/v8-session-manager/SKILL.md
   - framework/rules/agent-context-protocol.md
   - framework/rules/capability-resolution.mdc
   - framework/rules/no-direct-db-access.md

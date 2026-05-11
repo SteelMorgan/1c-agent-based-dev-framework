@@ -5,7 +5,7 @@ description: TDD policy - tests are written before implementation and fixed in t
 
 # TDD Policy (Test-Driven Development)
 
-> Tests and implementation are written by **different agents** in **different phases**. The author of the tests does not know the implementation, and the author of the code does not modify the tests.
+> Tests and implementation are written by **different agents** in **different phases**. The test author does not know the implementation, and the code author does not modify the tests.
 
 ```
 Phase 3a: Scenario-Author  → .feature (BDD)   ┐ параллельно
@@ -57,6 +57,6 @@ Test failed
 ---
 depends_on:
   - framework/rules/sdd-policy.md
-  - framework/skills/tool-usage/code-analysis/test-execution/SKILL.md
+  - framework/skills/tool-usage/v8-runner/SKILL.md
   - framework/skills/spec-writing/spec-standard/SKILL.md
 ---

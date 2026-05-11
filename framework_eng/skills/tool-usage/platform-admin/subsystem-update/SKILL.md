@@ -1,16 +1,16 @@
 ---
 name: subsystem-update
-description: "Initialize the БСП subsystem update — block sessions, launch update handlers, and verify the result through the event log and the ВерсииПодсистем register."
+description: "Initialize the БСП subsystem update - lock sessions, run update handlers, and verify the result through the event log and the ВерсииПодсистем register."
 ---
 
 # Updating the БСП subsystem
 
-## When to Apply
+## When to use
 
 | Trigger | Action |
-|---------|----------|
-| An update handler with a new version was added | Run the full update cycle |
-| The handler needs to be run again | Reset the version in the register, then run the full cycle |
+|---------|--------|
+| An update handler with a new version has been added | Run the full update cycle |
+| You need to rerun the handler | Reset the version in the register, then run the full cycle |
 | The update did not work | Diagnose through the event log |
 
 ---
@@ -19,13 +19,11 @@ description: "Initialize the БСП subsystem update — block sessions, launch 
 
 1. The handler is registered in the subsystem update module (for example `ОбновлениеИнформационнойБазыXXX`)
 2. The subsystem module is registered in `ИнтеграцияПодсистемБСП.ПриДобавленииПодсистем`
-3. The project is built (`build_project`) — code changes are loaded into the database
+3. The project is built (`v8-runner build`) - code changes are loaded into the DB
 
----
+## Full update cycle
 
-## Full Update Cycle
-
-### Step 1. Check the Current Version
+### Step 1. Check the current version
 
 ```
 ВЫБРАТЬ ИмяПодсистемы, Версия
@@ -33,17 +31,17 @@ description: "Initialize the БСП subsystem update — block sessions, launch 
 ГДЕ ИмяПодсистемы = "ИМЯ_ПОДСИСТЕМЫ"
 ```
 
-БСП will run the handler only if the version in the register is **<** the handler version.
+БСП will execute the handler only if the version in the register is **<** the handler version.
 
 ### Step 2. Lock the database
 
-Handlers with `МонопольныйРежим = Истина` require that no other sessions are active.
+Handlers with `МонопольныйРежим = Истина` require no other sessions to be active.
 
 ```bash
-# Данные подключения: <project_root>/configs/yaxunit-runner.yml → app.connection
-# cluster_uuid и infobase_uuid: <project_root>/configs/cluster_map.yaml
+# Connection data: <project_root>/configs/yaxunit-runner.yml → app.connection
+# cluster_uuid and infobase_uuid: <project_root>/configs/cluster_map.yaml
 
-# Заблокировать новые сеансы и регламентные задания
+# Deny new sessions and scheduled jobs
 rac infobase update \
   --cluster=<cluster_uuid> \
   --infobase=<infobase_uuid> \
@@ -54,14 +52,14 @@ rac infobase update \
   --permission-code=UpdateIB \
   <ras_host>:<ras_port>
 
-# Завершить все оставшиеся сеансы
+# Terminate all remaining sessions
 rac session list --cluster=<cluster_uuid> --infobase=<infobase_uuid> <ras_host>:<ras_port>
 
-# Для каждого сеанса:
+# For each session:
 rac session terminate --cluster=<cluster_uuid> --session=<session_uuid> <ras_host>:<ras_port>
 ```
 
-### Step 3. Start the update
+### Step 3. Run the update
 
 ```bash
 /opt/1cv8/current/1cv8c ENTERPRISE \
@@ -72,9 +70,9 @@ rac session terminate --cluster=<cluster_uuid> --session=<session_uuid> <ras_hos
   /DisableStartupDialogs
 ```
 
-The `/UC"UpdateIB"` parameter is the permission code that matches the `--permission-code` from step 2.
+The `/UC"UpdateIB"` parameter is the permission code matching `--permission-code` from step 2.
 
-Expected result: the process will finish automatically (30-120 seconds depending on data volume).
+Expected: the process will finish automatically (30-120 sec depending on data volume).
 
 ### Step 4. Remove the lock
 
@@ -90,9 +88,9 @@ rac infobase update \
   <ras_host>:<ras_port>
 ```
 
-### Step 5. Verify the Result
+### Step 5. Check the result
 
-1. **Version in the register** — should be updated to the target value:
+1. **Version in the register** - it should be updated to the target version:
 
 ```
 ВЫБРАТЬ ИмяПодсистемы, Версия
@@ -100,37 +98,37 @@ rac infobase update \
 ГДЕ ИмяПодсистемы = "ИМЯ_ПОДСИСТЕМЫ"
 ```
 
-2. **Event log** — check for errors during the update window:
-   - `logc_get_event_log(level='Error', from=<время_запуска>)` — there should be no `information base update` errors
-   - `logc_get_event_log(level='Information', from=<время_запуска>)` — look for entries from your handler
+2. **Event log** - check errors during the update:
+   - `logc_get_event_log(level='Error', from=<время_запуска>)` - there should be no `information base update` errors
+   - `logc_get_event_log(level='Information', from=<время_запуска>)` - look for entries from your handler
 
 ---
 
-## Rerunning the Handler
+## Rerunning the handler
 
-If the handler has already run (the version in the register is >= the handler version), БСП will skip it.
+If the handler has already run (version in the register >= handler version), БСП will skip it.
 
-Ways to rerun it:
-- **Increase the version** of the handler (1.0.0.1 → 1.0.0.2) — recommended approach
-- **Reset the version** in the register via direct SQL to the DBMS — for debugging only
-
----
-
-## Common Errors
-
-| Error | Reason | Solution |
-|--------|---------|---------|
-| Cannot set exclusive mode | Active sessions in the database | Step 2: block and terminate all sessions |
-| Update is already running | A hung session from the previous attempt | Terminate the hung session via `rac session terminate` |
-| Object method not found (ПередОбновлениемИнформационнойБазы) | The subsystem module lacks the mandatory callback procedures | Add the 6 required stub procedures (see the template below) |
-| The handler did not run (the version did not change) | The version in the register is >= the handler version | Query the current version, and increase it if necessary |
-| The configuration was updated but the handler did not run | The handler is registered twice or in the wrong subsystem | Check by grepping the procedure name across all modules |
+Rerun options:
+- **Increase the version** of the handler (1.0.0.1 -> 1.0.0.2) - recommended
+- **Reset the version** in the register via direct SQL against the DBMS - debugging only
 
 ---
 
-## Subsystem Update Module Template
+## Typical errors
 
-Minimal set of mandatory procedures for the `ОбновлениеИнформационнойБазыXXX` module:
+| Error | Cause | Solution |
+|-------|-------|----------|
+| Cannot set exclusive mode | Active sessions in the database | Step 2: lock + terminate all sessions |
+| The update is already running | A stuck session from the previous attempt | Terminate the stuck session via `rac session terminate` |
+| Object method not found (ПередОбновлениемИнформационнойБазы) | The subsystem module does not contain the required callback procedures | Add 6 required stub procedures (see the template below) |
+| The handler was not invoked (version did not change) | Version in the register >= handler version | Check the current version with a query, increase it if necessary |
+| The configuration was updated, but the handler did not run | The handler is registered twice or in the wrong subsystem | Check grep for the procedure name in all modules |
+
+---
+
+## Subsystem update module template
+
+Minimum required procedures for the `ОбновлениеИнформационнойБазыXXX` module:
 
 ```bsl
 #Область ПрограммныйИнтерфейс

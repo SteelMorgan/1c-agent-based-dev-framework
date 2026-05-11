@@ -1,20 +1,26 @@
 ---
 name: code-navigation
-description: "Code Navigation (Code Navigation). The skill teaches the agent to **efficiently navigate BSL code** using LSP (Language Server Protocol)."
+description: "Code navigation (Code Navigation). The skill teaches the agent to **efficiently navigate BSL code** using LSP (Language Server Protocol)."
+uses_capabilities:
+  - navigate_symbol
+  - get_call_graph
+  - get_code_actions
+  - rename_symbol
+  - search_ssl_functions
 ---
 
-# Code Navigation (Code Navigation)
+# Code navigation (Code Navigation)
 
-Don't guess where the code lives — use LSP. Precise results are based on the project index.
+Do not guess where the code lives - use LSP. Precise results come from the project index.
 
 ## When to apply
 
 | Trigger | Action |
 |---------|--------|
-| Finding the definition of a procedure/function | `navigate_symbol` operation `definition` |
+| Finding definitions of a procedure/function | `navigate_symbol` operation `definition` |
 | All calls to function X | `navigate_symbol` `search` or `get_call_graph` `incoming` |
-| Who a function calls | `get_call_graph` `outgoing` |
-| Project-wide rename | `rename_symbol` (start with `preview: true`) |
+| What a function calls | `get_call_graph` `outgoing` |
+| Project-wide rename | `rename_symbol` (first `preview: true`) |
 | Quick Fixes | `get_code_actions` |
 | File diagnostics | `get_diagnostics` |
 | Investigating unfamiliar code | `navigate_symbol` → `get_call_graph` → hover |
@@ -36,19 +42,19 @@ Don't guess where the code lives — use LSP. Precise results are based on the p
 
 ### Quick Fixes
 
-1. `get_diagnostics(uri)` → list the diagnostics
-2. `get_code_actions(uri, range, diagnostic)` → apply them
+1. `get_diagnostics(uri)` → list of diagnostics
+2. `get_code_actions(uri, range, diagnostic)` → apply
 
 ### Platform API verification after an error
 
-**Trigger:** "Object method not found" / "Wrong number of parameters" error on a platform type. Don't guess again — verify.
+**Trigger:** error "Method not found" / "Wrong number of parameters" on a platform type. Do not guess again - verify.
 
-1. `search_syntax_reference(query: "ТипОбъекта")` → confirm the name, get the `id`
-2. `getMembers(typeId)` → the exact list of methods/properties
-3. `getMember(typeId, member)` → the signature of the specific method
-4. `getConstructors(typeId)` → if the error refers to `Новый` parameters
+1. `search_syntax_reference(query: "ТипОбъекта")` → confirm the name, get `id`
+2. `getMembers(typeId)` → exact list of methods/properties
+3. `getMember(typeId, member)` → signature of the specific method
+4. `getConstructors(typeId)` → if the error is about `Новый` parameters
 
-**Important:** Only react after an error appears, not proactively search.
+**Important:** Only react to the error, do not search proactively.
 
 ## Capabilities
 
@@ -68,10 +74,10 @@ Don't guess where the code lives — use LSP. Precise results are based on the p
 | Error | Workaround |
 |-------|------------|
 | LSP is not connected | Check `lsp_status`; start the BSL Language Server |
-| Symbol not found | Verify the name (case, language); `ask_ai_assistant` (SEARCH_DOCS template from `buddy-prompting`) by method/type name |
+| Symbol not found | Check the name (case, language); `ask_ai_assistant` (SEARCH_DOCS template from `buddy-prompting`) by method/type name |
 | `get_call_graph` timeout | Decrease `depth` |
-| `rename_symbol` not applicable | Check the cursor position; protected region → edit manually |
-| File not indexed | Wait for the LSP indexing |
+| `rename_symbol` not applicable | Check the cursor position; protected area → manual editing |
+| File not indexed | Wait for LSP indexing |
 
 ---
 depends_on: []

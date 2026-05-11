@@ -3,13 +3,13 @@ name: analyst
 description: Анализирует требования и создает спецификации MADR 4.0 для проектов 1С BSL.
   Используй этого агента, когда задаче нужна формальная спецификация перед реализацией.
   Используй проактивно для средних и сложных задач.
-model: claude-4.6-opus-high-thinking
 readonly: true
 skills:
   - spec-standard
   - metadata-discovery
   - query-execution
   - form-info
+  - v8-session-manager
   - agent-context-protocol
 ---
 
@@ -96,6 +96,7 @@ depends_on:
   - framework/skills/tool-usage/platform-data/query-execution/SKILL.md
   - framework/skills/tool-usage/forms/form-info/SKILL.md
   - framework/skills/tool-usage/platform-data/nav-link/SKILL.md
+  - framework/skills/tool-usage/v8-session-manager/SKILL.md
   - framework/rules/agent-context-protocol.md
   - framework/rules/capability-resolution.mdc
   - framework/rules/no-direct-db-access.md

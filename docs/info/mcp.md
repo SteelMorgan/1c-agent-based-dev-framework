@@ -10,15 +10,36 @@
 
 ## Доступ «внутрь 1С» для агента
 1. MCP Server 1C: [RooLee10/1c-mcp-tools](https://github.com/RooLee10/1c-mcp-tools) — выполнение запросов, получение метаданных и др. <<КОД 1С>>
+2. **Расширения 1С с собственным MCP-сервером** — теперь это отдельный слой архитектуры: расширение 1С реализует tools и подключается к менеджеру сессий по WebSocket (см. ниже). Агент видит эти tools на единой MCP-витрине менеджера, а не как отдельный сервер на порт.
+
+## MCP-витрина менеджера сессий (v8-session-manager)
+
+Репозиторий: [1c-neurofish/v8-session-manager](https://github.com/1c-neurofish/v8-session-manager).
+
+Раньше для каждого 1С-клиента, желающего опубликовать tools агенту, нужен был отдельный HTTP-MCP-сервер на отдельный порт (legacy `runMcp`-режим). Это плохо масштабируется и требует ручной координации портов между клиентами.
+
+Сейчас:
+- 1С-клиент (`1cv8c`) с расширением `mcp_client` подключается к **менеджеру сессий** по WebSocket и публикует свои tools через `tools/publish`.
+- Менеджер агрегирует tools всех подключённых клиентов и публикует их на одном HTTP-MCP-эндпоинте — это и есть витрина для агента.
+- Запуск 1С-клиента в WS-режиме делает [v8-runner](https://github.com/SteelMorgan/v8-runner) (`launch mcp`, `launch mcp va`, `test yaxunit ...`, `test va ...`) — он сам выбирает транспорт `auto` / `ws` / `legacy`, пробуя достучаться до менеджера на `manager_url`.
+- Маршрутизация в нужную сессию идёт по `session_id`, который менеджер инжектит в `input_schema` опубликованного tool. Один встроенный tool менеджера — `session_list` (read-only снимок реестра).
+
+Что это даёт фреймворку:
+- Один порт для агента, сколько бы клиентов 1С не было запущено.
+- Soft-reconnect клиента по `client_uid`: переподключение → та же сессия → та же очередь.
+- FIFO-порядок вызовов в одну сессию, round-robin между равнозначными.
+- Возможность параллельно держать в реестре несколько ИБ — записи различаются по `infobase_name` и `ib_session_number`.
+
+Подробности — навыки [`framework/skills/tool-usage/v8-session-manager/`](../../framework/skills/tool-usage/v8-session-manager/) и [`framework/skills/tool-usage/v8-runner/`](../../framework/skills/tool-usage/v8-runner/).
 
 ## Loopback для агента
-1. MCP YaxUnit Test Runner: [alkoleft/mcp-onec-test-runner](https://github.com/alkoleft/mcp-onec-test-runner) — теперь «дармовые» юнит-тесты + автоматизация сборки/разборки базы.
+1. **v8-runner CLI** ([SteelMorgan/v8-runner](https://github.com/SteelMorgan/v8-runner)) — единый инструмент сборки/разборки ИБ, синтаксических проверок, прогона YaXUnit и Vanessa Automation, запуска клиентов 1С (включая WS-подключение к менеджеру сессий). Заменил отдельный MCP `mcp-onec-test-runner` для большинства сценариев.
 2. MCP Log Checker: [SteelMorgan/1c-log-checker](https://github.com/SteelMorgan/1c-log-checker) — доступ к ЖР и ТЖ для обеспечения loopback. (ТЖ сильно не тестил, пока не было подходящих задач. С Event Log проблемы пофиксил, вроде работает стабильно.)
-3. Здесь не хватает инструмента для сценарного тестирования.
+3. Сценарное тестирование закрывается через `v8-runner test va` + расширение `vanessa_test_client` на витрине менеджера (для интерактивного авторинга и debugging — `v8-runner launch mcp va`).
 
 ## Методология MCP + SKILL
 Есть три слоя:
-1. MCP Tool и его описание. Tool-ы реализуют возможности (Capability).
+1. MCP Tool и его описание. Tool-ы реализуют возможности (Capability). Источник tool — либо отдельный MCP-сервер, либо 1С-расширение, опубликованное через витрину менеджера сессий (см. выше).
 2. Навык, описывающий применение возможности (рабочий сценарий). Носит рекомендательный характер.
 3. Правило, фиксирующее обязательные рамки применения навыка, то есть когда обязательно использовать возможность.
 
@@ -31,11 +52,12 @@
 |------------|-------------|-------------|
 | platform-context | [alkoleft/mcp-bsl-platform-context](https://github.com/alkoleft/mcp-bsl-platform-context) | search-before-write |
 | copilot-proxy | [SteelMorgan/spring-mcp-1c-copilot](https://github.com/SteelMorgan/spring-mcp-1c-copilot) | search-before-write |
-| test-runner | [alkoleft/mcp-onec-test-runner](https://github.com/alkoleft/mcp-onec-test-runner) | syntax-checking, test-execution |
 | log-checker | [SteelMorgan/1c-log-checker](https://github.com/SteelMorgan/1c-log-checker) | log-analysis |
 | metadata-tools | [RooLee10/1c-mcp-tools](https://github.com/RooLee10/1c-mcp-tools) | metadata-discovery |
 | batch-ops | [vladimir-kharin/1c-batch](https://github.com/vladimir-kharin/1c-batch) | — |
 | lsp-bridge | [SteelMorgan/mcp-bsl-lsp-bridge](https://github.com/SteelMorgan/mcp-bsl-lsp-bridge) | code-navigation |
+| v8-session-manager | [1c-neurofish/v8-session-manager](https://github.com/1c-neurofish/v8-session-manager) | витрина для tools 1С-расширений (`vanessa_test_client`, `yaxunit_runner`, `v8_runner_client`) |
+| ~~test-runner~~ | ~~[alkoleft/mcp-onec-test-runner](https://github.com/alkoleft/mcp-onec-test-runner)~~ | **упразднён** — заменён CLI [v8-runner](https://github.com/SteelMorgan/v8-runner) (build / syntax / tests / dump) |
 
 ## Навык или MCP?
 Если то, что вы делаете, можно выполнить одним скриптом — лучше сделайте сразу навык, который опишет, как этим скриптом пользоваться. Это текущий глобальный стандарт от Anthropic.

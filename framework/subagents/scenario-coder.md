@@ -8,15 +8,18 @@ description: >
   ДО developer-code (3d). Red-гейт - сценарии MUST падать из-за отсутствия
   прод-кода, а не из-за `TODO` в шаге.
 
-model: claude-4.5-sonnet-thinking
 readonly: false
 skills:
   - vanessa-authoring
   - search-before-write
   - coding-standards
   - syntax-checking
+  - v8-runner
+  - vanessa-diagnostics
   - code-navigation
   - form-info
+  - bug-reporting
+  - v8-session-manager
   - agent-context-protocol
 ---
 
@@ -77,20 +80,20 @@ skills:
 - **НЕ моки на Red-гейте.** Шаги вызывают реальный прод-API (или его ещё не существующий контракт), не заглушки. Сценарий должен падать из-за отсутствия прод-реализации.
 - **НЕ бизнес-логика в шаге.** Шаг — тонкая обёртка: оркестрация UI/вызова + трансляция ассерта. Вычисления, бизнес-правила — в прод-коде.
 - **НЕ расширяет scope.** Реализует ровно те шаги, которые требуются текущим набором `.feature` Phase 3a. Никаких «полезных шагов впрок».
-- **НЕ запускает полный regression** — только `vanessa-run` на сценариях задачи для подтверждения Red-гейта (см. Red-гейт ниже).
+- **НЕ запускает полный regression** — только `v8-runner test va` на сценариях задачи для подтверждения Red-гейта (см. Red-гейт ниже).
 - **НЕ общается напрямую с другими сабагентами.**
 
 ---
 
 ## Red-гейт (MUST)
 
-После реализации шагов запусти сценарии через `vanessa-run` (навык `vanessa-run-loop`) и убедись:
+После реализации шагов запусти сценарии через `v8-runner test va` (правило `vanessa-run-loop`, навык `v8-runner`) и убедись:
 
 1. Все шаги **резолвятся** (Vanessa не сообщает о неизвестных шагах).
 2. Сценарии **падают** на прод-поведении (например, «форма не открылась», «документ не найден», «ассерт по состоянию не прошёл»), а не на инфраструктуре шага.
 3. В `scenario-coder-context.md` — сводка: для каждого сценария кратко «какой шаг упал и почему это ожидаемое Red».
 
-Если сценарий **зелёный** до написания прод-кода — это сигнал, что шаг мокает реальность. Найти и удалить мок/подмену.
+Если сценарий **зелёный** до написания прод-кода — это сигнал, что шаг мокает реальность. Найти и удалить мок/подмену. Если за 2 попытки причина зелёного Red-гейта не найдена ИЛИ шаг падает с неочевидной причиной — завести `bug-report.json` через навык `bug-reporting` в `task_dir/.context/bugs/<bug-id>.json` → СТОП. В отчёте обязательны: `expectation` (Acceptance Scenario из спеки + ожидаемое Red-поведение), `scenario_context` (заполняется из Given-блоков `.feature`), гипотеза `layer: step` если подозрение на скрытый мок.
 
 ---
 
@@ -104,7 +107,7 @@ skills:
 6. **Implement steps** — в приоритете `@exportscenarios` подсценарии; BSL-шаги в support — только с обоснованием.
 7. **Update pointer scenarios** — замени `# unknown_step_candidate: ...` в Phase 3a `.feature` на вызов реализованного шага (минимальная правка).
 8. **Check syntax** — статический анализ BSL-шагов (если были написаны).
-9. **Red-gate run** — `vanessa-run` по сценариям задачи; зафиксируй ожидаемые падения.
+9. **Red-gate run** — `v8-runner test va` по сценариям задачи; зафиксируй ожидаемые падения.
 10. **Update context** → `completed` с перечнем: какие шаги переиспользованы, какие созданы, где размещены, обоснования для support-шагов, сводка Red-гейта.
 
 ---
@@ -131,12 +134,15 @@ skills:
 ---
 depends_on:
   - framework/skills/tool-usage/vanessa/vanessa-authoring/SKILL.md
-  - framework/skills/tool-usage/vanessa/vanessa-run/SKILL.md
+  - framework/skills/tool-usage/v8-runner/SKILL.md
+  - framework/skills/tool-usage/vanessa/vanessa-diagnostics/SKILL.md
   - framework/skills/tool-usage/code-analysis/search-before-write/SKILL.md
   - framework/skills/bsl-practices/coding-standards/SKILL.md
   - framework/skills/tool-usage/code-analysis/syntax-checking/SKILL.md
   - framework/skills/tool-usage/code-analysis/code-navigation/SKILL.md
   - framework/skills/tool-usage/forms/form-info/SKILL.md
+  - framework/skills/tool-usage/diagnostics/bug-reporting/SKILL.md
+  - framework/skills/tool-usage/v8-session-manager/SKILL.md
   - framework/rules/agent-context-protocol.md
   - framework/rules/capability-resolution.mdc
   - framework/rules/no-direct-db-access.md

@@ -1,6 +1,9 @@
 ---
 name: query-execution
 description: "Выполнение запросов (Query Execution). Навык учит агента **проверять и выполнять запросы на языке запросов 1С** — валидация синтаксиса перед выполнением, получение данных из базы."
+uses_capabilities:
+  - validate_query
+  - execute_query
 ---
 
 # Выполнение запросов (Query Execution)

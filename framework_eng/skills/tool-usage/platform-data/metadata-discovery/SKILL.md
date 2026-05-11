@@ -1,6 +1,9 @@
 ---
 name: metadata-discovery
-description: "Working with metadata (Metadata Discovery). The skill teaches the agent **to work with 1C configuration metadata** — to find objects (catalogs, documents, registers, processors) and understand their structure and relationships."
+description: "Working with metadata (Metadata Discovery). The skill teaches the agent **to work with 1C configuration metadata** — to find objects (catalogs, documents, registers, data processors), understand their structure and relationships."
+uses_capabilities:
+  - list_metadata_objects
+  - get_metadata_structure
 ---
 
 # Working with metadata (Metadata Discovery)
@@ -14,7 +17,7 @@ description: "Working with metadata (Metadata Discovery). The skill teaches the 
 | `list_metadata_objects` | metaType, nameMask, maxItems | Search for objects by type and name mask |
 | `get_metadata_structure` | metaType, name | Structure: attributes, tabular sections, dimensions, resources |
 | `navigate_symbol` | — | Jump to the modules or procedures of the found objects |
-| `get_call_graph` | — | Analyze the call chains inside the modules |
+| `get_call_graph` | — | Analyze the call chains in the modules |
 
 ## Workflow
 

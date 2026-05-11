@@ -85,13 +85,37 @@ Notification о завершении приходит только по exit. Д
 | BLOCK на артефакт | Reviewer | Вернуть автору с замечаниями |
 | Баг в реализации | Tester (`implementation_error`) | Вернуть Developer-Code с описанием |
 | Ошибка в тесте | Tester (`test_error`) | Tester исправляет сам |
-| Тесты упали | Developer-Code (`test_failure`) | Reviewer определяет причину → маршрутизация |
-| `test_failure` + `suspected_test_error` | Developer-Code | Reviewer-арбитраж: spec + design + тесты + код → `reviewer-context-code.md` → маршрутизация в Scenario-Author / Developer-Tests / Developer-Code |
-| `test_failure` + `suspected_step_error` (сценарный тест) | Developer-Code | Reviewer-арбитраж: spec + design + `.feature` + реализованные шаги + код → маршрутизация в Scenario-Author / Scenario-Coder / Developer-Code |
+| Тесты упали | Developer-Code (`test_failure`) | Если есть `bug-report.json` → Debugger; иначе требовать bug-report |
+| `bug-report.json` создан (любой агент) | Developer-Code / Tester / Scenario-Coder | Запустить Debugger (см. § 4a) |
 | `clarification_needed` от Scenario-Coder (нет API в design) | Scenario-Coder | Вернуть в Phase 2 к Architect для доопределения контракта |
 | 3+ итерации BLOCK | Любой | Эскалация пользователю |
 
 **Контроль пинг-понга:** возвраты не продвигают задачу → эскалация пользователю или смена подхода.
+
+### 3a. Маршрутизация bug-report → Debugger
+
+Когда сабагент-репортёр (`developer-code`, `tester`, `scenario-coder`) исчерпал лимит самовосстановления, он создаёт `task_dir/.context/bugs/<bug-id>.json` со статусом `open` через навык `bug-reporting`.
+
+**Действия оркестратора:**
+
+1. **Проверка bug-report.** Прочитать `bug-report.json`. Обязательные поля заполнены? Цитата `expectation.quote` есть? `self_fix_attempts` непустой? Нет → вернуть репортёру с указанием «доформируй bug-report по навыку bug-reporting», НЕ запускать Debugger.
+2. **Проверка класса.** Если на самом деле это:
+   - Неоднозначность требований → переклассифицировать в `clarification_needed` к пользователю.
+   - Отсутствие API в design → возврат Architect.
+   - `environment_error` (БД/инфра) → infra-обработка, не Debugger.
+3. **Запуск Debugger** (background, model: claude-4.6-opus-high-thinking) с задачей: `task_dir` + путь к `bug-report.json`. Записать agentId в `sessions.json`. Перевести `bug-report.status: in_investigation`.
+4. **Обработка результата Debugger** по `bug-report.status` после расследования:
+   - `fixed_locally` → запустить Reviewer(scope=`debug`) на `debug-report.md` + изменённые файлы. Pass → продолжить фазу. BLOCK → вернуть Debugger (макс. 1 итерация на debug-fix; вторая — эскалация).
+   - `returned_to_author` → маршрутизировать профильному агенту по `debug-report.recommendation` (Analyst / Architect / Developer-Code / Developer-Tests / Scenario-Author / Scenario-Coder).
+   - `escalated_to_user` → эскалация пользователю с прикреплённым `debug-report.md`.
+5. **Запрос на L7 (техжурнал)** от Debugger → оркестратор переспрашивает пользователя по `escalation-format.md` (Что → Почему → Варианты → Рекомендация). Без явного согласия — НЕ разрешать.
+6. **Запрос на расширение лимита гипотез +3** от Debugger → оркестратор оценивает обоснование (есть ли `evidence_from_trace` для следующей гипотезы). Если высокая уверенность — разрешить (max 8 всего). Если низкая — эскалация пользователю.
+
+**Лимит цикла bug→fix→bug = 2.** Если тот же симптом порождает третий bug-report → эскалация пользователю (debugger или маршрутизация по слоям не справляются, нужно бизнес-решение).
+
+**Контракт антишума:** bug-report без `expectation.quote` или с пустым `self_fix_attempts` НЕ принимается оркестратором — это нарушение навыка `bug-reporting`. Возврат репортёру.
+
+ЛОГ: `BUG_OPEN: <bug-id> reporter=<agent>` / `BUG_INVESTIGATION: <bug-id>` / `BUG_FIXED: <bug-id>` / `BUG_RETURNED: <bug-id> → <agent>` / `BUG_ESCALATED: <bug-id>`.
 
 ### 4. Арбитраж и расследование
 
@@ -379,6 +403,11 @@ Phase 3 идёт строго последовательно: 3a → 3b → 3c �
 | `ESCALATE` | Эскалация | `ESCALATE: 3+ BLOCK на spec` |
 | `RESUME` | Возобновление сессии | `RESUME: продолжаем с Phase 3c` |
 | `INFOSTART_AUDIT` | После каждой фазы | `INFOSTART_AUDIT: phase=3b, calls=2, solved=1, cargo_cult=1` |
+| `BUG_OPEN` | Bug-report создан | `BUG_OPEN: bug-T-042-001 reporter=developer-code` |
+| `BUG_INVESTIGATION` | Запуск Debugger | `BUG_INVESTIGATION: bug-T-042-001` |
+| `BUG_FIXED` | Локальный фикс дебаггером | `BUG_FIXED: bug-T-042-001` |
+| `BUG_RETURNED` | Возврат профильному агенту | `BUG_RETURNED: bug-T-042-001 → architect` |
+| `BUG_ESCALATED` | Эскалация по багу | `BUG_ESCALATED: bug-T-042-001` |
 | `DONE` | Завершение | `DONE: задача выполнена` |
 
 Дописывать в существующий лог, не перезаписывать.
@@ -418,4 +447,7 @@ depends_on:
   - framework/skills/tool-usage/review/cross-provider-review/SKILL.md
   - framework/subagents/scenario-author.md
   - framework/subagents/scenario-coder.md
+  - framework/subagents/debugger.md
+  - framework/skills/tool-usage/diagnostics/bug-reporting/SKILL.md
+  - framework/skills/tool-usage/diagnostics/runtime-investigation/SKILL.md
 ---

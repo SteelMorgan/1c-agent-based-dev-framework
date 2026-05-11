@@ -56,8 +56,8 @@ According to the [decision tree](#classification-decision-tree).
 The completion notification arrives only on exit. Until then a subagent may hang, fall into a zombie state, or silently do the wrong work (dirty configuration, wrong scope). To avoid losing hours on "it's still working over there", the orchestrator **MUST** periodically check status.
 
 **Rules:**
-- For background subagents and background bash tasks lasting **> 5 min** the orchestrator performs a short health-check **roughly every 15 min**: Read of the output file (tail / latest entries), `ls` of artifacts, `grep` for key markers in the subagent logs or its `{role}-context.md`.
-- The health-check is **NOT recorded** in `orchestrator-context.md` (that would be noise). An entry is added ONLY when an anomaly is found — and then it is a regular log event (`HEALTHCHECK_ANOMALY:`, `RESTART:`, `SCOPE_CORRECTION:`).
+- For background subagents and background bash tasks lasting **> 5 min** the orchestrator performs a short health-check **roughly every 15 min**: Read the output file (tail / latest entries), `ls` of artifacts, `grep` for key markers in the subagent logs or its `{role}-context.md`.
+- Health-check **is NOT recorded** in `orchestrator-context.md` (it is noise). An entry is added ONLY if an anomaly is found — and then the usual log event (`HEALTHCHECK_ANOMALY:`, `RESTART:`, `SCOPE_CORRECTION:`).
 - If a process is stuck / doing the wrong thing / artifacts are not growing — the orchestrator has the right to interrupt (`TaskStop`) and re-launch the subagent with the correct scope.
 - This does NOT replace the notification-driven flow for short tasks (< 5 min); it is a safety net for long ones.
 
@@ -85,63 +85,87 @@ The list is stored in the orchestrator's memory for routing.
 | BLOCK on an artifact | Reviewer | Return to the author with comments |
 | Bug in implementation | Tester (`implementation_error`) | Return to Developer-Code with a description |
 | Error in a test | Tester (`test_error`) | Tester fixes it themselves |
-| Tests failed | Developer-Code (`test_failure`) | Reviewer determines the cause → routing |
-| `test_failure` + `suspected_test_error` | Developer-Code | Reviewer arbitration: spec + design + tests + code → `reviewer-context-code.md` → routing to Scenario-Author / Developer-Tests / Developer-Code |
-| `test_failure` + `suspected_step_error` (scenario test) | Developer-Code | Reviewer arbitration: spec + design + `.feature` + implemented steps + code → routing to Scenario-Author / Scenario-Coder / Developer-Code |
-| `clarification_needed` from Scenario-Coder (no API in design) | Scenario-Coder | Return to Phase 2 to the Architect for contract refinement |
+| Tests failed | Developer-Code (`test_failure`) | If there is `bug-report.json` → Debugger; otherwise require bug-report |
+| `bug-report.json` created (any agent) | Developer-Code / Tester / Scenario-Coder | Launch Debugger (see § 4a) |
+| `clarification_needed` from Scenario-Coder (no API in design) | Scenario-Coder | Return to Phase 2 to Architect for contract refinement |
 | 3+ BLOCK iterations | Any | Escalate to the user |
 
 **Ping-pong control:** returns do not move the task forward → escalate to the user or change the approach.
+
+### 3a. Routing bug-report → Debugger
+
+When a reporting subagent (`developer-code`, `tester`, `scenario-coder`) exhausts the self-recovery limit, it creates `task_dir/.context/bugs/<bug-id>.json` with status `open` via the `bug-reporting` skill.
+
+**Orchestrator actions:**
+
+1. **Check the bug-report.** Read `bug-report.json`. Are the required fields filled in? Is the `expectation.quote` present? Is `self_fix_attempts` non-empty? No → return to the reporter with the note "complete the bug-report via the bug-reporting skill", DO NOT launch Debugger.
+2. **Check the class.** If this is actually:
+   - Requirement ambiguity → reclassify to `clarification_needed` for the user.
+   - Missing API in the design → return to Architect.
+   - `environment_error` (DB/infra) → infra handling, not Debugger.
+3. **Launch Debugger** (background, model: claude-4.6-opus-high-thinking) with the task: `task_dir` + path to `bug-report.json`. Record the agentId in `sessions.json`. Set `bug-report.status: in_investigation`.
+4. **Process the Debugger result** according to `bug-report.status` after the investigation:
+   - `fixed_locally` → launch Reviewer(scope=`debug`) on `debug-report.md` + changed files. Pass → continue the phase. BLOCK → return the Debugger (max. 1 iteration for debug-fix; the second — escalation).
+   - `returned_to_author` → route to the appropriate agent by `debug-report.recommendation` (Analyst / Architect / Developer-Code / Developer-Tests / Scenario-Author / Scenario-Coder).
+   - `escalated_to_user` → escalate to the user with the attached `debug-report.md`.
+5. **Request for L7 (technical journal)** from the Debugger → the orchestrator re-asks the user according to `escalation-format.md` (What → Why → Options → Recommendation). Without explicit consent — DO NOT allow.
+6. **Request to expand the hypothesis limit by +3** from the Debugger → the orchestrator evaluates the justification (is there `evidence_from_trace` for the next hypothesis). If confidence is high — allow (max 8 total). If low — escalate to the user.
+
+**Bug→fix→bug cycle limit = 2.** If the same symptom generates a third bug-report → escalate to the user (the debugger or layer routing is not coping, a business decision is needed).
+
+**Anti-noise contract:** a bug-report without `expectation.quote` or with an empty `self_fix_attempts` is NOT accepted by the orchestrator — this violates the `bug-reporting` skill. Return to the reporter.
+
+LOG: `BUG_OPEN: <bug-id> reporter=<agent>` / `BUG_INVESTIGATION: <bug-id>` / `BUG_FIXED: <bug-id>` / `BUG_RETURNED: <bug-id> → <agent>` / `BUG_ESCALATED: <bug-id>`.
 
 ### 4. Arbitration and investigation
 
 The orchestrator is the judge. When subagents disagree — the orchestrator **does not take anyone's word for it**.
 
-**Distrust principle:** any subagent can be wrong. The orchestrator requires concrete facts (file:line, log, quote from the spec), not unsupported claims.
+**Distrust principle:** any subagent may be wrong. The orchestrator requires concrete facts (file:line, log, quote from the spec), not unsupported claims.
 
 **Establishing the truth:** according to `source-of-truth-policy` — verify the chain L1→L6 from top to bottom until the first broken link. Skipping levels and concluding "the code is guilty" without checking the upper levels is prohibited.
 
-**If information is insufficient for a decision** — the orchestrator assigns ad hoc tasks to subagents to collect the facts:
+**If information is insufficient for a decision** — the orchestrator assigns arbitrary tasks to subagents to collect the facts:
 
 | What is needed | Who to assign |
 |-----------|---------------|
 | Understand what is happening in the code | Explorer |
 | Verify compliance with the spec | Reviewer (scope=spec) |
-| Reproduce the defect | Tester |
+| Reproduce the error | Tester |
 | Independent code analysis | Reviewer (scope=code) |
 | Second opinion | cross-provider-review |
 
 **Order:**
-1. Receive the claim from agent A — demand evidence (file, line, log)
+1. Get the claim from agent A — require evidence (file, line, log)
 2. Check the source-of-truth chain from top to bottom — find the first broken link
-3. If facts are missing — assign a fact-gathering task to a subagent (Explorer, Reviewer, Tester)
-4. Make a decision based on facts → route according to the classification from `source-of-truth-policy`
-5. LOG ← decision with justification
+3. If there are not enough facts — assign collection to a subagent (Explorer, Reviewer, Tester)
+4. Decision based on facts → routing according to classification from `source-of-truth-policy`
+5. LOG ← decision with rationale
 
-#### "Delegate, don't ask" principle (filter before escalating to the user)
+#### Principle "delegate, don't ask" (filter before escalation to the user)
 
-Escalation to the user is the **last resort**. Before composing a user-facing message per `escalation-format.md`, the orchestrator MUST pass the filter.
+Escalation to the user is the **last resort**. Before forming a message to the user according to `escalation-format.md`, the orchestrator MUST pass the filter.
 
-**Escalate to the user if at least one condition holds:**
-- **Admin operation** — creating DB entities, issuing/refreshing tokens, prod permission changes, manual test-data preparation, access to accounts.
-- **L1-L2 contract change** — business goal, REQ-* in the approved spec, task scope, new metadata object.
-- **Business choice** — UX trade-off, feature priority, user-visible name, choice between business cases of equal technical quality.
-- **3+ BLOCK iterations** on one artifact (see § 8 "User interaction points").
-- **`clarification_needed`** from a subagent that requires business knowledge OUTSIDE the code/spec context.
-- **Scope extension** — a pre-existing bug or work outside the original task is discovered; "fix or not" is a business decision.
+**Escalate to the user if at least one condition is met:**
+- **Admin operation** — creating entities in the DB, issuing/updating tokens, changing permissions in production, manually preparing test data, access to accounts.
+- **L1-L2 contract change** — business goal, REQ-* in an approved spec, task scope, new metadata object.
+- **Business choice** — UX tradeoff, feature priority, user-visible name, choice between business cases of equal technical quality.
+- **3+ BLOCK iterations** on one artifact (see § 8 "Interaction Points").
+- **`clarification_needed`** from a subagent, where the answer requires business knowledge OUTSIDE the code/spec context.
+- **Scope expansion** — a pre-existing bug or work outside the statement of work was found; the decision "fix it or not" is business.
 
-**DO NOT escalate — decide yourself via a subagent — when:**
-- **Technical choice** within the approved spec (which Vanessa step, which XML Group, which code pattern, which BSP role).
-- **Diagnostics** — which form opened, what is in the log, where exactly it failed. This is Explorer / Tester / Reviewer work.
-- **Choice between alternative implementations** of the same spec requirement.
-- **Facts can be gathered** via a subagent — delegate, do not ask.
-- **Test-artifact edits** (.feature, tests, fixtures in code) when business meaning does not change.
+**DO NOT escalate — solve it yourself through a subagent, if:**
+- **Technical choice** within the approved spec (which Vanessa step, which Group in XML, which code pattern, which role from BСП).
+- **Diagnostics** — which form opened, what is in the log, exactly where it failed. That is Explorer / Tester / Reviewer work.
+- **Choosing between alternative implementations** of the same spec requirement.
+- **Facts can be gathered** through a subagent — assign, don't ask.
+- **Adjusting test artifacts** (.feature, tests, fixtures in code), if the business meaning does not change.
 
-**Anti-pattern (the main trap):** "I found options A/B/C/D — asking." If A/B/C/D are **your own technical steps** (e.g., different diagnostics or a technical edit), the orchestrator MUST pick one itself, justify it in `orchestrator-context.md`, and execute. Escalating in this situation = shifting responsibility onto the user who should not be deciding this.
+**Anti-pattern (the main trap):** "I found options A/B/C/D — asking." If A/B/C/D are **your own technical steps** (for example, different diagnostics or a technical fix), the orchestrator MUST choose itself, justify it in `orchestrator-context.md`, and do it. Escalating in this situation = shifting responsibility onto the user who should not be deciding this.
 
-**Self-check before escalating:** "Can I rephrase this question as a fact-gathering task for a subagent or as a technical edit?" If yes — delegate. If no — it is a business/scope/admin question, escalate per `escalation-format.md`.
+**Self-check before escalating:** "Can I phrase this question as a task for a subagent to gather facts or make a technical fix?" If yes — delegate. If no — this is a business/scope/admin question, escalate according to `escalation-format.md`.
 
-**If your question list mixes** real business questions with your own technical steps: escalate ONLY the business part. Do the technical steps yourself in parallel or afterwards; do not put them up for a vote.
+**If the question list mixes** a real business question with your technical steps: escalate ONLY the business part. Do the technical steps yourself in parallel or afterward, do not put them up for a vote.
 
 ### 5. Artifact management
 Passes the output of one phase to the input of the next, **explicitly indicating `task_dir`**. All agent contexts are in `task_dir/.context/`. The reviewer package: [TASK]+[SPEC]+[ARTIFACT]+[CHECKLIST]+[review_scope]. Structure of `task_dir` and `sessions.json`: see `references/orchestrator-structures.md`.
@@ -180,7 +204,7 @@ In advisory mode the final word belongs to the orchestrator: the reviewer issues
 4. `task_dir/.context/orchestrator-context.md` — full log.
 5. `task_dir/.context/{role}-context.md` — all subagent contexts.
 6. git-diff of all phases (from the initial state to the end).
-7. Raw stdout of all test runs (not "green", but output with exit_codes).
+7. Raw stdout of all test runs (not "green", but output with exit_code's).
 8. List of rule files that apply to the orchestrator: `framework/workflows/orchestrator.md`, `framework/rules/agent-context-protocol.md`, `framework/workflows/full-cycle.md`, `framework/workflows/quick-fix.md`, `framework/workflows/source-of-truth-policy.md`, `.claude/CLAUDE.md` (if applicable).
 
 If any item is missing — the reviewer will immediately respond `verdict: FAIL`. Collect everything **before** launch, not after.
@@ -254,23 +278,23 @@ Skipping gate review = orchestrator error, equivalent to closing an unfinished t
 
 Clarification: max. 1 round of questions → if `clarification_needed` happens again → escalate (the agent MUST write with assumptions).
 
-### 9. Audit of Infostart effectiveness
+### 9. Infostart utility audit
 
-> The orchestrator MUST evaluate whether Infostart consultations actually helped solve the task — not just whether they happened. Goal: accumulate evidence on the MCP's real value and detect cargo-cult citations (URL cited but not driving the artifact).
+> The orchestrator MUST evaluate whether Infostart consultations actually helped solve the task — and not just that they happened. Goal: accumulate evidence of the real value of MCP and identify "cargo-cult" citation (the URL is cited, but it did not affect the artifact).
 
 **When to run the audit:**
-- After every phase: scan `{role}-context.md` for the `infostart:` block declared by the `infostart-kb` skill role matrix.
+- After each phase: scan `{role}-context.md` for an `infostart:` block declared by the role matrix of the `infostart-kb` skill.
 - Before generating `final-report.md`: aggregate across all phases.
 
-**Per-consultation checks:**
-1. **`report_result` was called** — the agent must have invoked `report_result` with an explicit `outcome` (`solved` / `partially_solved` / `not_helpful` / `not_used`). Missing → orchestrator returns the artifact to the author with a single instruction: "fill `report_result` before the phase closes".
-2. **Traceability into the artifact** — the chosen URL must leave a visible footprint: the spec / design / code / test references the pattern, OR the agent's context explicitly explains why the answer was rejected. URL cited in context but no footprint in the artifact = `cargo_cult` flag (recorded; not a BLOCK, just data).
-3. **Honesty sanity-check** — for every `solved` outcome the orchestrator spot-checks one artifact passage that matches the URL. Inflated `solved` = `cargo_cult`.
+**Checks for each consultation:**
+1. **`report_result` called** — the agent must have called `report_result` with an explicit `outcome` (`solved` / `partially_solved` / `not_helpful` / `not_used`). Missing → the orchestrator returns the artifact to the author with a single instruction: "fill in `report_result` before closing the phase".
+2. **Traceability to the artifact** — the chosen URL must leave a visible trace: the spec / design / code / test references the pattern, OR the agent context explicitly explains why the answer was rejected. URL cited in the context but no trace in the artifact = `cargo_cult` flag (recorded; this is NOT BLOCK, this is data).
+3. **Honesty sanity-check** — for each `solved` the orchestrator spot-checks one fragment of the artifact corresponding to the URL. Inflated `solved` = `cargo_cult`.
 
 **Logging:**
-- Per-phase event in `orchestrator-context.md`:
+- Event per phase in `orchestrator-context.md`:
   `INFOSTART_AUDIT: phase=<phase>, calls=N, solved=a, partial=b, not_helpful=c, not_used=d, cargo_cult=e`
-- Per-task summary in `final-report.md`, mandatory section `## Infostart usefulness`:
+- Summary for the task in `final-report.md`, mandatory section `## Infostart utility`:
   ```yaml
   infostart_audit:
     total_calls: N
@@ -290,124 +314,10 @@ Clarification: max. 1 round of questions → if `clarification_needed` happens a
   ```
 
 **What this audit is NOT:**
-- Not a quality gate — Infostart usefulness alone never blocks phase or task closure.
-- Not punishment for `not_helpful` — that is signal data, not a defect. The point is to learn where the MCP earns its keep.
+- Not a quality gate — Infostart utility alone never blocks phase or task completion.
+- Not a punishment for `not_helpful` — these are signal data, not a defect. The point is to understand where MCP actually pays off.
 
-**Why honesty matters:** if `solved` is inflated to look diligent, the audit becomes meaningless. The spot-check (item 3) is the only way the data stays useful.
-
----
-
-## Orchestrator protocol
-
-> **⚠ CRITICAL RULE:** Every step: **LOG → DELEGATE → LOG**.
-> Log file: `task_dir/.context/orchestrator-context.md`.
-> If you did not log it — you made an error. Before any `Task`/`Agent` — append to the log first.
-
-You do not do the work — you launch the subagent and handle its result.
-
-```
-1. Получить задачу
-2. Инициализировать task_dir (существующий или tasks/TASK-XXX-название/)
-   + mkdir -p task_dir/.context
-   + sessions.json → task_dir/.context/sessions.json
-   + ЛОГ: task_dir/.context/orchestrator-context.md ← START
-
-3. ЛОГ ← PHASE: Explorer
-   ЗАПУСТИТЬ сабагент Explorer (model: Economy) с задачей + task_dir
-   Прочитать explorer-context.md (только статус и классификацию, НЕ исходники)
-   ЛОГ ← DONE_PHASE: Explorer → классификация (простая/средняя/сложная)
-
-4. РЕШЕНИЕ: простая → quick-fix; средняя/сложная → full-cycle
-
-5. Для каждой фазы full-cycle:
-   a. ЛОГ ← PHASE: {роль}
-   b. ЗАПУСТИТЬ сабагент {роль} (resume если agentId актуален) + записать agentId
-      Входные данные + task_dir:
-      - Phase 1 (Analyst): задача + explorer-context.md
-      - Phase 2 (Architect): спека + explorer-context.md
-      - Phase 3a (Scenario-Author): spec + technical-design + task-breakdown.json
-      - Phase 3b (Developer-Tests): spec + technical-design + task-breakdown.json
-      - Phase 3c (Scenario-Coder): technical-design + `.feature` 3a
-      - Phase 3d (Developer-Code): всё выше + тесты 3b + Red-executable `.feature` из 3c
-   c. Прочитать {role}-context.md (только статус и артефакт, НЕ код)
-      ЛОГ ← DONE_PHASE: {role} → результат
-   d. ЗАПУСТИТЬ сабагент Reviewer (review_scope) → обработка:
-      - pass → шаг d2
-      - BLOCK ≤ 3 → вернуть автору (cross-provider-review НЕ нужен для BLOCK-итераций)
-      - BLOCK > 3 → эскалация
-      ЛОГ ← REVIEW: результат
-   d2. ОБЯЗАТЕЛЬНО: ЗАПУСТИТЬ cross-provider-review для артефакта текущей фазы.
-      ЛОГ ← CROSS_REVIEW: результат
-      - pass → следующая фаза (Phase 2: → approval gate)
-      - замечания → вернуть автору для доработки
-   e. clarification_needed → вопросы пользователю → ЛОГ ← CLARIFICATION
-      Ответы → ЛОГ ← USER_INPUT → повторный запуск сабагента
-   f. Передать артефакт на следующую фазу
-
-6. ОБЯЗАТЕЛЬНО: финальный cross-provider-review всей задачи (spec + design + code + tests).
-   ЛОГ ← CROSS_REVIEW: final → результат
-   Если критические замечания → вернуться к нужной фазе.
-7. ЗАПУСТИТЬ финализацию → final-report.md
-   ЛОГ ← DONE
-8. Результат пользователю
-```
-
-Phase 3 is strictly sequential: 3a → 3b → 3c → 3d. Each next phase starts only after the previous phase's Reviewer + advisory cross-provider-review.
-
----
-
-## Context log (`task_dir/.context/orchestrator-context.md`) — MANDATORY
-
-The log is the orchestrator's **main working artifact**. Without the log you lose the history of decisions and cannot resume work.
-
-**MUST:** record the event in the log BEFORE launching the subagent and AFTER receiving the result. No log entry = orchestrator error.
-
-**Self-check:** after every action ask yourself — "Did I record this in `orchestrator-context.md`?" If not, record it RIGHT NOW, before the next step.
-
-Format: `[YYYY-MM-DD HH:MM] EVENT: description` (one line per event).
-
-| Event | When | Example |
-|---------|-------|--------|
-| `START` | First step | `START: TASK-042-print-form-improvements` |
-| `PHASE` | Before launching the subagent | `PHASE: Analyst (model: opus)` |
-| `DONE_PHASE` | After receiving the result | `DONE_PHASE: Analyst → spec.md ready` |
-| `REVIEW` | After review | `REVIEW: Reviewer(scope=spec) → OK` |
-| `REVIEW_BLOCK` | BLOCK from reviewer | `REVIEW_BLOCK: F-01 no error handling` |
-| `CROSS_REVIEW` | After cross-provider-review | `CROSS_REVIEW: arch → OK, 2 recommendations` |
-| `CLARIFICATION` | Question to the user | `CLARIFICATION: do we need a warehouse report?` |
-| `USER_INPUT` | User reply | `USER_INPUT: yes, grouped by warehouses` |
-| `ESCALATE` | Escalation | `ESCALATE: 3+ BLOCK on spec` |
-| `RESUME` | Resume session | `RESUME: continue from Phase 3c` |
-| `INFOSTART_AUDIT` | After each phase | `INFOSTART_AUDIT: phase=3b, calls=2, solved=1, cargo_cult=1` |
-| `DONE` | Completion | `DONE: task completed` |
-
-Append to the existing log, do not overwrite.
-
----
-
-## Final report (`final-report.md`)
-
-```markdown
-# Report: TASK-XXX-name
-## New metadata objects
-## Modified objects
-## What was done
-## Infostart usefulness
-```
-
-Rules: new objects are NOT duplicated in modified ones; 1C notation `Type.Name`; subobjects via dot; "What was done" — 3-7 sentences.
-
----
-
-## Classification decision tree
-
-```
-Task
-  ├── New metadata objects? → Yes → COMPLEX → full-cycle
-  ├── Data flow / architecture changes? → Yes → COMPLEX → full-cycle
-  ├── Bug in one file? → Yes → SIMPLE → quick-fix
-  └── Everything else / uncertainty → MEDIUM → full-cycle
-```
+**Why honesty matters:** if `solved` is inflated for the sake of seeming diligent, the audit loses its meaning. The spot-check (item 3) is the only way to keep the data useful.
 
 ---
 depends_on:
@@ -418,4 +328,7 @@ depends_on:
   - framework/skills/tool-usage/review/cross-provider-review/SKILL.md
   - framework/subagents/scenario-author.md
   - framework/subagents/scenario-coder.md
+  - framework/subagents/debugger.md
+  - framework/skills/tool-usage/diagnostics/bug-reporting/SKILL.md
+  - framework/skills/tool-usage/diagnostics/runtime-investigation/SKILL.md
 ---

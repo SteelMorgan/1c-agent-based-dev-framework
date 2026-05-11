@@ -1,6 +1,13 @@
 ---
 name: tech-log-analysis
 description: "Работа с технологическим журналом 1С (Tech Log). Навык учит агента управлять полным жизненным циклом ТЖ — настройка, включение, сбор, анализ, восстановление — и диагностировать технические проблемы, например, медленные запросы, блокировки, исключения."
+uses_capabilities:
+  - search_tech_log
+  - configure_tech_log
+  - logc_get_techlog_config
+  - logc_save_techlog
+  - logc_restore_techlog
+  - logc_disable_techlog
 ---
 
 # Работа с технологическим журналом 1С (Tech Log)

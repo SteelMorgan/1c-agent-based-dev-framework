@@ -57,6 +57,6 @@ Phase 3a и 3b — **параллельно**. Phase 3c стартует пос�
 ---
 depends_on:
   - framework/rules/sdd-policy.md
-  - framework/skills/tool-usage/code-analysis/test-execution/SKILL.md
+  - framework/skills/tool-usage/v8-runner/SKILL.md
   - framework/skills/spec-writing/spec-standard/SKILL.md
 ---

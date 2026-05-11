@@ -5,11 +5,11 @@ description: >
   Используй этого агента, когда [условия запуска].
   Используй проактивно, когда [условия проактивного запуска].
 
-model: sonnet
 readonly: false
 skills:
   - skill-name-1
   - skill-name-2
+  - v8-session-manager
 ---
 
 
@@ -64,4 +64,5 @@ skills:
 depends_on:
   - framework/skills/.../skill-name-1/SKILL.md
   - framework/skills/.../skill-name-2/SKILL.md
+  - framework/skills/tool-usage/v8-session-manager/SKILL.md
 ---

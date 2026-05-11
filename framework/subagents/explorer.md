@@ -5,11 +5,11 @@ description: Исследует кодовую базу, находит инфо
   по коду, поиска модулей/символов и анализа зависимостей. Используй проактивно
   в Phase 0 перед analyst и architect.
 
-model: claude-4.5-haiku
 readonly: true
 skills:
   - code-navigation
   - metadata-discovery
+  - v8-session-manager
   - agent-context-protocol
 ---
 
@@ -64,6 +64,7 @@ depends_on:
   - framework/skills/tool-usage/code-analysis/code-navigation/SKILL.md
   - framework/skills/tool-usage/platform-data/metadata-discovery/SKILL.md
   - framework/skills/tool-usage/platform-data/nav-link/SKILL.md
+  - framework/skills/tool-usage/v8-session-manager/SKILL.md
   - framework/rules/agent-context-protocol.md
   - framework/rules/capability-resolution.mdc
   - framework/rules/no-direct-db-access.md

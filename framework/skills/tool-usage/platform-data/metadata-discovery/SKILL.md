@@ -1,6 +1,9 @@
 ---
 name: metadata-discovery
 description: "Работа с метаданными (Metadata Discovery). Навык учит агента **работать с метаданными конфигурации 1С** — находить объекты (справочники, документы, регистры, обработки), понимать их структуру и связи."
+uses_capabilities:
+  - list_metadata_objects
+  - get_metadata_structure
 ---
 
 # Работа с метаданными (Metadata Discovery)

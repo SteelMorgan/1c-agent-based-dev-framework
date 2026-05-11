@@ -1,6 +1,9 @@
 ---
 name: vanessa-authoring
 description: "Создание и доработка feature-сценариев Vanessa Automation по реальным требованиям проекта. Используй, когда нужно написать или обновить сценарный тест, а не просто запустить его."
+uses_capabilities:
+  - run_vanessa
+  - build_project
 ---
 
 # Авторинг сценариев Vanessa Automation

@@ -1,0 +1,4 @@
+interface:
+  display_name: "v8-runner"
+  short_description: "Use v8-runner on 1C projects."
+  default_prompt: "Use v8-runner to configure, build, validate, test, dump, or launch a local 1C project."

@@ -6,7 +6,6 @@ description: >
   с developer-tests (Phase 3b). Работает по формализованным требованиям
   из раздела Acceptance Scenarios спецификации.
 
-model: claude-4.5-sonnet-thinking
 readonly: false
 skills:
   - vanessa-authoring
@@ -14,6 +13,7 @@ skills:
   - web-test-1c
   - form-info
   - code-navigation
+  - v8-session-manager
   - agent-context-protocol
 ---
 
@@ -74,6 +74,7 @@ depends_on:
   - framework/skills/tool-usage/browser-ui/web-test-1c/SKILL.md
   - framework/skills/tool-usage/forms/form-info/SKILL.md
   - framework/skills/tool-usage/code-analysis/code-navigation/SKILL.md
+  - framework/skills/tool-usage/v8-session-manager/SKILL.md
   - framework/rules/agent-context-protocol.md
   - framework/rules/capability-resolution.mdc
   - framework/rules/no-direct-db-access.md

@@ -4,7 +4,6 @@ description: Реализует BSL-код, чтобы существующие 
   по утвержденной спецификации, technical design и заранее написанным тестам из developer-tests.
   Используй этого агента в Phase 3c — ПОСЛЕ завершения Phase 3a (scenario-author) И Phase 3b (developer-tests).
 
-model: gpt-5.2-xhigh
 readonly: false
 skills:
   - coding-standards
@@ -14,7 +13,7 @@ skills:
   - error-handling
   - code-navigation
   - syntax-checking
-  - test-execution
+  - v8-runner
   - event-log-analysis
   - gui-control
   - search-before-write
@@ -23,9 +22,9 @@ skills:
   - form-info
   - form-edit
   - form-validate
-  - epf-build
-  - epf-dump
   - epf-validate
+  - bug-reporting
+  - v8-session-manager
   - agent-context-protocol
 ---
 
@@ -50,10 +49,12 @@ skills:
 5. **Check syntax** → **Build project** (если BSL/XML изменились) → **Run Phase 3b tests only**
 6. **Log iterations** в `developer-code-context.md`: `[YYYY-MM-DD HH:MM] CODE_UPDATE|TEST_RUN_START|TEST_RUN_RESULT: details`
 7. **If test unclear** (hang/interactive error): `event-log-analysis` от `test_start_time` → `gui-control` при необходимости
-8. **Branch on failures:**
-   - Причина в коде реализации текущей сессии → исправить, повторить 4-7
-   - Иначе (тест/инфраструктура/protected path) → `test_failure` + `suspected_test_error` + `blocked_by_protected_path` с обоснованием → СТОП
-9. **Update context** → `completed` с перечнем файлов и сводкой итераций
+8. **Branch on failures (лимит 2 self-fix попытки):**
+   - Причина в коде моей реализации текущей сессии И self-fix попыток ≤ 2 → исправить, повторить 4-7
+   - Причина не в моём коде (подозрение на тест/шаг/данные/спеку) ИЛИ 2 попытки исчерпаны без понимания → завести `bug-report.json` через навык `bug-reporting` (`task_dir/.context/bugs/<bug-id>.json`) → СТОП
+   - Инфраструктура/окружение (БД не запущена, файл не найден) → `environment_error` без bug-report → СТОП
+   - Protected path → `blocked_by_protected_path` с обоснованием → СТОП
+9. **Update context** → `completed` с перечнем файлов и сводкой итераций (или ссылка на созданный bug-report при STOP)
 
 **Критическое ограничение:** НЕ работает в 1С Designer/EDT — метаданные через `xml-generation`, код в `.bsl`.
 
@@ -61,7 +62,8 @@ skills:
 - НЕ пишет и НЕ изменяет тестовые модули
 - НЕ изменяет protected paths (`exts/YAXUNIT/**`); при необходимости → блокировка
 - Запускает только тесты Phase 3b, не полный regression
-- НЕ исправляет тесты/инфраструктуру — `test_failure` → orchestrator маршрутизирует
+- НЕ исправляет тесты/инфраструктуру — заводит `bug-report.json` → orchestrator маршрутизирует к debugger
+- self-fix лимит = 2 попытки в собственном коде; дальше только bug-report
 - НЕ принимает архитектурные решения — строго по technical design
 - НЕ изменяет спецификацию или тех. дизайн
 - `metadata-discovery` НЕ используется — architect уже исследовал
@@ -96,19 +98,19 @@ depends_on:
   - framework/skills/bsl-practices/error-handling/SKILL.md
   - framework/skills/tool-usage/code-analysis/code-navigation/SKILL.md
   - framework/skills/tool-usage/code-analysis/syntax-checking/SKILL.md
-  - framework/skills/tool-usage/code-analysis/test-execution/SKILL.md
+  - framework/skills/tool-usage/v8-runner/SKILL.md
   - framework/skills/tool-usage/code-analysis/search-before-write/SKILL.md
   - framework/skills/tool-usage/diagnostics/event-log-analysis/SKILL.md
   - framework/skills/tool-usage/diagnostics/tech-log-analysis/SKILL.md
+  - framework/skills/tool-usage/diagnostics/bug-reporting/SKILL.md
   - framework/skills/tool-usage/browser-ui/gui-control/SKILL.md
   - framework/skills/tool-usage/platform-data/nav-link/SKILL.md
   - framework/skills/tool-usage/platform-data/xml-generation/xml-generation/SKILL.md
   - framework/skills/tool-usage/forms/form-info/SKILL.md
   - framework/skills/tool-usage/forms/form-edit/SKILL.md
   - framework/skills/tool-usage/forms/form-validate/SKILL.md
-  - framework/skills/tool-usage/epf/epf-build/SKILL.md
-  - framework/skills/tool-usage/epf/epf-dump/SKILL.md
   - framework/skills/tool-usage/epf/epf-validate/SKILL.md
+  - framework/skills/tool-usage/v8-session-manager/SKILL.md
   - framework/rules/agent-context-protocol.md
   - framework/rules/capability-resolution.mdc
   - framework/rules/no-direct-db-access.md

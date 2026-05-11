@@ -5,6 +5,19 @@ description: "Диагностика проблем прогона Vanessa Autom
 
 # Диагностика Vanessa Automation
 
+Запуск Vanessa делается через `v8-runner test va` (см. навык `v8-runner` → `references/testing.md`). Этот навык — про то, как разобрать упавший прогон.
+
+## Артефакты прогона
+
+Слоя два — не путать:
+
+| Слой | Что пишет | Где лежит |
+|------|-----------|-----------|
+| Артефакты Vanessa | сам VA-плеер (`va-status.json`, `vanessa-execution.log`, отчёты `junit/junit.xml`, `cucumber/CucumberJson.json`) | по путям из активного профиля `tests.va` / `va-params`, обычно project-local (`<project_root>/vanessa-tests/reports/…`, `.../logs/…`) |
+| Run-артефакты v8-runner | сам `v8-runner` (внутренние логи запуска, stdout/stderr 1cv8c, метаданные run-id) | `workPath/temp/<runner-id>/runs/<run-id>/` (`workPath` берётся из `v8project.yaml`) |
+
+При падении прогона не очищать **обе** локации до завершения диагностики. Точные пути Vanessa-отчётов читать из активного профиля.
+
 ## Когда применять
 
 | Триггер | Действие |
@@ -13,6 +26,7 @@ description: "Диагностика проблем прогона Vanessa Autom
 | `va-status.json != 0` | Читать артефакты и классифицировать падение |
 | `vanessa-execution.log` содержит ошибку | Определить класс ошибки |
 | Подозрение на блокировку GUI | Визуальная диагностика |
+| Прогон «зелёный», но 0 шагов выполнено / шаги `undefined`/`skipped` | Ложный успех — классифицировать как `step_resolution_error`/`scenario_error` |
 
 ---
 
@@ -71,6 +85,7 @@ next_action = choose another fixture or prepare stable test data
 depends_on:
   - framework/rules/vanessa-diagnostics-policy.mdc
   - framework/rules/vanessa-security-warning.mdc
+  - framework/skills/tool-usage/v8-runner/SKILL.md
   - framework/skills/tool-usage/diagnostics/event-log-analysis/SKILL.md
   - framework/skills/tool-usage/diagnostics/tech-log-analysis/SKILL.md
   - framework/skills/tool-usage/browser-ui/gui-control/SKILL.md

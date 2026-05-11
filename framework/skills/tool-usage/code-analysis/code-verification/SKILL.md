@@ -1,6 +1,13 @@
 ---
 name: code-verification
 description: "Комплексная верификация BSL-кода после правок. Оркестрирует LSP-диагностику, проверку через Напарника (VALIDATE_BSL) и верификацию платформенного API через bsl-platform-context."
+uses_capabilities:
+  - get_diagnostics
+  - ask_ai_assistant
+  - search_syntax_reference
+  - getMembers
+  - getMember
+  - getConstructors
 ---
 
 # Верификация кода (Code Verification)
@@ -72,10 +79,10 @@ description: "Комплексная верификация BSL-кода пос�
 ## Иерархия доверия
 
 ```
-check_syntax (компилятор)    ← формальная проверка, финальный вердикт
-  > get_diagnostics (LSP)    ← быстрая диагностика
-    > bsl-platform-context   ← авторитетный справочник API
-      > ask_ai_assistant     ← совещательный голос (не доверять отсутствию ошибок)
+v8-runner syntax …  (компилятор)   ← формальная проверка, финальный вердикт
+  > get_diagnostics (LSP)          ← быстрая диагностика
+    > bsl-platform-context         ← авторитетный справочник API
+      > ask_ai_assistant           ← совещательный голос (не доверять отсутствию ошибок)
 ```
 
 При расхождении — побеждает источник выше по иерархии.
@@ -113,7 +120,7 @@ check_syntax (компилятор)    ← формальная проверка
 | `getMember` | 3 | Проверка конкретного члена |
 | `getConstructors` | 3 | Проверка конструктора |
 | `navigate_symbol` | 3 | Определение типа переменной |
-| `check_syntax` | * | Финальная проверка компилятором (если доступна) |
+| `v8-runner syntax …` | * | Финальная проверка компилятором (CLI; см. навык `v8-runner`) |
 
 ---
 depends_on: [syntax-checking, buddy-prompting, code-navigation]

@@ -6,7 +6,6 @@ description: Ревьюит любой артефакт (спецификаци�
   developer или tester. Каждый запуск ограничен ОДНИМ типом артефакта — передавай
   review_scope явно.
 
-model: gpt-5.3-codex-xhigh
 readonly: true
 skills:
   - coding-standards
@@ -18,6 +17,7 @@ skills:
   - technical-design-standard
   - test-writing
   - code-navigation
+  - v8-session-manager
   - agent-context-protocol
 ---
 
@@ -39,6 +39,7 @@ skills:
 | `tests` | `reviewer-context-tests.md` | Тест-модули developer-tests (Phase 3b) |
 | `code` | `reviewer-context-code.md` | BSL-код developer-code (Phase 3c) |
 | `tester` | `reviewer-context-tester.md` | Тесты + отчёт tester (Phase 4) |
+| `debug` | `reviewer-context-debug.md` | `debug-report.md` + локальный фикс дебаггера (после `bug-report.status: fixed_locally`) |
 
 ## При вызове
 
@@ -69,6 +70,30 @@ skills:
 
 - Возможности переиспользования существующих шагов
 - Упрощение формулировок
+
+## Что проверять (для debug-fix, scope=debug)
+
+Артефакт: `debug-report.md` дебаггера + изменённые файлы локального фикса. Контекст: `bug-report.json` (исходный), `debug-report.md`, дифф фикса.
+
+### BLOCK — без исправления артефакт не принимается
+
+- **Остаточные `AGENTDEBUG-` маркеры** в любом файле — немедленный BLOCK (нарушение Cleanup).
+- **Подтверждённая гипотеза без `evidence_from_trace`** — фикс «угадан», нет доказательной базы из трассы.
+- **Фикс превышает лимит «локальный»** (> 2 файлов продкода / > 1 файл теста / > 30 строк / меняет публичный API / меняет спеку или дизайн / трогает `protected_paths`) — должен быть возврат, а не локальный фикс.
+- **Нет верификации** или верификация неполная: упавший тест не перепрогнан или смежные тесты не проверены.
+- **Корневая причина из `debug-report.md` не соответствует фиксу** — лечится симптом, а не причина.
+- **Спека/дизайн косвенно нарушены** правкой (например, изменение поведения экспортной функции без апдейта дизайна).
+
+### WARN — рекомендуется исправить
+
+- Гипотезы в `debug-report.md` без чёткого описания опровержения — пробелы в журнале расследования.
+- Фикс корректен, но не оптимален (нарушения coding-standards, читаемости).
+- Нет упоминания смежных тестов в верификации (только тот, что упал).
+
+### INFO — улучшение
+
+- Возможность улучшить пробу/инструментацию для будущих расследований.
+- Опечатки в `debug-report.md`.
 
 ## Что проверять (для кода)
 
@@ -157,6 +182,7 @@ depends_on:
   - framework/skills/spec-writing/technical-design-standard/SKILL.md
   - framework/skills/bsl-practices/test-writing/SKILL.md
   - framework/skills/tool-usage/code-analysis/code-navigation/SKILL.md
+  - framework/skills/tool-usage/v8-session-manager/SKILL.md
   - framework/rules/agent-context-protocol.md
   - framework/rules/capability-resolution.mdc
   - framework/rules/no-direct-db-access.md

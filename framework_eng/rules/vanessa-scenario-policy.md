@@ -13,6 +13,12 @@ description: Vanessa Automation scenario testing policy. Scenarios must rely on 
 - Before adding a new step — look for it in the Vanessa library and the project scenarios
 - The first scenario for a new case is a short smoke
 - The scenario runs under a specific business user, not admin/AgentAI — exception only if the function under test is exclusively available to an administrator; the user is determined from the task description, and if missing — **ask a person**
+- **Two-session split (MUST).** A `.feature` file is logically divided into two parts:
+  1. **Setup / infrastructure** — runs under the technical user (`AgentAI` in this project): test data preparation (creating documents, reference items, register entries), VAExtension `(Расширение)` steps, BSL fixtures from `vanessa-tests/support/`, anything that requires technical roles outside the business user's normal access.
+  2. **Business flow (verification)** — runs under the specific business user (e.g. `Gavrilova Natalia` for OC-23400): only the steps that exercise the user-facing behavior under test. The business user MUST NOT receive any technical role (e.g. roles from `VAExtension.cfe`) just to make the scenario pass.
+  - Switch sessions via `И я закрываю сеанс TESTCLIENT` (or `И я закрываю TestClient "<name>"`) followed by a fresh `Дано я подключаю TestClient "<role>" логин "<user>" пароль "<pwd>"` under the next user.
+  - Rationale (Infostart id=249957, id=249958): if the business flow runs with full rights, the test stops verifying real role restrictions and gives a false sense of correctness. Granting a business user technical roles to satisfy an infrastructure step is the same anti-pattern in disguise.
+  - Anti-pattern: putting `(Расширение)` / fixture steps on the business-user session and then «fixing» the failure by handing the business user technical roles. Move the step to the technical-user setup block instead.
 
 ## MUST (continued)
 

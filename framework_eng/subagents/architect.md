@@ -4,7 +4,6 @@ description: Designs technical solutions and makes architectural decisions for 1
   Use this agent when an approved specification needs a technical design.
   Use proactively after analyst has prepared and reviewed the specification.
 
-model: opus
 readonly: true
 skills:
   - metadata-discovery
@@ -15,7 +14,6 @@ skills:
   - technical-design-standard
   - task-breakdown-subagent
   - agent-context-protocol
-  - infostart-kb
 ---
 
 You are an expert architect of 1С:Предприятие (BSL).
@@ -89,6 +87,7 @@ depends_on:
   - framework/skills/tool-usage/platform-data/query-execution/SKILL.md
   - framework/skills/spec-writing/technical-design-standard/SKILL.md
   - framework/skills/spec-writing/task-breakdown-subagent/SKILL.md
+  - framework/skills/tool-usage/v8-session-manager/SKILL.md
   - framework/rules/agent-context-protocol.md
   - framework/rules/capability-resolution.mdc
   - framework/rules/no-direct-db-access.md

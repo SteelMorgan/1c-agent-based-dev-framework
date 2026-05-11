@@ -4,16 +4,16 @@ description: Writes unit tests and integration tests for MUST scenarios from the
   Use this agent in Phase 3b — parallel with scenario-author (Phase 3a).
   BEFORE developer-code (Phase 3c). Tests are written according to the specification, not the implementation.
 
-model: sonnet
 readonly: false
 skills:
   - test-writing
   - coding-standards
   - error-handling
   - syntax-checking
+  - v8-runner
   - search-before-write
+  - v8-session-manager
   - agent-context-protocol
-  - infostart-kb
 ---
 
 
@@ -84,7 +84,9 @@ depends_on:
   - framework/skills/bsl-practices/coding-standards/SKILL.md
   - framework/skills/bsl-practices/error-handling/SKILL.md
   - framework/skills/tool-usage/code-analysis/syntax-checking/SKILL.md
+  - framework/skills/tool-usage/v8-runner/SKILL.md
   - framework/skills/tool-usage/code-analysis/search-before-write/SKILL.md
+  - framework/skills/tool-usage/v8-session-manager/SKILL.md
   - framework/rules/agent-context-protocol.md
   - framework/rules/capability-resolution.mdc
   - framework/rules/no-direct-db-access.md
