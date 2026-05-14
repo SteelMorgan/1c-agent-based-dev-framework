@@ -33,6 +33,10 @@ tools/external/
 # Local rules (not shared)
 .claude/rules/CLAUDE.md
 
+# Personal: infostart-kb (non-public tool, do not share)
+framework/skills/other/infostart-kb/
+framework_eng/skills/other/infostart-kb/
+
 # Claude Code runtime artefacts
 .claude/scheduled_tasks.lock
 

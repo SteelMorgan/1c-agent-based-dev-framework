@@ -794,18 +794,6 @@
       "synced_at": "2026-05-09T09:24:46Z",
       "status": "synced"
     },
-    "framework/skills/other/infostart-kb/SKILL.md": {
-      "ru_hash": "sha256:bbc2b02692727184eab3cb97790adfe4621b458fc60b1d4be165bc723f1b710a",
-      "en_hash": "sha256:da3cca7e1d244bda00943925b1909a23d3c22273e9ce0cf4a1b456bba01111b9",
-      "synced_at": "2026-04-25T07:15:11Z",
-      "status": "synced"
-    },
-    "framework/skills/other/infostart-kb/references/how-to-discover-environment.md": {
-      "ru_hash": "sha256:3abceef413dc21dbe2d6f70a4181789f84739d34bd0401babf5414fe9eeaeb83",
-      "en_hash": "sha256:1cf1fa37b83f89036377e186b6e992fcbd96e92d9fd23a39e5263a7a35db9a24",
-      "synced_at": "2026-04-25T07:14:24Z",
-      "status": "synced"
-    },
     "framework/skills/tool-usage/diagnostics/bug-reporting/SKILL.md": {
       "ru_hash": "sha256:2ab1f1ab0b43de9799d05f985bf42aac6ea73b57a817b6f856d12af003b5b246",
       "en_hash": "sha256:4144332e07891c8c8ddae87ccbd187c6f94bae812d5c3df0f17fb5e31eb9cecf",
