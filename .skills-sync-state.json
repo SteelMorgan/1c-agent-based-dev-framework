@@ -961,6 +961,30 @@
       "en_hash": "sha256:f61eea6f399f1ecb59fdfd345443079e98f7581ac5847bb803cec55333b2c6bc",
       "synced_at": "2026-05-11T09:51:19Z",
       "status": "synced"
+    },
+    "framework/skills/framework-meta/brainstorm/SKILL.md": {
+      "ru_hash": "sha256:0e89c09cfa9dbe5b2eee28250e498a8f5e532a235ed41986de12b4cfd8b24f70",
+      "en_hash": "sha256:bebddab7c994e7b8e5041f388e05a68ec9e1542022dc12b3f1ff75eab248da9d",
+      "synced_at": "2026-05-13T12:47:58Z",
+      "status": "synced"
+    },
+    "framework/skills/framework-meta/brainstorm/references/output-template.md": {
+      "ru_hash": "sha256:87781306500a54be0d3a3041a96f90cc68762ef89cf1de80e4a6c095d3a620eb",
+      "en_hash": "sha256:6809d77a6a1e2a7d464ceba2bba66f775bdb1ffa74dfb3b059191612d70a69d9",
+      "synced_at": "2026-05-13T11:52:04Z",
+      "status": "synced"
+    },
+    "framework/skills/framework-meta/brainstorm/references/prompt-techniques.md": {
+      "ru_hash": "sha256:4a614eadbc037c554036f9241f25ce593d83547d613749e832c3da673d341a06",
+      "en_hash": "sha256:c3f6cf33886187778ac31af570e246d286bc9745b2162f69f7461e0591565e91",
+      "synced_at": "2026-05-13T11:52:39Z",
+      "status": "synced"
+    },
+    "framework/skills/framework-meta/critical-partner/SKILL.md": {
+      "ru_hash": "sha256:1939bc8f75874dde5bf92c50e5acc6d625c1c59deebb7b4ade0bf8f7e8405621",
+      "en_hash": "sha256:6fa2ba3cb0bd456fb5a2e52210a2388c2c10779942e054058fb4e2bb28f77e35",
+      "synced_at": "2026-05-13T12:47:11Z",
+      "status": "synced"
     }
   }
 }
