@@ -525,3 +525,14 @@ xml-gen validate <type> <path>
 - `subsystem validate` проверяет существование объектов в `<content>` → `exit=1` если объект не существует
 - `interface validate` проверяет корректность command-ref → `exit=1` при broken ref
 - `config validate` проверяет broken refs (Languages/, TypeDir/) → `exit=1` (ERROR, не WARNING)
+
+### Debug-режим (stack trace при exit=1)
+
+Чтобы при разработке/диагностике увидеть полный Java stack trace вместо однострочного `ERROR:` — используй один из двух равнозначных способов:
+
+| Способ | Когда применять | Пример |
+|--------|-----------------|--------|
+| CLI-флаг `--debug` (любая позиция в args) | Разовый запуск, скрипты, ad-hoc debug | `xml-gen --debug validate --type skd schema.xml`<br>`xml-gen validate --debug --type skd schema.xml` |
+| Env `XML_GEN_DEBUG=1` | Batch-прогоны, CI, harness, отладка нескольких подряд команд | `XML_GEN_DEBUG=1 ./run-tests.sh` |
+
+Без debug-режима — `exit=1` + одна строка `ERROR: <msg>`. С debug-режимом дополнительно к строке `ERROR:` печатается полный stack trace в stderr. На `exit=0` режим не влияет.

@@ -12,6 +12,19 @@ public class Main {
             System.exit(1);
         }
 
+        // TASK-155 A1 (UX-долг): --debug флаг как идеоматичная альтернатива XML_GEN_DEBUG env.
+        // Вынимаем флаг из args ДО маршрутизации, чтобы он не попал в Commands.execute и не
+        // ломал доменные парсеры. Флаг можно ставить в любом месте командной строки.
+        boolean debug = System.getenv("XML_GEN_DEBUG") != null;
+        if (Arrays.asList(args).contains("--debug")) {
+            debug = true;
+            args = Arrays.stream(args).filter(a -> !"--debug".equals(a)).toArray(String[]::new);
+            if (args.length == 0) {
+                printUsage();
+                System.exit(1);
+            }
+        }
+
         String command = args[0];
         String[] commandArgs = Arrays.copyOfRange(args, 1, args.length);
 
@@ -19,14 +32,17 @@ public class Main {
             Commands.execute(command, commandArgs);
         } catch (IllegalArgumentException e) {
             System.err.println("Error: " + e.getMessage());
+            if (debug) {
+                e.printStackTrace(System.err);
+            }
             System.exit(1);
         } catch (Exception e) {
-            // TASK-155 A1: unified CLI exception envelope — clean exit=1 without stack trace
-            // Stack trace is printed only when XML_GEN_DEBUG env variable is set (optional debug mode).
+            // TASK-155 A1: unified CLI exception envelope — clean exit=1 without stack trace.
+            // Stack trace is printed only when --debug flag is passed OR XML_GEN_DEBUG env is set.
             // exit=2 is reserved for JVM/infrastructure failures (missing JAR, JVM crash), not domain errors.
             String msg = e.getMessage();
             System.err.println("ERROR: " + (msg != null && !msg.isBlank() ? msg : e.getClass().getSimpleName()));
-            if (System.getenv("XML_GEN_DEBUG") != null) {
+            if (debug) {
                 e.printStackTrace(System.err);
             }
             System.exit(1);

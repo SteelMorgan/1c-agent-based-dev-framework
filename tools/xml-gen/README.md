@@ -185,14 +185,19 @@ JSON DSL → DSL Models → Model Layer → Writers → XML + структура
 | `1`  | Business / domain error | Invalid input, missing required field, duplicate entity, unknown enum value, target object not found, boundary violation. `stderr` contains `ERROR: <message>`. |
 | `2`  | JVM / infrastructure failure | The JVM itself crashed (OOM, missing JAR, etc.). The JVM writes its own diagnostics to `stderr`. |
 
-**Debug mode:** set the environment variable `XML_GEN_DEBUG=1` to print the full Java stack trace to `stderr` on exit `1`. Useful when diagnosing unexpected exceptions during development.
+**Debug mode:** pass `--debug` as a flag (in any position of the command line) **or** set the environment variable `XML_GEN_DEBUG=1` to print the full Java stack trace to `stderr` on exit `1`. Both are equivalent and useful when diagnosing unexpected exceptions during development.
 
 ```bash
 # Normal use — clean error message, exit=1
 xml-gen skd compile bad.json out.xml
 # → stderr: ERROR: dataSets field is required in SKD DSL
 
-# Debug mode — full stack trace
+# Debug mode (CLI flag, recommended for one-off):
+xml-gen --debug skd compile bad.json out.xml
+# Flag may appear in any position:
+xml-gen skd compile --debug bad.json out.xml
+
+# Debug mode (env var, useful for batch / scripts):
 XML_GEN_DEBUG=1 xml-gen skd compile bad.json out.xml
 ```
 
