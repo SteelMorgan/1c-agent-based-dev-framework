@@ -60,22 +60,22 @@ xml-gen validate --type skd <Template.xml> [--detailed] [--max-errors 20]
 **DataSetObject:** внешний набор без запроса. Данные передаются через `ПроцессорКомпоновкиДанных.Инициализировать(Макет, Новый Структура("<objectName>", ТЗ), …)`. Поля описываются явно в `fields[]`. `name` — имя набора, `objectName` — ключ в структуре передачи данных.
 **DataSetUnion:** `{ "name": "...", "items": [...], "fields": [...] }` — объединение наборов с общими полями.
 
-## Поля — shorthand и объектная форма
+## Поля — только объектная форма
 
-Shorthand: `"Имя [Заголовок]: тип @роль #ограничение"`. Примеры:
-```
-"Наименование"
-"Количество: decimal(15,2)"
-"Организация: CatalogRef.Организации @dimension"
-"Служебное: string #noFilter #noOrder"
-```
+> **ВНИМАНИЕ:** в текущей реализации CLI shorthand-строки (`"Имя [Заголовок]: тип @роль #ограничение"`) для коллекций `fields`, `calculatedFields`, `totalFields`, `parameters` **НЕ поддерживаются** — Jackson-десериализатор у `SkdDsl$Field`, `SkdDsl$CalculatedField`, `SkdDsl$Parameter`, `SkdDsl$TotalField` не имеет String-конструктора и отвергает строки с ошибкой `Cannot construct instance ... no String-argument constructor`. Используй **только объектную форму** во всех примерах ниже, независимо от того, что показано в shorthand-фрагментах документации. Shorthand-формы оставлены в файле как справочное описание целевой семантики.
 
-Объектная форма:
+Объектная форма поля:
 ```json
 { "field": "Сумма", "title": "Сумма продажи", "type": "decimal(15,2)",
   "appearance": { "ГоризонтальноеПоложение": "Right", "МинимальнаяШирина": "80" } }
 ```
 `dataPath` берётся из `field`, если не указан явно.
+
+Если нужны роль/ограничения — объектные эквиваленты shorthand-флагов:
+```json
+{ "field": "Организация", "type": "CatalogRef.Организации", "role": "@dimension" }
+{ "field": "Служебное", "type": "string", "restrict": ["noFilter", "noOrder"] }
+```
 
 **Заголовок:** многоязычный `"title": { "ru": "...", "en": "..." }`. Поддерживается везде, где принимается title/presentation.
 
@@ -223,18 +223,26 @@ Workflow: `overview` → `trace --name <поле>` → `query --name <набор
 
 ## Пример — с внешним запросом, ресурсами, @autoDates
 
+> Все коллекции — объектная форма (shorthand-строки CLI отвергает, см. предупреждение выше).
+
 ```json
 {
   "dataSets": [{
     "query": "@queries/sales.sql",
     "fields": [
-      "Организация: CatalogRef.Организации @dimension",
-      "Номенклатура: CatalogRef.Номенклатура @dimension",
-      "Количество: decimal(15,3)", "Сумма: decimal(15,2)"
+      {"field": "Организация",  "type": "CatalogRef.Организации", "role": "@dimension"},
+      {"field": "Номенклатура", "type": "CatalogRef.Номенклатура", "role": "@dimension"},
+      {"field": "Количество",   "type": "decimal(15,3)"},
+      {"field": "Сумма",        "type": "decimal(15,2)"}
     ]
   }],
-  "totalFields": ["Количество: Сумма", "Сумма: Сумма"],
-  "parameters": ["Период: StandardPeriod = LastMonth @autoDates"],
+  "totalFields": [
+    {"dataPath": "Количество", "expression": "Сумма(Количество)"},
+    {"dataPath": "Сумма",      "expression": "Сумма(Сумма)"}
+  ],
+  "parameters": [
+    {"name": "Период", "type": "StandardPeriod", "value": "LastMonth", "autoDates": true}
+  ],
   "settingsVariants": [{
     "name": "Основной",
     "settings": {

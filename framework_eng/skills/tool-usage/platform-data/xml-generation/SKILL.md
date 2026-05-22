@@ -1,6 +1,6 @@
 ---
 name: xml-generation
-description: "Unified toolkit for generating, editing, and validating 1C XML metadata through the xml-gen CLI. Covers 11 domains (EPF, Form, MXL, SKD, Role, Config, Subsystem, Interface, Meta 23 types, Extension/CFE) + universal operations (validate, edit replace-text, form/template/help add). ~45 CLI operations in Designer format. Use it when creating configurations and external data processors, adding metadata objects, forms, roles, reports, print forms, extensions; and when validating and making targeted modifications to existing XML."
+description: "Unified toolkit for generating, editing, and validating 1C XML metadata through the xml-gen CLI. Covers 11 domains (EPF, Form, MXL, SKD, Role, Config, Subsystem, Interface, 23 metadata object types, Extension/CFE) + universal operations (validate, edit replace-text, form/template/help add). ~45 CLI operations in Designer format. Use it when creating configurations and external data processors, adding metadata objects, forms, roles, reports, print forms, extensions; and when validating and making targeted modifications to existing XML."
 argument-hint: <domain> <operation> [<args>]
 allowed-tools:
   - Bash
@@ -14,7 +14,7 @@ metadata:
 
 # xml-generation — Toolkit for working with 1C XML metadata
 
-The unified `xml-gen` CLI covers the full workflow for working with 1C XML: generation from JSON DSL, targeted modification of existing files, and validation. This SKILL.md is a **router**: it contains an overview, an index of subareas, and cross-cutting principles. For detailed specifications for each domain, go to the corresponding sub-skill (`<name>/SKILL.md`).
+The unified `xml-gen` CLI covers the full workflow for working with 1C XML: generation from JSON DSL, targeted modification of existing files, and validation. This SKILL.md is a **router**: it contains an overview, an index of sub-areas, and cross-cutting principles. For detailed specifications for each domain, go to the corresponding sub-skill (`<name>/SKILL.md`).
 
 ## §1 Overview of the xml-gen CLI
 
@@ -24,9 +24,9 @@ Install: `python tools/install.py --install-xml-gen` (requires JDK 17+).
 
 **Do not use** when: EDT format is needed (Designer only), DataSetUnion/CalculatedFields are needed in SKD (workaround: calculations in queries).
 
-## §2 Index of subareas
+## §2 Index of sub-areas
 
-| Subarea | What it does | When to use | Reference |
+| Sub-area | What it does | When to use | Reference |
 |-------------|------------|-----------------|-----------|
 | `forms-toolkit` | info / edit / validate / element-mapping / epf-validate — operational workflow for managed forms and EPF | analyze form structure, add fields, validate, Title→Name mapping for Vanessa | [forms-toolkit/SKILL.md](forms-toolkit/SKILL.md) |
 | `form-dsl` | compile a form from JSON DSL (`form compile`, incl. `--from-object`) | create a form from scratch or generate it from an object | [form-dsl/SKILL.md](form-dsl/SKILL.md) |
@@ -100,7 +100,7 @@ Details — [skd-dsl/SKILL.md](skd-dsl/SKILL.md). For targeted editing of an exi
 ### Create an extension and borrow an object
 
 ```bash
-xml-gen extension init --name МоёРасширение --config output/ output_ext/
+xml-gen extension init output_ext/ МоёРасширение --config-path output/
 xml-gen extension borrow output_ext/ output/ "Catalog.Товары"
 xml-gen extension diff output_ext/ output/
 ```

@@ -34,34 +34,45 @@ xml-gen role add-right --object <ObjectName> --name <RightName> --value <true|fa
 ```json
 {
   "name": "ИмяРоли",
-  "rights": {
-    "Catalog.Номенклатура": ["Read", "Insert", "Update", "Delete"],
-    "Document.РеализацияТоваров": ["Read", "Insert"],
-    "Report.ОтчётПоПродажам": ["View"]
-  }
+  "objects": [
+    {"name": "Catalog.Номенклатура",         "rights": ["Read", "Insert", "Update", "Delete"]},
+    {"name": "Document.РеализацияТоваров",    "rights": ["Read", "Insert"]},
+    {"name": "Report.ОтчётПоПродажам",       "rights": ["View"]}
+  ]
 }
 ```
 
+**Корневые поля DSL (8 шт.):** `name`, `objects`, `templates`, `comment`, `synonym`, `setForNewObjects`, `setForAttributesByDefault`, `independentRightsOfChildObjects`.
+
 **Типы объектов:** `Catalog`, `Document`, `Report`, `DataProcessor`, `InformationRegister`, `AccumulationRegister`
 
-**Права:** `Read`, `Insert`, `Update`, `Delete`, `View`, `Edit`, `InteractiveInsert`, `InteractiveDelete`, `Posting`, `UndoPosting`
+**Права (enum RoleRight, строго PascalCase):** `Read`, `Insert`, `Update`, `Delete`, `View`, `Edit`, `InteractiveInsert`, `InteractiveDelete`, `Posting`, `UndoPosting`.
 
 ## Ловушки
 
 ```json
+// ❌ map-форма {"rights": {"Type.Name": [...]}} — НЕ поддерживается
+// CLI: Unrecognized field "rights" — корневое поле объекта RoleDsl должно быть "objects" (массив)
+{"name": "X", "rights": {"Catalog.Номенклатура": ["Read"]}}
+
+// ✅ array-форма "objects": [...]
+{"name": "X", "objects": [{"name": "Catalog.Номенклатура", "rights": ["Read"]}]}
+```
+
+```json
 // ❌ права в camelCase → enum не распознает
-"rights": {"Catalog.Номенклатура": ["read", "insert"]}
+"objects": [{"name": "Catalog.Номенклатура", "rights": ["read", "insert"]}]
 
 // ✅ enum RoleRight: строго PascalCase
-"rights": {"Catalog.Номенклатура": ["Read", "Insert"]}
+"objects": [{"name": "Catalog.Номенклатура", "rights": ["Read", "Insert"]}]
 ```
 
 ```json
 // ❌ объект без типа → CLI не определит применимость прав
-"rights": {"Номенклатура": ["Read"]}
+"objects": [{"name": "Номенклатура", "rights": ["Read"]}]
 
 // ✅ ТипОбъекта.ИмяОбъекта
-"rights": {"Catalog.Номенклатура": ["Read"]}
+"objects": [{"name": "Catalog.Номенклатура", "rights": ["Read"]}]
 ```
 
 ---

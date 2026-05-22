@@ -1,6 +1,6 @@
 ---
 name: role-dsl
-description: "JSON DSL for generating 1С roles with access rights to metadata objects. Use it for role compile and while editing Rights.xml through xml-generation (edit commands)."
+description: "JSON DSL for generating 1С roles with access rights to metadata objects. Use it for role compile and when editing Rights.xml through xml-generation (edit commands)."
 ---
 
 # Role DSL
@@ -34,34 +34,45 @@ xml-gen role add-right --object <ObjectName> --name <RightName> --value <true|fa
 ```json
 {
   "name": "ИмяРоли",
-  "rights": {
-    "Catalog.Номенклатура": ["Read", "Insert", "Update", "Delete"],
-    "Document.РеализацияТоваров": ["Read", "Insert"],
-    "Report.ОтчётПоПродажам": ["View"]
-  }
+  "objects": [
+    {"name": "Catalog.Номенклатура",         "rights": ["Read", "Insert", "Update", "Delete"]},
+    {"name": "Document.РеализацияТоваров",    "rights": ["Read", "Insert"]},
+    {"name": "Report.ОтчётПоПродажам",       "rights": ["View"]}
+  ]
 }
 ```
 
+**Root DSL fields (8 total):** `name`, `objects`, `templates`, `comment`, `synonym`, `setForNewObjects`, `setForAttributesByDefault`, `independentRightsOfChildObjects`.
+
 **Object types:** `Catalog`, `Document`, `Report`, `DataProcessor`, `InformationRegister`, `AccumulationRegister`
 
-**Rights:** `Read`, `Insert`, `Update`, `Delete`, `View`, `Edit`, `InteractiveInsert`, `InteractiveDelete`, `Posting`, `UndoPosting`
+**Rights (enum RoleRight, strictly PascalCase):** `Read`, `Insert`, `Update`, `Delete`, `View`, `Edit`, `InteractiveInsert`, `InteractiveDelete`, `Posting`, `UndoPosting`.
 
 ## Pitfalls
 
 ```json
-// ❌ права в camelCase → enum не распознает
-"rights": {"Catalog.Номенклатура": ["read", "insert"]}
+// ❌ map-form {"rights": {"Type.Name": [...]}} — NOT supported
+// CLI: Unrecognized field "rights" — the root field of RoleDsl must be "objects" (array)
+{"name": "X", "rights": {"Catalog.Номенклатура": ["Read"]}}
 
-// ✅ enum RoleRight: строго PascalCase
-"rights": {"Catalog.Номенклатура": ["Read", "Insert"]}
+// ✅ array-form "objects": [...]
+{"name": "X", "objects": [{"name": "Catalog.Номенклатура", "rights": ["Read"]}]}
 ```
 
 ```json
-// ❌ объект без типа → CLI не определит применимость прав
-"rights": {"Номенклатура": ["Read"]}
+// ❌ rights in camelCase → enum does not recognize them
+"objects": [{"name": "Catalog.Номенклатура", "rights": ["read", "insert"]}]
 
-// ✅ ТипОбъекта.ИмяОбъекта
-"rights": {"Catalog.Номенклатура": ["Read"]}
+// ✅ enum RoleRight: strictly PascalCase
+"objects": [{"name": "Catalog.Номенклатура", "rights": ["Read", "Insert"]}]
+```
+
+```json
+// ❌ object without type → CLI won't determine rights applicability
+"objects": [{"name": "Номенклатура", "rights": ["Read"]}]
+
+// ✅ TypeName.ObjectName
+"objects": [{"name": "Catalog.Номенклатура", "rights": ["Read"]}]
 ```
 
 ---

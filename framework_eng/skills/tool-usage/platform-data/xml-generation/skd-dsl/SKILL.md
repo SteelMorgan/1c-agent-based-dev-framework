@@ -13,7 +13,7 @@ description: "JSON DSL for generating and analyzing 1C data composition schemas 
 | External data set (without a query) | `dataSets[].objectName` (DataSetObject) |
 | Combine data sets | `dataSets[].items` (DataSetUnion) |
 | Calculated fields | `calculatedFields` (shorthand or object) |
-| Output templates | `templates` + `groupTemplates` - see [references/templates-dsl.md](references/templates-dsl.md) |
+| Output templates | `templates` + `groupTemplates` — see [references/templates-dsl.md](references/templates-dsl.md) |
 | Cell drilldown | `parameters[].drilldown` in the template |
 | Links between data sets | `dataSetLinks` |
 | Understand someone else's SKD | `xml-gen skd info --mode overview` → then `trace`/`query`/`variant` |
@@ -50,36 +50,36 @@ xml-gen validate --type skd <Template.xml> [--detailed] [--max-errors 20]
 }
 ```
 
-Defaults: `dataSources` → auto `ИсточникДанных1/Local`; `settingsVariants` → auto «Main» with detailed records.
+Defaults: `dataSources` → auto `ИсточникДанных1/Local`; `settingsVariants` → auto "Main" with detailed records.
 
 ## Data Sets
 
 The type is determined by the key: `query` → DataSetQuery, `objectName` → DataSetObject, `items` → DataSetUnion.
 
-**DataSetQuery:** `{ "name": "...", "query": "ВЫБРАТЬ ...", "fields": [...] }`. The query can be an inline string or a file `"query": "@queries/sales.sql"` (path relative to the JSON file, then CWD).
-**DataSetObject:** external data set without a query. Data is passed through `ПроцессорКомпоновкиДанных.Инициализировать(Макет, Новый Структура("<objectName>", ТЗ), …)`. Fields are described explicitly in `fields[]`. `name` is the name of the data set, `objectName` is the key in the data transfer structure.
-**DataSetUnion:** `{ "name": "...", "items": [...], "fields": [...] }` - combining data sets with common fields.
+**DataSetQuery:** `{ "name": "...", "query": "ВЫБРАТЬ ...", "fields": [...] }`. The query is an inline string or a file `"query": "@queries/sales.sql"` (path relative to the JSON file, then CWD).
+**DataSetObject:** external data set without a query. Data is passed through `ПроцессорКомпоновкиДанных.Инициализировать(Макет, Новый Структура("<objectName>", ТЗ), …)`. Fields are described explicitly in `fields[]`. `name` is the data set name, `objectName` is the key in the data transfer structure.
+**DataSetUnion:** `{ "name": "...", "items": [...], "fields": [...] }` — combining data sets with common fields.
 
-## Fields - shorthand and object form
+## Fields - object form only
 
-Shorthand: `"Name [Title]: type @role #restriction"`. Examples:
-```
-"Наименование"
-"Количество: decimal(15,2)"
-"Организация: CatalogRef.Организации @dimension"
-"Служебное: string #noFilter #noOrder"
-```
+> **WARNING:** in the current CLI implementation, shorthand strings (`"Name [Title]: type @role #restriction"`) for the `fields`, `calculatedFields`, `totalFields`, and `parameters` collections are **NOT supported** — the Jackson deserializer for `SkdDsl$Field`, `SkdDsl$CalculatedField`, `SkdDsl$Parameter`, and `SkdDsl$TotalField` does not have a String constructor and rejects strings with the error `Cannot construct instance ... no String-argument constructor`. Use **only object form** in all examples below, regardless of what is shown in the shorthand fragments of the documentation. The shorthand forms are kept in the file as a reference description of the target semantics.
 
-Object form:
+Object form of a field:
 ```json
 { "field": "Сумма", "title": "Сумма продажи", "type": "decimal(15,2)",
   "appearance": { "ГоризонтальноеПоложение": "Right", "МинимальнаяШирина": "80" } }
 ```
 `dataPath` is taken from `field` if not specified explicitly.
 
+If roles/restrictions are needed, use object equivalents of shorthand flags:
+```json
+{ "field": "Организация", "type": "CatalogRef.Организации", "role": "@dimension" }
+{ "field": "Служебное", "type": "string", "restrict": ["noFilter", "noOrder"] }
+```
+
 **Title:** multilingual `"title": { "ru": "...", "en": "..." }`. Supported everywhere that accepts title/presentation.
 
-**Types:** `string`, `string(N)`, `decimal`, `decimal(D,F)`, `boolean`, `date`, `dateTime`. `decimal` without parentheses = `decimal(10,2)`. `decimal(N)` = `decimal(N,0)`. Suffix `,nonneg` → `AllowedSign=Nonnegative`. Aliases `number` and the Russian word for number ≡ `decimal`.
+**Types:** `string`, `string(N)`, `decimal`, `decimal(D,F)`, `boolean`, `date`, `dateTime`. `decimal` without parentheses = `decimal(10,2)`. `decimal(N)` = `decimal(N,0)`. Suffix `,nonneg` → `AllowedSign=Nonnegative`. Aliases `number`/the Russian word for number ≡ `decimal`.
 
 Reference types: `CatalogRef.X`, `DocumentRef.X`, `EnumRef.X`, `ChartOfAccountsRef.X`, `StandardPeriod`. Emitted with inline namespace `d5p1:`. Building EPF with reference types requires a database with a matching configuration.
 
@@ -89,11 +89,11 @@ Composite type is an array in object form: `"type": ["CatalogRef.А", "CatalogRe
 
 **Restrictions:** shorthand flags `#noField`, `#noFilter`, `#noGroup`, `#noOrder`; object form: `"restrict": ["noField", "noFilter"]`.
 
-**Additional:** `presentationExpression` - expression for presentation (the value remains for drilldown). `appearance` - default column formatting (platform parameter keys).
+**Additional:** `presentationExpression` — expression for presentation (the value remains for drilldown). `appearance` — default column formatting (platform parameter keys).
 
 ## Calculated Fields (calculatedFields)
 
-Shorthand: `"Name [Title]: type = Expression #flags"` - everything except the name is optional.
+Shorthand: `"Name [Title]: type = Expression #flags"` — everything except the name is optional.
 ```json
 "calculatedFields": [
   "Маржа = Цена - Закупка",
@@ -101,13 +101,13 @@ Shorthand: `"Name [Title]: type = Expression #flags"` - everything except the na
   "Служебное: string = \"\" #noField #noFilter #noGroup #noOrder"
 ]
 ```
-Object form - when `appearance` or composite settings are needed: `{ "name", "title", "expression", "type", "useRestriction" }`.
+Object form — when `appearance` or composite settings are needed: `{ "name", "title", "expression", "type", "useRestriction" }`.
 
 ## Totals (totalFields)
 
 Shorthand: `"totalFields": ["Количество: Сумма", "Стоимость: Сумма(Кол * Цена)"]`.
 
-Bound to groupings - object form:
+Bound to groupings — object form:
 ```json
 { "dataPath": "Кол", "expression": "Сумма(Кол)", "group": ["Группа1", "Группа1 Иерархия", "ОбщийИтог"] }
 ```
@@ -118,8 +118,8 @@ Shorthand: `"Name [Title]: type = value @flags"`.
 
 | Flag | Effect |
 |------|--------|
-| `@autoDates` | For `StandardPeriod` - adds derived `НачалоПериода`/`КонецПериода`. Use `&НачалоПериода`/`&КонецПериода` in the query. The parameter gets `use=Always`, `denyIncompleteValues=true`. |
-| `@valueList` | `valueListAllowed=true` - allows a list of values. |
+| `@autoDates` | For `StandardPeriod` — adds derived `НачалоПериода`/`КонецПериода`. Use `&НачалоПериода`/`&КонецПериода` in the query. The parameter gets `use=Always`, `denyIncompleteValues=true`. |
+| `@valueList` | `valueListAllowed=true` — allows a list of values. |
 | `@hidden` | `availableAsField=false` + excluded from `"dataParameters": "auto"`. |
 | `@always` | `use=Always`. |
 
@@ -193,17 +193,17 @@ Object form:
   "presentation": "...", "viewMode": "Normal", "userSettingID": "auto" }
 ```
 
-Values of `appearance`: `style:XXX`/`web:XXX`/`win:XXX` → Color; `true`/`false` → Boolean; `Format`/`Text`/`Title` → LocalStringType; everything else → String.
+Values of `appearance`: `style:XXX`/`web:XXX`/`win:XXX` → Color; `true`/`false` → Boolean; `Формат`/`Текст`/`Заголовок` → LocalStringType; everything else → String.
 
 In `settingsVariants.settings`, add it under the key `"conditionalAppearance": [...]`.
 
 ## Output Templates and Groupings
 
-The full specification (cell syntax, styles, drilldown, groupTemplates) - [references/templates-dsl.md](references/templates-dsl.md).
+The full specification (cell syntax, styles, drilldown, groupTemplates) — [references/templates-dsl.md](references/templates-dsl.md).
 
-## Analysis - `xml-gen skd info`
+## Analysis — `xml-gen skd info`
 
-11 modes. Detailed output examples - [references/info-modes.md](references/info-modes.md).
+11 modes. Detailed output examples — [references/info-modes.md](references/info-modes.md).
 
 | Mode | Without `--name` | With `--name` |
 |-------|--------------|-------------|
@@ -221,20 +221,28 @@ The full specification (cell syntax, styles, drilldown, groupTemplates) - [refer
 
 Workflow: `overview` → `trace --name <field>` → `query --name <dataset>` → `variant --name <N>`. Parameters: `--mode`, `--name`, `--batch` (`0` = all batches), `--limit`/`--offset` (default 150), `--out-file`.
 
-## Example - with external query, resources, @autoDates
+## Example — with external query, resources, @autoDates
+
+> All collections are in object form (the CLI rejects shorthand strings, see the warning above).
 
 ```json
 {
   "dataSets": [{
     "query": "@queries/sales.sql",
     "fields": [
-      "Организация: CatalogRef.Организации @dimension",
-      "Номенклатура: CatalogRef.Номенклатура @dimension",
-      "Количество: decimal(15,3)", "Сумма: decimal(15,2)"
+      {"field": "Организация",  "type": "CatalogRef.Организации", "role": "@dimension"},
+      {"field": "Номенклатура", "type": "CatalogRef.Номенклатура", "role": "@dimension"},
+      {"field": "Количество",   "type": "decimal(15,3)"},
+      {"field": "Сумма",        "type": "decimal(15,2)"}
     ]
   }],
-  "totalFields": ["Количество: Сумма", "Сумма: Сумма"],
-  "parameters": ["Период: StandardPeriod = LastMonth @autoDates"],
+  "totalFields": [
+    {"dataPath": "Количество", "expression": "Сумма(Количество)"},
+    {"dataPath": "Сумма",      "expression": "Сумма(Сумма)"}
+  ],
+  "parameters": [
+    {"name": "Период", "type": "StandardPeriod", "value": "LastMonth", "autoDates": true}
+  ],
   "settingsVariants": [{
     "name": "Основной",
     "settings": {
@@ -249,15 +257,7 @@ Workflow: `overview` → `trace --name <field>` → `query --name <dataset>` →
 
 ## Anti-patterns
 
-`"filter": ["Amount > 0"]` - **incorrect**: the parser accepts operators only from the fixed set (`=`, `<>`, `>`, `>=`, `<`, `<=`, `in`, `notIn`, `contains`, `filled`, `notFilled`, `InHierarchy`). `greater` is not recognized.
-
-Fields in `selection`/`order`/`filter`/`structure` must exist in `dataSets` or `calculatedFields` - otherwise the SKD will not be composed.
-
-**Verification after compile:** `xml-gen validate --type skd <output.xml>` → `xml-gen skd info <output.xml>` → if needed `skd info --mode trace --name <field>`.
-
-## See Also
-
-- [references/templates-dsl.md](references/templates-dsl.md) — templates, drilldown, styles.
+`"filter": ["Amount greater than 0"]` — **incorrect**: the parser accepts operators only from the fixed set (`=`, `<>`, `>`, `>=`, `<`, `<=`, `in`, `notIn`, `contains`, `filled`, `notFilled`, `InHierarchy`). `greater` is not recognized.
 
 ---
 depends_on: []

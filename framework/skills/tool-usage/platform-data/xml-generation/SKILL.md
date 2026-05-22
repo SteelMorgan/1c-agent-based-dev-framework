@@ -100,7 +100,7 @@ xml-gen validate --type skd Template.xml
 ### Создать расширение и заимствовать объект
 
 ```bash
-xml-gen extension init --name МоёРасширение --config output/ output_ext/
+xml-gen extension init output_ext/ МоёРасширение --config-path output/
 xml-gen extension borrow output_ext/ output/ "Catalog.Товары"
 xml-gen extension diff output_ext/ output/
 ```

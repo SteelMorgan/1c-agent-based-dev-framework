@@ -1,12 +1,12 @@
 ---
 name: epf-full
-description: "Full workflow for working with external 1C processors and reports: creating EPF/ERF (init/add-form), managing templates (template add/remove/add-help) for any metadata objects, BSP registration (СведенияОВнешнейОбработке + add-command). Use when creating processors, adding forms, templates, help, and connecting to the BSP subsystem «Additional Reports and Processors»."
+description: "Full cycle of working with external 1C processors and reports: creating EPF/ERF (init/add-form), managing templates (template add/remove/add-help) for any metadata objects, BSP registration (СведенияОВнешнейОбработке + add-command). Use when creating processors, adding forms, templates, help, and connecting to the BSP subsystem «Additional Reports and Processors»."
 targets:
   - developer-code
   - architect
 ---
 
-# EPF Full — Full workflow for external processors
+# EPF Full — Full Cycle of External Processors
 
 Workflow: `epf init → add-form → add-template → BSP registration (BSL)`. Steps 1–3 are done through the `xml-gen` CLI, BSP is direct editing of `ObjectModule.bsl`. For templates of configuration objects — see §4.
 
@@ -24,7 +24,7 @@ Workflow: `epf init → add-form → add-template → BSP registration (BSL)`. S
 | Add a tabular section to the processor | `xml-gen epf add-tabular-section --name <N> output/<Name>.xml` |
 | Register in BSP (printing) | Insert `СведенияОВнешнейОбработке()` into `ObjectModule.bsl` — see §5 |
 | Add a BSP command | Insert the command block before `Возврат` — see §5 |
-| Add a template to a Catalog/Document | `xml-gen template add --object <Type.Name> --name <T> --type <TemplateType> src/` |
+| Add a template to a Справочник/Документ | `xml-gen template add --object <Type.Name> --name <T> --type <TemplateType> src/` |
 | Remove a template | `xml-gen template remove --object <Type.Name> --name <T> src/` |
 | Add built-in help | `xml-gen template add-help --object <Type.Name> src/` |
 
@@ -53,18 +53,19 @@ Workflow: `epf init → add-form → add-template → BSP registration (BSL)`. S
 
 - `--object` is required, format `Type.Name` (example: `Document.ЗаказКлиента`).
 - For DCS reports, when adding the schema for the first time, use `--set-main-dcs`.
-- Apply the `ПФ_` prefix for SpreadsheetDocument automatically.
+- Apply the `ПФ_` prefix to SpreadsheetDocument automatically.
 
-**Template types:**
+**Template types for `xml-gen epf add-template` (4 supported):**
 | `--type` | Purpose |
 |----------|-----------|
 | `SpreadsheetDocument` | Print form (MXL) |
-| `DataCompositionSchema` | Data composition schema (СКД) |
 | `HTMLDocument` | HTML template |
 | `TextDocument` | Text template |
 | `BinaryData` | Binary data |
 
-After adding an MXL template, populate it through `xml-gen mxl compile invoice.json <path to Template.xml>`.
+> **`DataCompositionSchema` in `epf add-template` is NOT supported** — the CLI responds with `Failed to add template: Unknown template type: DataCompositionSchema`. To add a DCS template to an EPF, use the universal command `xml-gen template add --object DataProcessor.<EpfName> --name <T> --type DataCompositionSchema <output_dir>` (it knows all 5 types, including `DataCompositionSchema`). See also section §3 in [xml-generation/SKILL.md](../SKILL.md) and [references/universal-commands.md](../references/universal-commands.md).
+
+After adding an MXL template, fill it with contents through `xml-gen mxl compile invoice.json <path to Template.xml>`.
 
 ---
 

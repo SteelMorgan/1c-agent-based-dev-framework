@@ -11,7 +11,7 @@ description: "Операции с расширениями конфигурац�
 
 | Триггер | Действие |
 |---------|----------|
-| Нужно создать расширение | `extension init --name <Name> --config <configPath> <output_dir>` |
+| Нужно создать расширение | `extension init <output_dir> <Name> [--config-path <configPath>]` |
 | Нужно заимствовать объект из конфигурации | `extension borrow <extPath> <configPath> "Type.Name"` |
 | Нужно заимствовать форму | `extension borrow <extPath> <configPath> "Catalog.Name.Form.FormName"` |
 | Нужно добавить реквизит и вывести его на форму типовой | `extension borrow ... "Type.Name.Form.X" --borrow-main-attribute form` |
@@ -26,14 +26,19 @@ description: "Операции с расширениями конфигурац�
 Создать расширение конфигурации.
 
 ```bash
-xml-gen extension init --name <Name> --config <configPath> [--purpose Patch|Customization|AddOn] [--prefix <Prefix>] <output_dir>
+xml-gen extension init <output_dir> <Name> [--config-path <configPath>] [--purpose Patch|Customization|AddOn] [--prefix <Prefix>]
 ```
 
-**Параметры:**
-- `--name` — имя расширения
-- `--config` — путь к базовой конфигурации (для чтения CompatibilityMode и DefaultLanguage)
+**Параметры (позиционные):**
+- `<output_dir>` — каталог, куда будет создано расширение (первый позиционный аргумент)
+- `<Name>` — имя расширения (второй позиционный аргумент)
+
+**Параметры (флаги):**
+- `--config-path` — путь к базовой конфигурации (для чтения CompatibilityMode, DefaultLanguage и Language UUID). Без него — `[WARN] Language ExtendedConfigurationObject set to zeros`.
 - `--purpose` — назначение (по умолчанию: Customization)
-- `--prefix` — префикс имён (по умолчанию: из имени)
+- `--prefix` — префикс имён (по умолчанию: из имени с суффиксом `_`)
+
+**Антипаттерн (старый синтаксис):** `--name <Name>` и `--config <Path>` НЕ работают — CLI принимает имя и output как позиционные, а флаг для базовой конфигурации называется `--config-path`.
 
 ### extension borrow
 

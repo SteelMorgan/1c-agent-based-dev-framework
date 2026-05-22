@@ -55,14 +55,15 @@ Workflow: `epf init → add-form → add-template → BSP-регистрация
 - Для СКД-отчётов при первом добавлении схемы — `--set-main-dcs`.
 - Префикс `ПФ_` для SpreadsheetDocument применять автоматически.
 
-**Типы макетов:**
+**Типы макетов для `xml-gen epf add-template` (поддерживаются 4):**
 | `--type` | Назначение |
 |----------|-----------|
 | `SpreadsheetDocument` | Печатная форма (MXL) |
-| `DataCompositionSchema` | Схема компоновки данных (СКД) |
 | `HTMLDocument` | HTML-шаблон |
 | `TextDocument` | Текстовый шаблон |
 | `BinaryData` | Двоичные данные |
+
+> **`DataCompositionSchema` в `epf add-template` НЕ поддерживается** — CLI отвечает `Failed to add template: Unknown template type: DataCompositionSchema`. Для добавления СКД-макета в EPF используй универсальную команду `xml-gen template add --object DataProcessor.<EpfName> --name <T> --type DataCompositionSchema <output_dir>` (она знает все 5 типов, включая `DataCompositionSchema`). См. также раздел §3 в [xml-generation/SKILL.md](../SKILL.md) и [references/universal-commands.md](../references/universal-commands.md).
 
 После добавления MXL-макета — заполни содержимым через `xml-gen mxl compile invoice.json <путь к Template.xml>`.
 

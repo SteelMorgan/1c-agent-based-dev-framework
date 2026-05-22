@@ -459,15 +459,15 @@
       "status": "synced"
     },
     "framework/skills/tool-usage/platform-data/xml-generation/role-dsl/SKILL.md": {
-      "ru_hash": "sha256:0830fb7cc574c9d984712305c394b7deb35e7b3410884bbcdbe0bba653254aed",
-      "en_hash": "sha256:c38c6b95ae04481bb5290c0f04f778817f62dcf20e850f1d84206193a626239e",
-      "synced_at": "2026-05-22T06:20:48Z",
+      "ru_hash": "sha256:3a858b6107d4d8ac25c7576ae08b25773511e50d2e513725886298f0bac6a2eb",
+      "en_hash": "sha256:6e064f1898edcd078473cfdfcaa540084ee0412b1d6a8621481d222e547da8c6",
+      "synced_at": "2026-05-22T16:13:28Z",
       "status": "synced"
     },
     "framework/skills/tool-usage/platform-data/xml-generation/skd-dsl/SKILL.md": {
-      "ru_hash": "sha256:e39ad4c9c470a96fd69022884523a7de1d0192f9595455429a0f1b3d6209dbaa",
-      "en_hash": "sha256:9296957801fbfae19dc5ce43e52aa584c64d89c3831abfb9a37b3cedf6cec36f",
-      "synced_at": "2026-05-22T11:43:31Z",
+      "ru_hash": "sha256:a195ced9b7cbea2281c1e8299d803750688d1a58eb7221aa9c208efa8d633a32",
+      "en_hash": "sha256:9940818be5198d5345b827fa4a5480452508ed0f3870dd279b4bf8aec48b6648",
+      "synced_at": "2026-05-22T16:18:35Z",
       "status": "synced"
     },
     "framework/skills/tool-usage/vanessa/vanessa-authoring/SKILL.md": {
@@ -495,9 +495,9 @@
       "status": "synced"
     },
     "framework/skills/tool-usage/platform-data/xml-generation/extension-operations/SKILL.md": {
-      "ru_hash": "sha256:fd3d1f6969b3d7ff585588cf8884cf2943ff23369f68089c441b8206d171db26",
-      "en_hash": "sha256:8f6dfc0eeffd71fe1e1b848e9e7d7594e4a635560ca8a1bcbb7aff4c4daa4869",
-      "synced_at": "2026-05-22T06:22:11Z",
+      "ru_hash": "sha256:9e74867b792eb174a7749c80da5b4644cc206c184172f6a26a8de6c2e0930a19",
+      "en_hash": "sha256:e53b52d462b3493b3563bdf4e96e95401ba974979f6dfb9d80548bc43cf75899",
+      "synced_at": "2026-05-22T16:12:20Z",
       "status": "synced"
     },
     "framework/skills/tool-usage/browser-ui/web-test-1c/SKILL.md": {
@@ -1095,15 +1095,15 @@
       "status": "synced"
     },
     "framework/skills/tool-usage/platform-data/xml-generation/SKILL.md": {
-      "ru_hash": "sha256:3c914521d2916e1b1802d9c9a5e5f4d3fc1c0ec6d4f1259314e05f23324c4d9f",
-      "en_hash": "sha256:98748d3766282941a15ab6bd80321764c09b74ac7651c5b3cf8f4b6c36734311",
-      "synced_at": "2026-05-22T06:23:57Z",
+      "ru_hash": "sha256:41a1ef7cb1578966c48bca589e82b79986dc27a91c2a36a400f2ce83f78fa3e3",
+      "en_hash": "sha256:a74a0166eb2b73a6ef516ab36363dbdd10f0900504145e844bdbb577e565d72c",
+      "synced_at": "2026-05-22T16:21:21Z",
       "status": "synced"
     },
     "framework/skills/tool-usage/platform-data/xml-generation/epf-full/SKILL.md": {
-      "ru_hash": "sha256:b5dc5b8607228696cb97f8a843183c566a0aed0f9885cd20612370f33450f600",
-      "en_hash": "sha256:71bd4c331db46e6978bd6458ad47d3d29534845ed3b687c3e55fc4e581523d97",
-      "synced_at": "2026-05-22T06:23:33Z",
+      "ru_hash": "sha256:632640b573e79533194f9fd9f42aa11af57caf4a8f7f6f37319b2ca204d36415",
+      "en_hash": "sha256:bbfb6497fa047217f1acc20680f6d318709108a46fd72df828b629a15c0b518c",
+      "synced_at": "2026-05-22T16:20:25Z",
       "status": "synced"
     },
     "framework/skills/tool-usage/platform-data/xml-generation/epf-full/references/epf-base.md": {

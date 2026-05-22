@@ -11,7 +11,7 @@ Working with 1C configuration extensions.
 
 | Trigger | Action |
 |---------|----------|
-| Need to create an extension | `extension init --name <Name> --config <configPath> <output_dir>` |
+| Need to create an extension | `extension init <output_dir> <Name> [--config-path <configPath>]` |
 | Need to borrow an object from the configuration | `extension borrow <extPath> <configPath> "Type.Name"` |
 | Need to borrow a form | `extension borrow <extPath> <configPath> "Catalog.Name.Form.FormName"` |
 | Need to add a property and display it on a standard form | `extension borrow ... "Type.Name.Form.X" --borrow-main-attribute form` |
@@ -26,14 +26,19 @@ Working with 1C configuration extensions.
 Create a configuration extension.
 
 ```bash
-xml-gen extension init --name <Name> --config <configPath> [--purpose Patch|Customization|AddOn] [--prefix <Prefix>] <output_dir>
+xml-gen extension init <output_dir> <Name> [--config-path <configPath>] [--purpose Patch|Customization|AddOn] [--prefix <Prefix>]
 ```
 
-**Parameters:**
-- `--name` — extension name
-- `--config` — path to the base configuration (to read CompatibilityMode and DefaultLanguage)
+**Parameters (positional):**
+- `<output_dir>` — directory where the extension will be created (first positional argument)
+- `<Name>` — extension name (second positional argument)
+
+**Parameters (flags):**
+- `--config-path` — path to the base configuration (to read CompatibilityMode, DefaultLanguage, and Language UUID). Without it, `[WARN] Language ExtendedConfigurationObject set to zeros`.
 - `--purpose` — purpose (default: Customization)
-- `--prefix` — name prefix (default: from the name)
+- `--prefix` — name prefix (default: from the name with `_` suffix)
+
+**Anti-pattern (old syntax):** `--name <Name>` and `--config <Path>` do NOT work — the CLI accepts name and output as positional arguments, and the flag for the base configuration is called `--config-path`.
 
 ### extension borrow
 
@@ -73,11 +78,11 @@ xml-gen extension borrow <extPath> <configPath> "Catalog.Номенклатур�
 ```
 
 - `form` — only attributes already displayed on the form (optimal in most cases).
-- `all` — all object attributes (needed if you plan to display attributes that are not yet on the form).
+- `all` — all object attributes and tabular sections (needed if you plan to display attributes that are not yet on the form).
 
 Typical scenario: borrow with `--borrow-main-attribute form` → add an attribute → `form-edit`.
 
-**Important:** if the object has already been borrowed, the CLI adds what is missing and does not overwrite it.
+**Important:** if the object has already been borrowed, the CLI adds the missing parts and does not overwrite them.
 
 ### extension patch-method
 
@@ -143,7 +148,7 @@ xml-gen extension validate <extensionPath>
 - **ID ranges:** Base 1–999999, Extension 1000000+.
 - **BSL interceptors:** decorators `&Перед`, `&После`, `&Вместо`, `&ИзменениеИКонтроль` above a procedure with the extension prefix.
 - **Transfer markers:** `#Вставка` / `#КонецВставки` (or `#Область <Префикс>_Вставка`).
-- **Russian synonyms:** Справочник → Catalog, Документ → Document, РегистрСведений → InformationRegister, ОбщийМодуль → CommonModule, etc. — supported in all commands.
+- **Russian synonyms:** Справочник → Catalog, Документ → Document, РегистрСведений → InformationRegister, ОбщийМодуль → CommonModule, and others — supported in all commands.
 
 ---
 depends_on: []
