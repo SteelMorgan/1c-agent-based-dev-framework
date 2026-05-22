@@ -80,10 +80,64 @@ alwaysApply: true
 4. Если команды нет — переключиться на процедуру «исключение» выше (логирование + уведомление оркестратора).
 5. Если unclear — `clarification_needed` → оркестратор / пользователь.
 
+## Enforcement: pre-tool-use хук
+
+Правило усиливается автоматическим хуком `tools/hooks/block-direct-xml-edit.py`,
+который определяет 1С metadata XML/MXL по структуре пути:
+
+- `*.mxl` — всегда блокируется (двоичный формат).
+- `*.xml` внутри `**/Ext/`, `Configuration.xml`, или любой из 1С root-папок
+  (`Catalogs/`, `Documents/`, `InformationRegisters/`, `Roles/`, `Subsystems/`,
+  `CommonModules/`, `ChartsOf*`, `*Registers/`, `Reports/`, `DataProcessors/`,
+  `Enums/`, `Constants/`, `ExchangePlans/`, `Tasks/`, `BusinessProcesses/`,
+  `HTTPServices/`, `WebServices/`, `EventSubscriptions/`, `ScheduledJobs/`,
+  `DefinedTypes/`, `DocumentJournals/` и др.).
+- Исключения (не блокируется): `pom.xml`, `*.gradle*`, CI-конфиги (`.github/`,
+  `.gitlab/`), тестовые fixtures (`/test/`, `/tests/`, `/fixtures/`,
+  `/__fixtures__/`, `/testdata/`, `/test-resources/`).
+
+### Claude Code
+
+Зарегистрирован в `.claude/settings.json` как PreToolUse hook для
+`Edit|Write|MultiEdit|NotebookEdit`. При попытке прямой правки 1С XML/MXL хук
+возвращает exit 2 — Claude Code отклоняет вызов tool и показывает модели stderr
+с подсказкой по нужной команде xml-gen. Никаких ручных действий после клонирования
+репо делать не нужно — хук активен с момента старта сессии Claude Code в этом
+каталоге.
+
+### Codex / прочие агенты без PreToolUse-протокола
+
+Codex не имеет встроенного PreToolUse hook, поэтому enforcement в нём — текстовый
+(через это правило в AGENTS.md). Тот же Python-скрипт можно вызывать вручную
+или из shell-обёрток:
+
+```bash
+# CLI-режим: возвращает exit 2 если путь — 1С metadata XML/MXL
+python3 tools/hooks/block-direct-xml-edit.py --check <path> --tool Edit
+
+# Пример pre-action проверки в скрипте автоматизации
+python3 tools/hooks/block-direct-xml-edit.py --check "$FILE" --tool Edit || {
+    echo "Используй xml-gen вместо прямой правки"; exit 1;
+}
+```
+
+Скрипт поддерживает оба режима:
+- `stdin JSON` (Claude Code PreToolUse — payload с `tool_name`/`tool_input`).
+- `--check <path> --tool <Name>` (любой другой агент или CI-проверка).
+
+### Тонкая настройка / расширение списка путей
+
+Списки `ONEC_ROOT_DIRS`, `EXCLUDE_SUBSTRINGS`, `EXCLUDE_BASENAMES` задаются
+константами в `tools/hooks/block-direct-xml-edit.py`. Дополняй их, если в проекте
+появляется новый паттерн 1С-конфигурации (например, нестандартное расположение)
+или новый ложноположительный случай (build XML с уникальным именем).
+
 ## Связанные документы
 
 - `framework/skills/tool-usage/platform-data/xml-generation/` — skill-обёртки xmlgen.
 - `tools/xml-gen/README.md` + `SPEC-*.md` — спецификации xmlgen CLI.
+- `tools/hooks/block-direct-xml-edit.py` — enforcement-хук этого правила.
+- `.claude/settings.json` — регистрация хука для Claude Code.
 - `framework/rules/protected-paths.md` — пересекается в части `exts/YAXUNIT/**` (protected) и других защищённых каталогов.
 
 ---
