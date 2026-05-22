@@ -48,6 +48,16 @@ public final class FormPresetLoader {
             }
         }
 
+        // TASK-155 A2: preset existence check — fail fast if the requested preset is not found.
+        // builtIn == null means no classpath resource, projectFile == null means no project-level file.
+        // If both are absent the user specified an unknown preset name; do not silently fall back to defaults.
+        if (builtIn == null && projectFile == null) {
+            throw new IllegalArgumentException(
+                "Unknown preset: \"" + presetName + "\". " +
+                "Available built-in presets: erp-standard. " +
+                "Project-level presets are loaded from <projectRoot>/presets/skills/form/<name>.json.");
+        }
+
         // 4) resolve basedOn
         FormPresetMerger.resolveBasedOn(merged);
 

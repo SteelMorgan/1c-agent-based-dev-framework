@@ -177,6 +177,25 @@ JSON DSL → DSL Models → Model Layer → Writers → XML + структура
 
 Все тесты используют временные каталоги (@TempDir) и проверяют корректность генерируемых файлов.
 
+## Exit codes (TASK-155, 2026-05-22)
+
+| Code | Meaning | When it occurs |
+|------|---------|----------------|
+| `0`  | Success | The operation completed without errors |
+| `1`  | Business / domain error | Invalid input, missing required field, duplicate entity, unknown enum value, target object not found, boundary violation. `stderr` contains `ERROR: <message>`. |
+| `2`  | JVM / infrastructure failure | The JVM itself crashed (OOM, missing JAR, etc.). The JVM writes its own diagnostics to `stderr`. |
+
+**Debug mode:** set the environment variable `XML_GEN_DEBUG=1` to print the full Java stack trace to `stderr` on exit `1`. Useful when diagnosing unexpected exceptions during development.
+
+```bash
+# Normal use — clean error message, exit=1
+xml-gen skd compile bad.json out.xml
+# → stderr: ERROR: dataSets field is required in SKD DSL
+
+# Debug mode — full stack trace
+XML_GEN_DEBUG=1 xml-gen skd compile bad.json out.xml
+```
+
 ## Лицензия
 
 LGPL-3.0 (совместимо с mdclasses)

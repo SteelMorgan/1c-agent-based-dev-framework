@@ -1,5 +1,8 @@
 package io.github.onec.xmlgen.validator;
 
+import io.github.onec.xmlgen.model.MetadataTypeRegistry;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.*;
 
 /**
@@ -37,6 +40,15 @@ public class InterfaceValidator {
     );
 
     private final List<ValidationMessage> messages = new ArrayList<>();
+
+    // TASK-155 A2 iter-2: overload that receives the config root for object-existence checks.
+    public List<ValidationMessage> validate(XmlDocument document, Path configRoot) {
+        this.configRootForCheck = configRoot;
+        return validate(document);
+    }
+
+    /** Optional config root used for object-existence checks. Set by the overloaded validate. */
+    private Path configRootForCheck = null;
 
     public List<ValidationMessage> validate(XmlDocument document) {
         messages.clear();
@@ -267,6 +279,21 @@ public class InterfaceValidator {
             if (!"StandardCommand".equals(parts[2]) && !"Command".equals(parts[2])) {
                 warn(section + ": command reference '" + ref
                         + "' segment 3 should be 'StandardCommand' or 'Command', got '" + parts[2] + "'");
+            }
+            // TASK-155 A2 iter-2: when configRoot is available, verify that the referenced
+            // object actually exists in the configuration. A missing object is an ERROR because
+            // the CommandInterface will reference a non-existent command at runtime.
+            if (configRootForCheck != null && COMMAND_REF_TYPES.contains(parts[0])) {
+                MetadataTypeRegistry.TypeDescriptor td = MetadataTypeRegistry.get(parts[0]);
+                if (td != null) {
+                    Path objFile = configRootForCheck.resolve(td.directory()).resolve(parts[1] + ".xml");
+                    Path objDir = configRootForCheck.resolve(td.directory()).resolve(parts[1]);
+                    if (!Files.exists(objFile) && !Files.isDirectory(objDir)) {
+                        error(section + ": command reference '" + ref
+                            + "' refers to a non-existent object " + parts[0] + "." + parts[1]
+                            + " (not found in " + td.directory() + "/)");
+                    }
+                }
             }
         } else if (parts.length < 3) {
             warn(section + ": command reference '" + ref

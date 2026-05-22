@@ -47,12 +47,20 @@ public class SubsystemEditor {
      * Добавить объекты в Content.
      * Формат: JSON array строк, например ["Catalog.Товары","Document.Заказ"]
      * или одиночная строка "Type.Name".
+     *
+     * <p>TASK-155 A3: fail-fast on missing subsystem target / boundary guard.
+     * Перед добавлением в Content проверяем, что объект существует на диске.
+     * Путь к объекту вычисляется относительно корня расширения:
+     * filePath.getParent() = Subsystems/ каталог, его родитель = корень расширения.
      */
     public void addContent(String spec) {
         String[] items = parseItems(spec);
         for (String item : items) {
             String trimmed = item.trim();
             if (trimmed.isEmpty()) continue;
+
+            // TASK-155 A3: fail-fast — проверить существование целевого объекта.
+            checkTargetObjectExists(trimmed);
 
             String entry = "<xr:Item xsi:type=\"xr:MDObjectRef\">" + escapeXml(trimmed) + "</xr:Item>";
 
@@ -70,6 +78,92 @@ public class SubsystemEditor {
             content = content.replace("</Content>",
                     "\t" + entry + "\n\t\t\t</Content>");
         }
+    }
+
+    /**
+     * Проверить, что целевой объект ("Type.Name") существует на диске.
+     * Расположение: <extensionRoot>/<TypeDir>/<Name>.xml,
+     * где extensionRoot = filePath.getParent() (каталог, в котором лежит подсистема).
+     *
+     * <p>Примеры корректных структур:
+     * <ul>
+     *   <li>exts/XMLGEN_TEST/SS_001.xml → extensionRoot = exts/XMLGEN_TEST/
+     *       → объект ожидается в exts/XMLGEN_TEST/Catalogs/Name.xml</li>
+     *   <li>exts/XMLGEN_TEST/Subsystems/SS_001.xml → extensionRoot = exts/XMLGEN_TEST/Subsystems/
+     *       → объект ожидается в exts/XMLGEN_TEST/Subsystems/Catalogs/Name.xml</li>
+     * </ul>
+     *
+     * <p>TASK-155 A3: fail-fast on missing subsystem target / boundary guard.
+     */
+    private void checkTargetObjectExists(String contentItem) {
+        int dot = contentItem.indexOf('.');
+        if (dot <= 0) return; // malformed — will be silently skipped in addContent
+        String type = contentItem.substring(0, dot);
+        String name = contentItem.substring(dot + 1);
+        String dir = resolveDirectoryForType(type);
+
+        // extensionRoot = directory where the subsystem xml file lives.
+        // In the standard harness layout: exts/XMLGEN_TEST/SS_001.xml → exts/XMLGEN_TEST/.
+        Path extensionRoot = filePath.getParent();
+        if (extensionRoot == null) return; // cannot determine — skip check
+
+        Path objFile = extensionRoot.resolve(dir).resolve(name + ".xml");
+        if (!Files.exists(objFile)) {
+            throw new IllegalArgumentException(
+                    "ERROR: target object " + contentItem + " does not exist"
+                    + " (expected file: " + objFile + ")."
+                    + " Create the object first before referencing it in a subsystem.");
+        }
+    }
+
+    /**
+     * Resolve the directory name for a metadata type (mirrors SubsystemWriter logic).
+     */
+    private static String resolveDirectoryForType(String type) {
+        // Mirror MetadataTypeRegistry lookup for common types
+        return switch (type) {
+            case "Catalog" -> "Catalogs";
+            case "Document" -> "Documents";
+            case "InformationRegister" -> "InformationRegisters";
+            case "AccumulationRegister" -> "AccumulationRegisters";
+            case "AccountingRegister" -> "AccountingRegisters";
+            case "CalculationRegister" -> "CalculationRegisters";
+            case "BusinessProcess" -> "BusinessProcesses";
+            case "Task" -> "Tasks";
+            case "ExchangePlan" -> "ExchangePlans";
+            case "ChartOfCharacteristicTypes" -> "ChartsOfCharacteristicTypes";
+            case "ChartOfAccounts" -> "ChartsOfAccounts";
+            case "ChartOfCalculationTypes" -> "ChartsOfCalculationTypes";
+            case "DataProcessor" -> "DataProcessors";
+            case "Report" -> "Reports";
+            case "Sequence" -> "Sequences";
+            case "DocumentJournal" -> "DocumentJournals";
+            case "Enum" -> "Enums";
+            case "CommonModule" -> "CommonModules";
+            case "SessionParameter" -> "SessionParameters";
+            case "Role" -> "Roles";
+            case "CommonAttribute" -> "CommonAttributes";
+            case "ExchangePlanNode" -> "ExchangePlans";
+            case "FilterCriterion" -> "FilterCriteria";
+            case "EventSubscription" -> "EventSubscriptions";
+            case "ScheduledJob" -> "ScheduledJobs";
+            case "FunctionalOption" -> "FunctionalOptions";
+            case "FunctionalOptionsParameter" -> "FunctionalOptionsParameters";
+            case "DefinedType" -> "DefinedTypes";
+            case "CommonCommand" -> "CommonCommands";
+            case "CommandGroup" -> "CommandGroups";
+            case "CommonForm" -> "CommonForms";
+            case "CommonTemplate" -> "CommonTemplates";
+            case "Subsystem" -> "Subsystems";
+            case "DocumentNumerator" -> "DocumentNumerators";
+            case "SettingsStorage" -> "SettingsStorages";
+            case "HTTPService" -> "HTTPServices";
+            case "WebService" -> "WebServices";
+            case "XDTOPackage" -> "XDTOPackages";
+            case "Interface" -> "Interfaces";
+            case "Constant" -> "Constants";
+            default -> type + "s";
+        };
     }
 
     /**

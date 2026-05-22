@@ -81,12 +81,14 @@ public class SubsystemWriter {
         // 3. Stub XML for declared content / children (если файлы отсутствуют).
         if (writeStubs) {
             // Content: ссылки на объекты конфигурации типа "Catalog.Товары".
-            // Путь к корню конфигурации — родитель Subsystems/.
-            Path configRoot = outputDir.getParent();
-            if (configRoot != null) {
-                for (String item : content) {
-                    ensureContentStub(configRoot, item);
-                }
+            // configRoot = outputDir — содержимое подсистемы (.xml) лежит непосредственно в outputDir,
+            // а объекты-соседи (Catalogs/, Documents/ и т.д.) — в sibling-каталогах того же outputDir.
+            // Старый вариант (outputDir.getParent()) ошибочно поднимался на уровень выше
+            // (например, exts/ вместо exts/XMLGEN_TEST/), что вызывало запись за пределы расширения.
+            // TASK-155 A3: используем outputDir напрямую как корень расширения.
+            Path configRoot = outputDir;
+            for (String item : content) {
+                ensureContentStub(configRoot, item);
             }
             // Children: <ChildName> внутри ChildObjects → Subsystems/ChildName.xml рядом с собой
             Path childrenDir = subsystemDir.resolve("Subsystems");
@@ -258,6 +260,15 @@ public class SubsystemWriter {
     /**
      * Создать stub-XML для элемента Content ("Type.Name"), если файл объекта отсутствует.
      * Нужен чтобы валидация конфигурации не падала при промежуточном состоянии создания.
+     *
+     * <p>TASK-155 A3: fail-fast on missing subsystem target / boundary guard.
+     * <ul>
+     *   <li>Если объект отсутствует — бросаем IllegalArgumentException вместо молчаливого создания.
+     *       Команда subsystem compile не должна создавать объекты, которые не заявлены явно.</li>
+     *   <li>Defensive boundary guard: путь к stub-файлу MUST начинаться с configRoot.
+     *       Нарушение указывает на некорректный outputDir (например, exts/XMLGEN_TEST/ вместо
+     *       exts/XMLGEN_TEST/Subsystems/), что привело бы к записи за пределы расширения.</li>
+     * </ul>
      */
     private void ensureContentStub(Path configRoot, String contentItem) throws IOException {
         int dot = contentItem.indexOf('.');
@@ -266,9 +277,26 @@ public class SubsystemWriter {
         String name = contentItem.substring(dot + 1);
         String dir = resolveDirectoryForType(type);
         Path objFile = configRoot.resolve(dir).resolve(name + ".xml");
-        if (Files.exists(objFile)) return;
-        Files.createDirectories(objFile.getParent());
-        writeMetaStub(objFile, type, name);
+
+        // TASK-155 A3: defensive boundary guard — путь файла должен быть внутри configRoot.
+        // Нарушение = outputDir задан неверно (не Subsystems/, а сам каталог расширения).
+        Path canonicalRoot = configRoot.toAbsolutePath().normalize();
+        Path canonicalFile = objFile.toAbsolutePath().normalize();
+        if (!canonicalFile.startsWith(canonicalRoot)) {
+            throw new IllegalStateException(
+                    "Output path escapes extension boundary: " + canonicalFile
+                    + " is not under configRoot " + canonicalRoot
+                    + ". Check that outputDir points to Subsystems/ inside the extension.");
+        }
+
+        // TASK-155 A3: fail-fast on missing target object — не создавать заглушку молча.
+        // Пользователь должен сначала создать объект (xml-gen meta compile ...), затем ссылаться на него.
+        if (!Files.exists(objFile)) {
+            throw new IllegalArgumentException(
+                    "ERROR: target object " + contentItem + " does not exist"
+                    + " (expected file: " + objFile + ")."
+                    + " Create the object first or use --no-stubs to skip this check.");
+        }
     }
 
     private static String resolveDirectoryForType(String type) {

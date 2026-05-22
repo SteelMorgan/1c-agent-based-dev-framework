@@ -108,3 +108,85 @@ xml-gen epf add-attribute --name Employee --type CatalogRef.Employees --synonym 
 4. **Phase 4: SkdEditor**
 5. **Phase 5: EpfEditor**
 6. **Phase 6: CLI & Validation**
+
+---
+
+## Exit codes для edit-операций (TASK-155, 2026-05-22)
+
+Контракт, действующий после патча TASK-155 (A2).
+
+| Code | Meaning |
+|------|---------|
+| `0`  | Операция успешна, файл обновлён |
+| `1`  | Бизнес/доменная ошибка (см. ниже) |
+| `2`  | JVM/инфраструктурный сбой |
+
+### Ситуации exit=1 (не JVM)
+
+**Целевой объект не найден (`add-X` / `remove-Y` / `edit --op` на несуществующую сущность):**
+
+```bash
+xml-gen form remove-element --name НесуществующийЭлемент Form.xml
+# → stderr: ERROR: Element 'НесуществующийЭлемент' not found
+# → exit=1
+```
+
+**Дубликат (`add-X` с уже существующей сущностью):**
+
+Следующие операции возвращают `exit=1` при попытке добавить дубликат:
+- `form add-attribute` с тем же `--name`
+- `form add-command` с тем же `--name`
+- `epf add-form` с тем же именем формы
+- `epf add-attribute` с тем же `--name`
+- `epf add-tabular-section` с тем же `--name`
+- `role add-object` с тем же именем объекта (используйте `role add-right` для добавления прав к существующему объекту)
+- `role add-right` с уже существующим правом на тот же объект
+
+```bash
+xml-gen form add-attribute --name УжеЕсть --type string Form.xml
+# → stderr: ERROR: Attribute 'УжеЕсть' already exists
+# → exit=1
+```
+
+**Невалидный enum-значение:**
+
+- `--right` в `role compile` / `role add-right` MUST быть из whitelist `RoleRight` (case-sensitive). Например, `"view"` (lowercase) → `exit=1`; корректно — `"View"`.
+- `--type` в `epf add-attribute` обязателен; если отсутствует → `exit=1`.
+- `--action` в `form add-command` обязателен; если отсутствует → `exit=1`.
+- `--type` в `skd add-parameter` обязателен; если отсутствует → `exit=1`.
+
+```bash
+xml-gen role add-object --name Catalog.Товары --rights view Rights.xml
+# → stderr: ERROR: Unknown RoleRight value: 'view' (expected one of: View, Read, Insert, ...)
+# → exit=1
+```
+
+**Невалидный идентификатор 1С:**
+
+- `--name` в `config init`, `epf init`, `extension init` MUST соответствовать regex `[A-Za-z_][A-Za-z0-9_]*`. Пробелы, кириллица и спецсимволы недопустимы.
+
+```bash
+xml-gen epf init --name "Bad Name!@#" output/
+# → stderr: ERROR: Invalid 1C identifier: 'Bad Name!@#'. Must match [A-Za-z_][A-Za-z0-9_]*
+# → exit=1
+```
+
+**JSON compile с отсутствующими обязательными полями:**
+
+- `skd compile` с DSL без поля `dataSets` → `exit=1`
+- `mxl compile` с DSL без хотя бы одного из `areas`/`columns`/`columnWidths`/`page` → `exit=1`
+
+```bash
+xml-gen skd compile empty.json Template.xml
+# empty.json = {}
+# → stderr: ERROR: dataSets field is required in SKD DSL
+# → exit=1
+```
+
+**Rollback при ошибке валидации:**
+
+После любой модификации файл автоматически валидируется. Если валидация вернула ERROR → изменения откатываются (файл остаётся в исходном состоянии) и выводятся ошибки. Временный `file.tmp` удаляется.
+
+### Форма сообщения об ошибке
+
+Все сообщения об ошибках записываются в `stderr` и начинаются с `ERROR: `. `stdout` в случае ошибки пуст.

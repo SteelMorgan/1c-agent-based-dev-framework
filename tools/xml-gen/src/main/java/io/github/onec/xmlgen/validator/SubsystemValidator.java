@@ -1,5 +1,6 @@
 package io.github.onec.xmlgen.validator;
 
+import io.github.onec.xmlgen.model.MetadataTypeRegistry;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.*;
@@ -107,14 +108,30 @@ public class SubsystemValidator {
                     + " items (expected exactly 1)");
         }
 
-        // Check 6: Content format
+        // Check 6: Content format + existence
+        // TASK-155 A2 iter-2: promote broken-content-ref to ERROR so that validate
+        // returns exit=1 for references to objects that do not exist in the config.
         for (String item : contentItems) {
             if (!item.contains(".") && !isUuid(item)) {
                 warn("Content: item '" + item + "' does not match Type.Name format");
             } else if (item.contains(".") && !isUuid(item)) {
-                String type = item.substring(0, item.indexOf('.'));
+                int dotIdx = item.indexOf('.');
+                String type = item.substring(0, dotIdx);
+                String objName = item.substring(dotIdx + 1);
                 if (!VALID_CONTENT_TYPES.contains(type)) {
                     warn("Content: unknown type '" + type + "' in '" + item + "'");
+                } else if (subsystemDir != null) {
+                    // Check that the referenced object actually exists in the config directory.
+                    // subsystemDir is the config root (parent of the Subsystem XML file).
+                    MetadataTypeRegistry.TypeDescriptor td = MetadataTypeRegistry.get(type);
+                    if (td != null) {
+                        Path objFile = subsystemDir.resolve(td.directory()).resolve(objName + ".xml");
+                        Path objDir = subsystemDir.resolve(td.directory()).resolve(objName);
+                        if (!Files.exists(objFile) && !Files.isDirectory(objDir)) {
+                            error("Content: object '" + item + "' not found in configuration "
+                                + "(expected " + td.directory() + "/" + objName + ".xml)");
+                        }
+                    }
                 }
             }
         }

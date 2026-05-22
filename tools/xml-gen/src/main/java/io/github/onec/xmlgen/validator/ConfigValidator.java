@@ -275,7 +275,12 @@ public class ConfigValidator {
                 if ("Language".equals(type)) {
                     Path langFile = configDir.resolve("Languages").resolve(objName + ".xml");
                     if (!Files.exists(langFile)) {
-                        warn("File missing: Languages/" + objName + ".xml");
+                        //++agent TASK-155 [22.05.2026 00:00:00]
+                        // TASK-155 A2 iter-3: broken ChildObject reference → error, not warn.
+                        // bug-T-154-config-002 obs #4: Designer refuses to load a Configuration.xml
+                        // with missing object files — treating it as WARN (exit=0) is misleading.
+                        error("File missing: Languages/" + objName + ".xml");
+                        //++agent TASK-155
                     }
                 }
 
@@ -286,7 +291,10 @@ public class ConfigValidator {
                     Path objDir = configDir.resolve(dir).resolve(objName);
                     Path objXml = configDir.resolve(dir).resolve(objName + ".xml");
                     if (!Files.exists(objDir) && !Files.exists(objXml)) {
-                        warn("File missing: " + dir + "/" + objName + " (neither dir nor .xml found)");
+                        //++agent TASK-155 [22.05.2026 00:00:00]
+                        // TASK-155 A2 iter-3: broken ref → error (bug-T-154-config-002 obs #4).
+                        error("File missing: " + dir + "/" + objName + " (neither dir nor .xml found)");
+                        //++agent TASK-155
                     }
                 }
             }

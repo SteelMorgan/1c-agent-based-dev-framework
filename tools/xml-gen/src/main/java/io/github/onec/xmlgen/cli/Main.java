@@ -21,9 +21,15 @@ public class Main {
             System.err.println("Error: " + e.getMessage());
             System.exit(1);
         } catch (Exception e) {
-            System.err.println("Unexpected error: " + e.getMessage());
-            e.printStackTrace();
-            System.exit(2);
+            // TASK-155 A1: unified CLI exception envelope — clean exit=1 without stack trace
+            // Stack trace is printed only when XML_GEN_DEBUG env variable is set (optional debug mode).
+            // exit=2 is reserved for JVM/infrastructure failures (missing JAR, JVM crash), not domain errors.
+            String msg = e.getMessage();
+            System.err.println("ERROR: " + (msg != null && !msg.isBlank() ? msg : e.getClass().getSimpleName()));
+            if (System.getenv("XML_GEN_DEBUG") != null) {
+                e.printStackTrace(System.err);
+            }
+            System.exit(1);
         }
     }
 

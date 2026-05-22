@@ -37,6 +37,11 @@ import io.github.onec.xmlgen.info.ExtensionDiffPrinter;
 
 import io.github.onec.xmlgen.editor.ReplaceTextEditor;
 
+//++agent TASK-155 [22.05.2026 00:00:00]
+// TASK-155 A2 iter-3: import RoleRight for compile-path rights validation (bug-T-154-role-002).
+import com.github._1c_syntax.bsl.mdo.support.RoleRight;
+//++agent TASK-155
+
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -55,6 +60,16 @@ import java.util.Set;
  * Диспетчер команд CLI.
  */
 public class Commands {
+
+    // TASK-155 A2: whitelist for --type in validate command.
+    // Includes schema-backed types (form, role, skd, mxl, epf) AND
+    // auto-detect types that go through GenValidator without a schema validator
+    // (meta, config, extension, subsystem, interface, template).
+    // erf is normalised to epf before the check.
+    private static final Set<String> KNOWN_VALIDATE_TYPES = new HashSet<>(Arrays.asList(
+        "form", "role", "skd", "mxl", "epf", "erf",
+        "meta", "config", "extension", "subsystem", "interface", "template"
+    ));
     
     public static void execute(String command, String[] args) {
         switch (command.toLowerCase()) {
@@ -283,6 +298,18 @@ public class Commands {
             throw new IllegalArgumentException("output directory is required");
         }
 
+        //++agent TASK-155 [22.05.2026 00:00:00]
+        // TASK-155 A2 iter-3: name validation for EPF init (bug-T-154-epf-002).
+        // 1C metadata names must match [A-Za-z_][A-Za-z0-9_]* (latin only, no spaces/special chars).
+        // Names with spaces or special characters produce paths invalid on some 1C Designer versions.
+        if (!name.matches("[A-Za-z_][A-Za-z0-9_]*")) {
+            throw new IllegalArgumentException(
+                "Invalid 1C name: '" + name + "'. " +
+                "EPF/ERF names must match [A-Za-z_][A-Za-z0-9_]* " +
+                "(Latin letters, digits, and underscores only; must not start with a digit).");
+        }
+        //++agent TASK-155
+
         try {
             EpfWriter writer = new EpfWriter(format, isReport);
             writer.init(name, synonym, outputDir);
@@ -327,6 +354,17 @@ public class Commands {
             throw new IllegalArgumentException("output directory is required");
         }
         
+        //++agent TASK-155 [22.05.2026 00:00:00]
+        // TASK-155 A2 iter-3: duplicate form detection (bug-T-154-epf-002 obs #1).
+        // Check if <epfName>/Forms/<formName>.xml already exists — if so, refuse to overwrite.
+        Path formsMetaXml = outputDir.resolve(epfName).resolve("Forms").resolve(formName + ".xml");
+        if (Files.exists(formsMetaXml)) {
+            throw new IllegalArgumentException(
+                "Form '" + formName + "' already exists in EPF '" + epfName + "' " +
+                "(" + formsMetaXml + "). Use a different name or remove the existing form first.");
+        }
+        //++agent TASK-155
+
         try {
             EpfWriter writer = new EpfWriter(format);
             writer.addForm(epfName, formName, formSynonym, outputDir, setAsDefault);
@@ -389,9 +427,50 @@ public class Commands {
             String cmd = args[0];
             
             if ("add-attribute".equals(cmd)) {
+                 //++agent TASK-155 [22.05.2026 00:00:00]
+                 // TASK-155 A2 iter-3: --type is required for epf add-attribute (bug-T-154-epf-002 obs #2).
+                 // Without type the attribute gets a default type silently, making the EPF metadata inconsistent.
+                 // Duplicate check: scan existing attributes by name (bug-T-154-epf-002 obs #3).
+                 String attrType = getArg(args, "--type", false);
+                 if (attrType == null) {
+                     throw new IllegalArgumentException(
+                         "--type is required for epf add-attribute " +
+                         "(e.g. --type String, --type Number, --type Boolean, --type CatalogRef.X)");
+                 }
+                 String attrName = getArg(args, "--name", true);
+                 // Check for duplicate attribute in the EPF XML
+                 XmlNode epfAttribs = doc.getRoot().child("ExternalDataProcessor") != null
+                     ? doc.getRoot().child("ExternalDataProcessor")
+                     : doc.getRoot();
+                 // Find Attributes section at any depth by scanning root's Attributes child
+                 XmlNode attrSection = doc.getRoot().child("Attributes");
+                 if (attrSection == null) {
+                     // Try nested ExternalDataProcessor / ExternalReport root pattern
+                     for (String childName : new String[]{"ExternalDataProcessor", "ExternalReport"}) {
+                         XmlNode container = doc.getRoot().child(childName);
+                         if (container != null) {
+                             attrSection = container.child("Attributes");
+                             break;
+                         }
+                     }
+                 }
+                 if (attrSection != null) {
+                     for (XmlNode existingAttr : attrSection.children("Attribute")) {
+                         XmlNode props = existingAttr.child("Properties");
+                         if (props != null) {
+                             XmlNode nameNode = props.child("Name");
+                             if (nameNode != null && attrName.equals(nameNode.getText())) {
+                                 throw new IllegalArgumentException(
+                                     "Attribute '" + attrName + "' already exists in EPF. " +
+                                     "Use a different name or remove the existing attribute first.");
+                             }
+                         }
+                     }
+                 }
+                 //++agent TASK-155
                  editor.addAttribute(
-                     getArg(args, "--name", true),
-                     getArg(args, "--type", false),
+                     attrName,
+                     attrType,
                      getArg(args, "--synonym", false)
                  );
             } else if ("add-tabular-section".equals(cmd)) {
@@ -450,6 +529,14 @@ public class Commands {
 
         try {
             XmlDocument doc = new XmlStructureReader().parse(file);
+            // TASK-155 A2: root-element guard — reject non-Form XML before printing.
+            // Managed form files (Form.xml) have root localName "Form".
+            String rootEl = doc.getRootElement();
+            if (!"Form".equals(rootEl)) {
+                throw new IllegalArgumentException(
+                    "Expected root <Form> (managed form), got <" + rootEl + ">. " +
+                    "The file does not appear to be a 1C managed form.");
+            }
             new FormInfoPrinter().print(doc, limit, offset, System.out);
         } catch (XmlStructureReader.XmlParseException e) {
             throw new RuntimeException("Failed to parse form XML: " + e.getMessage(), e);
@@ -532,8 +619,14 @@ public class Commands {
         try {
             ObjectContainerEditor editor = new ObjectContainerEditor(objectXml);
             if (!editor.removeForm(formName)) {
-                System.out.println("Form '" + formName + "' not found in ChildObjects");
-                return;
+                //++agent TASK-155 [22.05.2026 00:00:00]
+                // TASK-155 A2 iter-3: fail-fast on missing form (bug-T-154-form-002 obs #6).
+                // Previously: print "Form not found" + exit=0 (silent no-op).
+                // Now: throw → caught by outer try/catch → RuntimeException → Main catches + exit=1.
+                throw new IllegalArgumentException(
+                    "Form '" + formName + "' not found in ChildObjects of '" + objectXml + "'. " +
+                    "Cannot remove a non-existing form.");
+                //++agent TASK-155
             }
 
             editor.clearDefaultFormIfMatches(formName);
@@ -627,7 +720,24 @@ public class Commands {
             String cmd = args[0];
             
             if ("add-attribute".equals(cmd)) {
-                 editor.addAttribute(getArg(args, "--name", true), getArg(args, "--type", true));
+                 //++agent TASK-155 [22.05.2026 00:00:00]
+                 // TASK-155 A2 iter-3: duplicate attribute detection for form add-attribute
+                 // (bug-T-154-form-002 main reproducer). Two attributes with the same name
+                 // in Form.xml are semantically invalid (1C Designer would reject the form).
+                 String addAttrName = getArg(args, "--name", true);
+                 XmlNode formAttribs = doc.getRoot().child("Attributes");
+                 if (formAttribs != null) {
+                     for (XmlNode existingAttr : formAttribs.children("Attribute")) {
+                         String existingName = existingAttr.attr("name");
+                         if (addAttrName.equals(existingName)) {
+                             throw new IllegalArgumentException(
+                                 "Attribute '" + addAttrName + "' already exists in form. " +
+                                 "Use a different name or remove the existing attribute first.");
+                         }
+                     }
+                 }
+                 //++agent TASK-155
+                 editor.addAttribute(addAttrName, getArg(args, "--type", true));
             } else if ("add-element".equals(cmd)) {
                  editor.addElement(
                      getArg(args, "--type", true),
@@ -637,19 +747,66 @@ public class Commands {
                      getArg(args, "--after", false)
                  );
             } else if ("add-command".equals(cmd)) {
+                 //++agent TASK-155 [22.05.2026 00:00:00]
+                 // TASK-155 A2 iter-3: --action is required for form add-command (bug-T-154-form-002 obs #1).
+                 // A command without action is semantically broken (1C cannot call it).
+                 // Duplicate command detection (bug-T-154-form-002 obs #2).
+                 String addCmdAction = getArg(args, "--action", false);
+                 if (addCmdAction == null) {
+                     throw new IllegalArgumentException(
+                         "--action is required for form add-command " +
+                         "(e.g. --action SaveObj specifies the form module procedure to call)");
+                 }
+                 String addCmdName = getArg(args, "--name", true);
+                 XmlNode formCmds = doc.getRoot().child("Commands");
+                 if (formCmds != null) {
+                     for (XmlNode existingCmd : formCmds.children("Command")) {
+                         String existingName = existingCmd.attr("name");
+                         if (addCmdName.equals(existingName)) {
+                             throw new IllegalArgumentException(
+                                 "Command '" + addCmdName + "' already exists in form. " +
+                                 "Use a different name or remove the existing command first.");
+                         }
+                     }
+                 }
+                 //++agent TASK-155
                  editor.addCommand(
-                     getArg(args, "--name", true),
+                     addCmdName,
                      getArg(args, "--title", false),
-                     getArg(args, "--action", false)
+                     addCmdAction
                  );
             } else if ("remove-element".equals(cmd)) {
-                 editor.removeElement(getArg(args, "--name", true));
+                 //++agent TASK-155 [22.05.2026 00:00:00]
+                 // TASK-155 A2 iter-3: fail-fast on missing element for remove-element
+                 // (bug-T-154-form-002 obs #3: no-op exit=0 was misleading).
+                 String removeElName = getArg(args, "--name", true);
+                 XmlNode removeChildItems = doc.getRoot().child("ChildItems");
+                 boolean removeElFound = false;
+                 if (removeChildItems != null) {
+                     removeElFound = findElementByNameRecursive(removeChildItems, removeElName);
+                 }
+                 if (!removeElFound) {
+                     throw new IllegalArgumentException(
+                         "Element '" + removeElName + "' not found in form. " +
+                         "Cannot remove a non-existing element.");
+                 }
+                 //++agent TASK-155
+                 editor.removeElement(removeElName);
             } else if ("move-element".equals(cmd)) {
+                 //++agent TASK-155 [22.05.2026 00:00:00]
+                 // TASK-155 A2 iter-3: --parent is an alias for --into (bug-T-154-form-002 obs #4).
+                 // When the target parent does not exist, FormEditor already throws — so the
+                 // fix is just mapping --parent → --into so it reaches the existing check.
+                 String moveInto = getArg(args, "--into", false);
+                 if (moveInto == null) {
+                     moveInto = getArg(args, "--parent", false);
+                 }
+                 //++agent TASK-155
                  editor.moveElement(
                      getArg(args, "--name", true),
                      getArg(args, "--after", false),
                      getArg(args, "--before", false),
-                     getArg(args, "--into", false)
+                     moveInto
                  );
             }
             saveAndValidate(doc, file, "form", args);
@@ -737,6 +894,16 @@ public class Commands {
 
         try {
             XmlDocument doc = new XmlStructureReader().parse(file);
+            //++agent TASK-155 [22.05.2026 00:00:00]
+            // TASK-155 A2 iter-3: root-element guard for role info.
+            // bug-T-154-role-002 obs #1: <root> file printed "(no allowed rights)" + exit=0.
+            String roleRoot = doc.getRootElement();
+            if (!"Rights".equals(roleRoot)) {
+                throw new IllegalArgumentException(
+                    "Not a Rights.xml file (expected root <Rights>, got <" + roleRoot + ">). " +
+                    "The file does not appear to be a 1C role rights descriptor.");
+            }
+            //++agent TASK-155
             new RoleInfoPrinter().print(doc, showDenied, limit, offset, System.out);
         } catch (XmlStructureReader.XmlParseException e) {
             throw new RuntimeException("Failed to parse role XML: " + e.getMessage(), e);
@@ -768,6 +935,29 @@ public class Commands {
         try {
             ObjectMapper mapper = new ObjectMapper();
             RoleDsl dsl = mapper.readValue(inputJson.toFile(), RoleDsl.class);
+            //++agent TASK-155 [22.05.2026 00:00:00]
+            // TASK-155 A2 iter-3: validate rights enum before writing Rights.xml.
+            // bug-T-154-role-002: "view" (lowercase) was silently written to XML and
+            // 1C Designer would reject the resulting Rights.xml. The validator (ROLE-101)
+            // already catches this — but compile-path must fail fast too.
+            if (dsl.getObjects() != null) {
+                for (RoleDsl.ObjectRights obj : dsl.getObjects()) {
+                    if (obj.getRights() instanceof List) {
+                        @SuppressWarnings("unchecked")
+                        List<String> rightsList = (List<String>) obj.getRights();
+                        for (String right : rightsList) {
+                            if (!isValidRoleRightName(right)) {
+                                throw new IllegalArgumentException(
+                                    "Invalid right name '" + right + "' for object '" + obj.getName() + "'. " +
+                                    "Right names are case-sensitive XML identifiers (e.g. Read, View, Insert, " +
+                                    "Update, Delete, Edit, InteractiveInsert, InteractiveDelete, " +
+                                    "Posting, UndoPosting). Got: '" + right + "'.");
+                            }
+                        }
+                    }
+                }
+            }
+            //++agent TASK-155
             RoleWriter writer = new RoleWriter(format);
             writer.create(dsl, outputDir);
         } catch (Exception e) {
@@ -798,6 +988,27 @@ public class Commands {
             throw new RuntimeException("Role editor failed: " + e.getMessage(), e);
         }
     }
+
+    //++agent TASK-155 [22.05.2026 00:00:00]
+    /**
+     * TASK-155 A2 iter-3: helper to check if a right name is a valid 1C RoleRight XML name.
+     * Used by roleCompile to validate rights before writing Rights.xml (bug-T-154-role-002).
+     * Mirrors the same check in RoleValidator.isKnownRoleRight().
+     */
+    private static boolean isValidRoleRightName(String name) {
+        try {
+            for (RoleRight rr : RoleRight.values()) {
+                if (rr.fullName().getEn().equals(name)) {
+                    return true;
+                }
+            }
+            return false;
+        } catch (Exception e) {
+            // If enum not available, do not block compilation
+            return true;
+        }
+    }
+    //++agent TASK-155
 
     private static void executeMxl(String[] args) {
         if (args.length == 0) {
@@ -834,6 +1045,16 @@ public class Commands {
 
         try {
             XmlDocument doc = new XmlStructureReader().parse(inputXml);
+            //++agent TASK-155 [22.05.2026 00:00:00]
+            // TASK-155 A2 iter-3: reject non-MXL XML before decompiling.
+            // bug-T-154-mxl-002 obs #1: <root> file produced exit=0 + broken JSON.
+            String mxlRoot = doc.getRootElement();
+            if (!"document".equals(mxlRoot)) {
+                throw new IllegalArgumentException(
+                    "Not an MXL template (expected root <document>, got <" + mxlRoot + ">). " +
+                    "The file does not appear to be a 1C spreadsheet document.");
+            }
+            //++agent TASK-155
             new MxlDecompiler().decompile(doc, outputJson);
         } catch (XmlStructureReader.XmlParseException | IOException e) {
             throw new RuntimeException("Failed to decompile MXL: " + e.getMessage(), e);
@@ -864,6 +1085,14 @@ public class Commands {
 
         try {
             XmlDocument doc = new XmlStructureReader().parse(file);
+            // TASK-155 A2: root-element guard — reject non-MXL XML before printing.
+            // MXL files generated by 1C Designer use localName "document" (namespace http://v8.1c.ru/8.2/data/spreadsheet).
+            String rootEl = doc.getRootElement();
+            if (!"document".equals(rootEl)) {
+                throw new IllegalArgumentException(
+                    "Expected root <document> (MXL/SpreadsheetDocument), got <" + rootEl + ">. " +
+                    "The file does not appear to be a 1C spreadsheet document.");
+            }
             new MxlInfoPrinter().print(doc, withText, limit, offset, System.out);
         } catch (XmlStructureReader.XmlParseException e) {
             throw new RuntimeException("Failed to parse MXL XML: " + e.getMessage(), e);
@@ -895,6 +1124,19 @@ public class Commands {
         try {
             ObjectMapper mapper = new ObjectMapper();
             MxlDsl dsl = mapper.readValue(inputJson.toFile(), MxlDsl.class);
+            //++agent TASK-155 [22.05.2026 00:00:00]
+            // TASK-155 A2 iter-3: empty DSL {} produces a meaningless 724-byte skeleton.
+            // bug-T-154-mxl-002: require at least one structural field.
+            boolean hasContent = (dsl.getAreas() != null && !dsl.getAreas().isEmpty())
+                || dsl.getColumns() != null
+                || (dsl.getColumnWidths() != null && !dsl.getColumnWidths().isEmpty())
+                || dsl.getPage() != null;
+            if (!hasContent) {
+                throw new IllegalArgumentException(
+                    "MXL DSL requires at least one of: areas, columns, columnWidths, page. " +
+                    "Got an empty DSL object {}.");
+            }
+            //++agent TASK-155
             MxlWriter writer = new MxlWriter(format);
             writer.create(dsl, outputXml);
         } catch (Exception e) {
@@ -1108,6 +1350,29 @@ public class Commands {
         }
 
         io.github.onec.xmlgen.model.MdoPath object = io.github.onec.xmlgen.model.MdoPath.parse(objectSpec);
+
+        // TASK-155 A2 iter-2: fail-fast when the template does not exist.
+        // TemplateWriter.removeTemplate() silently prints [WARN] and exits 0 for missing
+        // templates. Check existence in the CLI layer before delegating so we get exit=1 + ERROR.
+        // Use srcDir to resolve the object XML (same logic as TemplateWriter.resolveSrcDir).
+        try {
+            Path effectiveSrc = "src".equals(srcDir) ? configDir : configDir.resolve(srcDir);
+            // Also handle absolute srcDir paths passed by tests
+            if (Paths.get(srcDir).isAbsolute()) effectiveSrc = Paths.get(srcDir);
+            Path objectXmlForCheck = effectiveSrc.resolve(object.getObjectXmlRelPath());
+            if (Files.exists(objectXmlForCheck)) {
+                io.github.onec.xmlgen.editor.ObjectContainerEditor checkEditor =
+                    new io.github.onec.xmlgen.editor.ObjectContainerEditor(objectXmlForCheck);
+                if (!checkEditor.hasTemplate(name)) {
+                    throw new IllegalArgumentException(
+                        "Template '" + name + "' not found in object " + objectSpec
+                        + ". Cannot remove a template that does not exist.");
+                }
+            }
+        } catch (IOException e) {
+            // If we can't read the file for the pre-check, let TemplateWriter handle it
+        }
+
         try {
             new io.github.onec.xmlgen.writer.TemplateWriter()
                     .removeTemplate(configDir, object, name, srcDir);
@@ -1234,6 +1499,29 @@ public class Commands {
             throw new IllegalArgumentException("Usage: xml-gen help add <objectXml> [--lang <lang>]");
         }
 
+        if (!Files.exists(objectXml)) {
+            throw new IllegalArgumentException("Object XML not found: " + objectXml);
+        }
+
+        // TASK-155 A2 iter-2: root-element guard — reject non-meta XML before adding help.
+        // A valid 1C metadata object XML must have root element <MetaDataObject>,
+        // <ExternalDataProcessor>, or <ExternalReport>. Applying help add to arbitrary XML
+        // creates files in the wrong directory (BOUNDARY LEAK).
+        try {
+            XmlDocument helpGuardDoc = new XmlStructureReader().parse(objectXml);
+            String helpRootEl = helpGuardDoc.getRootElement();
+            if (!"MetaDataObject".equals(helpRootEl)
+                    && !"ExternalDataProcessor".equals(helpRootEl)
+                    && !"ExternalReport".equals(helpRootEl)) {
+                throw new IllegalArgumentException(
+                    "Expected a 1C metadata object XML (root <MetaDataObject>, <ExternalDataProcessor>, "
+                    + "or <ExternalReport>), got <" + helpRootEl + ">. "
+                    + "The file does not appear to be a 1C metadata object descriptor.");
+            }
+        } catch (XmlStructureReader.XmlParseException e) {
+            throw new IllegalArgumentException("Cannot parse XML file: " + objectXml + " — " + e.getMessage());
+        }
+
         try {
             ObjectContainerEditor editor = new ObjectContainerEditor(objectXml);
             String objectName = editor.getObjectName();
@@ -1304,6 +1592,13 @@ public class Commands {
 
         try {
             XmlDocument doc = new XmlStructureReader().parse(file);
+            // TASK-155 A2: root-element guard — reject non-SKD XML before printing
+            String rootEl = doc.getRootElement();
+            if (!"DataCompositionSchema".equals(rootEl)) {
+                throw new IllegalArgumentException(
+                    "Expected root <DataCompositionSchema>, got <" + rootEl + ">. " +
+                    "The file does not appear to be a 1C data composition schema.");
+            }
             new SkdInfoPrinter().print(doc, mode, name, limit, offset, System.out);
         } catch (XmlStructureReader.XmlParseException e) {
             throw new RuntimeException("Failed to parse SKD XML: " + e.getMessage(), e);
@@ -1338,6 +1633,16 @@ public class Commands {
         try {
             ObjectMapper mapper = new ObjectMapper();
             SkdDsl dsl = mapper.readValue(inputJson.toFile(), SkdDsl.class);
+            //++agent TASK-155 [22.05.2026 00:00:00]
+            // TASK-155 A2 iter-3: fail-fast — DSL without the dataSets field is invalid.
+            // bug-T-154-skd-002: {"name": "MissingDataSets"} (no dataSets key) → expected exit=1.
+            // Note: dataSets:[] (empty array) is a valid empty schema → allowed (exit=0).
+            if (dsl.getDataSets() == null) {
+                throw new IllegalArgumentException(
+                    "SKD DSL requires 'dataSets' field (field is absent). " +
+                    "Add \"dataSets\": [] for an empty schema or populate it with dataset objects.");
+            }
+            //++agent TASK-155
             // По умолчанию резолвим @file:-include относительно директории JSON.
             Path base = includeBase != null ? includeBase : inputJson.toAbsolutePath().getParent();
             SkdWriter writer = new SkdWriter(format).withIncludeBase(base);
@@ -1355,10 +1660,20 @@ public class Commands {
             String cmd = args[0];
 
             if ("add-parameter".equals(cmd)) {
+                 //++agent TASK-155 [22.05.2026 00:00:00]
+                 // TASK-155 A2 iter-3: --type is required for add-parameter (bug-T-154-skd-002 obs #1).
+                 // Without a type the parameter XML would be written without <valueType> — invalid for 1C.
+                 String paramType = getArg(args, "--type", false);
+                 if (paramType == null) {
+                     throw new IllegalArgumentException(
+                         "--type is required for skd add-parameter " +
+                         "(e.g. --type string, --type decimal, --type date, --type boolean, --type CatalogRef.X)");
+                 }
+                 //++agent TASK-155
                  editor.addParameter(
                      getArg(args, "--name", true),
                      getArg(args, "--title", false),
-                     getArg(args, "--type", false)
+                     paramType
                  );
             } else if ("add-field".equals(cmd)) {
                  editor.addField(
@@ -1614,6 +1929,12 @@ public class Commands {
             if ("--type".equals(args[i]) && i + 1 < args.length) {
                 type = args[++i].toLowerCase();
                 if ("erf".equals(type)) type = "epf"; // ERF uses same validator as EPF
+                // TASK-155 A2: whitelist --type — reject unknown type values early
+                if (!KNOWN_VALIDATE_TYPES.contains(type)) {
+                    throw new IllegalArgumentException(
+                        "Unknown --type value: \"" + type + "\". Expected one of: " +
+                        "form, role, skd, mxl, epf, meta, config, extension, subsystem, interface, template");
+                }
             } else if ("--format".equals(args[i]) && i + 1 < args.length) {
                 formatStr = args[++i].toLowerCase();
             } else if ("--level".equals(args[i]) && i + 1 < args.length) {
@@ -1891,6 +2212,25 @@ public class Commands {
                     "Usage: xml-gen config init <outputDir> <name> [--synonym <syn>] [--version <ver>] [--vendor <vendor>]");
         }
 
+        //++agent TASK-155 [22.05.2026 00:00:00]
+        // TASK-155 A2 iter-3: config init validations (bug-T-154-config-002).
+        // (1) Name validation — same pattern as epf init and extension init.
+        if (!name.matches("[A-Za-z_][A-Za-z0-9_]*")) {
+            throw new IllegalArgumentException(
+                "Invalid configuration name: '" + name + "'. " +
+                "Configuration names must match [A-Za-z_][A-Za-z0-9_]* " +
+                "(Latin letters, digits, and underscores only; must not start with a digit).");
+        }
+        // (2) Existing-dir guard — refuse to silently overwrite an existing Configuration.xml.
+        // Use --force flag to allow overwrite (currently not implemented, fail by default).
+        Path existingConfigXml = outputDir.resolve("Configuration.xml");
+        if (Files.exists(existingConfigXml)) {
+            throw new IllegalArgumentException(
+                "Configuration.xml already exists in '" + outputDir + "'. " +
+                "Remove the existing configuration first or choose a different output directory.");
+        }
+        //++agent TASK-155
+
         try {
             new ConfigWriter().create(outputDir, name, synonym, version, vendor, langName, langCode);
             System.out.println("Created configuration: " + name);
@@ -1929,6 +2269,14 @@ public class Commands {
 
         try {
             XmlDocument doc = new XmlStructureReader().parse(file);
+            // TASK-155 A2: root-element guard — reject non-Configuration XML before printing.
+            // Configuration.xml has root localName "MetaDataObject" with a child <Configuration>.
+            String rootEl = doc.getRootElement();
+            if (!"MetaDataObject".equals(rootEl)) {
+                throw new IllegalArgumentException(
+                    "Expected root <MetaDataObject> (Configuration.xml), got <" + rootEl + ">. " +
+                    "The file does not appear to be a 1C configuration descriptor.");
+            }
             new ConfigInfoPrinter().print(doc, mode, limit, offset, System.out);
         } catch (XmlStructureReader.XmlParseException e) {
             throw new RuntimeException("Failed to parse Configuration XML: " + e.getMessage(), e);
@@ -2160,6 +2508,14 @@ public class Commands {
 
         try {
             XmlDocument doc = new XmlStructureReader().parse(file);
+            // TASK-155 A2: root-element guard — reject non-Subsystem XML before printing.
+            // Subsystem.xml has root localName "MetaDataObject" with a child <Subsystem>.
+            String rootEl = doc.getRootElement();
+            if (!"MetaDataObject".equals(rootEl)) {
+                throw new IllegalArgumentException(
+                    "Expected root <MetaDataObject> (Subsystem.xml), got <" + rootEl + ">. " +
+                    "The file does not appear to be a 1C subsystem descriptor.");
+            }
             new SubsystemInfoPrinter().print(doc, mode, file, System.out);
         } catch (XmlStructureReader.XmlParseException e) {
             throw new RuntimeException("Failed to parse Subsystem XML: " + e.getMessage(), e);
@@ -2445,8 +2801,15 @@ public class Commands {
 
         try {
             XmlDocument doc = new XmlStructureReader().parse(target);
+            // TASK-155 A2 iter-2: pass configRoot so validator can check object existence.
+            // CommandInterface.xml lives at <configRoot>/<SubsystemName>/Ext/CommandInterface.xml
+            // → configRoot = target.getParent().getParent().getParent()
+            Path configRoot = null;
+            Path p2 = target.getParent();   // Ext/
+            Path p3 = (p2 != null) ? p2.getParent() : null;  // SubsystemName/
+            if (p3 != null) configRoot = p3.getParent();      // configRoot
             InterfaceValidator validator = new InterfaceValidator();
-            List<InterfaceValidator.ValidationMessage> messages = validator.validate(doc);
+            List<InterfaceValidator.ValidationMessage> messages = validator.validate(doc, configRoot);
 
             if (messages.isEmpty()) {
                 System.out.println("OK: CommandInterface is valid");
@@ -2566,6 +2929,26 @@ public class Commands {
             throw new IllegalArgumentException("Config directory not found: " + configDir);
         }
 
+        // TASK-155 A2 iter-2: fail-fast when the target object does not exist.
+        // MetaRemover silently prints [WARN] and exits 0 for missing objects; we need exit=1.
+        // Check object existence before delegating to remover.
+        String[] objParts = objectSpec.split("\\.", 2);
+        if (objParts.length == 2) {
+            io.github.onec.xmlgen.model.MetadataTypeRegistry.TypeDescriptor td =
+                io.github.onec.xmlgen.model.MetadataTypeRegistry.get(objParts[0]);
+            if (td != null) {
+                Path typeDir = configDir.resolve(td.directory());
+                Path objXml = typeDir.resolve(objParts[1] + ".xml");
+                Path objSubDir = typeDir.resolve(objParts[1]);
+                if (!Files.exists(objXml) && !Files.isDirectory(objSubDir)) {
+                    throw new IllegalArgumentException(
+                        "Object '" + objectSpec + "' not found in configuration directory: " + configDir
+                        + ". Expected: " + objXml.getFileName() + " or " + objSubDir.getFileName() + "/ in "
+                        + typeDir);
+                }
+            }
+        }
+
         try {
             new MetaRemover().remove(configDir, objectSpec, dryRun, keepFiles, force);
         } catch (IOException e) {
@@ -2620,6 +3003,27 @@ public class Commands {
                     + "  modify-attribute, modify-dimension, modify-resource, modify-enumValue, modify-column");
         }
 
+        // TASK-155 A2 iter-2: fail-fast on unknown --op value.
+        // MetaEditor.edit() splits operation by "-" into action+target and silently warns
+        // for unknown actions; validate the format upfront to give exit=1 + ERROR.
+        if (!operation.contains("-")) {
+            throw new IllegalArgumentException(
+                "Invalid --op value: \"" + operation + "\". Expected format: verb-target "
+                + "(e.g. add-attribute, remove-ts, modify-dimension). "
+                + "Supported verbs: add, remove, modify.");
+        }
+        String[] opParts = operation.split("-", 2);
+        String opAction = opParts[0];
+        if (!opAction.equals("add") && !opAction.equals("remove") && !opAction.equals("modify")) {
+            throw new IllegalArgumentException(
+                "Unknown --op value: \"" + operation + "\". "
+                + "Supported operations: add-attribute, add-ts, add-dimension, add-resource, "
+                + "add-enumValue, add-column, add-form, add-template, add-command, add-ts-attribute, "
+                + "remove-attribute, remove-ts, remove-dimension, remove-resource, remove-enumValue, "
+                + "remove-column, remove-form, remove-template, remove-command, remove-ts-attribute, "
+                + "modify-attribute, modify-dimension, modify-resource, modify-enumValue, modify-column.");
+        }
+
         try {
             new MetaEditor().edit(objectPath, operation, value);
         } catch (IOException e) {
@@ -2653,6 +3057,14 @@ public class Commands {
 
         try {
             XmlDocument doc = new XmlStructureReader().parse(file);
+            // TASK-155 A2 iter-2: root-element guard — reject non-meta XML before printing.
+            // Meta objects use <MetaDataObject> as the root wrapper element.
+            String rootEl = doc.getRootElement();
+            if (!"MetaDataObject".equals(rootEl)) {
+                throw new IllegalArgumentException(
+                    "Expected root <MetaDataObject> for a 1C metadata object XML, got <" + rootEl + ">. " +
+                    "The file does not appear to be a 1C metadata object descriptor.");
+            }
             new MetaInfoPrinter().print(doc, mode, System.out);
         } catch (XmlStructureReader.XmlParseException e) {
             throw new RuntimeException("Failed to parse metadata XML: " + e.getMessage(), e);
@@ -2782,6 +3194,16 @@ public class Commands {
 
         if (outputDir == null || name == null) {
             throw new IllegalArgumentException("Usage: xml-gen extension init <outputDir> <name> [options]");
+        }
+
+        // TASK-155 A2 iter-2: validate that the extension name matches the 1C identifier rules.
+        // 1C metadata names must match [A-Za-z_][A-Za-z0-9_]* (Latin/Cyrillic letters,
+        // digits, underscore; no spaces or special characters).
+        if (!name.matches("[A-Za-z_А-ЯЁа-яё][A-Za-z0-9_А-ЯЁа-яё]*")) {
+            throw new IllegalArgumentException(
+                "Invalid extension name: \"" + name + "\". "
+                + "Extension name must match [A-Za-z_][A-Za-z0-9_]* "
+                + "(letters, digits, underscore only; no spaces or special characters).");
         }
 
         try {
@@ -2982,6 +3404,14 @@ public class Commands {
             throw new IllegalArgumentException("Config path required for Mode B");
         }
 
+        // TASK-155 A2 iter-2: fail-fast when the config path is provided but does not exist.
+        // ExtensionDiffPrinter silently ignores a missing configPath in Mode A → exit=0.
+        if (configPath != null && !Files.exists(configPath)) {
+            throw new IllegalArgumentException(
+                "Config path not found: " + configPath
+                + ". The specified base configuration directory or file does not exist.");
+        }
+
         try {
             new ExtensionDiffPrinter().diff(extPath, configPath, mode);
         } catch (IOException e) {
@@ -3099,4 +3529,23 @@ public class Commands {
             throw new RuntimeException("Replace-text failed: " + e.getMessage(), e);
         }
     }
+
+    //++agent TASK-155 [22.05.2026 00:00:00]
+    /**
+     * TASK-155 A2 iter-3: helper for checking if a named UI element exists anywhere in the subtree.
+     * Mirrors FormEditor.findElementRecursive — checks every node's "name" attribute recursively.
+     * Used by form remove-element to fail fast on missing elements (bug-T-154-form-002 obs #3).
+     */
+    private static boolean findElementByNameRecursive(XmlNode root, String name) {
+        if (name.equals(root.attr("name"))) {
+            return true;
+        }
+        for (XmlNode child : root.getChildren()) {
+            if (findElementByNameRecursive(child, name)) {
+                return true;
+            }
+        }
+        return false;
+    }
+    //++agent TASK-155
 }

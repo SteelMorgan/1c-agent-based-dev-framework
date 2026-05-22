@@ -494,3 +494,34 @@ Writer.create(dsl, file)  →  Validator.validate(file)  ==  0 ошибок
 - Валидация BSL-кода модулей — BSL LS
 - Автоисправление ошибок (fix) — отдельная фича, потом
 - Плагинная система правил — overengineering для MVP
+
+---
+
+## Exit codes (TASK-155, 2026-05-22)
+
+Контракт, действующий после патча TASK-155 (A1/A2/A3).
+
+| Code | Meaning |
+|------|---------|
+| `0`  | Успешно — ни одного ERROR |
+| `1`  | Есть ERROR (domain/business) **или** WARNING (exit=2 в прежней спеке SPEC-003 переопределён — см. ниже) |
+| `2`  | JVM/инфраструктурный сбой (OOM, missing JAR) |
+
+> **Уточнение к старой спеке.** Изначальный SPEC-003 предлагал `exit=2` для "есть WARNING, нет ERROR". После TASK-155 A1 весь домен exceptions нормализован: любая бизнес-ошибка → `exit=1`; `exit=2` зарезервирован исключительно для JVM-сбоев. Правило "WARNING → exit=2" остаётся в силе **только для `validate`**, если реализован как отдельный режим; в общем CLI-контракте exit=2 = JVM failure.
+
+### Специфика validate-команды
+
+```bash
+xml-gen validate <type> <path>
+# 0 — нет ни ERROR, ни WARNING
+# 1 — есть хотя бы один ERROR
+# 2 — есть WARNING (нет ERROR) — специфика validate, не общий контракт
+```
+
+### Типовые ситуации exit=1 (не JVM)
+
+- `--type` не из whitelist `{skd, mxl, form, role, epf, meta, config, extension, subsystem, interface}` — CLI отклоняет неизвестный тип → `exit=1`
+- Info-команды (`mxlInfo`, `skdInfo`, `formInfo`, `configInfo`, `subsystemInfo`, `metaInfo`, `roleInfo`, `helpAdd`) проверяют root-element XML и возвращают `exit=1` при mismatch (например, передан файл Form.xml команде `role info`)
+- `subsystem validate` проверяет существование объектов в `<content>` → `exit=1` если объект не существует
+- `interface validate` проверяет корректность command-ref → `exit=1` при broken ref
+- `config validate` проверяет broken refs (Languages/, TypeDir/) → `exit=1` (ERROR, не WARNING)
