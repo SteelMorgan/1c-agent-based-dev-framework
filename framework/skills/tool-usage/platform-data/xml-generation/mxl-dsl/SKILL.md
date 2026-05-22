@@ -1,6 +1,6 @@
 ---
 name: mxl-dsl
-description: "JSON DSL для генерации табличных документов 1С (MXL) — печатные формы. Богатый канон: page/columns/rowStyle/rowspan/empty/detail/template/format. Используй при mxl compile/decompile/info/validate для печатных форм."
+description: "JSON DSL для генерации табличных документов 1С (MXL) — печатные формы. Богатый канон: page/columns/rowStyle/rowspan/empty/detail/template/format. Используй при xml-gen mxl compile/decompile/info и xml-gen validate --type mxl для печатных форм."
 ---
 
 # MXL DSL
@@ -16,7 +16,7 @@ description: "JSON DSL для генерации табличных докуме
 | Создать печатную форму с нуля | `mxl compile` + JSON DSL → `references/dsl-spec.md` |
 | Доработать существующий макет | `mxl decompile` → редактирование JSON → `mxl compile` |
 | Понять структуру чужого макета (области, параметры, расшифровки) | `mxl info` → `references/info-modes.md` |
-| Проверить корректность собранного Template.xml | `mxl validate` → `references/validate-classes.md` |
+| Проверить корректность собранного Template.xml | `xml-gen validate --type mxl` → `references/validate-classes.md` |
 | Реверс-инжиниринг печати по образцу (скрин/скан) | `mxl decompile` или собрать с нуля по сетке — задать `page` + `"Nx"` ширины |
 
 ## Команды
@@ -32,7 +32,7 @@ xml-gen mxl decompile <Template.xml> <output.json>
 xml-gen mxl info <Template.xml> [--with-text] [--limit N] [--offset N] [--format text|json]
 
 # Валидация
-xml-gen mxl validate <Template.xml> [--detailed] [--max-errors N]
+xml-gen validate --type mxl <Template.xml> [--detailed] [--max-errors N]
 ```
 
 **`output.xml`** для compile — путь к макету в EPF/ERF: `.../Templates/<Name>/Ext/Template.xml`.
@@ -113,7 +113,7 @@ xml-gen mxl validate <Template.xml> [--detailed] [--max-errors N]
 1. (опционально) Если макет создаётся по изображению — наложить сетку, определить пропорции колонок → задать `page: "A4-landscape"` + `"Nx"` ширины.
 2. Написать JSON (`Write`).
 3. `mxl compile` → Template.xml.
-4. `mxl validate` → если есть ошибки, см. `references/validate-classes.md`.
+4. `xml-gen validate --type mxl` → если есть ошибки, см. `references/validate-classes.md`.
 5. `mxl info` → проверить структуру областей и параметров глазами агента.
 6. (для доработки чужого макета) `mxl decompile` → редактировать → compile.
 

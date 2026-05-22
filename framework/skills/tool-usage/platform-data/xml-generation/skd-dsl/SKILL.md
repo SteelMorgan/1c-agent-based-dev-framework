@@ -1,6 +1,6 @@
 ---
 name: skd-dsl
-description: "JSON DSL для генерации и анализа схем компоновки данных 1С (СКД). Используй при xml-gen skd compile/info/validate — наборы данных (Query/Object/Union), вычисляемые поля, шаблоны вывода, варианты настроек, условное оформление."
+description: "JSON DSL для генерации и анализа схем компоновки данных 1С (СКД). Используй при xml-gen skd compile/info и xml-gen validate --type skd — наборы данных (Query/Object/Union), вычисляемые поля, шаблоны вывода, варианты настроек, условное оформление."
 ---
 
 # SKD DSL
@@ -17,7 +17,7 @@ description: "JSON DSL для генерации и анализа схем ко
 | Расшифровка ячеек | `parameters[].drilldown` в шаблоне |
 | Связи между наборами | `dataSetLinks` |
 | Понять чужую СКД | `xml-gen skd info --mode overview` → затем `trace`/`query`/`variant` |
-| Проверить корректность | `xml-gen skd validate` |
+| Проверить корректность | `xml-gen validate --type skd` |
 | Точечное редактирование | `skd add-parameter` / `skd add-field` → [xml-generation](../SKILL.md) §3 |
 
 ## Команды CLI
@@ -30,7 +30,7 @@ xml-gen skd compile [--format designer|edt] <input.json> <output.xml>
 xml-gen skd info <Template.xml> [--mode <mode>] [--name <name>] [--batch <N>]
 
 # Валидация структуры
-xml-gen skd validate <Template.xml> [--detailed] [--max-errors 20]
+xml-gen validate --type skd <Template.xml> [--detailed] [--max-errors 20]
 ```
 
 `output.xml` — путь к Template.xml макета: `.../Templates/<Name>/Ext/Template.xml`.
@@ -253,7 +253,7 @@ Workflow: `overview` → `trace --name <поле>` → `query --name <набор
 
 Поля в `selection`/`order`/`filter`/`structure` должны существовать в `dataSets` или `calculatedFields` — иначе СКД не скомпонуется.
 
-**Верификация после compile:** `xml-gen skd validate <output.xml>` → `xml-gen skd info <output.xml>` → при нужде `skd info --mode trace --name <поле>`.
+**Верификация после compile:** `xml-gen validate --type skd <output.xml>` → `xml-gen skd info <output.xml>` → при нужде `skd info --mode trace --name <поле>`.
 
 ## См. также
 

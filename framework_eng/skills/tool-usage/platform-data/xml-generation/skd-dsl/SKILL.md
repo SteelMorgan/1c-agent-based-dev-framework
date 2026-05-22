@@ -1,6 +1,6 @@
 ---
 name: skd-dsl
-description: "JSON DSL for generating and analyzing 1C data composition schemas (SKD). Use with xml-gen skd compile/info/validate - data sets (Query/Object/Union), calculated fields, output templates, settings variants, conditional appearance."
+description: "JSON DSL for generating and analyzing 1C data composition schemas (SKD). Use with xml-gen skd compile/info and xml-gen validate --type skd - data sets (Query/Object/Union), calculated fields, output templates, settings variants, conditional appearance."
 ---
 
 # SKD DSL
@@ -17,7 +17,7 @@ description: "JSON DSL for generating and analyzing 1C data composition schemas 
 | Cell drilldown | `parameters[].drilldown` in the template |
 | Links between data sets | `dataSetLinks` |
 | Understand someone else's SKD | `xml-gen skd info --mode overview` → then `trace`/`query`/`variant` |
-| Check correctness | `xml-gen skd validate` |
+| Check correctness | `xml-gen validate --type skd` |
 | Targeted editing | `skd add-parameter` / `skd add-field` → [xml-generation](../SKILL.md) §3 |
 
 ## CLI Commands
@@ -30,7 +30,7 @@ xml-gen skd compile [--format designer|edt] <input.json> <output.xml>
 xml-gen skd info <Template.xml> [--mode <mode>] [--name <name>] [--batch <N>]
 
 # Валидация структуры
-xml-gen skd validate <Template.xml> [--detailed] [--max-errors 20]
+xml-gen validate --type skd <Template.xml> [--detailed] [--max-errors 20]
 ```
 
 `output.xml` is the path to the Template.xml layout: `.../Templates/<Name>/Ext/Template.xml`.
@@ -79,7 +79,7 @@ Object form:
 
 **Title:** multilingual `"title": { "ru": "...", "en": "..." }`. Supported everywhere that accepts title/presentation.
 
-**Types:** `string`, `string(N)`, `decimal`, `decimal(D,F)`, `boolean`, `date`, `dateTime`. `decimal` without parentheses = `decimal(10,2)`. `decimal(N)` = `decimal(N,0)`. Suffix `,nonneg` → `AllowedSign=Nonnegative`. Aliases `number`/`число` ≡ `decimal`.
+**Types:** `string`, `string(N)`, `decimal`, `decimal(D,F)`, `boolean`, `date`, `dateTime`. `decimal` without parentheses = `decimal(10,2)`. `decimal(N)` = `decimal(N,0)`. Suffix `,nonneg` → `AllowedSign=Nonnegative`. Aliases `number` and the Russian word for number ≡ `decimal`.
 
 Reference types: `CatalogRef.X`, `DocumentRef.X`, `EnumRef.X`, `ChartOfAccountsRef.X`, `StandardPeriod`. Emitted with inline namespace `d5p1:`. Building EPF with reference types requires a database with a matching configuration.
 
@@ -158,7 +158,7 @@ Filter value types: `Перечисление.*` / `Справочник.*` / `�
 
 ## Variant Structure (structure)
 
-String shorthand: `"structure": "Организация > Номенклатура > details"` (`>` separates levels, `details`/`детали` = detail records).
+String shorthand: `"structure": "Организация > Номенклатура > details"` (`>` separates levels, `details` = detail records).
 
 Object form:
 ```json
@@ -193,7 +193,7 @@ Object form:
   "presentation": "...", "viewMode": "Normal", "userSettingID": "auto" }
 ```
 
-Values of `appearance`: `style:XXX`/`web:XXX`/`win:XXX` → Color; `true`/`false` → Boolean; `Формат`/`Текст`/`Заголовок` → LocalStringType; everything else → String.
+Values of `appearance`: `style:XXX`/`web:XXX`/`win:XXX` → Color; `true`/`false` → Boolean; `Format`/`Text`/`Title` → LocalStringType; everything else → String.
 
 In `settingsVariants.settings`, add it under the key `"conditionalAppearance": [...]`.
 
@@ -249,11 +249,11 @@ Workflow: `overview` → `trace --name <field>` → `query --name <dataset>` →
 
 ## Anti-patterns
 
-`"filter": ["Сумма больше 0"]` - **incorrect**: the parser accepts operators only from the fixed set (`=`, `<>`, `>`, `>=`, `<`, `<=`, `in`, `notIn`, `contains`, `filled`, `notFilled`, `InHierarchy`). `greater` is not recognized.
+`"filter": ["Amount > 0"]` - **incorrect**: the parser accepts operators only from the fixed set (`=`, `<>`, `>`, `>=`, `<`, `<=`, `in`, `notIn`, `contains`, `filled`, `notFilled`, `InHierarchy`). `greater` is not recognized.
 
 Fields in `selection`/`order`/`filter`/`structure` must exist in `dataSets` or `calculatedFields` - otherwise the SKD will not be composed.
 
-**Verification after compile:** `xml-gen skd validate <output.xml>` → `xml-gen skd info <output.xml>` → if needed `skd info --mode trace --name <field>`.
+**Verification after compile:** `xml-gen validate --type skd <output.xml>` → `xml-gen skd info <output.xml>` → if needed `skd info --mode trace --name <field>`.
 
 ## See Also
 

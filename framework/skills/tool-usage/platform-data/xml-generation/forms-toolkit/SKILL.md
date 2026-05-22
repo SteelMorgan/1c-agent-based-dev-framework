@@ -1,6 +1,6 @@
 ---
 name: forms-toolkit
-description: "Полный инструментарий для работы с управляемыми формами 1С и внешними обработками (EPF/ERF) через xmlgen CLI: анализ структуры, добавление элементов, валидация, маппинг элементов по видимому тексту. Объединяет form-info, form-edit, form-validate, form-element-mapping, epf-validate."
+description: "Полный инструментарий для работы с управляемыми формами 1С и внешними обработками (EPF/ERF) через xml-gen CLI: анализ структуры, добавление элементов, валидация, маппинг элементов по видимому тексту. Объединяет form-info, form-edit, form-validate, form-element-mapping, epf-validate."
 argument-hint: <operation> <FormPath> [<JsonPath>]
 allowed-tools:
   - Bash
@@ -37,26 +37,26 @@ form-element-mapping — маппинг Title→Name для Vanessa-сценар
 
 | Операция | Команда | Ключевые параметры |
 |----------|---------|-------------------|
-| `form-info` | `xmlgen form info "<FormPath>"` | `--limit N`, `--offset N` |
-| `form-edit` | `xmlgen form edit "<FormPath>" --json "<JsonPath>"` | JSON: elements / attributes / commands |
-| `form-validate` | `xmlgen validate --type form "<FormPath>"` | `--output json` |
-| `epf-validate` | `xmlgen validate --type epf "<ObjectPath>"` | `--output json` |
+| `form-info` | `xml-gen form info "<FormPath>"` | `--limit N`, `--offset N` |
+| `form-edit` | `xml-gen form edit "<FormPath>" --json "<JsonPath>"` | JSON: elements / attributes / commands |
+| `form-validate` | `xml-gen validate --type form "<FormPath>"` | `--output json` |
+| `epf-validate` | `xml-gen validate --type epf "<ObjectPath>"` | `--output json` |
 | `form-element-mapping` | grep по Form.xml / Module.bsl (алгоритм) | 4 шага поиска |
 
 ## §4 Быстрый пример
 
 ```bash
 # 1. Изучить структуру
-xmlgen form info "src/Catalogs/Контрагенты/Forms/ФормаЭлемента/Ext/Form.xml"
+xml-gen form info "src/Catalogs/Контрагенты/Forms/ФормаЭлемента/Ext/Form.xml"
 
 # 2. Применить изменения (spec.json с elements/attributes)
-xmlgen form edit "src/.../Form.xml" --json "spec.json"
+xml-gen form edit "src/.../Form.xml" --json "spec.json"
 
 # 3. Проверить результат
-xmlgen validate --type form "src/.../Form.xml"
+xml-gen validate --type form "src/.../Form.xml"
 
 # Валидация EPF
-xmlgen validate --type epf "src/МояОбработка/"
+xml-gen validate --type epf "src/МояОбработка/"
 
 # Найти программное имя по заголовку (для Vanessa)
 grep -B5 "Контрагент" path/to/Form.xml | grep "<Name>"
