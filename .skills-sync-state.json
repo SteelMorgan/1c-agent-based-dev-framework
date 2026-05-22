@@ -693,9 +693,9 @@
       "status": "synced"
     },
     "framework/rules/no-manual-xml-edit.md": {
-      "ru_hash": "sha256:ba5fad9e42c68b12d7b3c5ce5cbdc1057c5921d51cc15965169a8a4cf6533698",
-      "en_hash": "sha256:feaa6fe7b85efefd61ed61acede0b3fe3d989c507ac42bc9a4de1ae092d9131c",
-      "synced_at": "2026-05-22T06:40:36Z",
+      "ru_hash": "sha256:f464d902e0f33e138081a4a03d416210449900549b2a8194331a4ad4fb10c796",
+      "en_hash": "sha256:58d1858c9e9886abb3f360581558aec220ddf4409c5455ea43d663a21de3c58b",
+      "synced_at": "2026-05-22T07:30:26Z",
       "status": "synced"
     },
     "framework/subagents/scenario-coder.md": {

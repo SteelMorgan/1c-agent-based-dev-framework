@@ -1,12 +1,35 @@
 ---
 name: no-manual-xml-edit
-description: Глобальный запрет ручного редактирования 1С XML метаданных. Все операции — через xmlgen CLI и его skill-обёртки. Ручная правка допустима только если xmlgen явно не поддерживает операцию, с обязательным логированием.
+description: Глобальный запрет ручного редактирования 1С XML/MXL метаданных. Все операции — через xmlgen CLI. Для Claude Code блокируется автоматически PreToolUse-хуком; для Codex и любого другого агента без PreToolUse — обязательная самопроверка через `block-direct-xml-edit.py --check` перед каждым Edit/Write. Ручная правка допустима только если xmlgen явно не поддерживает операцию, с обязательным логированием.
 alwaysApply: true
 ---
 
-# Запрет ручной правки 1С XML
+# Запрет ручной правки 1С XML и MXL
 
-Глобальное правило для всех агентов и сабагентов.
+Глобальное правило для всех агентов и сабагентов — независимо от IDE
+(Claude Code, Codex, Cursor, Aider, Cline, Windsurf, и любых других).
+
+## TL;DR для агента
+
+1. **Не редактируй** напрямую файлы вида:
+   - `*.mxl` (любой),
+   - `*.xml` внутри `**/Ext/`, `Configuration.xml`, или 1С root-папок
+     (`Catalogs/`, `Documents/`, `*Registers/`, `Roles/`, `Subsystems/`,
+     `CommonModules/`, `ChartsOf*`, `Reports/`, `DataProcessors/`, `Enums/`,
+     `Constants/`, `ExchangePlans/`, `Tasks/`, `BusinessProcesses/`,
+     `HTTPServices/`, `WebServices/`, `EventSubscriptions/`, `ScheduledJobs/`,
+     `DefinedTypes/`, `DocumentJournals/`, и т.п.).
+2. Вместо этого используй `xml-gen <domain> <op>` — см. skill
+   `framework/skills/tool-usage/platform-data/xml-generation/SKILL.md`.
+3. **Если ты НЕ в Claude Code** (то есть PreToolUse-хук тебя не защищает) —
+   **обязан** перед каждым `Edit`/`Write`/`apply_patch`/`sed` по пути с
+   расширением `.xml` или `.mxl` сначала вызвать:
+   ```bash
+   python3 tools/hooks/block-direct-xml-edit.py --check "<path>" --tool Edit
+   ```
+   Если exit code = 2 — остановиться, прочитать stderr (там подсказка по
+   нужной команде xml-gen) и переключиться на xml-gen. Если exit code = 0 —
+   путь не относится к 1С metadata, правка разрешена.
 
 ## Контекст
 
@@ -44,6 +67,33 @@ alwaysApply: true
   - `xml-gen edit replace-text` — для безопасной замены текстовых блоков с сохранением байтовой структуры.
 - После любой модификации 1С XML — `xml-gen validate` (соответствующего типа), exit code 0 или 2 (warnings).
 - Перед модификацией — `xml-gen validate` для фиксации состояния (ловит предыдущие ошибки, не связанные с текущей правкой).
+
+### ОБЯЗАТЕЛЬНО для агентов без PreToolUse-хука (Codex, Cursor, Aider, Cline и др.)
+
+Если ты не в Claude Code — автоматического блокирования нет, поэтому **самопроверка обязательна**.
+Перед каждым вызовом `Edit` / `Write` / `apply_patch` / `sed` / `awk` / любого
+текстового tool на путь с расширением `.xml` или `.mxl`:
+
+1. Запусти guard вручную:
+   ```bash
+   python3 tools/hooks/block-direct-xml-edit.py --check "<path>" --tool Edit
+   ```
+2. Если exit code = `2` — путь относится к 1С metadata, **правку не выполнять**.
+   Прочитай stderr: там подсказка, какую команду `xml-gen` использовать для этого
+   типа файла. Переключайся на неё.
+3. Если exit code = `0` — путь не 1С metadata (например, `pom.xml`, тестовая
+   fixture в `/tests/`, документация). Можно править как обычно.
+
+Скрипт идемпотентен, без побочных эффектов — это чистый детектор пути. Запускай
+без опасений сколько угодно раз.
+
+Альтернативный pattern для shell-скриптов (батч-обработка нескольких файлов):
+```bash
+for f in $(git diff --name-only); do
+  python3 tools/hooks/block-direct-xml-edit.py --check "$f" --tool Edit \
+    || { echo "Stop: $f требует xml-gen"; exit 1; }
+done
+```
 
 ### ДОПУСТИМО (исключение)
 
@@ -105,25 +155,30 @@ alwaysApply: true
 репо делать не нужно — хук активен с момента старта сессии Claude Code в этом
 каталоге.
 
-### Codex / прочие агенты без PreToolUse-протокола
+### Codex / Cursor / Aider / Cline / прочие агенты без PreToolUse-протокола
 
-Codex не имеет встроенного PreToolUse hook, поэтому enforcement в нём — текстовый
-(через это правило в AGENTS.md). Тот же Python-скрипт можно вызывать вручную
-или из shell-обёрток:
+В Codex и аналогах нет встроенного PreToolUse-протокола — внешний скрипт не
+может перехватить tool-вызов **до** выполнения. Поэтому защита делается
+**на стороне самой модели**: агент обязан вызывать `--check` руками перед
+каждой правкой XML/MXL (правило выше «ОБЯЗАТЕЛЬНО для агентов без
+PreToolUse-хука»).
 
-```bash
-# CLI-режим: возвращает exit 2 если путь — 1С metadata XML/MXL
-python3 tools/hooks/block-direct-xml-edit.py --check <path> --tool Edit
+Скрипт `block-direct-xml-edit.py` поддерживает два режима — один и тот же
+бинарь работает и для Claude Code (stdin JSON), и для всего остального
+(`--check`):
 
-# Пример pre-action проверки в скрипте автоматизации
-python3 tools/hooks/block-direct-xml-edit.py --check "$FILE" --tool Edit || {
-    echo "Используй xml-gen вместо прямой правки"; exit 1;
-}
-```
+| Режим | Когда | Как вызывается |
+|-------|-------|----------------|
+| stdin JSON | Claude Code PreToolUse — настроено в `.claude/settings.json`, агенту делать ничего не нужно | автоматически, до каждого Edit/Write |
+| `--check` | Codex/Cursor/Aider/Cline/CI/shell-скрипт | агент вызывает руками перед Edit; exit 2 = block |
 
-Скрипт поддерживает оба режима:
-- `stdin JSON` (Claude Code PreToolUse — payload с `tool_name`/`tool_input`).
-- `--check <path> --tool <Name>` (любой другой агент или CI-проверка).
+Дополнительные слои защиты для agent-ов без PreToolUse (рекомендуется
+оркестратору проекта):
+- **Git pre-commit hook** (`tools/hooks/pre-commit`) можно расширить вызовом
+  `--check` по всем staged `.xml`/`.mxl` — поздняя сетка, не даёт пройти
+  в репозиторий даже если агент проигнорировал правило.
+- **CI на PR** — тот же `--check` по diff отлавливает любые попытки на
+  входе в `main`.
 
 ### Тонкая настройка / расширение списка путей
 
