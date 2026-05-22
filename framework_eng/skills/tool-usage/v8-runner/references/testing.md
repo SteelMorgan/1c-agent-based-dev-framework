@@ -4,6 +4,8 @@ Use tests when behavior matters. Test commands build first, so do not run a sepa
 
 ## WS Pairing with session-manager on test yaxunit / test va
 
+> **Used fork:** the WS transport is implemented in the fork [`SteelMorgan/v8-runner-rust`](https://github.com/SteelMorgan/v8-runner-rust) (upstream: `alkoleft/v8-runner-rust`), because PRs are not accepted upstream. The `mcp_client`/`test_client` extensions are included in [`SteelMorgan/onec-client-mcp-devkit`](https://github.com/SteelMorgan/onec-client-mcp-devkit).
+
 WS flags for `test ...` are the same as for `launch ...`: `--mcp-transport`, `--manager-url`, `--client-uid`, `--corr-id`, `--mcp-log-level`, `--mcp-ws-timeout-ms`. **clap subtlety:** on test commands, the flags are declared at the `TestArgs` level (via `flatten(McpClientWsArgs)`), i.e. **before** the `yaxunit`/`va` subcommand:
 
 ```bash
@@ -33,7 +35,7 @@ Priority: CLI flag → yaml → internal defaults.
 
 `kind` mapping: `test yaxunit ...` → `yaxunit_runner`, `test va ...` → `vanessa_test_client`. Fixed by the entry point, not overridable from CLI.
 
-Diagnostics of WS pairing in the test phase
+### Diagnostics of WS pairing in the test phase
 
 If `yaxunit_runner` / `vanessa_test_client` does not appear in the manager's `session_list`:
 
@@ -42,7 +44,7 @@ If `yaxunit_runner` / `vanessa_test_client` does not appear in the manager's `se
 3. **1С Enterprise log** — `<workPath>/temp/yaxunit/runs/<run-id>/enterprise.out.log` and `runner.log`. Look for `[MCP INFO ...] Logging params applied` and `provider registration ...` — this is MCP initialization diagnostics from the BSL devkit side.
 4. **v8-runner stdout** — the diagnostic block `[MCP INFO ...]` appears in the `diagnostic` section of the `test` output (only when MCP client initialization succeeds).
 
-Resolved (DRIVE 2026-05-11): `yaxunit_runner` was not registered in the manager's `session_list`, although v8-runner was correctly inserting the WS payload into `/C`. The trace showed a race condition in BSL: the idle-handler `Мсп_ОтложенныйСтарт_Тик` in `client_mcp` was scheduled with a 1 second interval, and YAXUNIT with `closeAfterTests: true` closed the application in about 1 second (tests ~200ms). The idle-handler did not have time to tick. Fix: reduce the interval `1` → `0.1` in `exts/client_mcp/Ext/ManagedApplicationModule.bsl` (call `ПодключитьОбработчикОжидания("Мсп_ОтложенныйСтарт_Тик", 0.1, Истина)`). After the fix, yaxunit-Enterprise registers a WS session (`kind=yaxunit_runner`, tools=24).
+Resolved (DRIVE 2026-05-11): `yaxunit_runner` was not registered in the manager's `session_list`, although v8-runner was correctly inserting the WS payload into `/C`. The trace log showed a race condition in BSL: the idle-handler `Мсп_ОтложенныйСтарт_Тик` in `client_mcp` was scheduled with a 1 second interval, and YAXUNIT with `closeAfterTests: true` closed the application in about 1 second (tests ~200ms). The idle-handler did not have time to tick. Fix: reduce the interval `1` → `0.1` in `exts/client_mcp/Ext/ManagedApplicationModule.bsl` (call `ПодключитьОбработчикОжидания("Мсп_ОтложенныйСтарт_Тик", 0.1, Истина)`). After the fix, yaxunit-Enterprise registers a WS session (`kind=yaxunit_runner`, tools=24).
 
 Full description (transport, defaults, `/C` payload, JSON output, behavior when the manager is unavailable) — in `SKILL.md` (section "WS Pairing Parameters with session-manager") and `project-workflows.md` (section "WS mode with session-manager").
 
@@ -118,6 +120,16 @@ EDT syntax:
 ```bash
 v8-runner syntax edt
 ```
+
+## Progress Monitoring
+
+For long-running `test yaxunit` or `test va` operations, use the Monitor tool rather than blind file polling:
+
+1. Start v8-runner in the background (`Bash run_in_background: true`) and redirect stdout to a log file.
+2. Subscribe to that file via the Monitor tool with a filter pattern matching key markers: `ERROR:|passed|Failed:|\\[artifact\\]`.
+3. Do not use the presence of a single artifact file (e.g. `va-status.json`) as the only exit condition — on early failures it may never appear. Use Monitor notifications or process-exit as the primary signal.
+
+Correct exit conditions for `test va`: `va-status.log` appears (created on both success and failure) OR process exits OR `ERROR:` line in stdout. See `vanessa-diagnostics` skill for the full pattern.
 
 ## Artifacts
 

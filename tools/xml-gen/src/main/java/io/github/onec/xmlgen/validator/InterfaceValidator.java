@@ -142,6 +142,17 @@ public class InterfaceValidator {
             }
         }
 
+        // Collect groups defined in CommandsPlacement (for Check 8 cross-ref)
+        Set<String> placementGroups = new HashSet<>();
+        if (placement != null) {
+            for (XmlNode cmd : placement.children("Command")) {
+                String group = cmd.childText("CommandGroup");
+                if (group != null && !group.isEmpty()) {
+                    placementGroups.add(group);
+                }
+            }
+        }
+
         // Check 9: CommandsOrder
         XmlNode order = root.child("CommandsOrder");
         if (order != null) {
@@ -159,6 +170,13 @@ public class InterfaceValidator {
                     error("CommandsOrder: Command '" + cmdName + "' missing <CommandGroup>");
                 } else {
                     validateGroupRef(group, "CommandsOrder", cmdName);
+                    // Check 8: group referenced in CommandsOrder should be defined in CommandsPlacement
+                    if (!placementGroups.isEmpty() && !placementGroups.contains(group)
+                            && !STANDARD_GROUPS.contains(group)
+                            && !group.startsWith("CommandGroup.")) {
+                        warn("CommandsOrder: group '" + group + "' for command '" + cmdName
+                                + "' is not referenced in CommandsPlacement");
+                    }
                 }
             }
         }

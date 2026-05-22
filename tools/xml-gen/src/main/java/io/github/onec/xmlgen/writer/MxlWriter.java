@@ -6,7 +6,10 @@ import io.github.onec.xmlgen.format.OutputFormat;
 import javax.xml.stream.XMLStreamException;
 import java.io.IOException;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -50,58 +53,240 @@ public class MxlWriter extends XmlWriter {
     private void createDesigner(MxlDsl dsl, Path outputPath) throws IOException, XMLStreamException {
         createWriter(outputPath, false, MXL_NAMESPACES); // БЕЗ BOM для Template.xml
         writeXmlDeclaration();
-        
+
         Map<String, String> rootAttrs = new HashMap<>();
         writeRootElement("document", MXL_NAMESPACES, rootAttrs);
-        
+
         // Language settings
         writeLanguageSettings();
-        
+
         // Fonts
         if (dsl.getFonts() != null && !dsl.getFonts().isEmpty()) {
             writeFonts(dsl.getFonts());
         }
-        
+
         // Styles
         if (dsl.getStyles() != null && !dsl.getStyles().isEmpty()) {
             writeStyles(dsl.getStyles(), dsl.getFonts());
         }
-        
+
+        // Column-width formats (one synthesized <format> per unique width).
+        // Map<width -> formatId> so each unique width yields exactly one <format>.
+        Map<Integer, String> widthFormats = new LinkedHashMap<>();
+        // Map<columnIndex (1-based) -> width> derived from columnWidths
+        Map<Integer, Integer> perColumnWidths = expandColumnWidths(dsl);
+        for (Integer w : perColumnWidths.values()) {
+            widthFormats.computeIfAbsent(w, x -> "__cw_" + x);
+        }
+        for (Map.Entry<Integer, String> e : widthFormats.entrySet()) {
+            startElement("format");
+            writeElement("id", e.getValue());
+            writeElement("width", String.valueOf(e.getKey()));
+            endElement(); // format
+        }
+
         // Columns
         startElement("columns");
         writeElement("size", String.valueOf(dsl.getColumns() != null ? dsl.getColumns() : 1));
+        // Per-column width overrides (1-based DSL → 0-based XML index)
+        if (!perColumnWidths.isEmpty()) {
+            List<Integer> cols = new ArrayList<>(perColumnWidths.keySet());
+            java.util.Collections.sort(cols);
+            for (Integer col : cols) {
+                Integer w = perColumnWidths.get(col);
+                String fmtId = widthFormats.get(w);
+                startElement("columnsItem");
+                writeElement("index", String.valueOf(col - 1));
+                startElement("column");
+                writeElement("formatIndex", fmtId);
+                endElement(); // column
+                endElement(); // columnsItem
+            }
+        }
         endElement(); // columns
-        
-        // Rows (areas)
+
+        // Rows (areas) — collect named area row ranges along the way
+        List<NamedAreaRange> namedRanges = new ArrayList<>();
         if (dsl.getAreas() != null && !dsl.getAreas().isEmpty()) {
             int rowIndex = 0;
             for (MxlDsl.Area area : dsl.getAreas()) {
+                int areaStart = rowIndex;
                 rowIndex = writeArea(area, rowIndex);
+                int areaEnd = rowIndex - 1;
+                if (area.getName() != null && !area.getName().isEmpty() && areaEnd >= areaStart) {
+                    namedRanges.add(new NamedAreaRange(area.getName(), areaStart, areaEnd));
+                }
             }
         }
-        
+
+        // Named items (must come after rows so platform can resolve ПолучитьОбласть("X"))
+        for (NamedAreaRange na : namedRanges) {
+            writeNamedItem(na);
+        }
+
         // Template mode
         writeElement("templateMode", "true");
-        
+
         // Default format index
         writeElement("defaultFormatIndex", "1");
-        
+
         // Height (total rows)
         int totalRows = calculateTotalRows(dsl);
         writeElement("height", String.valueOf(totalRows));
         writeElement("vgRows", String.valueOf(totalRows));
-        
-        // Format (column widths)
+
+        // Format (default column width)
         if (dsl.getDefaultWidth() != null) {
             startElement("format");
             writeElement("width", String.valueOf(dsl.getDefaultWidth()));
             endElement(); // format
         }
-        
+
+        // Page setup (A.8)
+        if (dsl.getPage() != null && !dsl.getPage().isEmpty()) {
+            writePageSetup(dsl.getPage());
+        }
+
         writer.writeEndElement(); // document
         close();
-        
+
         System.out.println("Created MXL template: " + outputPath);
+    }
+
+    /**
+     * Записать <namedItem xsi:type="NamedItemCells"> блок для именованной области.
+     */
+    private void writeNamedItem(NamedAreaRange na) throws XMLStreamException {
+        // <namedItem xsi:type="NamedItemCells">
+        writeIndentLocal();
+        writer.writeStartElement("namedItem");
+        writer.writeAttribute(
+                "xsi",
+                "http://www.w3.org/2001/XMLSchema-instance",
+                "type",
+                "NamedItemCells");
+        writer.writeCharacters("\n");
+        indentLevel++;
+
+        writeElement("name", na.name);
+        startElement("area");
+        writeElement("type", "Rows");
+        writeElement("beginRow", String.valueOf(na.beginRow));
+        writeElement("endRow", String.valueOf(na.endRow));
+        writeElement("beginColumn", "-1");
+        writeElement("endColumn", "-1");
+        endElement(); // area
+
+        indentLevel--;
+        writeIndentLocal();
+        writer.writeEndElement(); // namedItem
+        writer.writeCharacters("\n");
+    }
+
+    private void writeIndentLocal() throws XMLStreamException {
+        for (int i = 0; i < indentLevel; i++) {
+            writer.writeCharacters("\t");
+        }
+    }
+
+    /**
+     * Развернуть columnWidths-Map в плоское отображение columnIndex(1-based) -> width.
+     * Ключи могут быть "1", "2-8", "5,7,9", "1,3-5,9".
+     * Значения — только числовые литералы (int либо строка-число). "Nx" пропорции
+     * не реализованы в этом инкрементальном фиксе.
+     * defaultWidth применяется ко всем колонкам, не перечисленным в columnWidths
+     * (если columns задан и > 0).
+     */
+    private Map<Integer, Integer> expandColumnWidths(MxlDsl dsl) {
+        Map<Integer, Integer> result = new LinkedHashMap<>();
+        Map<String, Object> cw = dsl.getColumnWidths();
+        Integer totalCols = dsl.getColumns();
+        Integer defaultWidth = dsl.getDefaultWidth();
+
+        if (cw != null) {
+            for (Map.Entry<String, Object> e : cw.entrySet()) {
+                Integer w = parseWidthValue(e.getValue());
+                if (w == null) continue; // skip Nx and other unsupported values
+                for (int col : parseColumnKey(e.getKey())) {
+                    result.put(col, w);
+                }
+            }
+        }
+
+        // Fill remaining columns with defaultWidth (if both columns and defaultWidth set
+        // AND there is something to fill, i.e. result is non-empty — otherwise the
+        // existing trailing <format><width>...</width></format> block already covers it).
+        if (defaultWidth != null && totalCols != null && totalCols > 0 && !result.isEmpty()) {
+            for (int i = 1; i <= totalCols; i++) {
+                result.putIfAbsent(i, defaultWidth);
+            }
+        }
+
+        return result;
+    }
+
+    /**
+     * Преобразовать ключ columnWidths в список 1-based индексов колонок.
+     * Поддержка: "1", "2-8", "5,7,9", "1,3-5,9".
+     */
+    private List<Integer> parseColumnKey(String key) {
+        List<Integer> out = new ArrayList<>();
+        if (key == null || key.isEmpty()) return out;
+        for (String part : key.split(",")) {
+            part = part.trim();
+            if (part.isEmpty()) continue;
+            int dash = part.indexOf('-');
+            try {
+                if (dash > 0) {
+                    int from = Integer.parseInt(part.substring(0, dash).trim());
+                    int to = Integer.parseInt(part.substring(dash + 1).trim());
+                    for (int i = Math.min(from, to); i <= Math.max(from, to); i++) {
+                        out.add(i);
+                    }
+                } else {
+                    out.add(Integer.parseInt(part));
+                }
+            } catch (NumberFormatException ignored) {
+                // Skip malformed entries silently — DSL parser already accepted the value.
+            }
+        }
+        return out;
+    }
+
+    /**
+     * Преобразовать значение ширины в Integer. Допустимы Integer, Number,
+     * строка-число. "Nx" пропорции возвращают null (не поддержаны в этом фиксе).
+     */
+    private Integer parseWidthValue(Object v) {
+        if (v == null) return null;
+        if (v instanceof Number) return ((Number) v).intValue();
+        if (v instanceof String) {
+            String s = ((String) v).trim();
+            if (s.isEmpty()) return null;
+            // "Nx" — пропорции, не поддерживаем в инкрементальном фиксе
+            if (s.endsWith("x") || s.endsWith("X")) return null;
+            try {
+                return Integer.parseInt(s);
+            } catch (NumberFormatException e) {
+                try {
+                    return (int) Math.round(Double.parseDouble(s));
+                } catch (NumberFormatException ignored) {
+                    return null;
+                }
+            }
+        }
+        return null;
+    }
+
+    private static class NamedAreaRange {
+        final String name;
+        final int beginRow;
+        final int endRow;
+        NamedAreaRange(String name, int beginRow, int endRow) {
+            this.name = name;
+            this.beginRow = beginRow;
+            this.endRow = endRow;
+        }
     }
     
     /**
@@ -156,9 +341,9 @@ public class MxlWriter extends XmlWriter {
             
             startElement("row");
             
-            // Записать ячейки
+            // Записать ячейки (с пробросом rowStyle для наследования стилей)
             for (MxlDsl.Cell cell : row.getCells()) {
-                writeCell(cell);
+                writeCell(cell, row.getRowStyle());
             }
             
             endElement(); // row
@@ -176,20 +361,26 @@ public class MxlWriter extends XmlWriter {
     
     /**
      * Записать ячейку.
+     *
+     * @param cell     описание ячейки
+     * @param rowStyle стиль строки (наследуется, если у ячейки нет своего style)
      */
-    private void writeCell(MxlDsl.Cell cell) throws XMLStreamException {
+    private void writeCell(MxlDsl.Cell cell, String rowStyle) throws XMLStreamException {
         startElement("c");
-        
+
         // Индекс колонки (0-based в XML)
         if (cell.getCol() != null) {
             writeElement("i", String.valueOf(cell.getCol() - 1));
         }
-        
+
         startElement("c");
-        
-        // Format index (ссылка на стиль или 0 = default)
+
+        // Format index (ссылка на стиль). Приоритет: cell.style > rowStyle > "0".
+        // Cell.style всегда перебивает rowStyle (более специфичный уровень).
         if (cell.getStyle() != null) {
             writeElement("f", cell.getStyle());
+        } else if (rowStyle != null && !rowStyle.isEmpty()) {
+            writeElement("f", rowStyle);
         } else {
             writeElement("f", "0");
         }
@@ -212,9 +403,68 @@ public class MxlWriter extends XmlWriter {
         if (cell.getRowspan() != null && cell.getRowspan() > 1) {
             writeElement("rowMerge", String.valueOf(cell.getRowspan() - 1));
         }
-        
+
+        // Detail parameter (string — drill-down reference)
+        if (cell.getDetail() != null && !cell.getDetail().isEmpty()) {
+            writeElement("detailParameter", cell.getDetail());
+        }
+
+        // Detail-record marker (A.6) — boolean flag
+        if (cell.getDetailRecord() != null && cell.getDetailRecord()) {
+            writeElement("detailRecord", "true");
+        }
+
         endElement(); // c (inner)
         endElement(); // c (outer)
+    }
+
+    /**
+     * Записать <pageSetup> блок для документа.
+     * Поддержка: "A4-landscape" (780), "A4-portrait" (540), либо число.
+     */
+    private void writePageSetup(String page) throws XMLStreamException {
+        String orientation;
+        Integer width;
+        if ("A4-landscape".equalsIgnoreCase(page)) {
+            orientation = "Landscape";
+            width = 780;
+        } else if ("A4-portrait".equalsIgnoreCase(page)) {
+            orientation = "Portrait";
+            width = 540;
+        } else {
+            // Try parsing as integer width
+            try {
+                width = Integer.parseInt(page.trim());
+                orientation = width >= 600 ? "Landscape" : "Portrait";
+            } catch (NumberFormatException e) {
+                // Unknown page format — emit raw page value, no width
+                orientation = page;
+                width = null;
+            }
+        }
+
+        startElement("pageSetup");
+        writeElement("orientation", orientation);
+        if (width != null) {
+            writeElement("pageWidth", String.valueOf(width));
+            writeElement("paperKind", "A4");
+        }
+        endElement(); // pageSetup
+    }
+
+    /**
+     * Получить максимальную допустимую ширину страницы для заданного `page`.
+     * Возвращает null если page не задан или не распознан.
+     */
+    public static Integer pageWidth(String page) {
+        if (page == null || page.isEmpty()) return null;
+        if ("A4-landscape".equalsIgnoreCase(page)) return 780;
+        if ("A4-portrait".equalsIgnoreCase(page)) return 540;
+        try {
+            return Integer.parseInt(page.trim());
+        } catch (NumberFormatException e) {
+            return null;
+        }
     }
     
     /**

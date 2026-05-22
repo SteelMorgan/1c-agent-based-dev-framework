@@ -4,6 +4,8 @@
 
 ## WS-сопряжение с session-manager на test yaxunit / test va
 
+> **Используемый форк:** WS-транспорт реализован в форке [`SteelMorgan/v8-runner-rust`](https://github.com/SteelMorgan/v8-runner-rust) (upstream: `alkoleft/v8-runner-rust`), т.к. PR-ы в upstream не принимаются. Расширения `mcp_client`/`test_client` входят в [`SteelMorgan/onec-client-mcp-devkit`](https://github.com/SteelMorgan/onec-client-mcp-devkit).
+
 WS-флаги для `test ...` те же, что и для `launch ...`: `--mcp-transport`, `--manager-url`, `--client-uid`, `--corr-id`, `--mcp-log-level`, `--mcp-ws-timeout-ms`. **Тонкость clap-структуры:** на test-командах флаги объявлены на уровне `TestArgs` (через `flatten(McpClientWsArgs)`), то есть **до** подкоманды `yaxunit`/`va`:
 
 ```bash
@@ -118,6 +120,18 @@ v8-runner syntax designer-config
 ```bash
 v8-runner syntax edt
 ```
+
+## Контроль результата при длительных прогонах
+
+Команды `v8-runner test yaxunit ...` и `v8-runner test va` — длительные. Вместо слепого опроса файлов используй инструмент Monitor:
+
+1. Запусти v8-runner в фоне (`Bash run_in_background: true`), перенаправь stdout в файл лога.
+2. Подпишись на этот файл через инструмент **Monitor** с фильтром на ключевые маркеры: `ERROR:|passed|Failed:|\\[artifact\\]` — каждая совпавшая строка придёт как уведомление.
+3. Завершай ожидание при выполнении **любого** условия:
+   - Для `test va`: появился `va-status.log` (создаётся при успехе И при ошибке, в отличие от `va-status.json`) ИЛИ процесс `1cv8c.*vanessa` завершился ИЛИ в stdout появилась строка `ERROR:` (например `ERROR: runtime error: test run reported failures`).
+   - Для `test yaxunit`: появился `junit/junit.xml` ИЛИ процесс завершился ИЛИ в stdout появилась строка `ERROR:` или `FAIL`.
+4. **Не используй `va-status.json` как единственное условие выхода.** Он создаётся только при штатном завершении сценария; при раннем падении файл отсутствует и ожидание по его наличию зависнет навечно.
+5. После завершения: прочитать артефакты прогона (`va-status.json` / `junit.xml`), при падении классифицировать ошибку — см. навык `vanessa-diagnostics`.
 
 ## Артефакты
 

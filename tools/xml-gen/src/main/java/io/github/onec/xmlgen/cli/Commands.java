@@ -110,9 +110,9 @@ public class Commands {
 
     private static void executeEpf(String[] args) {
         if (args.length == 0) {
-            throw new IllegalArgumentException("EPF subcommand required: init [--type report], add-form, add-template, add-attribute, add-tabular-section");
+            throw new IllegalArgumentException("EPF subcommand required: init [--type report], add-form, add-template, add-attribute, add-tabular-section, bsp-init, bsp-add-command");
         }
-        
+
         String subcommand = args[0];
         switch (subcommand.toLowerCase()) {
             case "init":
@@ -128,8 +128,124 @@ public class Commands {
             case "add-tabular-section":
                 epfEdit(args);
                 break;
+            case "bsp-init":
+                epfBspInit(args);
+                break;
+            case "bsp-add-command":
+                epfBspAddCommand(args);
+                break;
             default:
                 throw new IllegalArgumentException("Unknown EPF subcommand: " + subcommand);
+        }
+    }
+
+    private static void epfBspInit(String[] args) {
+        // xml-gen epf bsp-init <epfPath> --kind <вид> [--target <Type.Name>...]
+        //                                [--command-type <тип>] [--api-version <v>] [--version <v>]
+        java.nio.file.Path epfPath = null;
+        String kindStr = null;
+        java.util.List<String> targets = new java.util.ArrayList<>();
+        String cmdTypeStr = null;
+        String apiVersion = null;
+        String version = null;
+
+        for (int i = 1; i < args.length; i++) {
+            String a = args[i];
+            if ("--kind".equals(a) && i + 1 < args.length) {
+                kindStr = args[++i];
+            } else if ("--target".equals(a) && i + 1 < args.length) {
+                targets.add(args[++i]);
+            } else if ("--command-type".equals(a) && i + 1 < args.length) {
+                cmdTypeStr = args[++i];
+            } else if ("--api-version".equals(a) && i + 1 < args.length) {
+                apiVersion = args[++i];
+            } else if ("--version".equals(a) && i + 1 < args.length) {
+                version = args[++i];
+            } else if (epfPath == null && !a.startsWith("--")) {
+                epfPath = Paths.get(a);
+            } else if (!a.startsWith("--")) {
+                // дополнительный позиционный — игнор
+            }
+        }
+
+        if (epfPath == null) {
+            throw new IllegalArgumentException("Usage: xml-gen epf bsp-init <epfPath> --kind <вид> [--target <Class.Name>]...");
+        }
+        if (kindStr == null) {
+            throw new IllegalArgumentException("--kind is required");
+        }
+
+        io.github.onec.xmlgen.model.BspKind kind = io.github.onec.xmlgen.model.BspKind.parse(kindStr);
+        io.github.onec.xmlgen.model.BspCommandType cmdType =
+                cmdTypeStr != null ? io.github.onec.xmlgen.model.BspCommandType.parse(cmdTypeStr) : null;
+
+        if (kind.requiresTarget() && targets.isEmpty()) {
+            throw new IllegalArgumentException(
+                    "Kind '" + kind + "' is assignable: at least one --target <Class.Name> is required");
+        }
+
+        java.util.List<io.github.onec.xmlgen.model.BspTarget> parsedTargets = new java.util.ArrayList<>();
+        for (String t : targets) {
+            parsedTargets.add(io.github.onec.xmlgen.model.BspTarget.parse(t));
+        }
+
+        io.github.onec.xmlgen.writer.EpfBspApplier.InitOptions opts =
+                new io.github.onec.xmlgen.writer.EpfBspApplier.InitOptions();
+        opts.kind = kind;
+        opts.targets = parsedTargets;
+        opts.commandType = cmdType;
+        opts.apiVersion = apiVersion;
+        opts.version = version;
+
+        try {
+            new io.github.onec.xmlgen.writer.EpfBspApplier().init(epfPath, opts);
+            System.out.println("BSP-init applied: kind=" + kind + ", targets=" + parsedTargets
+                    + " → " + io.github.onec.xmlgen.writer.EpfBspApplier.resolveObjectModule(epfPath));
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to apply bsp-init: " + e.getMessage(), e);
+        }
+    }
+
+    private static void epfBspAddCommand(String[] args) {
+        // xml-gen epf bsp-add-command <epfPath> --id <id> --label "<label>" [--type <type>] [--form <FormName>]
+        java.nio.file.Path epfPath = null;
+        String id = null;
+        String label = null;
+        String typeStr = null;
+        String form = null;
+
+        for (int i = 1; i < args.length; i++) {
+            String a = args[i];
+            if ("--id".equals(a) && i + 1 < args.length) {
+                id = args[++i];
+            } else if ("--label".equals(a) && i + 1 < args.length) {
+                label = args[++i];
+            } else if ("--type".equals(a) && i + 1 < args.length) {
+                typeStr = args[++i];
+            } else if ("--form".equals(a) && i + 1 < args.length) {
+                form = args[++i];
+            } else if (epfPath == null && !a.startsWith("--")) {
+                epfPath = Paths.get(a);
+            }
+        }
+
+        if (epfPath == null || id == null || label == null) {
+            throw new IllegalArgumentException(
+                    "Usage: xml-gen epf bsp-add-command <epfPath> --id <id> --label \"<label>\" [--type <type>] [--form <FormName>]");
+        }
+
+        io.github.onec.xmlgen.writer.EpfBspApplier.AddCommandOptions opts =
+                new io.github.onec.xmlgen.writer.EpfBspApplier.AddCommandOptions();
+        opts.identifier = id;
+        opts.label = label;
+        opts.type = typeStr != null ? io.github.onec.xmlgen.model.BspCommandType.parse(typeStr) : null;
+        opts.form = form;
+
+        try {
+            new io.github.onec.xmlgen.writer.EpfBspApplier().addCommand(epfPath, opts);
+            System.out.println("BSP add-command: " + id + " (" + label + ")");
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to apply bsp-add-command: " + e.getMessage(), e);
         }
     }
     
@@ -792,23 +908,105 @@ public class Commands {
 
     private static void executeTemplate(String[] args) {
         if (args.length == 0) {
-            throw new IllegalArgumentException("Template subcommand required: add, remove");
+            throw new IllegalArgumentException(
+                    "Template subcommand required: add, remove, add-help");
         }
 
         String subcommand = args[0].toLowerCase();
-        if ("add".equals(subcommand)) {
-            templateAdd(args);
-        } else if ("remove".equals(subcommand)) {
-            templateRemove(args);
-        } else {
-            throw new IllegalArgumentException("Unknown Template subcommand: " + subcommand);
+        switch (subcommand) {
+            case "add":
+                templateAdd(args);
+                break;
+            case "remove":
+                templateRemove(args);
+                break;
+            case "add-help":
+                templateAddHelp(args);
+                break;
+            default:
+                throw new IllegalArgumentException("Unknown Template subcommand: " + subcommand
+                        + ". Supported: add, remove, add-help");
         }
     }
 
     /**
-     * xml-gen template add <objectXml> <templateName> --type <type> [--synonym <syn>]
+     * xml-gen template add --object &lt;Type.Name&gt; --name &lt;T&gt; --type &lt;TemplateType&gt;
+     *                       [--synonym &lt;S&gt;] [--src &lt;dir&gt;] [--set-main-dcs] &lt;configDir&gt;
+     *
+     * <p>Legacy positional form (for backward compat with pre-existing EPF workflow):
+     * xml-gen template add &lt;objectXml&gt; &lt;templateName&gt; [--type &lt;type&gt;]
      */
     private static void templateAdd(String[] args) {
+        // Detect which form: new (--object present) or legacy (no --object)
+        boolean hasObjectFlag = false;
+        for (String a : args) {
+            if ("--object".equals(a)) { hasObjectFlag = true; break; }
+        }
+
+        if (hasObjectFlag) {
+            templateAddNew(args);
+        } else {
+            templateAddLegacy(args);
+        }
+    }
+
+    /** New universal form: xml-gen template add --object Type.Name --name T --type TT ... configDir */
+    private static void templateAddNew(String[] args) {
+        String objectSpec = null;
+        String name = null;
+        String typeStr = null;
+        String synonym = null;
+        String srcDir = "src";
+        boolean setMainDcs = false;
+        Path configDir = null;
+
+        for (int i = 1; i < args.length; i++) {
+            String a = args[i];
+            if ("--object".equals(a) && i + 1 < args.length) {
+                objectSpec = args[++i];
+            } else if ("--name".equals(a) && i + 1 < args.length) {
+                name = args[++i];
+            } else if ("--type".equals(a) && i + 1 < args.length) {
+                typeStr = args[++i];
+            } else if ("--synonym".equals(a) && i + 1 < args.length) {
+                synonym = args[++i];
+            } else if ("--src".equals(a) && i + 1 < args.length) {
+                srcDir = args[++i];
+            } else if ("--set-main-dcs".equals(a)) {
+                setMainDcs = true;
+            } else if (!a.startsWith("--") && configDir == null) {
+                configDir = Paths.get(a);
+            }
+        }
+
+        if (objectSpec == null) {
+            throw new IllegalArgumentException("--object is required (e.g. --object Document.ЗаказКлиента)");
+        }
+        if (name == null) {
+            throw new IllegalArgumentException("--name is required");
+        }
+        if (typeStr == null) {
+            throw new IllegalArgumentException("--type is required");
+        }
+        if (configDir == null) {
+            throw new IllegalArgumentException("configDir (positional) is required");
+        }
+
+        io.github.onec.xmlgen.model.MdoPath object = io.github.onec.xmlgen.model.MdoPath.parse(objectSpec);
+        try {
+            new io.github.onec.xmlgen.writer.TemplateWriter()
+                    .addTemplate(configDir, object, name, typeStr, synonym, setMainDcs, srcDir);
+        } catch (IOException e) {
+            throw new RuntimeException("Failed to add template: " + e.getMessage(), e);
+        }
+    }
+
+    /**
+     * Legacy form: xml-gen template add &lt;objectXml&gt; &lt;templateName&gt; [--type &lt;type&gt;] [--synonym &lt;syn&gt;]
+     *
+     * <p>Kept for backward compatibility with scripts using the old positional API.
+     */
+    private static void templateAddLegacy(String[] args) {
         Path objectXml = null;
         String templateName = null;
         String templateType = "SpreadsheetDocument";
@@ -827,7 +1025,9 @@ public class Commands {
         }
 
         if (objectXml == null || templateName == null) {
-            throw new IllegalArgumentException("Usage: xml-gen template add <objectXml> <templateName> [--type <type>]");
+            throw new IllegalArgumentException(
+                    "Usage: xml-gen template add --object Type.Name --name T --type TT [--synonym S] [--src dir] [--set-main-dcs] configDir\n"
+                    + "  or (legacy): xml-gen template add <objectXml> <templateName> [--type <type>]");
         }
 
         try {
@@ -858,9 +1058,66 @@ public class Commands {
     }
 
     /**
-     * xml-gen template remove <objectXml> <templateName>
+     * xml-gen template remove --object &lt;Type.Name&gt; --name &lt;T&gt; [--src &lt;dir&gt;] &lt;configDir&gt;
+     *
+     * <p>Legacy positional form:
+     * xml-gen template remove &lt;objectXml&gt; &lt;templateName&gt;
      */
     private static void templateRemove(String[] args) {
+        // Detect new vs legacy
+        boolean hasObjectFlag = false;
+        for (String a : args) {
+            if ("--object".equals(a)) { hasObjectFlag = true; break; }
+        }
+
+        if (hasObjectFlag) {
+            templateRemoveNew(args);
+        } else {
+            templateRemoveLegacy(args);
+        }
+    }
+
+    /** New form: xml-gen template remove --object Type.Name --name T [--src dir] configDir */
+    private static void templateRemoveNew(String[] args) {
+        String objectSpec = null;
+        String name = null;
+        String srcDir = "src";
+        Path configDir = null;
+
+        for (int i = 1; i < args.length; i++) {
+            String a = args[i];
+            if ("--object".equals(a) && i + 1 < args.length) {
+                objectSpec = args[++i];
+            } else if ("--name".equals(a) && i + 1 < args.length) {
+                name = args[++i];
+            } else if ("--src".equals(a) && i + 1 < args.length) {
+                srcDir = args[++i];
+            } else if (!a.startsWith("--") && configDir == null) {
+                configDir = Paths.get(a);
+            }
+        }
+
+        if (objectSpec == null) {
+            throw new IllegalArgumentException("--object is required");
+        }
+        if (name == null) {
+            throw new IllegalArgumentException("--name is required");
+        }
+        if (configDir == null) {
+            throw new IllegalArgumentException("configDir (positional) is required");
+        }
+
+        io.github.onec.xmlgen.model.MdoPath object = io.github.onec.xmlgen.model.MdoPath.parse(objectSpec);
+        try {
+            new io.github.onec.xmlgen.writer.TemplateWriter()
+                    .removeTemplate(configDir, object, name, srcDir);
+        } catch (IOException e) {
+            throw new RuntimeException("Failed to remove template: " + e.getMessage(), e);
+        }
+    }
+
+    /** Legacy form: xml-gen template remove &lt;objectXml&gt; &lt;templateName&gt; */
+    private static void templateRemoveLegacy(String[] args) {
         Path objectXml = null;
         String templateName = null;
 
@@ -873,7 +1130,9 @@ public class Commands {
         }
 
         if (objectXml == null || templateName == null) {
-            throw new IllegalArgumentException("Usage: xml-gen template remove <objectXml> <templateName>");
+            throw new IllegalArgumentException(
+                    "Usage: xml-gen template remove --object Type.Name --name T [--src dir] configDir\n"
+                    + "  or (legacy): xml-gen template remove <objectXml> <templateName>");
         }
 
         try {
@@ -899,6 +1158,44 @@ public class Commands {
             System.out.println("Removed template: " + templateName);
         } catch (IOException e) {
             throw new RuntimeException("Failed to remove template: " + e.getMessage(), e);
+        }
+    }
+
+    /**
+     * xml-gen template add-help --object &lt;Type.Name&gt; [--lang &lt;lang&gt;] [--src &lt;dir&gt;] &lt;configDir&gt;
+     */
+    private static void templateAddHelp(String[] args) {
+        String objectSpec = null;
+        String lang = "ru";
+        String srcDir = "src";
+        Path configDir = null;
+
+        for (int i = 1; i < args.length; i++) {
+            String a = args[i];
+            if ("--object".equals(a) && i + 1 < args.length) {
+                objectSpec = args[++i];
+            } else if ("--lang".equals(a) && i + 1 < args.length) {
+                lang = args[++i];
+            } else if ("--src".equals(a) && i + 1 < args.length) {
+                srcDir = args[++i];
+            } else if (!a.startsWith("--") && configDir == null) {
+                configDir = Paths.get(a);
+            }
+        }
+
+        if (objectSpec == null) {
+            throw new IllegalArgumentException("--object is required");
+        }
+        if (configDir == null) {
+            throw new IllegalArgumentException("configDir (positional) is required");
+        }
+
+        io.github.onec.xmlgen.model.MdoPath object = io.github.onec.xmlgen.model.MdoPath.parse(objectSpec);
+        try {
+            new io.github.onec.xmlgen.writer.TemplateWriter()
+                    .addHelp(configDir, object, lang, srcDir);
+        } catch (IOException e) {
+            throw new RuntimeException("Failed to add help: " + e.getMessage(), e);
         }
     }
 
@@ -957,7 +1254,7 @@ public class Commands {
 
     private static void executeSkd(String[] args) {
         if (args.length == 0) {
-            throw new IllegalArgumentException("SKD subcommand required: info, compile, add-field, add-parameter");
+            throw new IllegalArgumentException("SKD subcommand required: info, compile, edit, add-field, add-parameter");
         }
 
         String subcommand = args[0];
@@ -965,6 +1262,8 @@ public class Commands {
             skdInfo(args);
         } else if ("compile".equals(subcommand.toLowerCase())) {
             skdCompile(args);
+        } else if ("edit".equals(subcommand.toLowerCase())) {
+            skdEditOperation(args);
         } else if (subcommand.startsWith("add-")) {
             skdEdit(args);
         } else {
@@ -984,6 +1283,12 @@ public class Commands {
                 mode = args[++i].toLowerCase();
             } else if ("--name".equals(args[i]) && i + 1 < args.length) {
                 name = args[++i];
+            } else if ("--dataSet".equals(args[i]) && i + 1 < args.length) {
+                // --dataSet is an alias for --name when used with query/fields modes
+                name = args[++i];
+            } else if ("--variant".equals(args[i]) && i + 1 < args.length) {
+                // --variant is an alias for --name when used with variant mode
+                name = args[++i];
             } else if ("--limit".equals(args[i]) && i + 1 < args.length) {
                 limit = Integer.parseInt(args[++i]);
             } else if ("--offset".equals(args[i]) && i + 1 < args.length) {
@@ -994,7 +1299,7 @@ public class Commands {
         }
 
         if (file == null) {
-            throw new IllegalArgumentException("SKD XML file is required: xml-gen skd info <file.xml>");
+            throw new IllegalArgumentException("SKD XML file is required: xml-gen skd info <file.xml> [--mode <m>] [--name <n>]");
         }
 
         try {
@@ -1009,28 +1314,33 @@ public class Commands {
         OutputFormat format = OutputFormat.DESIGNER;
         Path inputJson = null;
         Path outputXml = null;
-        
+        Path includeBase = null;
+
         for (int i = 1; i < args.length; i++) {
             if ("--format".equals(args[i]) && i + 1 < args.length) {
                 format = OutputFormat.fromString(args[++i]);
+            } else if ("--include-base".equals(args[i]) && i + 1 < args.length) {
+                includeBase = Paths.get(args[++i]);
             } else if (inputJson == null) {
                 inputJson = Paths.get(args[i]);
             } else if (outputXml == null) {
                 outputXml = Paths.get(args[i]);
             }
         }
-        
+
         if (inputJson == null) {
             throw new IllegalArgumentException("input JSON file is required");
         }
         if (outputXml == null) {
             throw new IllegalArgumentException("output XML file is required");
         }
-        
+
         try {
             ObjectMapper mapper = new ObjectMapper();
             SkdDsl dsl = mapper.readValue(inputJson.toFile(), SkdDsl.class);
-            SkdWriter writer = new SkdWriter(format);
+            // По умолчанию резолвим @file:-include относительно директории JSON.
+            Path base = includeBase != null ? includeBase : inputJson.toAbsolutePath().getParent();
+            SkdWriter writer = new SkdWriter(format).withIncludeBase(base);
             writer.create(dsl, outputXml);
         } catch (Exception e) {
             throw new RuntimeException("Failed to compile SKD: " + e.getMessage(), e);
@@ -1043,7 +1353,7 @@ public class Commands {
             XmlDocument doc = new XmlStructureReader().parse(file);
             SkdEditor editor = new SkdEditor(doc);
             String cmd = args[0];
-            
+
             if ("add-parameter".equals(cmd)) {
                  editor.addParameter(
                      getArg(args, "--name", true),
@@ -1061,6 +1371,221 @@ public class Commands {
             saveAndValidate(doc, file, "skd", args);
         } catch (Exception e) {
             throw new RuntimeException("SKD editor failed: " + e.getMessage(), e);
+        }
+    }
+
+    /**
+     * xml-gen skd edit &lt;SchemaPath&gt; &lt;operation&gt; "&lt;value&gt;"
+     *                  [--dataSet &lt;name&gt;] [--variant &lt;name&gt;] [--no-selection]
+     *
+     * <p>Реализация SPEC §5: полный набор patch-операций.
+     */
+    private static void skdEditOperation(String[] args) {
+        // Positional: args[0]="edit", args[1]=<SchemaPath>, args[2]=<operation>, args[3]=<value>
+        Path schemaPath = null;
+        String operation = null;
+        String value = null;
+        String dataSet = null;
+        String variant = null;
+        boolean noSelection = false;
+
+        int positional = 0;
+        for (int i = 1; i < args.length; i++) {
+            String a = args[i];
+            if ("--dataSet".equals(a) && i + 1 < args.length) {
+                dataSet = args[++i];
+            } else if ("--variant".equals(a) && i + 1 < args.length) {
+                variant = args[++i];
+            } else if ("--no-selection".equals(a)) {
+                noSelection = true;
+            } else if (!a.startsWith("--")) {
+                if (positional == 0) schemaPath = Paths.get(a);
+                else if (positional == 1) operation = a;
+                else if (positional == 2) value = a;
+                positional++;
+            } else {
+                throw new IllegalArgumentException("Unknown option: " + a);
+            }
+        }
+
+        if (schemaPath == null || operation == null || value == null) {
+            throw new IllegalArgumentException(
+                    "Usage: xml-gen skd edit <SchemaPath> <operation> \"<value>\" "
+                            + "[--dataSet <n>] [--variant <n>] [--no-selection]");
+        }
+
+        // Папка достраивается до Ext/Template.xml
+        if (Files.isDirectory(schemaPath)) {
+            Path ext = schemaPath.resolve("Ext").resolve("Template.xml");
+            if (Files.exists(ext)) {
+                schemaPath = ext;
+            } else {
+                Path direct = schemaPath.resolve("Template.xml");
+                if (Files.exists(direct)) schemaPath = direct;
+                else throw new IllegalArgumentException(
+                        "Schema file not found: " + schemaPath + "/Ext/Template.xml");
+            }
+        }
+        if (!Files.exists(schemaPath)) {
+            throw new IllegalArgumentException("Schema file not found: " + schemaPath);
+        }
+
+        try {
+            // Read raw bytes once for rollback
+            byte[] originalBytes = Files.readAllBytes(schemaPath);
+            try {
+                io.github.onec.xmlgen.validator.XmlDocument doc =
+                        new io.github.onec.xmlgen.validator.XmlStructureReader().parse(schemaPath);
+                io.github.onec.xmlgen.editor.SkdEditor editor =
+                        new io.github.onec.xmlgen.editor.SkdEditor(doc);
+
+                applySkdOperation(editor, operation, value, dataSet, variant, noSelection, schemaPath);
+
+                saveAndValidate(doc, schemaPath, "skd", args);
+            } catch (Exception e) {
+                // Rollback: restore bytes
+                try {
+                    Files.write(schemaPath, originalBytes);
+                } catch (Exception rollbackEx) {
+                    // best-effort
+                }
+                throw e;
+            }
+        } catch (RuntimeException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new RuntimeException("SKD edit failed: " + e.getMessage(), e);
+        }
+    }
+
+    /**
+     * Применить одну операцию SKD edit (с возможным batch через {@code ;;}).
+     * Некоторые операции batch не поддерживают (set-query, modify-structure,
+     * patch-query без @once в составе spec → проверяется отдельно).
+     */
+    private static void applySkdOperation(io.github.onec.xmlgen.editor.SkdEditor editor,
+                                          String operation, String value,
+                                          String dataSet, String variant, boolean noSelection,
+                                          Path schemaPath) {
+        java.util.List<String> parts;
+        boolean allowBatch = !operation.equals("set-query")
+                && !operation.equals("modify-structure")
+                && !operation.equals("patch-query"); // patch-query has its own batch logic
+        if (allowBatch) {
+            parts = io.github.onec.xmlgen.editor.skd.SkdShorthandParser.splitBatch(value);
+            if (parts.isEmpty()) parts = java.util.List.of(value);
+        } else {
+            parts = java.util.List.of(value);
+        }
+
+        for (String spec : parts) {
+            applySingleSkdOp(editor, operation, spec, dataSet, variant, noSelection, schemaPath);
+        }
+    }
+
+    private static void applySingleSkdOp(io.github.onec.xmlgen.editor.SkdEditor editor,
+                                         String op, String spec,
+                                         String dataSet, String variant, boolean noSelection,
+                                         Path schemaPath) {
+        switch (op) {
+            case "add-field": {
+                var fd = io.github.onec.xmlgen.editor.skd.SkdShorthandParser.parseField(spec);
+                editor.addField(fd, dataSet, variant, noSelection);
+                return;
+            }
+            case "modify-field": {
+                var fd = io.github.onec.xmlgen.editor.skd.SkdShorthandParser.parseField(spec);
+                editor.modifyField(fd, dataSet);
+                return;
+            }
+            case "remove-field": {
+                editor.removeField(spec.trim(), dataSet, variant);
+                return;
+            }
+            case "set-field-role": {
+                var d = io.github.onec.xmlgen.editor.skd.SkdShorthandParser.parseFieldRole(spec);
+                editor.setFieldRole(d, dataSet);
+                return;
+            }
+            case "add-parameter": {
+                var p = io.github.onec.xmlgen.editor.skd.SkdShorthandParser.parseParameter(spec);
+                editor.addParameter(p);
+                return;
+            }
+            case "modify-parameter": {
+                var p = io.github.onec.xmlgen.editor.skd.SkdShorthandParser.parseModifyParameter(spec);
+                editor.modifyParameter(p);
+                return;
+            }
+            case "remove-parameter": {
+                editor.removeParameter(spec.trim());
+                return;
+            }
+            case "rename-parameter": {
+                var arrow = io.github.onec.xmlgen.editor.skd.SkdShorthandParser.parseArrow(spec, false);
+                editor.renameParameter(arrow.oldText.trim(), arrow.newText.trim());
+                return;
+            }
+            case "reorder-parameters": {
+                var order = io.github.onec.xmlgen.editor.skd.SkdShorthandParser.parseReorderParameters(spec);
+                editor.reorderParameters(order);
+                return;
+            }
+            case "add-total": {
+                var t = io.github.onec.xmlgen.editor.skd.SkdShorthandParser.parseTotal(spec);
+                editor.addTotal(t);
+                return;
+            }
+            case "remove-total": {
+                editor.removeTotal(spec.trim());
+                return;
+            }
+            case "modify-structure": {
+                var s = io.github.onec.xmlgen.editor.skd.SkdShorthandParser.parseStructureSpec(spec);
+                editor.modifyStructure(s, variant);
+                return;
+            }
+            case "set-query": {
+                String text = spec;
+                if (text.startsWith("@")) {
+                    // file reference: resolve relative to schema, then cwd
+                    String pathSpec = text.substring(1);
+                    Path resolved = schemaPath.getParent() != null
+                            ? schemaPath.getParent().resolve(pathSpec)
+                            : Paths.get(pathSpec);
+                    if (!Files.exists(resolved)) {
+                        resolved = Paths.get(pathSpec);
+                    }
+                    if (!Files.exists(resolved)) {
+                        throw new RuntimeException("query file not found: " + pathSpec);
+                    }
+                    try {
+                        text = Files.readString(resolved, java.nio.charset.StandardCharsets.UTF_8);
+                    } catch (java.io.IOException ioe) {
+                        throw new RuntimeException("failed to read query file: " + ioe.getMessage(), ioe);
+                    }
+                }
+                editor.setQuery(text, dataSet);
+                return;
+            }
+            case "patch-query": {
+                // patch-query batch via ;; is allowed (per skill query.md "batch supported").
+                java.util.List<String> patches =
+                        io.github.onec.xmlgen.editor.skd.SkdShorthandParser.splitBatch(spec);
+                if (patches.isEmpty()) patches = java.util.List.of(spec);
+                for (String p : patches) editor.patchQuery(p, dataSet);
+                return;
+            }
+            case "clear-conditionalAppearance": {
+                if (!"*".equals(spec.trim())) {
+                    throw new IllegalArgumentException(
+                            "clear-conditionalAppearance: only '*' wildcard is supported");
+                }
+                editor.clearConditionalAppearance(variant);
+                return;
+            }
+            default:
+                throw new IllegalArgumentException("Unknown SKD edit operation: " + op);
         }
     }
 
@@ -1780,12 +2305,13 @@ public class Commands {
      * xml-gen interface edit <CommandInterface.xml> --op <operation> --value <value>
      *
      * Operations:
-     *   hide              --value "Cmd.Name" or '["Cmd1","Cmd2"]'
-     *   show              --value "Cmd.Name" or '["Cmd1","Cmd2"]'
-     *   place             --value '{"command":"...","group":"CommandGroup.X"}'
-     *   order             --value '{"group":"...","commands":["A","B"]}'
-     *   subsystem-order   --value '["Subsystem.X.Subsystem.A",...]'
-     *   group-order       --value '["NavigationPanelOrdinary",...]'
+     *   hide                 --value "Cmd.Name" or '["Cmd1","Cmd2"]'
+     *   show                 --value "Cmd.Name" or '["Cmd1","Cmd2"]'
+     *   place                --value "command=Cmd.Name group=CommandGroup.X"
+     *                        or '{"command":"...","group":"CommandGroup.X"}' (legacy JSON)
+     *   order / set-order    --value '{"group":"...","commands":["A","B"]}'
+     *   subsystem-order / set-subsystem-order  --value '["Subsystem.X.Subsystem.A",...]'
+     *   group-order / set-group-order          --value '["NavigationPanelOrdinary",...]'
      */
     private static void interfaceEdit(String[] args) {
         Path file = null;
@@ -1819,12 +2345,26 @@ public class Commands {
                     editor.show(value);
                     break;
                 case "place": {
-                    com.fasterxml.jackson.databind.JsonNode json = mapper.readTree(value);
-                    String command = json.get("command").asText();
-                    String group = json.get("group").asText();
+                    // Support both canonical key=value format and legacy JSON format
+                    String command;
+                    String group;
+                    if (value.trim().startsWith("{")) {
+                        com.fasterxml.jackson.databind.JsonNode json = mapper.readTree(value);
+                        command = json.get("command").asText();
+                        group = json.get("group").asText();
+                    } else {
+                        command = parsePlaceParam(value, "command");
+                        group = parsePlaceParam(value, "group");
+                        if (command == null || group == null) {
+                            throw new IllegalArgumentException(
+                                    "place value must be 'command=<cmd> group=<grp>' or JSON {\"command\":\"...\",\"group\":\"...\"}");
+                        }
+                    }
                     editor.place(command, group);
                     break;
                 }
+                // Canonical name: set-order; legacy alias: order
+                case "set-order":
                 case "order": {
                     com.fasterxml.jackson.databind.JsonNode json = mapper.readTree(value);
                     String group = json.get("group").asText();
@@ -1834,6 +2374,8 @@ public class Commands {
                     editor.setOrder(group, commands);
                     break;
                 }
+                // Canonical name: set-subsystem-order; legacy alias: subsystem-order
+                case "set-subsystem-order":
                 case "subsystem-order": {
                     com.fasterxml.jackson.databind.JsonNode json = mapper.readTree(value);
                     String[] subs = new String[json.size()];
@@ -1841,6 +2383,8 @@ public class Commands {
                     editor.setSubsystemOrder(subs);
                     break;
                 }
+                // Canonical name: set-group-order; legacy alias: group-order
+                case "set-group-order":
                 case "group-order": {
                     com.fasterxml.jackson.databind.JsonNode json = mapper.readTree(value);
                     String[] groups = new String[json.size()];
@@ -1850,7 +2394,10 @@ public class Commands {
                 }
                 default:
                     throw new IllegalArgumentException("Unknown operation: " + operation
-                            + ". Supported: hide, show, place, order, subsystem-order, group-order");
+                            + ". Supported: hide, show, place, "
+                            + "set-order (alias: order), "
+                            + "set-subsystem-order (alias: subsystem-order), "
+                            + "set-group-order (alias: group-order)");
             }
 
             editor.save();
@@ -1858,6 +2405,18 @@ public class Commands {
         } catch (IOException e) {
             throw new RuntimeException("Failed to edit CommandInterface: " + e.getMessage(), e);
         }
+    }
+
+    /**
+     * Parse a key=value pair from a string like "command=Foo.Bar group=CommandGroup.X".
+     * Returns null if the key is not found.
+     */
+    private static String parsePlaceParam(String spec, String key) {
+        // Match "key=value" where value runs until the next " key=" or end of string
+        java.util.regex.Pattern p = java.util.regex.Pattern.compile(
+                "(?:^|\\s)" + java.util.regex.Pattern.quote(key) + "=(\\S+)");
+        java.util.regex.Matcher m = p.matcher(spec);
+        return m.find() ? m.group(1) : null;
     }
 
     /**
@@ -2016,23 +2575,45 @@ public class Commands {
 
     /**
      * xml-gen meta edit <objectPath> --op <operation> --value <value>
+     * xml-gen meta edit <objectPath> --batch <file.json>
      */
     private static void metaEdit(String[] args) {
         Path objectPath = null;
         String operation = null;
         String value = null;
+        Path batchFile = null;
 
         for (int i = 1; i < args.length; i++) {
             switch (args[i]) {
                 case "--op", "-op" -> { if (i + 1 < args.length) operation = args[++i]; }
                 case "--value", "-value", "-v" -> { if (i + 1 < args.length) value = args[++i]; }
-                default -> { if (objectPath == null) objectPath = Paths.get(args[i]); }
+                case "--batch" -> { if (i + 1 < args.length) batchFile = Paths.get(args[++i]); }
+                default -> { if (objectPath == null && !args[i].startsWith("-")) objectPath = Paths.get(args[i]); }
             }
         }
 
+        // ── Batch mode ──────────────────────────────────────────────────
+        if (batchFile != null) {
+            if (!Files.exists(batchFile)) {
+                throw new IllegalArgumentException("Batch file not found: " + batchFile);
+            }
+            if (objectPath == null) {
+                throw new IllegalArgumentException(
+                        "Usage: xml-gen meta edit <objectPath> --batch <file.json>");
+            }
+            try {
+                new MetaEditor().applyBatch(objectPath, batchFile);
+            } catch (IOException e) {
+                throw new RuntimeException("Failed to apply batch: " + e.getMessage(), e);
+            }
+            return;
+        }
+
+        // ── Inline mode ─────────────────────────────────────────────────
         if (objectPath == null || operation == null || value == null) {
             throw new IllegalArgumentException(
                     "Usage: xml-gen meta edit <objectPath> --op <operation> --value <value>\n"
+                    + "       xml-gen meta edit <objectPath> --batch <file.json>\n"
                     + "Operations: add-attribute, add-ts, add-dimension, add-resource, add-enumValue,\n"
                     + "  add-column, add-form, add-template, add-command, add-ts-attribute,\n"
                     + "  remove-attribute, remove-ts, remove-dimension, ..., remove-ts-attribute,\n"
@@ -2137,7 +2718,8 @@ public class Commands {
 
     private static void executeExtension(String[] args) {
         if (args.length == 0) {
-            throw new IllegalArgumentException("Extension subcommand required: init, validate, borrow, diff");
+            throw new IllegalArgumentException(
+                    "Extension subcommand required: init, validate, borrow, diff, patch-method");
         }
 
         String subcommand = args[0].toLowerCase();
@@ -2154,9 +2736,12 @@ public class Commands {
             case "diff":
                 extensionDiff(args);
                 break;
+            case "patch-method":
+                extensionPatchMethod(args);
+                break;
             default:
                 throw new IllegalArgumentException("Unknown extension subcommand: " + args[0]
-                        + ". Supported: init, validate, borrow, diff");
+                        + ". Supported: init, validate, borrow, diff, patch-method");
         }
     }
 
@@ -2264,29 +2849,109 @@ public class Commands {
     }
 
     /**
-     * xml-gen extension borrow <extensionPath> <configPath> <objectSpec>
+     * xml-gen extension borrow {@literal <extensionPath> <configPath> <objectSpec>}
+     *     [--borrow-main-attribute form|all]
      */
     private static void extensionBorrow(String[] args) {
         Path extPath = null;
         Path configPath = null;
         String objectSpec = null;
+        ExtensionEditor.MainAttributeMode mainAttrMode = null;
 
         for (int i = 1; i < args.length; i++) {
-            if (extPath == null) extPath = Paths.get(args[i]);
-            else if (configPath == null) configPath = Paths.get(args[i]);
-            else if (objectSpec == null) objectSpec = args[i];
-            else objectSpec = objectSpec + " ;; " + args[i]; // allow multiple positional args
+            String a = args[i];
+            if ("--borrow-main-attribute".equals(a) && i + 1 < args.length) {
+                String v = args[++i].trim().toLowerCase();
+                switch (v) {
+                    case "form" -> mainAttrMode = ExtensionEditor.MainAttributeMode.FORM;
+                    case "all" -> mainAttrMode = ExtensionEditor.MainAttributeMode.ALL;
+                    default -> throw new IllegalArgumentException(
+                            "--borrow-main-attribute requires 'form' or 'all', got: " + v);
+                }
+            } else if (a.startsWith("--")) {
+                throw new IllegalArgumentException("Unknown option: " + a);
+            } else if (extPath == null) {
+                extPath = Paths.get(a);
+            } else if (configPath == null) {
+                configPath = Paths.get(a);
+            } else if (objectSpec == null) {
+                objectSpec = a;
+            } else {
+                objectSpec = objectSpec + " ;; " + a;
+            }
         }
 
         if (extPath == null || configPath == null || objectSpec == null) {
             throw new IllegalArgumentException(
-                    "Usage: xml-gen extension borrow <extensionPath> <configPath> <objectSpec>");
+                    "Usage: xml-gen extension borrow <extensionPath> <configPath> <objectSpec> "
+                            + "[--borrow-main-attribute form|all]");
         }
 
         try {
-            new ExtensionEditor().borrow(extPath, configPath, objectSpec);
+            new ExtensionEditor().borrow(extPath, configPath, objectSpec, mainAttrMode);
         } catch (IOException e) {
             throw new RuntimeException("Extension borrow failed: " + e.getMessage(), e);
+        }
+    }
+
+    /**
+     * xml-gen extension patch-method {@literal <extensionPath>}
+     *     --module "{@literal <Type.Name[.Sub]>}"
+     *     --method "{@literal <MethodName>}"
+     *     --type Before|After|Instead|ModificationAndControl
+     *     [--config {@literal <baseConfigPath>}]
+     *     [--context {@literal <bsl-context>}]
+     *     [--function]
+     */
+    private static void extensionPatchMethod(String[] args) {
+        Path extPath = null;
+        String modulePath = null;
+        String methodName = null;
+        String typeStr = null;
+        Path configPath = null;
+        String context = null;
+        boolean asFunction = false;
+
+        for (int i = 1; i < args.length; i++) {
+            String a = args[i];
+            switch (a) {
+                case "--module" -> { if (i + 1 < args.length) modulePath = args[++i]; }
+                case "--method" -> { if (i + 1 < args.length) methodName = args[++i]; }
+                case "--type" -> { if (i + 1 < args.length) typeStr = args[++i]; }
+                case "--config" -> { if (i + 1 < args.length) configPath = Paths.get(args[++i]); }
+                case "--context" -> { if (i + 1 < args.length) context = args[++i]; }
+                case "--function" -> asFunction = true;
+                default -> {
+                    if (a.startsWith("--")) {
+                        throw new IllegalArgumentException("Unknown option: " + a);
+                    }
+                    if (extPath == null) extPath = Paths.get(a);
+                }
+            }
+        }
+
+        if (extPath == null || modulePath == null || methodName == null || typeStr == null) {
+            throw new IllegalArgumentException(
+                    "Usage: xml-gen extension patch-method <extensionPath> "
+                            + "--module <Type.Name.ObjectModule|Type.Name.Form.Y|CommonModule.X> "
+                            + "--method <MethodName> "
+                            + "--type Before|After|Instead|ModificationAndControl "
+                            + "[--config <baseConfigPath>] [--context <bsl-context>] [--function]");
+        }
+
+        ExtensionEditor.InterceptorType type = ExtensionEditor.InterceptorType.parse(typeStr);
+        try {
+            ExtensionEditor.PatchMethodResult r = new ExtensionEditor().patchMethod(
+                    extPath, modulePath, methodName, type, configPath, context, asFunction);
+            if (r.skipped) {
+                System.out.println("Skipped (already present): " + r.procedureName + " in " + r.bslFile);
+            } else if (r.created) {
+                System.out.println("Created " + r.bslFile + " with " + r.procedureName);
+            } else {
+                System.out.println("Appended " + r.procedureName + " to " + r.bslFile);
+            }
+        } catch (IOException e) {
+            throw new RuntimeException("Extension patch-method failed: " + e.getMessage(), e);
         }
     }
 

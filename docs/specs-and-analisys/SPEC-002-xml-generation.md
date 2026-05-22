@@ -245,7 +245,7 @@ java -jar xml-gen.jar skd compile skd.json output/DataCompositionSchema.xml
 framework/skills/xml-generation/
   xml-generation.md     # Обзорный навык: что такое xml-gen, как использовать, ссылки на DSL-навыки
   form-dsl.md           # JSON DSL для форм: справочник элементов, атрибутов, команд, паттерны
-  epf-operations.md     # EPF: создание, добавление форм/макетов, сборка, BSP-совместимость
+  epf-full/             # EPF: создание, добавление форм/макетов + шаблоны объектов + BSP-регистрация
   mxl-dsl.md            # JSON DSL для MXL: fonts, styles, areas, cells, паттерны печатных форм
   role-dsl.md           # JSON DSL для ролей: права, пресеты (view/edit/full), RLS
   skd-dsl.md            # JSON DSL для СКД: dataSets, fields, query, параметры, паттерны
@@ -267,12 +267,12 @@ framework/skills/xml-generation/
 | 8 | `epf-add-form` | `EpfWriter.java` (add-form) | Java: добавить форму |
 | 9 | `epf-add-template` | `EpfWriter.java` (add-template) | Java: добавить макет |
 | 10 | `epf-add-help` | `EpfWriter.java` (add-template --type html) | Покрыто макетом HTMLDocument |
-| 11 | `epf-remove-form` | `epf-operations.md` | Текстовые инструкции |
-| 12 | `epf-remove-template` | `epf-operations.md` | Текстовые инструкции |
-| 13 | `epf-build` | `epf-operations.md` секция "Сборка" | Инструкции 1cv8.exe/ibcmd |
-| 14 | `epf-dump` | `epf-operations.md` секция "Выгрузка" | Инструкции 1cv8.exe |
-| 15 | `epf-bsp-init` | `epf-operations.md` секция "BSP" | Паттерн модуля |
-| 16 | `epf-bsp-add-command` | `epf-operations.md` секция "BSP-команды" | Паттерн |
+| 11 | `epf-remove-form` | `epf-full/references/epf-base.md` | Текстовые инструкции |
+| 12 | `epf-remove-template` | `epf-full/references/epf-base.md` | Текстовые инструкции |
+| 13 | `epf-build` | `epf-full/references/epf-base.md` секция "Сборка" | Инструкции 1cv8.exe/ibcmd |
+| 14 | `epf-dump` | `epf-full/references/epf-base.md` секция "Выгрузка" | Инструкции 1cv8.exe |
+| 15 | `epf-bsp-init` | `epf-full/references/epf-bsp.md` §1 | Паттерн модуля |
+| 16 | `epf-bsp-add-command` | `epf-full/references/epf-bsp.md` §2 | Паттерн |
 | 17 | `mxl-compile` | `MxlWriter.java` | Java: JSON DSL -> MXL XML |
 | 18 | `mxl-validate` | `--validate` флаг CLI | Java: проверка JSON DSL |
 | 19 | `mxl-decompile` | `mxl-dsl.md` секция | Инструкции разбора XML |
@@ -425,7 +425,7 @@ app:
   - `add-template`: модификация корневого XML + создание Templates/<Name>.xml + тело макета
   - Оба формата: Designer (корневой XML с UUID-парами) и EDT (.mdo)
 - `EpfWriterTest.java`: roundtrip по фикстуре `ТестоваяВнешняяОбработка`
-- `epf-operations.md`: навык фреймворка
+- `epf-full/SKILL.md`: навык фреймворка (слияние #6)
 
 **Критерий завершения:** `java -jar xml-gen.jar epf init --name ТестОбработка output/` генерирует валидный XML, загружаемый в конфигуратор 1С. Roundtrip-тест проходит.
 
@@ -689,9 +689,7 @@ skills:
   - bsl-practices/coding-standards
   - tool-usage/syntax-checking
   - tool-usage/search-before-write
-  - xml-generation/form-dsl          # <-- добавить
-  - xml-generation/epf-operations    # <-- добавить
-  - xml-generation/xml-generation    # <-- добавить (обзорный)
+  - xml-generation                   # единый toolkit (обзорный, включает все под-skills)
 ---
 ```
 

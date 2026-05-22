@@ -88,7 +88,7 @@ Tool-usage skills are the **sole place** where MCP tools are described in the fr
 | `bsl.checkSyntax` | Syntax checking | If the URI is missing, verify the encoding |
 
 ## Scenarios
-[Concrete call chains]
+[Конкретные цепочки вызовов]
 ```
 
 ### Principles

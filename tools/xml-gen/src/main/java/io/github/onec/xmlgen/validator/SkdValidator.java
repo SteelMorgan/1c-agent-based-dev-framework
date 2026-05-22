@@ -136,8 +136,30 @@ public class SkdValidator implements XmlValidator {
     private void validateSemantic(XmlDocument document, List<ValidationIssue> issues) {
         XmlNode root = document.getRoot();
 
-        // SKD-101: DataSet.xsi:type — известный тип
+        // Соберём все известные имена наборов и полей — для проверки ссылочной целостности.
+        Set<String> dataSetNames = new HashSet<>();
+        Set<String> allFieldNames = new HashSet<>();
         List<XmlNode> dataSets = root.children("dataSet");
+        for (XmlNode ds : dataSets) {
+            String name = ds.childText("name");
+            if (name != null) dataSetNames.add(name);
+            for (XmlNode f : ds.children("field")) {
+                String fld = f.childText("field");
+                if (fld != null) allFieldNames.add(fld);
+                String dp = f.childText("dataPath");
+                if (dp != null) allFieldNames.add(dp);
+            }
+            for (XmlNode cf : ds.children("calculatedField")) {
+                String n = cf.childText("dataPath");
+                if (n != null) allFieldNames.add(n);
+            }
+        }
+        for (XmlNode cf : root.children("calculatedField")) {
+            String n = cf.childText("dataPath");
+            if (n != null) allFieldNames.add(n);
+        }
+
+        // SKD-101: DataSet.xsi:type — известный тип
         for (int i = 0; i < dataSets.size(); i++) {
             XmlNode ds = dataSets.get(i);
             String dsPath = "/DataCompositionSchema/dataSet[" + (i + 1) + "]";
@@ -159,8 +181,44 @@ public class SkdValidator implements XmlValidator {
                 }
             }
 
+            // SKD-108: calculatedField должен иметь expression + valueType.
+            List<XmlNode> calcFields = ds.children("calculatedField");
+            for (int j = 0; j < calcFields.size(); j++) {
+                XmlNode cf = calcFields.get(j);
+                String cfPath = dsPath + "/calculatedField[" + (j + 1) + "]";
+                if (cf.childText("expression") == null || cf.childText("expression").isEmpty()) {
+                    issues.add(ValidationIssue.error("SKD-108",
+                            "calculatedField missing <expression>",
+                            cf.getLine(), cfPath));
+                }
+                if (cf.child("valueType") == null) {
+                    issues.add(ValidationIssue.error("SKD-108",
+                            "calculatedField missing <valueType> (type required for calculated fields)",
+                            cf.getLine(), cfPath));
+                }
+            }
+
             // Проверяем поля в settings/filter
             validateFields(ds, dsPath, issues);
+        }
+
+        // SKD-109: dataSetLink ссылается на существующие наборы.
+        List<XmlNode> links = root.children("dataSetLink");
+        for (int i = 0; i < links.size(); i++) {
+            XmlNode link = links.get(i);
+            String linkPath = "/DataCompositionSchema/dataSetLink[" + (i + 1) + "]";
+            String src = link.childText("sourceDataSet");
+            String dst = link.childText("destDataSet");
+            if (src != null && !src.isEmpty() && !dataSetNames.contains(src)) {
+                issues.add(ValidationIssue.error("SKD-109",
+                        "dataSetLink references unknown source dataSet '" + src + "'",
+                        link.getLine(), linkPath + "/sourceDataSet"));
+            }
+            if (dst != null && !dst.isEmpty() && !dataSetNames.contains(dst)) {
+                issues.add(ValidationIssue.error("SKD-109",
+                        "dataSetLink references unknown dest dataSet '" + dst + "'",
+                        link.getLine(), linkPath + "/destDataSet"));
+            }
         }
 
         // Проверяем settingsVariants

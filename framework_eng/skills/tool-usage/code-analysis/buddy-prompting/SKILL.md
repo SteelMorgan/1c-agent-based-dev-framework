@@ -1,6 +1,6 @@
 ---
 name: buddy-prompting
-description: "Crafting prompts for 1С Buddy (ask_ai_assistant). This skill teaches the agent to correctly address a weak LLM with a strong knowledge base through strict templates that match Buddy's internal instructions."
+description: "Creating prompts for 1С Buddy (ask_ai_assistant). This skill teaches the agent how to correctly address a weak LLM with a strong knowledge base through strict templates that match Buddy's internal instructions."
 uses_capabilities:
   - ask_ai_assistant
 ---
@@ -10,12 +10,12 @@ uses_capabilities:
 ## Decision Table — template selection
 
 | Agent task | Template | When |
-|------------|----------|------|
-| Platform API, syntax, methods, types, events | `SEARCH_DOCS` | Question about the built-in language or the behavior of platform objects |
+|---------------|--------|-------|
+| Platform API, syntax, methods, types, events | `SEARCH_DOCS` | Question about the built-in language or behavior of platform objects |
 | Standards, methodology, БСП, typical configurations | `SEARCH_ITS` | Question about development rules, EDT, Configurator, 1С products |
 | Full text of a specific ITS document | `FETCH_ITS` | Document id already available after SEARCH_ITS |
-| Changes between platform versions | `DIFF_VERSIONS` | Migration, compatibility, "what has changed" |
-| Code validation for standards and searching analogs in БСП | `VALIDATE_BSL` | Review of a BSL fragment: syntax + compliance with standards + recommendations for using БСП |
+| Changes between platform versions | `DIFF_VERSIONS` | Migration, compatibility, "what changed" |
+| Code validation for standards and searching for analogs in БСП | `VALIDATE_BSL` | Review of a BSL fragment: syntax + compliance with standards + recommendations for using БСП |
 
 ## Prompt templates
 
@@ -33,6 +33,9 @@ uses_capabilities:
 
 Вход:
 Версия платформы: {version}
+Объект: {object}
+Режим выполнения: {context}          # клиент / сервер / фоновое задание
+Вид форм: {form_mode}                # управляемые / обычные
 Вопрос: {query}
 
 Формат ответа:
@@ -41,7 +44,7 @@ uses_capabilities:
 3. Если неоднозначность — перечисли варианты.
 ```
 
-**Forming the query:** for general topics add "List of all...", "General information about...". Example: "Form parameters" → "List of all parameters of the managed form". Empty result → rephrase the query.
+**Formulating the query:** for general topics add "List of all...", "General information about...". Example: "Form parameters" → "List of all parameters of the managed form". Empty result → rephrase the query.
 
 ### SEARCH_ITS — standards and methodology
 
@@ -146,16 +149,32 @@ ID документа: {doc_id}
 4. Если проблем нет — скажи явно.
 ```
 
+## Stop rules
+
+1. **Ban on inventing signatures.** Do not specify a method, property, or parameter
+   unless `ask_ai_assistant` (SEARCH_DOCS) has confirmed it. If documentation was not found,
+   report the absence; do not construct a signature by analogy or from memory.
+
+2. **Pre-flight context for SEARCH_DOCS.** Before the call, explicitly record four parameters:
+   object (`{object}`), execution mode (`{context}`: client / server / background job),
+   platform version (`{version}`), and form type (`{form_mode}`: managed / ordinary).
+   A missing parameter means a query with undefined context, and the result is unreliable.
+
+3. **Ban on answering from memory when the result depends on version or mode.** If the behavior of an API
+   or object can differ depending on the platform version or execution mode, always clarify it first
+   through `ask_ai_assistant` (SEARCH_DOCS or DIFF_VERSIONS).
+   An answer "from memory" in such cases is forbidden regardless of the agent's confidence.
+
 ## Errors and limitations
 
 | Problem | Workaround |
-|---------|------------|
+|----------|------------|
 | Empty SEARCH_DOCS result | Rephrase the query: "List of all..."; verify the version |
 | Irrelevant SEARCH_ITS results | Clarify the query with ITS terminology; narrow the request |
 | Buddy answered from memory without invoking the tool | Emphasize: "FORBIDDEN to answer without the tool" |
 | False VALIDATE_BSL errors | "Undeclared variable" on global methods is normal; filter these |
 | FETCH_ITS without an id | First SEARCH_ITS → choose an id → then FETCH_ITS |
-| No project context (session_id) | Do NOT try to trigger FindRelated, FindSimilar, GetObject |
+| No project context (session_id) | DO NOT try to trigger FindRelated, FindSimilar, GetObject |
 
 ---
 depends_on: []

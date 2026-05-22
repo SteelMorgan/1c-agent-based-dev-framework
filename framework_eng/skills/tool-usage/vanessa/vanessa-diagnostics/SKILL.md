@@ -1,22 +1,36 @@
 ---
 name: vanessa-diagnostics
-description: "Diagnostics for Vanessa Automation test runs. Use when a feature scenario did not pass, artifacts were not created, or you need to classify a failure after execution."
+description: "Diagnostics for Vanessa Automation runs. Use when a feature scenario failed, artifacts were not created, or you need to classify a failure after launch."
 ---
 
 # Vanessa Automation Diagnostics
 
-Vanessa runs are launched through `v8-runner test va` (see the `v8-runner` skill → `references/testing.md`). This skill is about how to analyze a failed run.
+Running Vanessa is done through `v8-runner test va` (see the `v8-runner` skill → `references/testing.md`). This skill is about how to analyze a failed run.
 
 ## Run Artifacts
 
-There are two layers - do not confuse them:
+There are two layers - do not mix them up:
 
-| Layer | What writes it | Where it lives |
-|------|----------------|----------------|
-| Vanessa artifacts | the VA player itself (`va-status.json`, `vanessa-execution.log`, reports `junit/junit.xml`, `cucumber/CucumberJson.json`) | along the paths from the active `tests.va` / `va-params` profile, usually project-local (`<project_root>/vanessa-tests/reports/…`, `.../logs/…`) |
-| v8-runner run artifacts | `v8-runner` itself (internal run logs, `1cv8c` stdout/stderr, run-id metadata) | `workPath/temp/<runner-id>/runs/<run-id>/` (`workPath` is taken from `v8project.yaml`) |
+| Layer | What it writes | Where it lives |
+|------|-----------|-----------|
+| Vanessa artifacts | the VA player itself (`va-status.json`, `vanessa-execution.log`, reports `junit/junit.xml`, `cucumber/CucumberJson.json`) | at paths from the active `tests.va` / `va-params` profile, usually project-local (`<project_root>/vanessa-tests/reports/…`, `.../logs/…`) |
+| v8-runner run artifacts | `v8-runner` itself (internal launch logs, 1cv8c stdout/stderr, run-id metadata) | `workPath/temp/<runner-id>/runs/<run-id>/` (`workPath` is taken from `v8project.yaml`) |
 
-When a run fails, do not clear **both** locations until diagnostics are complete. Read the exact Vanessa report paths from the active profile.
+If a run fails, do not clean up **both** locations until diagnostics are complete. Read the exact Vanessa report paths from the active profile.
+
+## Progress Monitoring During a Run
+
+For long-running `v8-runner test va` operations (typically minutes), use the Monitor tool instead of blind file polling:
+
+1. Start v8-runner in the background: `Bash run_in_background: true`, redirect stdout to a log file (e.g. `v8-runner test va 2>&1 | tee /tmp/va-stdout.log`).
+2. Subscribe to that log file via the Monitor tool with a filter pattern: `ERROR:|\\[artifact\\]|passed|Failed:` - each matching line arrives as a notification.
+3. Terminate the wait when **any** of the following is true:
+   - `va-status.log` appears in the run directory (created on both success AND failure - unlike `va-status.json`);
+   - the `1cv8c.*vanessa-automation` process exits;
+   - an `ERROR:` line appears in stdout (e.g. `ERROR: runtime error: test run reported failures`).
+4. **Do not use `va-status.json` alone as the only exit condition.** It is created only on a graceful scenario completion; on early failures (step error, client crash) it is absent and a file-existence wait hangs forever.
+
+After the run exits, proceed to the diagnostic order below.
 
 ## When to Use
 

@@ -19,10 +19,13 @@ skills:
   - search-before-write
   - tech-log-analysis
   - xml-generation
-  - form-info
-  - form-edit
-  - form-validate
-  - epf-validate
+  - api-design
+  - background-jobs
+  - integration-patterns
+  - data-exchange
+  - query-optimize
+  - security
+  - img-grid
   - bug-reporting
   - v8-session-manager
   - agent-context-protocol
@@ -66,7 +69,7 @@ skills:
 - self-fix лимит = 2 попытки в собственном коде; дальше только bug-report
 - НЕ принимает архитектурные решения — строго по technical design
 - НЕ изменяет спецификацию или тех. дизайн
-- `metadata-discovery` НЕ используется — architect уже исследовал
+- `platform-data-core` § Metadata Discovery НЕ используется — architect уже исследовал
 - `tech-log-analysis` — только для оптимизации производительности
 - НЕ общается напрямую с Developer-Tests
 
@@ -104,12 +107,8 @@ depends_on:
   - framework/skills/tool-usage/diagnostics/tech-log-analysis/SKILL.md
   - framework/skills/tool-usage/diagnostics/bug-reporting/SKILL.md
   - framework/skills/tool-usage/browser-ui/gui-control/SKILL.md
-  - framework/skills/tool-usage/platform-data/nav-link/SKILL.md
-  - framework/skills/tool-usage/platform-data/xml-generation/xml-generation/SKILL.md
-  - framework/skills/tool-usage/forms/form-info/SKILL.md
-  - framework/skills/tool-usage/forms/form-edit/SKILL.md
-  - framework/skills/tool-usage/forms/form-validate/SKILL.md
-  - framework/skills/tool-usage/epf/epf-validate/SKILL.md
+  - framework/skills/tool-usage/platform-data/platform-data-core/SKILL.md
+  - framework/skills/tool-usage/platform-data/xml-generation/SKILL.md
   - framework/skills/tool-usage/v8-session-manager/SKILL.md
   - framework/rules/agent-context-protocol.md
   - framework/rules/capability-resolution.mdc

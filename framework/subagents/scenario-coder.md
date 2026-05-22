@@ -17,7 +17,7 @@ skills:
   - v8-runner
   - vanessa-diagnostics
   - code-navigation
-  - form-info
+  - xml-generation
   - bug-reporting
   - v8-session-manager
   - agent-context-protocol
@@ -140,7 +140,7 @@ depends_on:
   - framework/skills/bsl-practices/coding-standards/SKILL.md
   - framework/skills/tool-usage/code-analysis/syntax-checking/SKILL.md
   - framework/skills/tool-usage/code-analysis/code-navigation/SKILL.md
-  - framework/skills/tool-usage/forms/form-info/SKILL.md
+  - framework/skills/tool-usage/platform-data/xml-generation/SKILL.md
   - framework/skills/tool-usage/diagnostics/bug-reporting/SKILL.md
   - framework/skills/tool-usage/v8-session-manager/SKILL.md
   - framework/rules/agent-context-protocol.md

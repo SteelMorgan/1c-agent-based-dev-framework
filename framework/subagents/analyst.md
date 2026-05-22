@@ -6,9 +6,8 @@ description: Анализирует требования и создает сп�
 readonly: true
 skills:
   - spec-standard
-  - metadata-discovery
-  - query-execution
-  - form-info
+  - platform-data-core
+  - xml-generation
   - v8-session-manager
   - agent-context-protocol
 ---
@@ -30,8 +29,8 @@ skills:
 1. **Check context** — прочитай `analyst-context.md`; добавь `Planned Skills & Rules`
 2. **Read Explorer artifacts** — `explorer-context.md` как стартовый контекст
 3. **Research** — два инструмента с разными зонами ответственности:
-   - `metadata-discovery` — структура конфигурации: какие объекты, реквизиты, регистры, связи существуют
-   - `query-execution` — данные в базе: содержимое регистров и справочников, заполнение документов, проверка гипотез связанных с данными. **Используй для верификации гипотез о баге**: если Explorer предполагает причину — проверь её запросом к реальным данным до написания требования
+   - `platform-data-core` § Metadata Discovery — структура конфигурации: какие объекты, реквизиты, регистры, связи существуют
+   - `platform-data-core` § Query Execution — данные в базе: содержимое регистров и справочников, заполнение документов, проверка гипотез связанных с данными. **Используй для верификации гипотез о баге**: если Explorer предполагает причину — проверь её запросом к реальным данным до написания требования
 4. **Identify blockers** — ВСЕ вопросы одним списком, НЕ по одному
 5. **Save context** → если blockers: `clarification_needed`, НЕ писать частичную спеку
 6. **Write specification** — context, decision, assumptions, acceptance criteria, test plan
@@ -92,10 +91,8 @@ Agent(subagent_type="Explore", prompt="В файле <путь> прочитай
 ---
 depends_on:
   - framework/skills/spec-writing/spec-standard/SKILL.md
-  - framework/skills/tool-usage/platform-data/metadata-discovery/SKILL.md
-  - framework/skills/tool-usage/platform-data/query-execution/SKILL.md
-  - framework/skills/tool-usage/forms/form-info/SKILL.md
-  - framework/skills/tool-usage/platform-data/nav-link/SKILL.md
+  - framework/skills/tool-usage/platform-data/platform-data-core/SKILL.md
+  - framework/skills/tool-usage/platform-data/xml-generation/SKILL.md
   - framework/skills/tool-usage/v8-session-manager/SKILL.md
   - framework/rules/agent-context-protocol.md
   - framework/rules/capability-resolution.mdc

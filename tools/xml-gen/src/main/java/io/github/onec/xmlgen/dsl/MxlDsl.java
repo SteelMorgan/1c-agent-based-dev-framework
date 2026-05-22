@@ -2,6 +2,9 @@ package io.github.onec.xmlgen.dsl;
 
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonProperty;
+import lombok.EqualsAndHashCode;
+import lombok.Getter;
+import lombok.ToString;
 import lombok.Value;
 
 import java.util.List;
@@ -10,39 +13,61 @@ import java.util.Map;
 /**
  * JSON DSL для табличного документа 1С (SpreadsheetDocument).
  */
-@Value
+@Getter
+@ToString
+@EqualsAndHashCode
 public class MxlDsl {
-    
+
     /**
      * Количество колонок.
      */
-    Integer columns;
-    
+    private final Integer columns;
+
     /**
      * Ширина колонок по умолчанию.
      */
-    Integer defaultWidth;
-    
+    private final Integer defaultWidth;
+
     /**
      * Ширины колонок: {"1": 15, "2-8": 40, "9-10": 50}.
      */
-    Map<String, Object> columnWidths;
-    
+    private final Map<String, Object> columnWidths;
+
     /**
      * Именованные шрифты.
      */
-    Map<String, Font> fonts;
-    
+    private final Map<String, Font> fonts;
+
     /**
      * Именованные стили.
      */
-    Map<String, Style> styles;
-    
+    private final Map<String, Style> styles;
+
     /**
      * Именованные области.
      */
-    List<Area> areas;
-    
+    private final List<Area> areas;
+
+    /**
+     * Формат страницы: "A4-landscape" (780), "A4-portrait" (540), либо число
+     * как абсолютная ширина страницы. Опционально — для генерации PageSetup
+     * и валидации суммы ширин колонок.
+     */
+    private final String page;
+
+    /**
+     * Обратно-совместимый конструктор (без page).
+     */
+    public MxlDsl(
+            Integer columns,
+            Integer defaultWidth,
+            Map<String, Object> columnWidths,
+            Map<String, Font> fonts,
+            Map<String, Style> styles,
+            List<Area> areas) {
+        this(columns, defaultWidth, columnWidths, fonts, styles, areas, null);
+    }
+
     @JsonCreator
     public MxlDsl(
             @JsonProperty("columns") Integer columns,
@@ -50,13 +75,15 @@ public class MxlDsl {
             @JsonProperty("columnWidths") Map<String, Object> columnWidths,
             @JsonProperty("fonts") Map<String, Font> fonts,
             @JsonProperty("styles") Map<String, Style> styles,
-            @JsonProperty("areas") List<Area> areas) {
+            @JsonProperty("areas") List<Area> areas,
+            @JsonProperty("page") String page) {
         this.columns = columns;
         this.defaultWidth = defaultWidth;
         this.columnWidths = columnWidths;
         this.fonts = fonts;
         this.styles = styles;
         this.areas = areas;
+        this.page = page;
     }
     
     /**
@@ -163,17 +190,40 @@ public class MxlDsl {
     /**
      * Ячейка.
      */
-    @Value
+    @Getter
+    @ToString
+    @EqualsAndHashCode
     public static class Cell {
-        Integer col;
-        Integer span;
-        Integer rowspan;
-        String style;
-        String param;
-        String detail;
-        String text;
-        String template;
-        
+        private final Integer col;
+        private final Integer span;
+        private final Integer rowspan;
+        private final String style;
+        private final String param;
+        /** Имя параметра расшифровки (для drill-down). */
+        private final String detail;
+        private final String text;
+        private final String template;
+        /**
+         * Маркер «детальная запись» в отчётах. Default null/false.
+         * Отдельное поле от String detail (расшифровка) — чтобы не путать с расшифровкой.
+         */
+        private final Boolean detailRecord;
+
+        /**
+         * Обратно-совместимый конструктор (без detailRecord).
+         */
+        public Cell(
+                Integer col,
+                Integer span,
+                Integer rowspan,
+                String style,
+                String param,
+                String detail,
+                String text,
+                String template) {
+            this(col, span, rowspan, style, param, detail, text, template, null);
+        }
+
         @JsonCreator
         public Cell(
                 @JsonProperty("col") Integer col,
@@ -183,7 +233,8 @@ public class MxlDsl {
                 @JsonProperty("param") String param,
                 @JsonProperty("detail") String detail,
                 @JsonProperty("text") String text,
-                @JsonProperty("template") String template) {
+                @JsonProperty("template") String template,
+                @JsonProperty("detailRecord") Boolean detailRecord) {
             this.col = col;
             this.span = span;
             this.rowspan = rowspan;
@@ -192,6 +243,7 @@ public class MxlDsl {
             this.detail = detail;
             this.text = text;
             this.template = template;
+            this.detailRecord = detailRecord;
         }
     }
 }

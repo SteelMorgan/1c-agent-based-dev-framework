@@ -237,11 +237,14 @@ public class FormValidator implements XmlValidator {
             }
         }
 
+        // Собираем карту Table-элементов (имя → DataPath) для резолва Items.X.CurrentData.*
+        Map<String, String> tableDataPaths = collectTableDataPaths(root);
+
         // FORM-101: Тип UI-элемента — известный FormElementType
         XmlNode childItems = root.child("ChildItems");
         if (childItems != null) {
             validateElements(childItems, "/Form/ChildItems",
-                    attributeNames, commandNames, issues);
+                    attributeNames, commandNames, tableDataPaths, issues);
         }
 
         // Проверяем атрибуты (FORM-107..110, 114, 115)
@@ -295,8 +298,135 @@ public class FormValidator implements XmlValidator {
         validateMultilingualTitles(root, issues);
     }
 
+    /**
+     * Коллекция UI-элементов типа Table в форме (для резолва Items.X.CurrentData.*).
+     * Заполняется один раз при семантической валидации и передаётся контекстом.
+     */
+    private Map<String, String> collectTableDataPaths(XmlNode root) {
+        Map<String, String> result = new LinkedHashMap<>();
+        XmlNode childItems = root.child("ChildItems");
+        if (childItems != null) {
+            collectTableDataPathsRecursive(childItems, result);
+        }
+        return result;
+    }
+
+    private void collectTableDataPathsRecursive(XmlNode parent, Map<String, String> tableMap) {
+        for (XmlNode child : parent.getChildren()) {
+            if ("Table".equals(child.getName())) {
+                String name = child.attr("name");
+                if (name == null) name = child.childText("name");
+                String dp = child.childText("DataPath");
+                if (name != null) {
+                    tableMap.put(name, dp); // dp may be null
+                }
+            }
+            XmlNode inner = child.child("ChildItems");
+            if (inner != null) {
+                collectTableDataPathsRecursive(inner, tableMap);
+            }
+        }
+    }
+
+    /**
+     * Резолв DataPath по алгоритму канона Широкова (SPEC §10.3):
+     * <ol>
+     *   <li>Числовые индексы {@code ^\d+$} или UUID-ссылки {@code \d+/\d+:[0-9a-fA-F-]+} → silent skip (null = skip).</li>
+     *   <li>{@code Items.<TableName>.CurrentData.<Field>} → найти Table, взять корневой реквизит её DataPath.</li>
+     *   <li>{@code ~<Attr>.*} → снять {@code ~}, взять первый сегмент как имя реквизита.</li>
+     *   <li>Иначе → взять первый сегмент через точку.</li>
+     * </ol>
+     *
+     * @param dataPath  значение DataPath из XML
+     * @param attrNames имена реквизитов формы
+     * @param tableMap  имена Table-элементов → DataPath таблицы (из ChildItems)
+     * @param elemLine  строка для отчёта
+     * @param elemPath  путь для отчёта
+     * @param issues    список для добавления ошибок
+     * @return true = резолв выполнен (не нужна дальнейшая проверка), false = стандартная проверка не нужна
+     */
+    private boolean resolveDataPath(String dataPath, Set<String> attrNames,
+                                    Map<String, String> tableMap,
+                                    int elemLine, String elemPath,
+                                    List<ValidationIssue> issues) {
+        if (dataPath == null || dataPath.isEmpty()) {
+            return true; // ничего не проверяем
+        }
+
+        // 1. Числовой индекс: "10", "1000003"
+        if (dataPath.matches("^\\d+$")) {
+            return true; // silent skip
+        }
+        // UUID-ссылка: "1/0:a917a122-f663-4c45-8de0-fd5104007de3"
+        if (dataPath.matches("^\\d+/\\d+:[0-9a-fA-F\\-]+$")) {
+            return true; // silent skip
+        }
+
+        // 2. Items.<TableName>.CurrentData.<Field>
+        if (dataPath.startsWith("Items.")) {
+            String[] parts = dataPath.split("\\.");
+            if (parts.length >= 3 && "CurrentData".equals(parts[2])) {
+                String tableName = parts[1];
+                if (!tableMap.containsKey(tableName)) {
+                    issues.add(ValidationIssue.error("FORM-102",
+                            "DataPath '" + dataPath + "': Items table '" + tableName + "' not found in form ChildItems",
+                            elemLine, elemPath + "/DataPath"));
+                    return true;
+                }
+                String tableDataPath = tableMap.get(tableName);
+                if (tableDataPath == null || tableDataPath.isEmpty()) {
+                    // Таблица без DataPath (динамическая форма) — принять молча
+                    return true;
+                }
+                // Снять ~ и [N] от DataPath таблицы, взять первый сегмент
+                String cleaned = stripLeadingTilde(stripNumericSegments(tableDataPath));
+                String rootAttr = cleaned.contains(".") ? cleaned.split("\\.")[0] : cleaned;
+                if (!rootAttr.isEmpty() && !attrNames.contains(rootAttr) && !"Object".equals(rootAttr)) {
+                    issues.add(ValidationIssue.error("FORM-102",
+                            "DataPath '" + dataPath + "': table '" + tableName + "' DataPath='"
+                                    + tableDataPath + "' references unknown attribute '" + rootAttr + "'",
+                            elemLine, elemPath + "/DataPath"));
+                }
+                return true;
+            } else {
+                // Items.* но не Items.<T>.CurrentData — предупреждение (unknown shape)
+                issues.add(ValidationIssue.warning("FORM-102",
+                        "DataPath '" + dataPath + "' has unknown Items.* shape; expected Items.<Table>.CurrentData.<Field>",
+                        elemLine, elemPath + "/DataPath"));
+                return true;
+            }
+        }
+
+        // 3. ~<Attr>.* — относительная ссылка
+        if (dataPath.startsWith("~")) {
+            String withoutTilde = dataPath.substring(1);
+            String rootAttr = withoutTilde.contains(".") ? withoutTilde.split("\\.")[0] : withoutTilde;
+            if (!rootAttr.isEmpty() && !attrNames.contains(rootAttr) && !"Object".equals(rootAttr)) {
+                issues.add(ValidationIssue.error("FORM-102",
+                        "DataPath '" + dataPath + "' references unknown attribute '" + rootAttr + "' (relative ~path)",
+                        elemLine, elemPath + "/DataPath"));
+            }
+            return true;
+        }
+
+        // 4. Default — стандартная логика (берём первый сегмент)
+        return false;
+    }
+
+    /** Убрать ведущий {@code ~} если присутствует. */
+    private static String stripLeadingTilde(String s) {
+        return s.startsWith("~") ? s.substring(1) : s;
+    }
+
+    /** Убрать числовые сегменты вида {@code [N]} из пути. Не используется пока, но готово к расширению. */
+    private static String stripNumericSegments(String s) {
+        // DataPath таблицы типа "Список[0]" или чистое "Список" — убираем [N]
+        return s.replaceAll("\\[\\d+\\]", "");
+    }
+
     private void validateElements(XmlNode parent, String parentPath,
                                    Set<String> attrNames, Set<String> cmdNames,
+                                   Map<String, String> tableMap,
                                    List<ValidationIssue> issues) {
         for (XmlNode elem : parent.getChildren()) {
             String elemName = elem.getName();
@@ -309,15 +439,19 @@ public class FormValidator implements XmlValidator {
                         elem.getLine(), elemPath));
             }
 
-            // FORM-102: DataPath → существующий Attribute.name
+            // FORM-102: DataPath → существующий Attribute.name (с расширенным резолвом)
             String dataPath = elem.childText("DataPath");
             if (dataPath != null && !dataPath.isEmpty()) {
-                // DataPath может быть составным: "Object.Name" — берём первую часть
-                String rootAttr = dataPath.contains(".") ? dataPath.split("\\.")[0] : dataPath;
-                if (!attrNames.contains(rootAttr) && !"Object".equals(rootAttr)) {
-                    issues.add(ValidationIssue.error("FORM-102",
-                            "DataPath '" + dataPath + "' references unknown attribute '" + rootAttr + "'",
-                            elem.getLine(), elemPath + "/DataPath"));
+                boolean handled = resolveDataPath(dataPath, attrNames, tableMap,
+                        elem.getLine(), elemPath, issues);
+                if (!handled) {
+                    // Стандартная логика: берём первый сегмент
+                    String rootAttr = dataPath.contains(".") ? dataPath.split("\\.")[0] : dataPath;
+                    if (!attrNames.contains(rootAttr) && !"Object".equals(rootAttr)) {
+                        issues.add(ValidationIssue.error("FORM-102",
+                                "DataPath '" + dataPath + "' references unknown attribute '" + rootAttr + "'",
+                                elem.getLine(), elemPath + "/DataPath"));
+                    }
                 }
             }
 
@@ -352,7 +486,7 @@ public class FormValidator implements XmlValidator {
             XmlNode innerChildItems = elem.child("ChildItems");
             if (innerChildItems != null) {
                 validateElements(innerChildItems, elemPath + "/ChildItems",
-                        attrNames, cmdNames, issues);
+                        attrNames, cmdNames, tableMap, issues);
             }
         }
     }

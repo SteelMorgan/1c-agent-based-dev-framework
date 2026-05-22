@@ -5,17 +5,15 @@ description: "Операции с объектами метаданных 1С (2
 
 # Meta Operations
 
-Работа с объектами метаданных 1С (Catalog, Document, Register и др. — 23 типа).
-
 ## Когда применять
 
 | Триггер | Действие |
 |---------|----------|
-| Нужно создать справочник/документ/регистр | `meta compile meta.json <output_dir>` |
-| Нужно посмотреть структуру объекта | `meta info <objectPath>` |
-| Нужно добавить реквизит/ТЧ/измерение | `meta edit <objectPath> --op add-attribute "Name: Type"` |
-| Нужно проверить объект метаданных | `meta validate <objectPath>` |
-| Нужно удалить объект из конфигурации | `meta remove <configDir> Type.Name` |
+| Создать справочник/документ/регистр | `meta compile meta.json <output_dir>` |
+| Посмотреть структуру объекта | `meta info <objectPath>` |
+| Добавить реквизит/ТЧ/измерение | `meta edit <objectPath> --op add-attribute "Name: Type"` |
+| Проверить объект метаданных | `meta validate <objectPath>` |
+| Удалить объект из конфигурации | `meta remove <configDir> Type.Name` |
 
 ## Поддерживаемые типы (23)
 
@@ -30,8 +28,6 @@ description: "Операции с объектами метаданных 1С (2
 ## Команды
 
 ### meta compile
-
-Генерация объекта из JSON DSL.
 
 ```bash
 xml-gen meta compile <meta.json> <output_dir>
@@ -51,21 +47,16 @@ xml-gen meta compile <meta.json> <output_dir>
     "Производитель: CatalogRef.Контрагенты"
   ],
   "tabularSections": [
-    {
-      "name": "Штрихкоды",
-      "attributes": ["Штрихкод: String(13)"]
-    }
+    { "name": "Штрихкоды", "attributes": ["Штрихкод: String(13)"] }
   ]
 }
 ```
 
 **Полные свойства Catalog:** `hierarchical`, `hierarchyType` (HierarchyFoldersAndItems|HierarchyItemsOnly), `limitLevelCount`, `levelCount`, `foldersOnTop`, `codeLength`, `codeType` (String|Number), `codeAllowedLength` (Variable|Fixed), `codeSeries` (WholeCatalog|WithinOwnerSubordination|WithinSubordination), `descriptionLength`, `autonumbering`, `checkUnique`, `defaultPresentation` (AsDescription|AsCode), `subordinationUse` (ToItems|ToFolders|ToFoldersAndItems), `quickChoice`, `choiceMode` (BothWays|FromChoiceForm|QuickChoice), `editType` (InDialog|InList|BothWays), `owners` (массив строк, напр. `["Catalog.Контрагенты"]`).
 
-**Флаг реквизита `multiLine`** — делает строковое поле многострочным (`<MultiLine>true</MultiLine>`). Применимо к Dimension/Resource/Attribute/TS-атрибуту. В shorthand: `"Описание: String(500) | multiline"`.
+**Флаг реквизита `multiLine`** — делает строковое поле многострочным (`<MultiLine>true</MultiLine>`). В shorthand: `"Описание: String(500) | multiline"`.
 
 ### meta info
-
-Анализ объекта: свойства, реквизиты, ТЧ, формы.
 
 ```bash
 xml-gen meta info [--mode brief|overview|full] <objectPath>
@@ -73,72 +64,67 @@ xml-gen meta info [--mode brief|overview|full] <objectPath>
 
 ### meta edit
 
-Модификация объекта (add/remove/modify).
-
 ```bash
 xml-gen meta edit <objectPath> --op <operation> "<value>"
 ```
 
-**Операции:**
-- `add-attribute` — `"Вес: Number(15,3) | indexing"`
-- `add-dimension` — для регистров
-- `add-resource` — для регистров
-- `add-ts` — `"Штрихкоды"`
-- `add-ts-attribute` — `"ТЧ.Штрихкоды: Значение: String(13)"`
-- `add-enumValue` — `"Оплачен"`
-- `add-form` / `add-template` / `add-command`
-- `remove-attribute` / `remove-ts` / `remove-enumValue` и др.
-- `modify-attribute` — `"Name: synonym=Новый синоним, type=String(100)"`
-- `add-property` / `modify-property` — изменение свойств объекта
+Операции: `add-attribute` / `add-dimension` / `add-resource` / `add-ts` / `add-ts-attribute` / `add-enumValue` / `add-form` / `add-template` / `add-command` / `remove-attribute` / `remove-ts` / `remove-enumValue` / `modify-attribute` / `add-property` / `modify-property`
 
 **Shorthand формат:**
 ```
 ИмяРеквизита: ТипДанных | флаги >> after/before Якорь
 ```
 
-Примеры:
-```
-Артикул: String(50)
-Сумма: Number(15,2) | nonneg
-Контрагент: CatalogRef.Контрагенты | indexing
-```
+Примеры: `"Артикул: String(50)"`, `"Сумма: Number(15,2) | nonneg"`, `"Контрагент: CatalogRef.Контрагенты | indexing"`
 
 ### meta validate
 
-Валидация объекта (~40 проверок).
+~40 проверок: структура XML, UUID, Properties, boolean-свойства, type-specific правила (22 типа), строгая enum-валидация (HierarchyType, SubordinationUse, ChoiceMode, EditType, CodeAllowedLength, CodeSeries, NumberAllowedLength, RegisterRecordsDeletion, RegisterRecordsWritingOnPost, Periodicity, RequireCalculationTypes и др.), файловая структура.
 
 ```bash
 xml-gen meta validate <objectPath>
 ```
 
-**Проверки:** структура XML, UUID, Properties (Name, Synonym), boolean-свойства, type-specific правила (22 типа), строгая enum-валидация значений (HierarchyType, SubordinationUse, ChoiceMode, EditType, CodeAllowedLength, CodeSeries, NumberAllowedLength, RegisterRecordsDeletion, RegisterRecordsWritingOnPost, Periodicity, RequireCalculationTypes и др.), StandardAttributes, forbidden properties, ChildObjects, InternalInfo/GeneratedType, файловая структура.
-
 **Инварианты компиляции:**
-- `FillFromFillingValue` / `FillValue` / `DataHistory` — пишутся только для реквизитов InformationRegister (для других регистров вызывают XSD-ошибку при загрузке).
-- Имена реквизитов, совпадающие со стандартными (Ref, Code, Description, Parent, Owner, IsFolder, DeletionMark, PostingMode, DataVersion, Predefined, PredefinedDataName, Posted, Date, Number + русские синонимы Ссылка, Код, Наименование, Родитель, Владелец, ЭтоГруппа, ПометкаУдаления, РежимПроведения, ВерсияДанных, Предопределенный, ИмяПредопределенныхДанных, Проведен, Дата, Номер), отклоняются при компиляции.
+- `FillFromFillingValue` / `FillValue` / `DataHistory` — только для реквизитов InformationRegister; для других регистров вызывают XSD-ошибку при загрузке.
+- Имена реквизитов, совпадающие со стандартными, отклоняются при компиляции: `Ref, Code, Description, Parent, Owner, IsFolder, DeletionMark, PostingMode, DataVersion, Predefined, PredefinedDataName, Posted, Date, Number` (и русские синонимы: `Ссылка, Код, Наименование, Родитель, Владелец, ЭтоГруппа, ПометкаУдаления, РежимПроведения, ВерсияДанных, Предопределенный, ИмяПредопределенныхДанных, Проведен, Дата, Номер`).
 
 ### meta remove
-
-Удаление объекта из конфигурации.
 
 ```bash
 xml-gen meta remove <configDir> <Type.Name> [--dry-run] [--keep-files] [--force]
 ```
 
-**Алгоритм:**
-1. Поиск файлов объекта
-2. Проверка ссылок в XML/BSL
-3. Удаление из Configuration.xml ChildObjects
-4. Удаление из подсистем
-5. Удаление файлов
+Алгоритм: поиск файлов → проверка ссылок в XML/BSL → удаление из Configuration.xml ChildObjects → удаление из подсистем → удаление файлов.
 
 ## Русские синонимы типов
 
-В shorthand можно использовать русские имена: Справочник → Catalog, Документ → Document, Перечисление → Enum, РегистрСведений → InformationRegister и т.д.
+В shorthand: Справочник → Catalog, Документ → Document, Перечисление → Enum, РегистрСведений → InformationRegister и т.д.
+
+## Batch JSON-патч (meta edit --batch)
+
+```bash
+# Один объект
+xml-gen meta edit <objectPath> --batch patch.json
+
+# Мультиобъектный патч (ObjectPath внутри JSON)
+xml-gen meta edit --batch multi-patch.json
+```
+
+Применять при: нескольких операциях разных типов к одному объекту за один вызов, генерации патчей агентом, воспроизводимых миграциях схемы.
+
+**Inline batch через `;;`:**
+```bash
+xml-gen meta edit <objectPath> --op add-attribute "Цена: Number(15,2) ;; Вес: Number(10,3) | nonneg"
+```
+
+Подробная спецификация, полная структура JSON, позиционная вставка, мультиобъектные патчи — [references/batch-patch.md](references/batch-patch.md).
+
+> **Статус:** `--batch <file.json>` и inline `;;` реализованы в `xml-gen` (Java, транзакционно).
 
 ---
 depends_on: []
 metadata:
   category: 1c-development
-  version: "1.0"
+  version: "1.1"
 ---

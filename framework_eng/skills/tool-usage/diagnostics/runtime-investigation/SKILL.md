@@ -29,7 +29,7 @@ Without step 1, steps 2-3 are impossible.
 |---|---|---|
 | **L0** | Reading source code + specs/design (`code-navigation`) | Always first |
 | **L1** | `event-log-analysis` — event log via ClickHouse | A completed run already exists, there is Error/Warning |
-| **L2** | `query-execution` — database queries | Check the data state independently of the code |
+| **L2** | `platform-data-core` § Query Execution — database queries | Check the data state independently of the code |
 | **L3** | `agent-debug` points in code | L0-L2 did not answer: call fact, if/else path, variable value/type |
 | **L4** | Re-running the scenario/test after insertions | After L3 — collect observations |
 | **L5** | `gui-control` + `screenshot` | The symptom is in the UI; it is unclear what is on the form |
@@ -79,7 +79,7 @@ The orchestrator asks the user again. Without consent — DO NOT raise it.
                которое легко откатить;
            (b) дополнительные пробы (префикс `AGENTDEBUG-<bug-id>-H<N>-NNN`) —
                новые ключевые переменные, узлы между размеченными,
-               состояние данных через query-execution.
+               состояние данных через platform-data-core § Query Execution.
 
     3.N.3  Применить, прогнать, прочитать трассу. Сохранить trace-run-<N+1>.md.
 
@@ -317,7 +317,7 @@ depends_on:
   - framework/skills/tool-usage/diagnostics/agent-debug/SKILL.md
   - framework/skills/tool-usage/diagnostics/event-log-analysis/SKILL.md
   - framework/skills/tool-usage/diagnostics/tech-log-analysis/SKILL.md
-  - framework/skills/tool-usage/platform-data/query-execution/SKILL.md
+  - framework/skills/tool-usage/platform-data/platform-data-core/SKILL.md
   - framework/skills/tool-usage/code-analysis/code-navigation/SKILL.md
   - framework/skills/tool-usage/code-analysis/syntax-checking/SKILL.md
   - framework/workflows/source-of-truth-policy.md

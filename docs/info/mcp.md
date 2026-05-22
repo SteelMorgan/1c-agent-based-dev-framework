@@ -53,7 +53,7 @@
 | platform-context | [alkoleft/mcp-bsl-platform-context](https://github.com/alkoleft/mcp-bsl-platform-context) | search-before-write |
 | copilot-proxy | [SteelMorgan/spring-mcp-1c-copilot](https://github.com/SteelMorgan/spring-mcp-1c-copilot) | search-before-write |
 | log-checker | [SteelMorgan/1c-log-checker](https://github.com/SteelMorgan/1c-log-checker) | log-analysis |
-| metadata-tools | [RooLee10/1c-mcp-tools](https://github.com/RooLee10/1c-mcp-tools) | metadata-discovery |
+| metadata-tools | [RooLee10/1c-mcp-tools](https://github.com/RooLee10/1c-mcp-tools) | platform-data-core |
 | batch-ops | [vladimir-kharin/1c-batch](https://github.com/vladimir-kharin/1c-batch) | — |
 | lsp-bridge | [SteelMorgan/mcp-bsl-lsp-bridge](https://github.com/SteelMorgan/mcp-bsl-lsp-bridge) | code-navigation |
 | v8-session-manager | [1c-neurofish/v8-session-manager](https://github.com/1c-neurofish/v8-session-manager) | витрина для tools 1С-расширений (`vanessa_test_client`, `yaxunit_runner`, `v8_runner_client`) |

@@ -17,6 +17,7 @@ Agent development framework for 1C BSL. This is the minimal context — load det
 | Writing / editing BSL code | `/<ide-cli-dot-catalog>/rules/mandatory-tools.md` + `/<ide-cli-dot-catalog>/skills/bsl-practices/*` as needed |
 | Writing specifications | `/<ide-cli-dot-catalog>/skills/spec-writing/spec-standard.md` |
 | Code / artifact review | `/<ide-cli-dot-catalog>/rules/cross-review-policy.md` + checklist |
+| Working with git (commits, branches, merge tasks) | `/<ide-cli-dot-catalog>/rules/git-workflow.md` |
 
 > **If in doubt** — treat it as complex and load `orchestrator.md`.
 
@@ -35,4 +36,5 @@ depends_on:
 - framework/workflows/source-of-truth-policy.md
 - framework/rules/protected-paths.mdc
 - framework/rules/skill-learning-policy.mdc
+- framework/rules/git-workflow.md
 ---

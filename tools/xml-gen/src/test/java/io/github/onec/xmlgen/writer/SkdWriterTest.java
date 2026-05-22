@@ -349,4 +349,395 @@ class SkdWriterTest {
         assertThat(content).contains("<dcscor:value xsi:type=\"xs:string\">Arial</dcscor:value>");
         assertThat(content).contains("<dcsset:presentation xsi:type=\"xs:string\">Выделять крупные суммы</dcsset:presentation>");
     }
+
+    // ============================================================
+    // §6 — extended SKD DSL concepts.
+    // ============================================================
+
+    /** Тест 8: DataSetObject (внешний набор). */
+    @Test
+    void testDataSetObject() throws Exception {
+        String json = """
+                {
+                  "dataSets": [{
+                    "type": "object",
+                    "name": "ЖурналОшибок",
+                    "objectName": "ЖурналОшибок",
+                    "fields": [
+                      { "field": "ТекстСообщения", "type": "string(150)" }
+                    ]
+                  }]
+                }
+                """;
+        Path out = compile(json);
+        String content = Files.readString(out);
+        assertThat(content).contains("<dataSet xsi:type=\"DataSetObject\">");
+        assertThat(content).contains("<objectName>ЖурналОшибок</objectName>");
+        assertThat(content).contains("<field>ТекстСообщения</field>");
+    }
+
+    /** Тест 9: DataSetUnion с {@code sourceDataSets}. */
+    @Test
+    void testDataSetUnion() throws Exception {
+        String json = """
+                {
+                  "dataSets": [
+                    { "type": "query", "name": "A", "query": "ВЫБРАТЬ 1 КАК Х" },
+                    { "type": "query", "name": "B", "query": "ВЫБРАТЬ 2 КАК Х" },
+                    { "type": "union", "name": "Все", "sourceDataSets": ["A", "B"] }
+                  ]
+                }
+                """;
+        Path out = compile(json);
+        String content = Files.readString(out);
+        assertThat(content).contains("<dataSet xsi:type=\"DataSetUnion\">");
+        assertThat(content).contains("<dataSet>A</dataSet>");
+        assertThat(content).contains("<dataSet>B</dataSet>");
+    }
+
+    /** Тест 10: calculatedFields с типом и выражением. */
+    @Test
+    void testCalculatedFields() throws Exception {
+        String json = """
+                {
+                  "dataSets": [{
+                    "type": "query",
+                    "name": "Продажи",
+                    "query": "ВЫБРАТЬ Цена, Закупка ИЗ Т",
+                    "calculatedFields": [
+                      { "name": "Маржа", "expression": "Цена - Закупка", "type": "decimal(15,2)" }
+                    ]
+                  }]
+                }
+                """;
+        Path out = compile(json);
+        String content = Files.readString(out);
+        assertThat(content).contains("<calculatedField>");
+        assertThat(content).contains("<expression>Цена - Закупка</expression>");
+        assertThat(content).contains("<dataPath>Маржа</dataPath>");
+    }
+
+    /** Тест 11: templates DSL — rows/widths/parameters/drilldown. */
+    @Test
+    void testTemplatesDsl() throws Exception {
+        String json = """
+                {
+                  "dataSets": [{ "type": "query", "name": "Н", "query": "ВЫБРАТЬ 1" }],
+                  "templates": [{
+                    "name": "Макет1",
+                    "type": "group",
+                    "style": "header",
+                    "widths": [15, "10-20", 30],
+                    "rows": [
+                      ["Заголовок", "|", ">", null],
+                      ["{Сумма}", "Итого:", "{ВидКассы}"]
+                    ],
+                    "parameters": [
+                      { "name": "Сумма", "expression": "Сумма(Сумма)", "drilldown": "Сумма" }
+                    ]
+                  }],
+                  "groupTemplates": [
+                    { "groupField": "Счет", "templateType": "Header", "template": "Макет1" }
+                  ]
+                }
+                """;
+        Path out = compile(json);
+        String content = Files.readString(out);
+        assertThat(content).contains("<template");
+        assertThat(content).contains("<name>Макет1</name>");
+        assertThat(content).contains("<style>header</style>");
+        // ширины
+        assertThat(content).contains("<width>15</width>");
+        assertThat(content).contains("<width min=\"10\" max=\"20\">");
+        assertThat(content).contains("<width>30</width>");
+        // строки
+        assertThat(content).contains("<row>");
+        assertThat(content).contains("<cell type=\"text\">Заголовок</cell>");
+        assertThat(content).contains("<cell type=\"mergeUp\">");
+        assertThat(content).contains("<cell type=\"mergeLeft\">");
+        assertThat(content).contains("<cell type=\"empty\">");
+        assertThat(content).contains("<cell type=\"param\" name=\"Сумма\">");
+        // drilldown
+        assertThat(content).contains("DetailsAreaTemplateParameter");
+        assertThat(content).contains("<name>Расшифровка_Сумма</name>");
+        // groupTemplate
+        assertThat(content).contains("<groupTemplate>");
+        assertThat(content).contains("<groupField>Счет</groupField>");
+    }
+
+    /** Тест 12: расширенные роли полей с key-value. */
+    @Test
+    void testFieldRolesWithKv() throws Exception {
+        String json = """
+                {
+                  "dataSets": [{
+                    "type": "query",
+                    "name": "Н",
+                    "query": "ВЫБРАТЬ 1",
+                    "fields": [
+                      { "field": "Сумма", "type": "decimal(15,2)", "role": "@resource" },
+                      { "field": "Период", "type": "date", "role": "@period" },
+                      { "field": "Остаток", "type": "decimal(15,2)", "role": "@balance",
+                        "roleAttributes": { "balanceGroupName": "ОстаткиСчета" } }
+                    ]
+                  }]
+                }
+                """;
+        Path out = compile(json);
+        String content = Files.readString(out);
+        assertThat(content).contains("<role>");
+        // resource → ignoreNullValues
+        assertThat(content).contains("<ignoreNullValues>true</ignoreNullValues>");
+        // period
+        assertThat(content).contains("<periodNumber>1</periodNumber>");
+        // balance + kv
+        assertThat(content).contains("<balanceGroupName>ОстаткиСчета</balanceGroupName>");
+    }
+
+    /** Тест 13: флаги параметров — @hidden + valueListAllowed + use=Always. */
+    @Test
+    void testParameterFlags() throws Exception {
+        String json = """
+                {
+                  "dataSets": [{ "type": "query", "name": "Н", "query": "ВЫБРАТЬ 1" }],
+                  "parameters": [
+                    { "name": "Скрытый", "type": "string(50)", "hidden": true },
+                    { "name": "Список", "type": "string(50)", "valueListAllowed": true },
+                    { "name": "Всегда", "type": "string(50)", "use": "Always" }
+                  ]
+                }
+                """;
+        Path out = compile(json);
+        String content = Files.readString(out);
+        assertThat(content).contains("<availableAsField>false</availableAsField>");
+        assertThat(content).contains("<valueListAllowed>true</valueListAllowed>");
+        assertThat(content).contains("<use>Always</use>");
+    }
+
+    /** Тест 14: availableValues с representation. */
+    @Test
+    void testAvailableValues() throws Exception {
+        String json = """
+                {
+                  "dataSets": [{ "type": "query", "name": "Н", "query": "ВЫБРАТЬ 1" }],
+                  "parameters": [{
+                    "name": "Округление",
+                    "type": "string(50)",
+                    "availableValues": [
+                      { "value": "Окр1", "presentation": "руб." },
+                      { "value": "Окр1000", "presentation": "тыс. руб" }
+                    ]
+                  }]
+                }
+                """;
+        Path out = compile(json);
+        String content = Files.readString(out);
+        assertThat(content).contains("<availableValues>");
+        assertThat(content).contains("<value>Окр1</value>");
+        assertThat(content).contains("<presentation>руб.</presentation>");
+        assertThat(content).contains("<presentation>тыс. руб</presentation>");
+    }
+
+    /** Тест 15: {@code @file:}-include в query. */
+    @Test
+    void testFileIncludeInQuery() throws Exception {
+        Path sqlFile = tempDir.resolve("queries").resolve("sales.sql");
+        Files.createDirectories(sqlFile.getParent());
+        Files.writeString(sqlFile, "ВЫБРАТЬ * ИЗ Документ.Реализация");
+
+        Path jsonFile = tempDir.resolve("input.json");
+        String json = """
+                {
+                  "dataSets": [{
+                    "type": "query", "name": "Продажи",
+                    "query": "@queries/sales.sql"
+                  }]
+                }
+                """;
+        Files.writeString(jsonFile, json);
+
+        ObjectMapper mapper = new ObjectMapper();
+        SkdDsl dsl = mapper.readValue(jsonFile.toFile(), SkdDsl.class);
+
+        Path outputXml = tempDir.resolve("Template.xml");
+        new SkdWriter(OutputFormat.DESIGNER)
+                .withIncludeBase(jsonFile.getParent())
+                .create(dsl, outputXml);
+
+        String content = Files.readString(outputXml);
+        assertThat(content).contains("<query>ВЫБРАТЬ * ИЗ Документ.Реализация</query>");
+    }
+
+    /** Тест 16: dataSetLinks — связь двух наборов. */
+    @Test
+    void testDataSetLinks() throws Exception {
+        String json = """
+                {
+                  "dataSets": [
+                    { "type": "query", "name": "Основной", "query": "ВЫБРАТЬ 1" },
+                    { "type": "query", "name": "Доп", "query": "ВЫБРАТЬ 2" }
+                  ],
+                  "dataSetLinks": [
+                    { "source": "Основной", "dest": "Доп",
+                      "sourceExpression": "Контрагент", "destExpression": "Контрагент" }
+                  ]
+                }
+                """;
+        Path out = compile(json);
+        String content = Files.readString(out);
+        assertThat(content).contains("<dataSetLink>");
+        assertThat(content).contains("<sourceDataSet>Основной</sourceDataSet>");
+        assertThat(content).contains("<destDataSet>Доп</destDataSet>");
+        assertThat(content).contains("<sourceExpression>Контрагент</sourceExpression>");
+    }
+
+    /** Тест 17: presentationExpression. */
+    @Test
+    void testPresentationExpression() throws Exception {
+        String json = """
+                {
+                  "dataSets": [{
+                    "type": "query", "name": "Н", "query": "ВЫБРАТЬ 1",
+                    "fields": [
+                      { "field": "Контрагент", "type": "string(150)",
+                        "presentationExpression": "Контрагент.Наименование" }
+                    ]
+                  }]
+                }
+                """;
+        Path out = compile(json);
+        String content = Files.readString(out);
+        assertThat(content).contains("<presentationExpression>Контрагент.Наименование</presentationExpression>");
+    }
+
+    /** Тест 18: conditionalAppearance с группой Or/And. */
+    @Test
+    void testConditionalAppearanceFilterGroup() throws Exception {
+        String json = """
+                {
+                  "dataSets": [{ "type": "query", "name": "Н", "query": "ВЫБРАТЬ 1" }],
+                  "settingsVariants": [{
+                    "name": "Основной",
+                    "settings": {
+                      "conditionalAppearance": [{
+                        "selection": ["Сумма"],
+                        "filterGroup": {
+                          "group": "Or",
+                          "items": [
+                            { "group": "And", "items": [
+                              { "field": "Статус", "op": "=", "value": "Активен" },
+                              { "field": "Сумма",  "op": ">", "value": "1000" }
+                            ]},
+                            { "field": "Количество", "op": "filled" }
+                          ]
+                        },
+                        "appearance": { "ЦветТекста": "web:Red" },
+                        "presentation": "Тест"
+                      }]
+                    }
+                  }]
+                }
+                """;
+        Path out = compile(json);
+        String content = Files.readString(out);
+        assertThat(content).contains("FilterItemGroup");
+        assertThat(content).contains("<dcsset:groupType>GroupOr</dcsset:groupType>");
+        assertThat(content).contains("<dcsset:groupType>GroupAnd</dcsset:groupType>");
+    }
+
+    /** Тест 19: составной тип через массив. */
+    @Test
+    void testCompositeType() throws Exception {
+        String json = """
+                {
+                  "dataSets": [{
+                    "type": "query", "name": "Н", "query": "ВЫБРАТЬ 1",
+                    "fields": [
+                      { "field": "Объект", "type": ["CatalogRef.А", "CatalogRef.Б"] }
+                    ]
+                  }]
+                }
+                """;
+        Path out = compile(json);
+        String content = Files.readString(out);
+        // Оба типа отрисованы в одном valueType.
+        assertThat(content).contains("CatalogRef.А");
+        assertThat(content).contains("CatalogRef.Б");
+    }
+
+    /** Тест 20: NonNegative qualifier применяется. */
+    @Test
+    void testDecimalNonNegativeQualifier() throws Exception {
+        String json = """
+                {
+                  "dataSets": [{
+                    "type": "query", "name": "Н", "query": "ВЫБРАТЬ 1",
+                    "fields": [
+                      { "field": "Сумма", "type": "decimal(15,2),nonneg" }
+                    ]
+                  }]
+                }
+                """;
+        Path out = compile(json);
+        String content = Files.readString(out);
+        assertThat(content).contains("<v8:AllowedSign>Nonnegative</v8:AllowedSign>");
+    }
+
+    /** Тест 21: e2e — quickstart из skill. */
+    @Test
+    void testE2eQuickstart() throws Exception {
+        String json = """
+                {
+                  "name": "Продажи",
+                  "dataSets": [{
+                    "type": "query",
+                    "name": "Основной",
+                    "query": "ВЫБРАТЬ Организация, Номенклатура, Количество, Сумма ИЗ Продажи",
+                    "fields": [
+                      { "field": "Организация", "type": "CatalogRef.Организации", "role": "@dimension" },
+                      { "field": "Номенклатура", "type": "CatalogRef.Номенклатура", "role": "@dimension" },
+                      { "field": "Количество", "type": "decimal(15,3)" },
+                      { "field": "Сумма", "type": "decimal(15,2)", "role": "@resource" }
+                    ]
+                  }],
+                  "totalFields": [
+                    { "dataPath": "Количество", "expression": "Сумма(Количество)" },
+                    { "dataPath": "Сумма", "expression": "Сумма(Сумма)" }
+                  ],
+                  "parameters": [
+                    { "name": "Период", "type": "string(50)", "autoDates": true }
+                  ],
+                  "settingsVariants": [{
+                    "name": "Основной",
+                    "presentation": "Продажи по организациям",
+                    "settings": {
+                      "selection": ["Организация", "Номенклатура", "Количество", "Сумма"],
+                      "filter": ["Организация = _"]
+                    }
+                  }]
+                }
+                """;
+        Path out = compile(json);
+        String content = Files.readString(out);
+        // Базовая структура.
+        assertThat(content).contains("<DataCompositionSchema");
+        assertThat(content).contains("<dataSet xsi:type=\"DataSetQuery\">");
+        assertThat(content).contains("<role>");
+        assertThat(content).contains("<totalField>");
+        assertThat(content).contains("<parameter>");
+        // autoDates → производные параметры.
+        assertThat(content).contains("ДатаНачала_Период");
+        assertThat(content).contains("ДатаОкончания_Период");
+        assertThat(content).contains("<settingsVariant>");
+    }
+
+    // ---- helpers ---------------------------------------------------------
+
+    private Path compile(String json) throws Exception {
+        ObjectMapper mapper = new ObjectMapper();
+        SkdDsl dsl = mapper.readValue(json, SkdDsl.class);
+        Path outputXml = tempDir.resolve("Template_" + System.nanoTime() + ".xml");
+        new SkdWriter(OutputFormat.DESIGNER).create(dsl, outputXml);
+        return outputXml;
+    }
 }

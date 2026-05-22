@@ -44,6 +44,15 @@ v8-runner build --full-rebuild
 
 Если настроен `tools.client_mcp.extension`, `build` также готовит это tool-расширение после стадии source-set'ов проекта, в том числе для узких сборок с `--source-set`. Tool-расширения на основе исходников используют собственное состояние change-detection и пропускаются, если ничего не изменилось; используй `build --full-rebuild`, чтобы принудительно обновить. Не добавляй tool-расширение как source-set проекта и не выбирай его через `--source-set`.
 
+### Контроль результата build
+
+`v8-runner build` может занимать минуты. Для длительных прогонов используй инструмент Monitor:
+
+1. Запусти в фоне (`Bash run_in_background: true`), перенаправь stdout в файл.
+2. Подпишись через **Monitor** с фильтром `ERROR:|Failed|error:` — уведомление придёт при первом совпадении.
+3. Завершай ожидание: процесс завершился ИЛИ в stdout появился `ERROR:` / `Failed` / явный признак успеха.
+4. После завершения: код возврата 0 = успех; иначе — читать stdout на ошибку.
+
 ## Syntax
 
 Выбирай синтаксические проверки исходя из возможностей конфига, а не из предположений по имени репозитория.
@@ -134,6 +143,10 @@ v8-runner launch mcp --mcp-config <FILE>
 Про `launch mcp va` читай `testing.md`; это часть workflow отладки и написания сценариев Vanessa Automation.
 
 ## WS-режим к session-manager
+
+> **Используемые форки SteelMorgan.** WS-транспорт реализован в форках, т.к. PR-ы в upstream не принимаются:
+> - v8-runner: upstream [`alkoleft/v8-runner-rust`](https://github.com/alkoleft/v8-runner-rust) → используемый форк [`SteelMorgan/v8-runner-rust`](https://github.com/SteelMorgan/v8-runner-rust)
+> - onec-client-mcp-devkit: используемый форк [`SteelMorgan/onec-client-mcp-devkit`](https://github.com/SteelMorgan/onec-client-mcp-devkit)
 
 Когда рядом с проектом запущен [`v8-client-session-manager`](https://github.com/SteelMorgan/v8-client-session-manager), 1С-клиент может подключаться к нему по WebSocket вместо локального HTTP MCP-сервера (legacy `runMcp`-режим). v8-runner делает выбор автоматически.
 

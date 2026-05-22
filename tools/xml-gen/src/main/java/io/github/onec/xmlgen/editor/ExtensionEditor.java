@@ -1,8 +1,12 @@
 package io.github.onec.xmlgen.editor;
 
+import io.github.onec.xmlgen.model.BslMethodExtractor;
+import io.github.onec.xmlgen.model.ConfigurationXmlReader;
+import io.github.onec.xmlgen.model.MdoPathResolver;
 import io.github.onec.xmlgen.model.UuidGenerator;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.PrintStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -201,6 +205,14 @@ public class ExtensionEditor {
 
     // ─── Public API ───────────────────────────────────────────────────
 
+    /** Режим заимствования основного реквизита формы. */
+    public enum MainAttributeMode {
+        /** Только реквизиты, на которые ссылается DataPath элементов формы. */
+        FORM,
+        /** Все атрибуты + табличные части. */
+        ALL
+    }
+
     /**
      * Borrow objects from base config into extension.
      *
@@ -209,6 +221,17 @@ public class ExtensionEditor {
      * @param objectSpec object specification: "Type.Name" or batch separated by ";;"
      */
     public void borrow(Path extDir, Path configDir, String objectSpec) throws IOException {
+        borrow(extDir, configDir, objectSpec, null);
+    }
+
+    /**
+     * Borrow с опциональным {@code --borrow-main-attribute}.
+     * Если {@code mainAttributeMode != null}, после стандартного borrow для форм
+     * (objectSpec вида {@code Type.Name.Form.X}) копирует реквизиты объекта
+     * базовой конфигурации в объект расширения (см. {@link MainAttributeMode}).
+     */
+    public void borrow(Path extDir, Path configDir, String objectSpec,
+                       MainAttributeMode mainAttributeMode) throws IOException {
         createdFiles.clear();
 
         // Resolve file paths to directories (support both dir and Configuration.xml as input)
@@ -234,6 +257,18 @@ public class ExtensionEditor {
             throw new IllegalArgumentException("No objects specified in objectSpec");
         }
 
+        // Pre-check: --borrow-main-attribute applies only to form specs
+        if (mainAttributeMode != null) {
+            for (BorrowItem item : items) {
+                if (item.formName == null) {
+                    throw new IllegalArgumentException(
+                            "--borrow-main-attribute requires a form object spec "
+                                    + "(e.g. Catalog.X.Form.Y), got: "
+                                    + item.typeName + "." + item.objName);
+                }
+            }
+        }
+
         // Process each item
         int borrowedCount = 0;
         for (BorrowItem item : items) {
@@ -251,6 +286,10 @@ public class ExtensionEditor {
                             item.objName, dirName, extCfgContent);
                 }
                 borrowForm(extDir, configDir, item.typeName, item.objName, item.formName, dirName);
+                if (mainAttributeMode != null) {
+                    borrowMainAttributeInto(extDir, configDir, item.typeName, item.objName,
+                            item.formName, dirName, mainAttributeMode);
+                }
                 borrowedCount++;
             } else {
                 // Object borrowing
@@ -794,5 +833,386 @@ public class ExtensionEditor {
     private static String esc(String s) {
         if (s == null) return "";
         return s.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace("\"", "&quot;");
+    }
+
+    // ─── --borrow-main-attribute ──────────────────────────────────────
+
+    /**
+     * Реализация {@code --borrow-main-attribute}. Копирует реквизиты объекта базовой конфигурации
+     * в XML объекта расширения. Существующие реквизиты (по имени) не перезаписываются.
+     *
+     * <p>Метод вызывается из {@link #borrow(Path, Path, String, MainAttributeMode)} ПОСЛЕ обработки
+     * формы. Формальное условие — заимствованный родительский объект уже существует на диске
+     * (или будет создан в borrow до этого вызова).</p>
+     */
+    private void borrowMainAttributeInto(Path extDir, Path configDir, String typeName, String objName,
+                                          String formName, String dirName,
+                                          MainAttributeMode mode) throws IOException {
+        out.println("[INFO] Borrowing main attribute (" + mode.name().toLowerCase(Locale.ROOT)
+                + ") for " + typeName + "." + objName + "...");
+
+        // 1. Прочитать XML объекта базовой конфигурации
+        Path baseObjXml = configDir.resolve(dirName).resolve(objName + ".xml");
+        if (!Files.isRegularFile(baseObjXml)) {
+            throw new IllegalArgumentException("Base object XML not found: " + baseObjXml);
+        }
+        String baseObjContent = readString(baseObjXml);
+
+        // 2. Собрать список имён реквизитов для копирования
+        Set<String> namesToBorrow;
+        boolean copyTabularSections;
+        if (mode == MainAttributeMode.FORM) {
+            Path formXml = configDir.resolve(dirName).resolve(objName)
+                    .resolve("Forms").resolve(formName).resolve("Ext").resolve("Form.xml");
+            if (!Files.isRegularFile(formXml)) {
+                throw new IllegalArgumentException("Base Form.xml not found: " + formXml);
+            }
+            String formContent = readString(formXml);
+            namesToBorrow = extractTopLevelAttributeNamesFromDataPaths(formContent);
+            if (namesToBorrow.isEmpty()) {
+                out.println("[WARN] Form has no DataPath references — nothing to borrow.");
+                return;
+            }
+            copyTabularSections = false;
+        } else {
+            namesToBorrow = null; // = «все»
+            copyTabularSections = true;
+        }
+
+        // 3. Прочитать XML заимствованного объекта расширения
+        Path extObjXml = extDir.resolve(dirName).resolve(objName + ".xml");
+        if (!Files.isRegularFile(extObjXml)) {
+            throw new IllegalArgumentException("Extension object XML not found: " + extObjXml
+                    + " (parent should have been borrowed first)");
+        }
+        String extObjContent = readString(extObjXml);
+
+        // 4. Собрать существующие имена реквизитов и табчастей в расширении
+        Set<String> existingAttrs = extractNames(extObjContent, "Attribute");
+        Set<String> existingTabular = extractNames(extObjContent, "TabularSection");
+
+        // 5. Извлечь нужные XML-фрагменты из базовой конфигурации
+        List<String> attrXmlBlocks = extractElementsByTopLevelName(baseObjContent, "Attribute",
+                namesToBorrow, existingAttrs);
+        List<String> tabularXmlBlocks = copyTabularSections
+                ? extractElementsByTopLevelName(baseObjContent, "TabularSection", null, existingTabular)
+                : Collections.emptyList();
+
+        if (attrXmlBlocks.isEmpty() && tabularXmlBlocks.isEmpty()) {
+            out.println("[WARN] Nothing to add: all referenced attributes/tabular sections already present.");
+            return;
+        }
+
+        // 6. Вставить блоки в ChildObjects объекта расширения
+        String updated = injectIntoChildObjects(extObjContent, attrXmlBlocks, tabularXmlBlocks);
+        writeWithBom(extObjXml, updated);
+        out.println("[INFO]   Added " + attrXmlBlocks.size() + " attribute(s), "
+                + tabularXmlBlocks.size() + " tabular section(s) → " + extObjXml);
+    }
+
+    /** Список имён, извлечённых из {@code DataPath} (берётся только первый сегмент до точки). */
+    private Set<String> extractTopLevelAttributeNamesFromDataPaths(String formContent) {
+        Set<String> names = new LinkedHashSet<>();
+        Matcher m = Pattern.compile("<DataPath>([^<]+)</DataPath>").matcher(formContent);
+        while (m.find()) {
+            String path = m.group(1).trim();
+            if (path.isEmpty()) continue;
+            int dot = path.indexOf('.');
+            String top = dot < 0 ? path : path.substring(0, dot);
+            // Пропускаем псевдо-реквизиты формы
+            if ("Объект".equalsIgnoreCase(top) || "Object".equalsIgnoreCase(top)
+                    || "Список".equalsIgnoreCase(top) || "List".equalsIgnoreCase(top)
+                    || "Запись".equalsIgnoreCase(top) || "Record".equalsIgnoreCase(top)
+                    || "НаборЗаписей".equalsIgnoreCase(top) || "RecordSet".equalsIgnoreCase(top)
+                    || "Отчет".equalsIgnoreCase(top) || "Отчёт".equalsIgnoreCase(top)
+                    || "Report".equalsIgnoreCase(top)) {
+                if (dot >= 0) {
+                    String rest = path.substring(dot + 1);
+                    int dot2 = rest.indexOf('.');
+                    String next = dot2 < 0 ? rest : rest.substring(0, dot2);
+                    if (!next.isEmpty()) names.add(next);
+                }
+            } else {
+                names.add(top);
+            }
+        }
+        return names;
+    }
+
+    /** Имена top-level элементов с тегом {@code <tag>}, имеющих внутри {@code <Name>...</Name>}. */
+    private Set<String> extractNames(String xml, String tag) {
+        Set<String> names = new LinkedHashSet<>();
+        List<String> blocks = extractElementsByTopLevelName(xml, tag, null, Collections.emptySet());
+        for (String b : blocks) {
+            Matcher m = Pattern.compile("<Name>([^<]+)</Name>").matcher(b);
+            if (m.find()) names.add(m.group(1).trim());
+        }
+        return names;
+    }
+
+    /**
+     * Найти XML-фрагменты элементов вида {@code <tag>...</tag>}, у которых внутри есть {@code <Name>X</Name>},
+     * где X входит в {@code nameFilter} (если {@code nameFilter == null} — берутся все),
+     * и X не входит в {@code skipNames}.
+     */
+    private List<String> extractElementsByTopLevelName(String xml, String tag,
+                                                       Set<String> nameFilter,
+                                                       Set<String> skipNames) {
+        List<String> out = new ArrayList<>();
+        Pattern startP = Pattern.compile("<" + Pattern.quote(tag) + "(?:\\s+[^>]*)?>");
+        Pattern endP = Pattern.compile("</" + Pattern.quote(tag) + ">");
+        Matcher startM = startP.matcher(xml);
+        while (startM.find()) {
+            int s = startM.start();
+            // Find matching end with depth tracking (Attribute не вложен, но защитимся)
+            int depth = 1;
+            int pos = startM.end();
+            int e = -1;
+            Pattern openOrClose = Pattern.compile("<(/?" + Pattern.quote(tag) + ")(?:\\s|>|/>)");
+            Matcher m2 = openOrClose.matcher(xml);
+            m2.region(pos, xml.length());
+            while (m2.find()) {
+                if (m2.group(1).startsWith("/")) {
+                    depth--;
+                    if (depth == 0) {
+                        e = xml.indexOf('>', m2.start()) + 1;
+                        break;
+                    }
+                } else {
+                    depth++;
+                }
+            }
+            if (e < 0) continue;
+            String block = xml.substring(s, e);
+            Matcher nm = Pattern.compile("<Name>([^<]+)</Name>").matcher(block);
+            if (!nm.find()) continue;
+            String name = nm.group(1).trim();
+            if (skipNames != null && skipNames.contains(name)) continue;
+            if (nameFilter != null && !nameFilter.contains(name)) continue;
+            out.add(block);
+        }
+        return out;
+    }
+
+    /**
+     * Вставить XML-блоки атрибутов и табчастей в {@code <ChildObjects>} объекта расширения.
+     * Если {@code <ChildObjects/>} self-closing — раскрываем.
+     */
+    private String injectIntoChildObjects(String xml, List<String> attrBlocks, List<String> tabularBlocks) {
+        // Раскрыть self-closing
+        int selfClose = xml.indexOf("<ChildObjects/>");
+        if (selfClose >= 0) {
+            xml = xml.substring(0, selfClose) + "<ChildObjects>\n\t\t</ChildObjects>"
+                    + xml.substring(selfClose + "<ChildObjects/>".length());
+        }
+        int close = xml.lastIndexOf("</ChildObjects>");
+        if (close < 0) {
+            // Объект без ChildObjects — добавим перед закрывающим тегом объекта
+            int objClose = xml.lastIndexOf("</");
+            if (objClose < 0) {
+                throw new IllegalStateException("Cannot find insertion point in extension object XML");
+            }
+            // вставим контейнер перед закрывающим тегом верхнего уровня
+            StringBuilder sb = new StringBuilder();
+            sb.append("\t\t<ChildObjects>\n");
+            for (String b : attrBlocks) sb.append(indent(b, "\t\t\t")).append("\n");
+            for (String b : tabularBlocks) sb.append(indent(b, "\t\t\t")).append("\n");
+            sb.append("\t\t</ChildObjects>\n");
+            return xml.substring(0, objClose) + sb + xml.substring(objClose);
+        }
+        StringBuilder ins = new StringBuilder();
+        for (String b : attrBlocks) {
+            ins.append(indent(b, "\t\t\t")).append("\n");
+        }
+        for (String b : tabularBlocks) {
+            ins.append(indent(b, "\t\t\t")).append("\n");
+        }
+        return xml.substring(0, close) + ins + xml.substring(close);
+    }
+
+    /** Добавить указанный префикс к каждой строке. */
+    private static String indent(String block, String prefix) {
+        StringBuilder sb = new StringBuilder();
+        String[] lines = block.split("\n", -1);
+        for (int i = 0; i < lines.length; i++) {
+            if (i > 0) sb.append("\n");
+            // Не индентируем последнюю пустую строку
+            if (i == lines.length - 1 && lines[i].isEmpty()) continue;
+            sb.append(prefix).append(lines[i]);
+        }
+        return sb.toString();
+    }
+
+    // ─── extension patch-method ───────────────────────────────────────
+
+    /** Тип BSL-перехватчика. */
+    public enum InterceptorType {
+        BEFORE, AFTER, INSTEAD, MODIFICATION_AND_CONTROL;
+
+        public static InterceptorType parse(String s) {
+            if (s == null) throw new IllegalArgumentException("--type is required");
+            String n = s.trim();
+            if (n.equalsIgnoreCase("Before")) return BEFORE;
+            if (n.equalsIgnoreCase("After")) return AFTER;
+            if (n.equalsIgnoreCase("Instead")) return INSTEAD;
+            if (n.equalsIgnoreCase("ModificationAndControl")) return MODIFICATION_AND_CONTROL;
+            throw new IllegalArgumentException(
+                    "Unknown --type '" + s + "'. Valid: Before, After, Instead, ModificationAndControl");
+        }
+    }
+
+    /** Результат {@link #patchMethod}. */
+    public static final class PatchMethodResult {
+        public final Path bslFile;
+        public final String procedureName;
+        public final boolean created;   // файл создан с нуля
+        public final boolean appended;  // процедура добавлена в существующий файл
+        public final boolean skipped;   // процедура уже была — ничего не делали
+
+        public PatchMethodResult(Path bslFile, String procedureName,
+                                 boolean created, boolean appended, boolean skipped) {
+            this.bslFile = bslFile;
+            this.procedureName = procedureName;
+            this.created = created;
+            this.appended = appended;
+            this.skipped = skipped;
+        }
+    }
+
+    /**
+     * {@code extension patch-method}: создать процедуру-перехватчик в BSL-модуле расширения.
+     *
+     * @param extPath     путь к каталогу расширения (или к Configuration.xml)
+     * @param modulePath  выражение модуля (см. {@link MdoPathResolver#parseModule})
+     * @param methodName  имя метода типовой конфигурации
+     * @param type        тип перехватчика
+     * @param configDir   путь к базовой конфигурации (обязателен для MODIFICATION_AND_CONTROL)
+     * @param context     директива контекста (например, "НаСервере"); если null — "НаСервере"
+     * @param asFunction  true → сгенерировать функцию вместо процедуры
+     */
+    public PatchMethodResult patchMethod(Path extPath, String modulePath, String methodName,
+                                         InterceptorType type, Path configDir,
+                                         String context, boolean asFunction) throws IOException {
+        // 1. Валидация аргументов
+        if (Files.isRegularFile(extPath)) extPath = extPath.getParent();
+        Path extCfgFile = extPath.resolve("Configuration.xml");
+        if (!Files.isRegularFile(extCfgFile)) {
+            throw new IllegalArgumentException("Extension Configuration.xml not found: " + extCfgFile);
+        }
+        if (methodName == null || methodName.isBlank()) {
+            throw new IllegalArgumentException("--method is required and must be non-empty");
+        }
+        if (type == InterceptorType.MODIFICATION_AND_CONTROL && configDir == null) {
+            throw new IllegalArgumentException("--config is required for ModificationAndControl");
+        }
+        if (configDir != null && Files.isRegularFile(configDir)) configDir = configDir.getParent();
+
+        // 2. Прочитать NamePrefix
+        String namePrefix = ConfigurationXmlReader.readNamePrefix(extCfgFile);
+        if (namePrefix == null) {
+            throw new IllegalArgumentException("NamePrefix not found in extension Configuration.xml: "
+                    + extCfgFile);
+        }
+        String procName = namePrefix + "_" + methodName;
+
+        // 3. Разрешить путь к BSL-файлу в расширении
+        MdoPathResolver.ParsedModule parsed = MdoPathResolver.parseModule(modulePath);
+        Path bslFile = MdoPathResolver.resolveBslPath(extPath, parsed);
+
+        // 4. Предупреждение если объект не заимствован
+        Path objXml = MdoPathResolver.objectXmlPath(extPath, parsed);
+        if (objXml != null && !Files.isRegularFile(objXml)) {
+            out.println("[WARN] Object not borrowed in extension (" + objXml
+                    + ") — creating BSL file anyway.");
+        }
+
+        // 5. Для MODIFICATION_AND_CONTROL — извлечь тело метода из базовой конфигурации
+        BslMethodExtractor.Extracted extracted = null;
+        if (type == InterceptorType.MODIFICATION_AND_CONTROL) {
+            Path baseBsl = MdoPathResolver.resolveBslPath(configDir, parsed);
+            if (!Files.isRegularFile(baseBsl)) {
+                throw new IllegalArgumentException("Base BSL module not found: " + baseBsl);
+            }
+            extracted = BslMethodExtractor.extract(baseBsl, methodName).orElseThrow(() ->
+                    new IllegalArgumentException("Method '" + methodName + "' not found in " + baseBsl));
+        }
+
+        // 6. Сформировать BSL-блок
+        String bslContext = (context == null || context.isBlank()) ? "НаСервере" : context;
+        boolean isFunctionEffective = asFunction;
+        if (type == InterceptorType.MODIFICATION_AND_CONTROL && extracted != null && extracted.isFunction) {
+            isFunctionEffective = true;
+        }
+        String block = renderInterceptor(type, bslContext, methodName, procName,
+                isFunctionEffective, extracted);
+
+        // 7. Гарантировать наличие файла и каталогов
+        boolean created = false;
+        if (!Files.isRegularFile(bslFile)) {
+            Files.createDirectories(bslFile.getParent());
+            writeWithBom(bslFile, "");
+            created = true;
+            createdFiles.add(bslFile.toString());
+        }
+
+        // 8. Проверить, нет ли уже процедуры с таким именем
+        BslModuleEditor editor = new BslModuleEditor(bslFile);
+        if (editor.findProcedure(procName).isPresent() || editor.findFunction(procName).isPresent()) {
+            out.println("[WARN] Procedure '" + procName + "' already exists in " + bslFile
+                    + " — skipped.");
+            return new PatchMethodResult(bslFile, procName, created, false, true);
+        }
+
+        editor.findOrCreateMethod(procName, block, null, isFunctionEffective);
+        editor.save();
+        out.println("[INFO] Added " + (isFunctionEffective ? "function" : "procedure")
+                + " '" + procName + "' to " + bslFile);
+        return new PatchMethodResult(bslFile, procName, created, true, false);
+    }
+
+    /** Сгенерировать BSL-блок перехватчика по шаблону. */
+    private String renderInterceptor(InterceptorType type, String context, String methodName,
+                                     String procName, boolean asFunction,
+                                     BslMethodExtractor.Extracted extracted) throws IOException {
+        String tmplName;
+        switch (type) {
+            case BEFORE -> tmplName = "before.bsl.tmpl";
+            case AFTER -> tmplName = "after.bsl.tmpl";
+            case INSTEAD -> tmplName = "instead.bsl.tmpl";
+            case MODIFICATION_AND_CONTROL -> tmplName = "modification.bsl.tmpl";
+            default -> throw new IllegalStateException("Unknown type " + type);
+        }
+        String tmpl = loadResource("templates/cfe/" + tmplName);
+
+        String keywordBegin = asFunction ? "Функция" : "Процедура";
+        String keywordEnd = asFunction ? "КонецФункции" : "КонецПроцедуры";
+        String returnLine = asFunction ? "\n\tВозврат Неопределено;" : "";
+        String body;
+        if (type == InterceptorType.MODIFICATION_AND_CONTROL && extracted != null) {
+            StringBuilder bsb = new StringBuilder();
+            for (int i = 0; i < extracted.bodyLines.size(); i++) {
+                bsb.append(extracted.bodyLines.get(i));
+                if (i < extracted.bodyLines.size() - 1) bsb.append("\n");
+            }
+            body = bsb.toString();
+        } else {
+            body = "";
+        }
+
+        return tmpl
+                .replace("${CONTEXT}", context)
+                .replace("${METHOD}", methodName)
+                .replace("${PROC_NAME}", procName)
+                .replace("${KEYWORD_BEGIN}", keywordBegin)
+                .replace("${KEYWORD_END}", keywordEnd)
+                .replace("${RETURN_LINE}", returnLine)
+                .replace("${BODY}", body);
+    }
+
+    private static String loadResource(String name) throws IOException {
+        try (InputStream is = ExtensionEditor.class.getClassLoader().getResourceAsStream(name)) {
+            if (is == null) throw new IOException("Resource not found: " + name);
+            return new String(is.readAllBytes(), StandardCharsets.UTF_8);
+        }
     }
 }

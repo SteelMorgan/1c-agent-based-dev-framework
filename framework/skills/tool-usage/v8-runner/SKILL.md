@@ -35,10 +35,13 @@ provides_capabilities:
 - `references/file-and-artifact-workflows.md` — про dump, convert, load, make/artifacts и поэтапную публикацию.
 - `references/testing.md` — про YaXUnit, Vanessa Automation, синтаксические проверки и артефакты.
 - `references/troubleshooting.md` — про сбои настройки, устаревшее состояние и диагностику окружения.
+- `references/auth-guard.md` — hard-stop по license-паттернам, правило двух кандидатов, классификация ошибок auth/path, хранение credentials в `v8project.local.yaml`.
 
 ## Форма команды
 
-Канонический путь к бинарнику — `tools/external/v8-runner/v8-runner` (в проекте это работает через `tools/`-симлинк на фреймворк). Установщик фреймворка тянет Latest-релиз из [`alkoleft/v8-runner-rust`](https://github.com/alkoleft/v8-runner-rust) при каждом запуске; ручная переустановка — `python tools/install.py --install-external-tools`. Если бинарник по этому пути отсутствует и в `PATH` тоже нет — попроси путь у пользователя или используй wrapper-скрипт из проекта.
+Канонический путь к бинарнику — `tools/external/v8-runner/v8-runner` (в проекте это работает через `tools/`-симлинк на фреймворк). Установщик фреймворка тянет Latest-релиз из [`alkoleft/v8-runner-rust`](https://github.com/alkoleft/v8-runner-rust) (upstream) при каждом запуске; ручная переустановка — `python tools/install.py --install-external-tools`. Если бинарник по этому пути отсутствует и в `PATH` тоже нет — попроси путь у пользователя или используй wrapper-скрипт из проекта.
+
+> **WS-транспорт: используется форк SteelMorgan.** Для WS-сопряжения с менеджером сессий используется форк [`SteelMorgan/v8-runner-rust`](https://github.com/SteelMorgan/v8-runner-rust) вместо upstream `alkoleft/v8-runner-rust`, т.к. PR-ы с WS-поддержкой в upstream не принимаются. Установщик фреймворка ориентирован на релизы этого форка. Аналогично `onec-client-mcp-devkit` (расширения `mcp_client`, `test_client` и др.) берётся из форка [`SteelMorgan/onec-client-mcp-devkit`](https://github.com/SteelMorgan/onec-client-mcp-devkit).
 
 `v8project.yaml` — имя конфига проекта по умолчанию. Соседний `v8project.local.yaml` загружается автоматически для машинно-локальных путей, учётных данных, инструментов, тестов и MCP-настроек. Не передавай `--config v8project.yaml`, если пользователь явно не просит нестандартную форму команды или активный путь к конфигу отличается от дефолтного; никогда не передавай `v8project.local.yaml` через `--config`.
 
@@ -168,6 +171,7 @@ tools:
 
 ## Защитные правила
 
+- Перед любой операцией v8-runner, обращающейся к ИБ, применяй auth-guard: проверь credentials и классифицируй возможные ошибки (license / auth / path) — см. `references/auth-guard.md`.
 - Не удаляй и не пересоздавай ИБ, воркспейс, временный каталог или сгенерированное состояние, если пользователь явно об этом не просил или сама команда не задокументирована как путь восстановления.
 - Не выдумывай сырые флаги `1cv8`, `ibcmd` или `1cedtcli`; предпочитай командную поверхность `v8-runner`.
 - Перед `dump` проверь `git status`, если результат может перезаписать или смешаться с уже внесёнными правками исходников.

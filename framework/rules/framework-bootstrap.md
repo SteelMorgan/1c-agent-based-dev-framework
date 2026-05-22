@@ -17,6 +17,7 @@ alwaysApply: true
 | Написание / редактирование BSL-кода | `/<ide-cli-dot-catalog>/rules/mandatory-tools.md` + `/<ide-cli-dot-catalog>/skills/bsl-practices/*` по необходимости |
 | Написание спецификации | `/<ide-cli-dot-catalog>/skills/spec-writing/spec-standard.md` |
 | Ревью кода / артефактов | `/<ide-cli-dot-catalog>/rules/cross-review-policy.md` + чек-лист |
+| Работа с git (коммиты, ветки, merge задачи) | `/<ide-cli-dot-catalog>/rules/git-workflow.md` |
 
 > **Если сомневаешься** — трактуй как сложную, загружай `orchestrator.md`.
 
@@ -35,4 +36,5 @@ depends_on:
 - framework/workflows/source-of-truth-policy.md
 - framework/rules/protected-paths.mdc
 - framework/rules/skill-learning-policy.mdc
+- framework/rules/git-workflow.md
 ---

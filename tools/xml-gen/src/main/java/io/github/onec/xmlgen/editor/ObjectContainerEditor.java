@@ -379,6 +379,33 @@ public class ObjectContainerEditor {
         }
     }
 
+    /**
+     * Принудительно установить MainDataCompositionSchema (перезаписывает существующее значение).
+     *
+     * @param value новое значение (напр. "Report.ОстаткиТоваров.Template.ОсновнаяСхема")
+     */
+    public void setMainDataCompositionSchema(String value) {
+        // Replace existing value (empty, self-closing, or non-empty)
+        content = content.replaceAll(
+                "<MainDataCompositionSchema>[^<]*</MainDataCompositionSchema>",
+                "<MainDataCompositionSchema>" + escapeXml(value) + "</MainDataCompositionSchema>");
+        content = content.replace(
+                "<MainDataCompositionSchema/>",
+                "<MainDataCompositionSchema>" + escapeXml(value) + "</MainDataCompositionSchema>");
+    }
+
+    /**
+     * Очистить MainDataCompositionSchema если она ссылается на указанный макет.
+     *
+     * @param value полное значение, которое надо очистить
+     */
+    public void clearMainDataCompositionSchemaIfMatches(String value) {
+        String escaped = escapeXml(value);
+        String pattern = "<MainDataCompositionSchema>" + Pattern.quote(escaped) + "</MainDataCompositionSchema>";
+        content = content.replaceAll(pattern,
+                "<MainDataCompositionSchema></MainDataCompositionSchema>");
+    }
+
     // --- Utility ---
 
     /**

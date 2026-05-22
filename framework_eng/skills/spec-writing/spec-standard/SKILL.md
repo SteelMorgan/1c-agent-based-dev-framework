@@ -1,39 +1,39 @@
 ---
 name: spec-standard
-description: "Universal skill for writing specifications (SDD). Defines the spec structure, RFC 2119, and the quality checklist regardless of the task execution mode."
+description: "A universal skill for writing specifications (SDD). Defines the spec structure, RFC 2119, and the quality checklist regardless of the task execution mode."
 ---
 
-# Specification writing skill (SDD)
+# Specification Writing Skill (SDD)
 
-The skill **does not choose an execution mode** (subagent/linear) — it only provides the structure, RFC 2119, and the quality checklist.
+This skill **does not choose an execution mode** (subagent/linear) - only the structure, RFC 2119, and the quality checklist.
 
 ---
 
-## 2. When a specification is needed
+## 2. When a Specification Is Needed
 
 | Task type | Spec needed | Rationale |
 |------------|-------------|-------------|
-| New functionality | MUST | Captures the scope, requirements, alternatives, and the chosen solution. |
-| Bug fix with architectural impact | MUST | Requires justification for the change in structure/behavior. |
-| Simple local bug fix | MAY | A brief description without a full spec is acceptable if the change is isolated. |
-| Large refactoring | SHOULD | Needs transparency around the boundaries and consequences of the changes. |
+| New functionality | MUST | Captures scope, requirements, alternatives, and the chosen solution. |
+| Bug fix with architectural impact | MUST | The change in structure/behavior must be justified. |
+| Simple local bug fix | MAY | A short description without a full spec is acceptable if the change is isolated. |
+| Large refactoring | SHOULD | Transparency about boundaries and consequences of the changes is needed. |
 
 ---
 
-## 3. Specification language
+## 3. Specification Language
 
-The specification MUST be written in **Russian** — section headings, descriptions, requirements, scenarios. Exception — code and metadata identifiers (module names, attributes, variables) remain as they are.
+The specification MUST be written in **Russian** - section headings, descriptions, requirements, scenarios. The exception is code and metadata identifiers (module names, attributes, variables), which remain unchanged.
 
-## 4. Required specification structure
+## 4. Mandatory Specification Structure
 
 ```markdown
 # SPEC-NNN: [Краткое название]
 Статус: Черновик | Ревью | Утверждена | Реализована
-Дата: YYYY-MM-DD
+Date: YYYY-MM-DD
 
 ## Контекст и постановка проблемы
 
-## Требования (RFC 2119)
+## Requirements (RFC 2119)
 ### MUST
 ### SHOULD
 ### MAY
@@ -54,78 +54,78 @@ The specification MUST be written in **Russian** — section headings, descripti
 
 ## План тестирования (TDD)
 
-### Test Users
+### Тестовые пользователи (Test Users)
 
-If tests (unit / BDD / integration) depend on user roles, rights, or context, the spec MUST contain a "Test Users" section (or equivalent) with the following rules:
+Если тесты (unit / BDD / integration) зависят от ролей, прав или контекста пользователя, спека ОБЯЗАНА содержать секцию «Test Users» (или эквивалент) со следующими правилами:
 
-- List **only users that actually exist** in the target database (login + role composition + source reference: pre-loaded profile, fixture, related task's final-report, etc.).
-- **Placeholder names are forbidden** ("User1", "TestUser", "Manager_NoRole"), as well as fictional full names without confirmed correspondence to a real account in the database ("Sidorov", "Ivanov" — if no such user exists in the database).
-- For each test user specify at minimum: login, role composition, source, test scenario application.
-- If a suitable user is **unknown** or **does not exist** — Analyst raises `clarification_needed` to the user in a clarification round rather than inventing a name. It is acceptable to suggest candidates to the user for creation (with role list), but the name must be confirmed.
-- If a test user must be **created by the administrator** before the run (manual data prep) — this is explicitly recorded as a separate item in `manual-test-scenario.md` or an equivalent artifact, with creation steps described.
+- Перечислять **только реально существующих** в целевой базе пользователей (логин + состав ролей + ссылка на источник: предзагруженный профиль, fixture, final-report связанной задачи и т.п.).
+- **Запрещены placeholder-имена** («User1», «TestUser», «Manager_NoRole»), а также вымышленные ФИО без подтверждённого соответствия реальному аккаунту в базе («Сидоров», «Иванов» — если такого пользователя в базе нет).
+- Для каждого test user указать минимум: логин, состав ролей, источник, тестовый сценарий-применение.
+- Если подходящий пользователь **неизвестен** или **не существует** — Analyst задаёт `clarification_needed` пользователю в clarification round, а не выдумывает имя. Допустимо предложить пользователю кандидатов на создание (с указанием ролей), но имя должно быть подтверждено.
+- Если test user должен быть **создан администратором** перед запуском (manual data prep) — это явно фиксируется отдельным пунктом в `manual-test-scenario.md` или эквивалентном артефакте, с описанием шагов создания.
 
-**Why:** placeholder names in the spec lead to Vanessa scenarios like "Could not connect TestClient <Sidorov>" and fail the entire Vanessa layer. Tester / Scenario-Coder cannot "guess" a real user and lose hours on diagnostics.
+**Почему:** placeholder-имена в спеке приводят к Vanessa-сценариям типа «Не смог подключить TestClient <Сидоров>» и проваливают весь Vanessa-уровень. Tester / Scenario-Coder не могут «угадать» реального пользователя и теряют часы на диагностику.
 
-## Acceptance scenarios (BDD)
+## Приёмочные сценарии (BDD)
 
-## Open questions
+## Открытые вопросы
 
-## Decision log (ADR)
+## Журнал решений (ADR)
 ```
 
 ---
 
-## 5. RFC 2119 rules
+## 5. RFC 2119 Rules
 
 | Keyword | Meaning | Usage rule |
-|----------------|----------|------------------------|
-| MUST | Mandatory | Without fulfillment the requirement is considered not met. |
+|---------|---------|------------|
+| MUST | Mandatory | Without this, the requirement is considered unmet. |
 | SHOULD | Strongly recommended | Deviation is allowed only with explicit justification. |
 | MAY | Optional | An enhancement that does not block acceptance. |
-| MUST NOT | Prohibited | Explicit restriction, violation is unacceptable. |
+| MUST NOT | Prohibited | An explicit restriction, violation is unacceptable. |
 
 Requirements must be:
-- atomic (one requirement — one verifiable idea);
-- verifiable (can be confirmed with a test/scenario);
-- consistent across sections.
+- atomic (one requirement - one verifiable thought);
+- verifiable (can be confirmed by a test/scenario);
+- non-contradictory across sections.
 
 ---
 
-## 6. Task decomposition
+## 6. Task Decomposition
 
-For tasks with a specification, decomposition is **mandatory** (a separate Task Breakdown JSON file). The specification should include a link to the JSON and/or a brief summary.
+For tasks with a specification, decomposition is **mandatory** (a separate JSON file Task Breakdown). The specification should include a link to the JSON and/or a brief summary.
 
-The quality control process is outside this skill: `task-breakdown-subagent` (cross-review) or `task-breakdown-linear` (self-check).
+The quality control process is outside this skill: `task-breakdown` (§3 Linear - self-check, §4 Subagent - cross-review).
 
 ---
 
-## 7. Specification quality criteria
+## 7. Specification Quality Criteria
 
-Checklist for review:
+Review checklist:
 
-- [ ] "Context" describes who has the problem and what is broken.
-- [ ] Every MUST is covered by a point in the "Test Plan".
+- [ ] The "Context" describes who has the problem and what is not working.
+- [ ] Every MUST is covered by an item in the "Test Plan".
 - [ ] "Boundaries" clearly separate "In scope" and "Out of scope".
-- [ ] "Considered options" contains at least 2 alternatives.
-- [ ] "Chosen solution" includes rationale and consequences.
-- [ ] "Technical design" separates user tasks (metadata) and agent tasks (code).
+- [ ] "Considered Alternatives" contains at least 2 alternatives.
+- [ ] "Chosen Solution" contains justification and consequences.
+- [ ] "Technical Design" separates the user's tasks (metadata) and the agent's tasks (code).
 - [ ] There are no contradictions between sections.
 - [ ] Requirements are formulated using RFC 2119 (MUST/SHOULD/MAY/MUST NOT).
-- [ ] There is a link/summary to a separate Task Breakdown JSON.
-- [ ] "Acceptance scenarios" contain business-level Gherkin scenarios (Given/When/Then) for MUST requirements.
+- [ ] There is a link/summary for a separate Task Breakdown JSON.
+- [ ] The "Acceptance Scenarios" contain business-level Gherkin scenarios (Given/When/Then) for MUST requirements.
 - [ ] The document is written in Russian (except for code identifiers).
 
 ---
 
-## 8. Common mistakes
+## 8. Typical Mistakes
 
 | Mistake | Consequence |
-|--------|------------|
-| Mixing the problem and the solution in Context | It becomes unclear what needs to be fixed |
-| Vague requirements without RFC 2119 | Impossible to unambiguously accept the work |
+|---------|-------------|
+| Mixing the problem and the solution in Context | It is unclear what needs to be fixed |
+| Vague requirements without RFC 2119 | The work cannot be accepted unambiguously |
 | Empty Out of scope | Scope creep |
-| Lack of task decomposition | Weak traceability |
-| Contradictions between Requirements ↔ Technical Design | Implementation errors |
+| Missing task decomposition | Weak traceability |
+| Contradictions Requirements ↔ Technical Design | Implementation errors |
 
 ---
 depends_on: []

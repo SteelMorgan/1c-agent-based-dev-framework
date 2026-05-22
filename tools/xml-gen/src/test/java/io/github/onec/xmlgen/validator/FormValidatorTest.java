@@ -524,4 +524,172 @@ class FormValidatorTest {
         List<ValidationIssue> issues = validator.validate(doc, ValidationLevel.SEMANTIC);
         assertThat(issues).noneMatch(i -> i.getCode().equals("FORM-120"));
     }
+
+    // ==================== SPEC §10: DataPath расширенный резолв ====================
+
+    /**
+     * SPEC §10.4 — testDataPath_ItemsCurrentData_ResolvesAgainstTableAttribute.
+     * <p>
+     * Items.МойСписок.CurrentData.Ссылка должен резолвиться к реквизиту МойСписок (его DataPath)
+     * и не порождать FORM-102.
+     */
+    @Test
+    void testDataPath_ItemsCurrentData_ResolvesAgainstTableAttribute() throws Exception {
+        // Форма с реквизитом "МойСписок" и Table с тем же DataPath.
+        // InputField ссылается через Items.МойСписок.CurrentData.Ссылка.
+        Path file = writeXml("Form.xml",
+                "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n" +
+                "<Form xmlns=\"http://v8.1c.ru/8.3/xcf/logform\" version=\"2.17\">\n" +
+                "\t<AutoCommandBar name=\"ФормаКоманднаяПанель\" id=\"-1\"/>\n" +
+                "\t<Attributes>\n" +
+                "\t\t<Attribute name=\"МойСписок\" id=\"1\"/>\n" +
+                "\t</Attributes>\n" +
+                "\t<ChildItems>\n" +
+                "\t\t<Table name=\"МойСписок\" id=\"2\">\n" +
+                "\t\t\t<DataPath>МойСписок</DataPath>\n" +
+                "\t\t\t<ContextMenu name=\"МойСписокКонтекст\" id=\"3\"/>\n" +
+                "\t\t\t<AutoCommandBar name=\"МойСписокКоманды\" id=\"4\"/>\n" +
+                "\t\t\t<SearchStringAddition name=\"МойСписокПоискДоп\" id=\"5\"/>\n" +
+                "\t\t\t<ViewStatusAddition name=\"МойСписокСтатус\" id=\"6\"/>\n" +
+                "\t\t\t<SearchControlAddition name=\"МойСписокПоискУпр\" id=\"7\"/>\n" +
+                "\t\t\t<ChildItems>\n" +
+                "\t\t\t\t<InputField name=\"СсылкаПоле\" id=\"8\">\n" +
+                "\t\t\t\t\t<DataPath>Items.МойСписок.CurrentData.Ссылка</DataPath>\n" +
+                "\t\t\t\t\t<ContextMenu name=\"СсылкаПолеКонтекст\" id=\"9\"/>\n" +
+                "\t\t\t\t\t<ExtendedTooltip name=\"СсылкаПолеПодсказка\" id=\"10\"/>\n" +
+                "\t\t\t\t</InputField>\n" +
+                "\t\t\t</ChildItems>\n" +
+                "\t\t</Table>\n" +
+                "\t</ChildItems>\n" +
+                "</Form>\n");
+
+        XmlDocument doc = reader.parse(file);
+        List<ValidationIssue> issues = validator.validate(doc, ValidationLevel.SEMANTIC);
+
+        // Не должно быть FORM-102 для этого DataPath
+        assertThat(issues)
+                .as("Items.МойСписок.CurrentData.Ссылка must NOT produce FORM-102")
+                .noneMatch(i -> i.getCode().equals("FORM-102")
+                        && i.getMessage().contains("Items.МойСписок.CurrentData.Ссылка"));
+    }
+
+    /**
+     * SPEC §10.4 — testDataPath_Tilde_ResolvesRelativeToCurrentItem.
+     * <p>
+     * ~МойСписок.Ссылка должен снять ~ и резолвиться к реквизиту МойСписок — без FORM-102.
+     */
+    @Test
+    void testDataPath_Tilde_ResolvesRelativeToCurrentItem() throws Exception {
+        Path file = writeXml("Form.xml",
+                "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n" +
+                "<Form xmlns=\"http://v8.1c.ru/8.3/xcf/logform\" version=\"2.17\">\n" +
+                "\t<AutoCommandBar name=\"ФормаКоманднаяПанель\" id=\"-1\"/>\n" +
+                "\t<Attributes>\n" +
+                "\t\t<Attribute name=\"МойСписок\" id=\"1\"/>\n" +
+                "\t</Attributes>\n" +
+                "\t<ChildItems>\n" +
+                "\t\t<InputField name=\"Поле1\" id=\"2\">\n" +
+                "\t\t\t<DataPath>~МойСписок.Ссылка</DataPath>\n" +
+                "\t\t\t<ContextMenu name=\"Поле1Контекст\" id=\"3\"/>\n" +
+                "\t\t\t<ExtendedTooltip name=\"Поле1Подсказка\" id=\"4\"/>\n" +
+                "\t\t</InputField>\n" +
+                "\t</ChildItems>\n" +
+                "</Form>\n");
+
+        XmlDocument doc = reader.parse(file);
+        List<ValidationIssue> issues = validator.validate(doc, ValidationLevel.SEMANTIC);
+
+        assertThat(issues)
+                .as("~МойСписок.Ссылка must NOT produce FORM-102")
+                .noneMatch(i -> i.getCode().equals("FORM-102")
+                        && i.getMessage().contains("~МойСписок.Ссылка"));
+    }
+
+    /**
+     * SPEC §10.4 — testDataPath_NumericIndex_SilentSkip.
+     * <p>
+     * Числовой DataPath ("10", "1000003") не должен порождать FORM-102.
+     */
+    @Test
+    void testDataPath_NumericIndex_SilentSkip() throws Exception {
+        Path file = writeXml("Form.xml",
+                "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n" +
+                "<Form xmlns=\"http://v8.1c.ru/8.3/xcf/logform\" version=\"2.17\">\n" +
+                "\t<AutoCommandBar name=\"ФормаКоманднаяПанель\" id=\"-1\"/>\n" +
+                "\t<ChildItems>\n" +
+                "\t\t<InputField name=\"Поле1\" id=\"2\">\n" +
+                "\t\t\t<DataPath>1000003</DataPath>\n" +
+                "\t\t\t<ContextMenu name=\"Поле1Контекст\" id=\"3\"/>\n" +
+                "\t\t\t<ExtendedTooltip name=\"Поле1Подсказка\" id=\"4\"/>\n" +
+                "\t\t</InputField>\n" +
+                "\t</ChildItems>\n" +
+                "</Form>\n");
+
+        XmlDocument doc = reader.parse(file);
+        List<ValidationIssue> issues = validator.validate(doc, ValidationLevel.SEMANTIC);
+
+        assertThat(issues)
+                .as("Numeric DataPath '1000003' must be silently skipped (no FORM-102)")
+                .noneMatch(i -> i.getCode().equals("FORM-102"));
+    }
+
+    /**
+     * SPEC §10.4 — testDataPath_UuidIndex_SilentSkip.
+     * <p>
+     * UUID-ссылка DataPath ("1/0:a917a122-f663-4c45-8de0-fd5104007de3") → silent skip, без FORM-102.
+     */
+    @Test
+    void testDataPath_UuidIndex_SilentSkip() throws Exception {
+        Path file = writeXml("Form.xml",
+                "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n" +
+                "<Form xmlns=\"http://v8.1c.ru/8.3/xcf/logform\" version=\"2.17\">\n" +
+                "\t<AutoCommandBar name=\"ФормаКоманднаяПанель\" id=\"-1\"/>\n" +
+                "\t<ChildItems>\n" +
+                "\t\t<InputField name=\"Поле1\" id=\"2\">\n" +
+                "\t\t\t<DataPath>1/0:a917a122-f663-4c45-8de0-fd5104007de3</DataPath>\n" +
+                "\t\t\t<ContextMenu name=\"Поле1Контекст\" id=\"3\"/>\n" +
+                "\t\t\t<ExtendedTooltip name=\"Поле1Подсказка\" id=\"4\"/>\n" +
+                "\t\t</InputField>\n" +
+                "\t</ChildItems>\n" +
+                "</Form>\n");
+
+        XmlDocument doc = reader.parse(file);
+        List<ValidationIssue> issues = validator.validate(doc, ValidationLevel.SEMANTIC);
+
+        assertThat(issues)
+                .as("UUID DataPath must be silently skipped (no FORM-102)")
+                .noneMatch(i -> i.getCode().equals("FORM-102"));
+    }
+
+    /**
+     * SPEC §10.4 — testDataPath_ItemsCurrentDataOnNonTable_Errors.
+     * <p>
+     * Items.НеСуществующаяТаблица.CurrentData.Ссылка → FORM-102 (таблица не найдена).
+     */
+    @Test
+    void testDataPath_ItemsCurrentDataOnNonTable_Errors() throws Exception {
+        Path file = writeXml("Form.xml",
+                "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n" +
+                "<Form xmlns=\"http://v8.1c.ru/8.3/xcf/logform\" version=\"2.17\">\n" +
+                "\t<AutoCommandBar name=\"ФормаКоманднаяПанель\" id=\"-1\"/>\n" +
+                "\t<Attributes>\n" +
+                "\t\t<Attribute name=\"МойСписок\" id=\"1\"/>\n" +
+                "\t</Attributes>\n" +
+                "\t<ChildItems>\n" +
+                "\t\t<InputField name=\"Поле1\" id=\"2\">\n" +
+                "\t\t\t<DataPath>Items.НесуществующаяТаблица.CurrentData.Ссылка</DataPath>\n" +
+                "\t\t\t<ContextMenu name=\"Поле1Контекст\" id=\"3\"/>\n" +
+                "\t\t\t<ExtendedTooltip name=\"Поле1Подсказка\" id=\"4\"/>\n" +
+                "\t\t</InputField>\n" +
+                "\t</ChildItems>\n" +
+                "</Form>\n");
+
+        XmlDocument doc = reader.parse(file);
+        List<ValidationIssue> issues = validator.validate(doc, ValidationLevel.SEMANTIC);
+
+        assertThat(issues)
+                .as("Items.НесуществующаяТаблица.CurrentData.* must produce FORM-102")
+                .anyMatch(i -> i.getCode().equals("FORM-102")
+                        && i.getMessage().contains("НесуществующаяТаблица"));
+    }
 }

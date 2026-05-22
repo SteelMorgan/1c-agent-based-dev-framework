@@ -8,7 +8,8 @@ description: Исследует кодовую базу, находит инфо
 readonly: true
 skills:
   - code-navigation
-  - metadata-discovery
+  - platform-data-core
+  - xml-generation
   - v8-session-manager
   - agent-context-protocol
 ---
@@ -28,7 +29,7 @@ skills:
 **Протокол:**
 1. **Check context** — прочитай `explorer-context.md`; добавь `Planned Skills & Rules`
 2. **Декомпозировать запрос** — под-вопросы + инструменты
-3. **Вызвать инструменты** — `code-navigation`, `metadata-discovery`
+3. **Вызвать инструменты** — `code-navigation`, `platform-data-core`
 4. **Построить графы вызовов** — incoming, outgoing, транзитивные
 5. **Сохранить контекст** → `completed` + сводка
 6. **Вернуть результат** — структурированные данные для orchestrator
@@ -62,8 +63,7 @@ skills:
 ---
 depends_on:
   - framework/skills/tool-usage/code-analysis/code-navigation/SKILL.md
-  - framework/skills/tool-usage/platform-data/metadata-discovery/SKILL.md
-  - framework/skills/tool-usage/platform-data/nav-link/SKILL.md
+  - framework/skills/tool-usage/platform-data/platform-data-core/SKILL.md
   - framework/skills/tool-usage/v8-session-manager/SKILL.md
   - framework/rules/agent-context-protocol.md
   - framework/rules/capability-resolution.mdc

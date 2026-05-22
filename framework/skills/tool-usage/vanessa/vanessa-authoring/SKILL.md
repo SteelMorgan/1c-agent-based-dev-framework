@@ -142,7 +142,7 @@ depends_on:
   - framework/rules/vanessa-run-loop.mdc
   - framework/skills/tool-usage/vanessa/vanessa-run/SKILL.md
   - framework/skills/tool-usage/vanessa/vanessa-diagnostics/SKILL.md
-  - framework/skills/tool-usage/forms/form-element-mapping/SKILL.md
+  - framework/skills/tool-usage/platform-data/xml-generation/SKILL.md
 requires:
   - tools
 ---

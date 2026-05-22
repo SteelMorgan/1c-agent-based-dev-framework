@@ -1,163 +1,158 @@
 ---
 name: mxl-dsl
-description: "JSON DSL for generating 1С tabular documents (MXL) with areas, cells, fonts, and styles. Use it with mxl compile for print forms."
+description: "JSON DSL for generating 1С tabular documents (MXL) — print forms. Rich canon: page/columns/rowStyle/rowspan/empty/detail/template/format. Use when running mxl compile/decompile/info/validate for print forms."
 ---
 
 # MXL DSL
 
-JSON DSL for generating 1С tabular documents (SpreadsheetDocument).
+Compact JSON format for describing 1С tabular documents (SpreadsheetDocument). Claude describes **what** (areas, cells, styles, parameters), while the CLI ensures XML **correctness** (palettes, indices, merges, namespace).
 
-## When to Use
+The canon is based on the Shirokov specification (cc-1c-skills) and extended with the `--format designer|edt` flag for two output formats.
+
+## When to use
 
 | Trigger | Action |
-|---------|--------|
-| Need to create a print form (tabular document) | `mxl compile` with JSON DSL |
-| Need to add an area to the template | Describe it in `areas`, then recompile |
-| Need to use parameters in cells | `parameters` + `[ParameterName]` in the text |
-| Need to apply styles | `fonts` + `styles` + `style` in the cell |
-| Need to analyze an existing layout | `mxl info <Template.xml>` |
-| Need reverse conversion XML → JSON | `mxl decompile <Template.xml> <output.json>` |
+|---------|----------|
+| Create a print form from scratch | `mxl compile` + JSON DSL → `references/dsl-spec.md` |
+| Refine an existing template | `mxl decompile` → edit JSON → `mxl compile` |
+| Understand the structure of someone else's template (areas, parameters, drilldowns) | `mxl info` → `references/info-modes.md` |
+| Validate the assembled Template.xml | `mxl validate` → `references/validate-classes.md` |
+| Reverse-engineer printing from a sample (screenshot/scan) | `mxl decompile` or build from scratch against the grid — set `page` + `"Nx"` widths |
 
-## Compile command
+## Commands
 
 ```bash
+# Compile JSON → Template.xml
 xml-gen mxl compile [--format designer|edt] <input.json> <output.xml>
-```
 
-**output.xml** — path to Template.xml or a layout inside an EPF: `.../Templates/<Name>/Ext/Template.xml`
-
-## Info command
-
-Analyze the layout structure: areas, parameters, columns.
-
-```bash
-xml-gen mxl info <Template.xml>
-```
-
-## Decompile command
-
-The reverse conversion from Template.xml to JSON DSL.
-
-```bash
+# Decompile Template.xml → JSON DSL
 xml-gen mxl decompile <Template.xml> <output.json>
+
+# Analyze structure (areas, parameters, drilldowns, text)
+xml-gen mxl info <Template.xml> [--with-text] [--limit N] [--offset N] [--format text|json]
+
+# Validation
+xml-gen mxl validate <Template.xml> [--detailed] [--max-errors N]
 ```
 
-## DSL structure
+**`output.xml`** for compile is the path to the template in EPF/ERF: `.../Templates/<Name>/Ext/Template.xml`.
 
-### Minimal document
+**`--format`** (compile only):
+- `designer` — the configurator format (Template.xml in `Ext/`)
+- `edt` — the EDT format (XML inside the `.mxl` folder of an EDT project)
+
+## Minimal DSL
 
 ```json
 {
+  "columns": 4,
   "areas": [
     {
-      "name": "Header",
+      "name": "Заголовок",
       "rows": [
-        {"cells": [{"text": "Заголовок"}]}
+        { "cells": [
+          { "col": 1, "span": 4, "text": "Накладная" }
+        ]}
       ]
     }
   ]
 }
 ```
 
-### Areas (areas)
+## Key differences from the old inline format
 
-```json
-{
-  "name": "ИмяОбласти",
-  "rows": [
-    {"cells": [
-      {"text": "Текст ячейки"},
-      {"text": "Объединённая", "span": 3},
-      {"text": "[Параметр]", "style": "HeaderStyle"}
-    ]}
-  ]
-}
+| Was (old) | Became (canon) |
+|--------------|---------------|
+| `{"text": "[Parameter]"}` — parameter through brackets in the text | `{"param": "Parameter"}` — separate cell type |
+| `{"text": "Inv. No. [Number]"}` — parameter in the template through brackets | `{"template": "Inv. No. [Number]"}` — separate type |
+| `span` without `col` (sequential filling) | `col` 1-based + `span` (explicit positioning) |
+| Column widths were not set | `columns` + `columnWidths` + `page` + `"Nx"` |
+| Solid row borders — every cell explicitly | `rowStyle` — auto-filling empty spaces |
+| Only horizontal merging | `rowspan` (vertical) + rowStyle accounts for occupied cells |
+| Drilldown was not described | `detail` — drilldown parameter next to `param` |
+| Row height was not set | `height` on the row |
+| N empty rows — N `{}` objects | `{ "empty": N }` |
+
+The full specification of fields (top level, fonts, styles, areas, rows, cells, fillType detection, rowStyle with rowspan, `"Nx"` proportions, 1С `ЧДЦ=`/`ДФ=` formats) — **`references/dsl-spec.md`**.
+
+## Using Areas in BSL
+
+Area names from the DSL (`name`) and parameter names (`param`) are what BSL uses to access the template:
+
+```bsl
+ТД = ЭтотОбъект.ПолучитьМакет("ПечатнаяФорма");
+ТабДок = Новый ТабличныйДокумент;
+
+ОбластьШапка = ТД.ПолучитьОбласть("Заголовок");
+ОбластьШапка.Параметры.ТекстЗаголовка = "Накладная № 1";
+ТабДок.Вывести(ОбластьШапка);
+
+Для Каждого Стр Из ТЧ Цикл
+    Строка = ТД.ПолучитьОбласть("Строка");
+    Строка.Параметры.Товар       = Стр.Товар;        // detail = Номенклатура подставит ссылку для расшифровки
+    Строка.Параметры.Количество  = Стр.Количество;
+    Строка.Параметры.Сумма       = Стр.Сумма;
+    ТабДок.Вывести(Строка);
+КонецЦикла;
 ```
 
-### Fonts and styles
+For **intersections** (Rows area + Columns area, for example labels/price tags), access via `|`:
 
-```json
-{
-  "fonts": {
-    "HeaderFont": {"face": "Arial", "size": 14, "bold": true}
-  },
-  "styles": {
-    "HeaderStyle": {
-      "font": "HeaderFont",
-      "horizontalAlignment": "Center",
-      "border": "all",
-      "borderWidth": "thick"
-    }
-  }
-}
+```bsl
+Область = ТД.ПолучитьОбласть("ВысотаЭтикетки|ШиринаЭтикетки");
 ```
 
-### Parameters
+## Decompile - what is important to know
 
-```json
-{
-  "parameters": [
-    {"name": "Организация", "type": "CatalogRef.Организации"},
-    {"name": "ДатаНачала", "type": "date"}
-  ]
-}
-```
+- Fonts and styles receive **automatic meaningful names** (`default`, `bold`, `header`, `bordered`, `bordered-right`, `bold-right`, `border-top`, etc.) based on property combinations — they do not have to match the original.
+- If all empty cells in a row have the same style, it is collapsed into `rowStyle`, and empty cells are removed from the output.
+- Template parameters (`[Name]` in text) are split out into separate `template` cells.
 
-Usage in cells: `{"text": "[Организация]"}`
+## Workflow (typical)
 
-### Cell properties
-
-| Property | Description |
-|----------|-------------|
-| `text` | Cell text |
-| `span` | Cell merging (colspan) |
-| `style` | Style name |
-
-### Style properties
-
-`font`, `horizontalAlignment` (Left/Center/Right), `verticalAlignment`, `border` (all/top/bottom/left/right), `borderWidth` (thin/thick), `textPlacement` (Wrap/Block), `format` (ЧДЦ=2, ДФ=dd.MM.yyyy)
+1. (optional) If the template is being created from an image — overlay a grid, determine column proportions → set `page: "A4-landscape"` + `"Nx"` widths.
+2. Write the JSON (`Write`).
+3. `mxl compile` → Template.xml.
+4. `mxl validate` → if there are errors, see `references/validate-classes.md`.
+5. `mxl info` → inspect the structure of areas and parameters visually as the agent sees it.
+6. (for adapting someone else's template) `mxl decompile` → edit → compile.
 
 ## Correct / Incorrect
 
 ```json
-// ❌ Неправильно — параметр в ячейке без скобок (не подставится при выводе)
-{"cells": [{"text": "Организация"}]}
+// ❌ static text and parameter are crammed into one cell through brackets
+{ "col": 2, "text": "Инв № [Номер]" }
 
-// ✅ Правильно — [ИмяПараметра] для подстановки
-{"cells": [{"text": "[Организация]"}]}
+// ✅ this is a template with substitution → template
+{ "col": 2, "template": "Инв № [Номер]" }
 ```
 
-> 1С looks for `[Name]` in the area text and substitutes the value from parameters during rendering. Without brackets — static text.
+```json
+// ❌ solid row borders — every empty cell is written manually
+{ "cells": [
+  { "col": 1, "style": "bordered", "param": "А" },
+  { "col": 2, "style": "bordered" },
+  { "col": 3, "style": "bordered" },
+  { "col": 4, "style": "bordered", "param": "Б" }
+]}
 
-## Using areas in BSL code
-
-Area names from the DSL (the field "name") are used directly in BSL when rendering the print form:
-
-```bsl
-// ПечатнаяФорма — имя макета в обработке (соответствует name в epf add-template)
-ТД = ЭтотОбъект.ПолучитьМакет("ПечатнаяФорма");
-ТабДок = Новый ТабличныйДокумент;
-
-// "Header", "Row", "Footer" — значения поля "name" из DSL-секции areas
-ОбластьШапка = ТД.ПолучитьОбласть("Header");
-ТабДок.Вывести(ОбластьШапка);
-
-Для Каждого Строка Из ДанныеДляВывода Цикл
-    ОбластьСтрока = ТД.ПолучитьОбласть("Row");
-    ОбластьСтрока.Параметры.Наименование = Строка.Наименование;
-    ОбластьСтрока.Параметры.Сумма       = Строка.Сумма;
-    ТабДок.Вывести(ОбластьСтрока);
-КонецЦикла;
-
-ОбластьПодвал = ТД.ПолучитьОбласть("Footer");
-ТабДок.Вывести(ОбластьПодвал);
+// ✅ rowStyle auto-fills empty spaces
+{ "rowStyle": "bordered", "cells": [
+  { "col": 1, "param": "А" },
+  { "col": 4, "param": "Б" }
+]}
 ```
 
-> Area parameter names (`Параметры.Наименование`) must match the keys from the DSL `"params"` field of the corresponding area.
+## Links
+
+- `references/dsl-spec.md` — full DSL field specification
+- `references/info-modes.md` — how to read `mxl info` output (area types, intersections, `[tpl]` parameters, detail)
+- `references/validate-classes.md` — validator error classes
+- Adjacent DSLs: `../role-dsl/`, `../form-dsl/`
 
 ---
 depends_on: []
 metadata:
   category: 1c-development
-  version: "1.0"
+  version: "2.0"
 ---

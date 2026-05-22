@@ -65,37 +65,59 @@ public class MxlDecompiler {
         if (!fonts.isEmpty()) result.put("fonts", fonts);
 
         // --- Styles (format elements with id) ---
+        // Auto-naming: when a <format> has no id, assign Style1/Style2/... based on
+        // a stable signature (so identical styles share one name).
+        // Канон Широкова: уникальные стили → именованные.
         Map<String, Object> styles = new LinkedHashMap<>();
+        Map<String, String> autoNameBySignature = new LinkedHashMap<>(); // signature -> StyleN
+        int autoCounter = 0;
         for (XmlNode fmt : root.children("format")) {
             String id = fmt.childText("id");
-            if (id != null) {
-                Map<String, Object> s = new LinkedHashMap<>();
-                putIfNotNull(s, "font", fmt.childText("font"));
-                String hAlign = fmt.childText("horizontalAlignment");
-                if (hAlign != null) s.put("align", hAlign.toLowerCase());
-                String vAlign = fmt.childText("verticalAlignment");
-                if (vAlign != null) s.put("valign", vAlign.toLowerCase());
+            Map<String, Object> s = new LinkedHashMap<>();
+            putIfNotNull(s, "font", fmt.childText("font"));
+            String hAlign = fmt.childText("horizontalAlignment");
+            if (hAlign != null) s.put("align", hAlign.toLowerCase());
+            String vAlign = fmt.childText("verticalAlignment");
+            if (vAlign != null) s.put("valign", vAlign.toLowerCase());
 
-                // Border
-                XmlNode border = fmt.child("border");
-                if (border != null) {
-                    List<String> sides = new ArrayList<>();
-                    if (border.child("top") != null) sides.add("top");
-                    if (border.child("bottom") != null) sides.add("bottom");
-                    if (border.child("left") != null) sides.add("left");
-                    if (border.child("right") != null) sides.add("right");
-                    if (sides.size() == 4) {
-                        s.put("border", "all");
-                    } else if (!sides.isEmpty()) {
-                        s.put("border", String.join(",", sides));
-                    }
+            // Border
+            XmlNode border = fmt.child("border");
+            if (border != null) {
+                List<String> sides = new ArrayList<>();
+                if (border.child("top") != null) sides.add("top");
+                if (border.child("bottom") != null) sides.add("bottom");
+                if (border.child("left") != null) sides.add("left");
+                if (border.child("right") != null) sides.add("right");
+                if (sides.size() == 4) {
+                    s.put("border", "all");
+                } else if (!sides.isEmpty()) {
+                    s.put("border", String.join(",", sides));
                 }
+            }
 
-                String textPlacement = fmt.childText("textPlacement");
-                if ("Wrap".equals(textPlacement)) s.put("wrap", true);
+            String textPlacement = fmt.childText("textPlacement");
+            if ("Wrap".equals(textPlacement)) s.put("wrap", true);
 
-                putIfNotNull(s, "format", fmt.childText("format"));
-                if (!s.isEmpty()) styles.put(id, s);
+            putIfNotNull(s, "format", fmt.childText("format"));
+
+            if (s.isEmpty()) continue;
+
+            if (id != null && !id.isEmpty()) {
+                // Preserve explicit name from XML.
+                styles.put(id, s);
+            } else {
+                // Skip width-only synthesized formats (no relevant style content).
+                String width = fmt.childText("width");
+                if (width != null && s.isEmpty()) continue;
+                // Auto-name. Build a stable signature key by sorted entries.
+                String signature = s.toString();
+                String autoName = autoNameBySignature.get(signature);
+                if (autoName == null) {
+                    autoCounter++;
+                    autoName = "Style" + autoCounter;
+                    autoNameBySignature.put(signature, autoName);
+                    styles.put(autoName, s);
+                }
             }
         }
         if (!styles.isEmpty()) result.put("styles", styles);

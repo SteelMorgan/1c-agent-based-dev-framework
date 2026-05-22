@@ -29,7 +29,7 @@ description: "Алгоритм рантайм-расследования баг�
 |---|---|---|
 | **L0** | Чтение исходников + спеки/дизайна (`code-navigation`) | Всегда первым |
 | **L1** | `event-log-analysis` — ЖР через ClickHouse | Уже отработавший прогон, есть Error/Warning |
-| **L2** | `query-execution` — запросы к БД | Проверить состояние данных независимо от кода |
+| **L2** | `platform-data-core` § Query Execution — запросы к БД | Проверить состояние данных независимо от кода |
 | **L3** | `agent-debug` точки в коде | L0-L2 не дали ответа: факт вызова, путь if/else, значение/тип переменной |
 | **L4** | Перепрогон сценария/теста после вставок | После L3 — собрать наблюдения |
 | **L5** | `gui-control` + `screenshot` | Симптом в UI, неясно что на форме |
@@ -79,7 +79,7 @@ L0-L6 дебаггер использует автономно. Переход �
                которое легко откатить;
            (b) дополнительные пробы (префикс `AGENTDEBUG-<bug-id>-H<N>-NNN`) —
                новые ключевые переменные, узлы между размеченными,
-               состояние данных через query-execution.
+               состояние данных через platform-data-core § Query Execution.
 
     3.N.3  Применить, прогнать, прочитать трассу. Сохранить trace-run-<N+1>.md.
 
@@ -318,7 +318,7 @@ depends_on:
   - framework/skills/tool-usage/diagnostics/agent-debug/SKILL.md
   - framework/skills/tool-usage/diagnostics/event-log-analysis/SKILL.md
   - framework/skills/tool-usage/diagnostics/tech-log-analysis/SKILL.md
-  - framework/skills/tool-usage/platform-data/query-execution/SKILL.md
+  - framework/skills/tool-usage/platform-data/platform-data-core/SKILL.md
   - framework/skills/tool-usage/code-analysis/code-navigation/SKILL.md
   - framework/skills/tool-usage/code-analysis/syntax-checking/SKILL.md
   - framework/workflows/source-of-truth-policy.md

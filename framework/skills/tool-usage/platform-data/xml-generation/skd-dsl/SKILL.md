@@ -1,148 +1,270 @@
 ---
 name: skd-dsl
-description: "JSON DSL для генерации схем компоновки данных 1С (SKD) с отборами, сортировкой и условным оформлением. Используй при skd compile для отчётов."
+description: "JSON DSL для генерации и анализа схем компоновки данных 1С (СКД). Используй при xml-gen skd compile/info/validate — наборы данных (Query/Object/Union), вычисляемые поля, шаблоны вывода, варианты настроек, условное оформление."
 ---
 
 # SKD DSL
-
-JSON DSL для генерации схем компоновки данных 1С (DataCompositionSchema).
 
 ## Когда применять
 
 | Триггер | Действие |
 |---------|----------|
-| Нужно создать отчёт (СКД) | `skd compile` с JSON DSL |
-| Нужно добавить параметр в существующую схему | `skd add-parameter` → [xml-gen-cli](../xml-gen-cli/) |
-| Нужно добавить поле в DataSet | `skd add-field` → [xml-gen-cli](../xml-gen-cli/) |
-| Нужен DataSetUnion | Workaround: DataSetQuery с UNION в запросе |
-| Нужны вычисляемые поля | Workaround: вычисления в SELECT запроса |
-| Нужно анализировать существующую СКД | `skd info <Schema.xml>` |
+| Создать отчёт (СКД) с нуля | `xml-gen skd compile` с JSON DSL |
+| Внешний набор (без запроса) | `dataSets[].objectName` (DataSetObject) |
+| Объединение наборов | `dataSets[].items` (DataSetUnion) |
+| Вычисляемые поля | `calculatedFields` (shorthand или объект) |
+| Шаблоны вывода | `templates` + `groupTemplates` — см. [references/templates-dsl.md](references/templates-dsl.md) |
+| Расшифровка ячеек | `parameters[].drilldown` в шаблоне |
+| Связи между наборами | `dataSetLinks` |
+| Понять чужую СКД | `xml-gen skd info --mode overview` → затем `trace`/`query`/`variant` |
+| Проверить корректность | `xml-gen skd validate` |
+| Точечное редактирование | `skd add-parameter` / `skd add-field` → [xml-generation](../SKILL.md) §3 |
 
-## Команда compile
+## Команды CLI
 
 ```bash
+# Компиляция: JSON DSL → Template.xml
 xml-gen skd compile [--format designer|edt] <input.json> <output.xml>
+
+# Анализ: Template.xml → компактная сводка (11 режимов)
+xml-gen skd info <Template.xml> [--mode <mode>] [--name <name>] [--batch <N>]
+
+# Валидация структуры
+xml-gen skd validate <Template.xml> [--detailed] [--max-errors 20]
 ```
 
-**Редактирование** (add-parameter, add-field) — см. [xml-gen-cli](../xml-gen-cli/)
+`output.xml` — путь к Template.xml макета: `.../Templates/<Name>/Ext/Template.xml`.
 
-## Команда info
-
-Анализ СКД: наборы данных, поля, параметры, варианты настроек.
-
-```bash
-xml-gen skd info <Schema.xml>
-```
-
-## Структура DSL
-
-### Минимальная схема
+## Корневая структура DSL
 
 ```json
 {
-  "dataSets": [
-    {
-      "name": "НаборДанных1",
-      "query": "ВЫБРАТЬ Наименование, Количество ИЗ Номенклатура",
-      "fields": [
-        {"dataPath": "Наименование"},
-        {"dataPath": "Количество"}
-      ]
-    }
-  ]
+  "dataSets": [...],
+  "calculatedFields": [...],
+  "totalFields": [...],
+  "parameters": [...],
+  "templates": [...],
+  "groupTemplates": [...],
+  "dataSetLinks": [...],
+  "settingsVariants": [...]
 }
 ```
 
-### DataSetQuery (запрос)
+Умолчания: `dataSources` → авто `ИсточникДанных1/Local`; `settingsVariants` → авто «Основной» с детальными записями.
 
-```json
-{
-  "name": "Продажи",
-  "query": "ВЫБРАТЬ Организация, Номенклатура, Количество, Сумма ИЗ РегистрНакопления.Продажи",
-  "fields": [
-    {"dataPath": "Организация", "title": "Организация"},
-    {"dataPath": "Сумма", "title": "Сумма", "type": "number(15,2)"}
-  ]
-}
+## Наборы данных
+
+Тип определяется по ключу: `query` → DataSetQuery, `objectName` → DataSetObject, `items` → DataSetUnion.
+
+**DataSetQuery:** `{ "name": "...", "query": "ВЫБРАТЬ ...", "fields": [...] }`. Запрос — инлайн-строка или файл `"query": "@queries/sales.sql"` (путь относительно JSON, затем CWD).
+**DataSetObject:** внешний набор без запроса. Данные передаются через `ПроцессорКомпоновкиДанных.Инициализировать(Макет, Новый Структура("<objectName>", ТЗ), …)`. Поля описываются явно в `fields[]`. `name` — имя набора, `objectName` — ключ в структуре передачи данных.
+**DataSetUnion:** `{ "name": "...", "items": [...], "fields": [...] }` — объединение наборов с общими полями.
+
+## Поля — shorthand и объектная форма
+
+Shorthand: `"Имя [Заголовок]: тип @роль #ограничение"`. Примеры:
+```
+"Наименование"
+"Количество: decimal(15,2)"
+"Организация: CatalogRef.Организации @dimension"
+"Служебное: string #noFilter #noOrder"
 ```
 
-**Типы полей:** `string`, `string(N)`, `number`, `number(D,F)`, `boolean`, `date`, `CatalogRef.Name`, `DocumentRef.Name`
-
-### Параметры
-
+Объектная форма:
 ```json
-{
-  "parameters": [
-    {"name": "Период", "title": "Период", "type": "StandardPeriod", "value": "LastMonth"},
-    {"name": "Организация", "title": "Организация", "type": "CatalogRef.Организации"}
-  ]
-}
+{ "field": "Сумма", "title": "Сумма продажи", "type": "decimal(15,2)",
+  "appearance": { "ГоризонтальноеПоложение": "Right", "МинимальнаяШирина": "80" } }
+```
+`dataPath` берётся из `field`, если не указан явно.
+
+**Заголовок:** многоязычный `"title": { "ru": "...", "en": "..." }`. Поддерживается везде, где принимается title/presentation.
+
+**Типы:** `string`, `string(N)`, `decimal`, `decimal(D,F)`, `boolean`, `date`, `dateTime`. `decimal` без скобок = `decimal(10,2)`. `decimal(N)` = `decimal(N,0)`. Суффикс `,nonneg` → `AllowedSign=Nonnegative`. Алиасы `number`/`число` ≡ `decimal`.
+
+Ссылочные: `CatalogRef.X`, `DocumentRef.X`, `EnumRef.X`, `ChartOfAccountsRef.X`, `StandardPeriod`. Эмитируются с inline-неймспейсом `d5p1:`. Сборка EPF со ссылочными типами требует базы с подходящей конфигурацией.
+
+Составной тип — массив в объектной форме: `"type": ["CatalogRef.А", "CatalogRef.Б"]`. Квалификаторы применяются к каждому элементу.
+
+**Роли:** `@dimension`, `@account`, `@balance`, `@period`.
+
+**Ограничения:** shorthand-флаги `#noField`, `#noFilter`, `#noGroup`, `#noOrder`; объектная форма: `"restrict": ["noField", "noFilter"]`.
+
+**Дополнительно:** `presentationExpression` — выражение представления (значение остаётся для расшифровки). `appearance` — оформление колонки по умолчанию (ключи параметров платформы).
+
+## Вычисляемые поля (calculatedFields)
+
+Shorthand: `"Имя [Заголовок]: тип = Выражение #флаги"` — всё кроме имени опционально.
+```json
+"calculatedFields": [
+  "Маржа = Цена - Закупка",
+  "Наценка [Наценка, %]: decimal(10,2) = Маржа / Закупка * 100",
+  "Служебное: string = \"\" #noField #noFilter #noGroup #noOrder"
+]
+```
+Объектная форма — когда нужна `appearance` или составные настройки: `{ "name", "title", "expression", "type", "useRestriction" }`.
+
+## Итоги (totalFields)
+
+Shorthand: `"totalFields": ["Количество: Сумма", "Стоимость: Сумма(Кол * Цена)"]`.
+
+С привязкой к группировкам — объектная форма:
+```json
+{ "dataPath": "Кол", "expression": "Сумма(Кол)", "group": ["Группа1", "Группа1 Иерархия", "ОбщийИтог"] }
 ```
 
-### Варианты настроек (settingsVariants)
+## Параметры
+
+Shorthand: `"Имя [Заголовок]: тип = значение @флаги"`.
+
+| Флаг | Эффект |
+|------|--------|
+| `@autoDates` | Для `StandardPeriod` — добавляет производные `НачалоПериода`/`КонецПериода`. Используй `&НачалоПериода`/`&КонецПериода` в запросе. Параметр получает `use=Always`, `denyIncompleteValues=true`. |
+| `@valueList` | `valueListAllowed=true` — разрешает список значений. |
+| `@hidden` | `availableAsField=false` + исключение из `"dataParameters": "auto"`. |
+| `@always` | `use=Always`. |
+
+Объектная форма: `title`, `hidden`, `valueListAllowed`, `availableAsField`, `denyIncompleteValues`, `use: "Always"`, `availableValues[]`.
+
+`"dataParameters": "auto"` в варианте настроек — выводит все не-hidden параметры с `userSettingID`. Параметры без значения по умолчанию отключаются (пользователь включит сам).
+
+## Фильтры
+
+Shorthand: `"Поле оператор значение @флаги"`. Значение `_` = пустое (placeholder).
+
+Операторы: `=`, `<>`, `>`, `>=`, `<`, `<=`, `in`, `notIn`, `contains`, `filled`, `notFilled`, `InHierarchy`.
+
+Флаги: `@off` (use=false), `@user` (userSettingID=auto), `@quickAccess`, `@normal`, `@inaccessible`.
+
+Группы:
+```json
+{ "group": "Or", "items": [
+  { "group": "And", "items": [
+    { "field": "Статус", "op": "=", "value": "Активен" },
+    { "field": "Сумма",  "op": ">", "value": 1000 }
+  ]},
+  { "field": "Количество", "op": "filled" }
+]}
+```
+
+Типы значений: `Перечисление.*` / `Справочник.*` / `ПланСчетов.*` / `Документ.*` → DesignTimeValue (автодетект).
+
+## Связи наборов (dataSetLinks)
+
+```json
+"dataSetLinks": [{ "source": "...", "target": "...",
+  "items": [{ "sourceExpression": "Организация", "targetExpression": "Организация" }]
+}]
+```
+
+## Структура варианта (structure)
+
+String shorthand: `"structure": "Организация > Номенклатура > details"` (`>` разделяет уровни, `details`/`детали` = детальные записи).
+
+Объектная форма:
+```json
+"structure": [{ "name": "...", "groupFields": ["Организация"],
+  "selection": ["Организация", "Сумма", "Auto"], "children": [{ "groupFields": [] }] }]
+```
+`type` по умолчанию `"group"`. Поддерживаются `name`, `selection`, `order`, `filter`, `outputParameters`, рекурсивные `children`, `type: "table"`, `type: "chart"`.
+
+## Варианты настроек (settingsVariants)
+
+```json
+"settingsVariants": [{
+  "name": "Основной", "title": "Продажи по организациям",
+  "settings": {
+    "selection": ["Номенклатура", "Количество", "Auto"],
+    "filter": ["Организация = _ @off @user"],
+    "order": ["Количество desc", "Auto"],
+    "outputParameters": { "Заголовок": "Мой отчёт" },
+    "dataParameters": ["Период = LastMonth @user"],
+    "structure": "Организация > details"
+  }
+}]
+```
+
+`selection`: `"Auto"` = все доступные поля; `{ "folder": "...", "items": [...] }` → `SelectedItemFolder`.
+
+## Условное оформление (conditionalAppearance)
+
+```json
+{ "selection": ["Поле1"], "filter": ["Поле1 notFilled"],
+  "appearance": { "Текст": "Не указано", "ЦветТекста": "style:XXX" },
+  "presentation": "...", "viewMode": "Normal", "userSettingID": "auto" }
+```
+
+Значения `appearance`: `style:XXX`/`web:XXX`/`win:XXX` → Color; `true`/`false` → Boolean; `Формат`/`Текст`/`Заголовок` → LocalStringType; прочее → String.
+
+В `settingsVariants.settings` добавляется ключом `"conditionalAppearance": [...]`.
+
+## Шаблоны вывода и группировок
+
+Полная спецификация (синтаксис ячеек, стили, drilldown, groupTemplates) — [references/templates-dsl.md](references/templates-dsl.md).
+
+## Анализ — `xml-gen skd info`
+
+11 режимов. Подробные примеры вывода — [references/info-modes.md](references/info-modes.md).
+
+| Режим | Без `--name` | С `--name` |
+|-------|--------------|-------------|
+| `overview` (по умолч.) | Карта схемы + подсказки следующих шагов | — |
+| `query` | — | Текст запроса набора (с оглавлением батчей) |
+| `fields` | Карта полей по наборам | Деталь поля: dataset, тип, роль, формат |
+| `links` | Все связи наборов | — |
+| `calculated` | Карта вычисляемых полей | Выражение + заголовок + ограничения |
+| `resources` | Карта ресурсов (`*` = есть групповые формулы) | Формулы агрегации по группировкам |
+| `params` | Таблица параметров (тип, значение, видимость) | — |
+| `variant` | Список вариантов | Структура группировок + фильтры + вывод |
+| `templates` | Карта привязок шаблонов | Содержимое шаблона: строки, ячейки, выражения |
+| `trace` | — | Полная цепочка: набор → вычисление → ресурс |
+| `full` | overview + query + fields + resources + params + variant | — |
+
+Workflow: `overview` → `trace --name <поле>` → `query --name <набор>` → `variant --name <N>`. Параметры: `--mode`, `--name`, `--batch` (`0` = все пакеты), `--limit`/`--offset` (по умолч. 150), `--out-file`.
+
+## Пример — с внешним запросом, ресурсами, @autoDates
 
 ```json
 {
+  "dataSets": [{
+    "query": "@queries/sales.sql",
+    "fields": [
+      "Организация: CatalogRef.Организации @dimension",
+      "Номенклатура: CatalogRef.Номенклатура @dimension",
+      "Количество: decimal(15,3)", "Сумма: decimal(15,2)"
+    ]
+  }],
+  "totalFields": ["Количество: Сумма", "Сумма: Сумма"],
+  "parameters": ["Период: StandardPeriod = LastMonth @autoDates"],
   "settingsVariants": [{
     "name": "Основной",
     "settings": {
-      "selection": ["Организация", "Сумма"],
-      "filter": ["Сумма > 0", "Дата >= 2024-01-01T00:00:00"],
-      "order": ["Сумма desc", "Организация"],
-      "structure": [
-        {"type": "group", "groupBy": ["Организация"], "selection": ["Auto"]}
-      ],
-      "conditionalAppearance": [
-        {
-          "selection": ["Сумма"],
-          "filter": ["Сумма > 10000"],
-          "appearance": {"ЦветТекста": "web:Red"}
-        }
-      ]
+      "selection": ["Организация", "Номенклатура", "Количество", "Сумма"],
+      "filter": ["Организация = _ @off @user"],
+      "dataParameters": "auto",
+      "structure": "Организация > details"
     }
   }]
 }
 ```
 
-### Операторы filter
+## Антипаттерны
 
-`=`, `<>`, `>`, `>=`, `<`, `<=`, `in`, `notIn`, `contains`, `filled`, `notFilled`
+`"filter": ["Сумма больше 0"]` — **неверно**: парсер принимает операторы строго из фиксированного набора (`=`, `<>`, `>`, `>=`, `<`, `<=`, `in`, `notIn`, `contains`, `filled`, `notFilled`, `InHierarchy`). `больше` не распознаётся.
 
-### Итоговые поля (totalFields)
+Поля в `selection`/`order`/`filter`/`structure` должны существовать в `dataSets` или `calculatedFields` — иначе СКД не скомпонуется.
 
-```json
-{
-  "totalFields": [
-    {"dataPath": "Количество", "expression": "Сумма(Количество)"},
-    {"dataPath": "Сумма", "expression": "Сумма(Сумма)"}
-  ]
-}
-```
+**Верификация после compile:** `xml-gen skd validate <output.xml>` → `xml-gen skd info <output.xml>` → при нужде `skd info --mode trace --name <поле>`.
 
-## Ограничения
+## См. также
 
-- Только DataSetQuery (DataSetObject/Union не поддерживаются)
-- Нет CalculatedFields
-- Workaround: используй вычисления в запросах
-
-## Правильно / Неправильно
-
-```json
-// ❌ Неправильно — filter с русским оператором (поддерживаются только латинские)
-"filter": ["Сумма больше 0"]
-
-// ✅ Правильно — операторы: =, <>, >, >=, <, <=, in, notIn, contains, filled, notFilled
-"filter": ["Сумма > 0"]
-```
-
-> Парсер filter ожидает операторы из фиксированного списка. `больше` не распознаётся.
-
-Поля в selection, order, filter, structure должны существовать в dataSets — иначе СКД не скомпонуется.
-
+- [references/templates-dsl.md](references/templates-dsl.md) — шаблоны, drilldown, стили.
+- [references/info-modes.md](references/info-modes.md) — 11 режимов `skd info` с примерами вывода.
+- [xml-generation](../SKILL.md) — `skd add-parameter`, `skd add-field`, replace-text.
+- [mxl-dsl](../mxl-dsl/) — печатные формы.
 
 ---
 depends_on: []
 metadata:
   category: 1c-development
-  version: "1.0"
+  version: "2.0"
 ---

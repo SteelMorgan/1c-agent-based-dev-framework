@@ -6,15 +6,15 @@ uses_capabilities:
   - logc_get_actual_log_timestamp
 ---
 
-# Registration log analysis (Event Log)
+# Registration Log Analysis (Event Log)
 
 The RJ is a read-only source. Do not include raw entries in the output without masking personal data. By default, `mode: "minimal"`.
 
-For DB queries, locks, and platform exceptions, use `tech-log-analysis`.
+For DBMS queries, locks, and platform exceptions, use `tech-log-analysis`.
 
 ---
 
-## When to use
+## When to Use
 
 | Trigger | Action |
 |---------|----------|
@@ -27,7 +27,7 @@ For DB queries, locks, and platform exceptions, use `tech-log-analysis`.
 
 ---
 
-## Search algorithm
+## Search Algorithm
 
 1. Get `cluster_guid` and `infobase_guid` from `cluster_map.yaml`.
 2. Determine the strategy (see the cascade below).
@@ -35,7 +35,7 @@ For DB queries, locks, and platform exceptions, use `tech-log-analysis`.
 4. Analyze the `records`: `event_time`, `event_presentation`, `comment`, `metadata_presentation`.
 5. When a metadata object is mentioned, use `navigate_symbol` to jump to the code.
 
-### Filtering cascade
+### Filtering Cascade
 
 1. **First** — the latest records with `level: "Error"` (without `from`/`to` when the exact time is unknown).
 2. **If empty** — repeat without the level filter.
@@ -56,7 +56,7 @@ search_event_log(
 )
 ```
 
-### Interpreting results (after tests / Vanessa)
+### Interpreting Results (After Tests / Vanessa)
 
 | Situation | Conclusion |
 |-----------|-------|
@@ -65,6 +65,28 @@ search_event_log(
 | The last event is a session end without errors | The tests completed successfully |
 | There is an `Error` in `event_presentation` / `comment` | Analyze `comment` and `metadata_presentation` |
 | `Security warning` | Move to visual diagnostics via GUI/screenshot |
+
+---
+
+## Linking an RJ Entry with Code
+
+After obtaining `event_presentation` and `metadata_presentation`:
+
+1. If `metadata_presentation` contains the name of a metadata object, call `navigate_symbol` to jump to the code.
+2. If `comment` mentions an error text or a procedure name, search the codebase for the comment text.
+3. In the report, specify the **concrete module and procedure** (not only the metadata object name). Format: `ОбщийМодуль.ОбработкаОшибок → ЗафиксироватьОшибку()`.
+
+---
+
+## Correlation ID and Session
+
+If the `comment` field contains a session identifier, an HTTP request identifier, or a correlation id:
+
+1. Extract the value and preserve it in the response context.
+2. Explicitly include in the output: `session=...`, `corrId=...` or `httpReq=...`.
+3. If further investigation is needed, pass these identifiers to `tech-log-analysis` as filters (`search_tech_log` with `session`/`corrId`).
+
+The goal is to preserve correlation keys for the next step without mixing RJ and Tech Log analysis in a single query.
 
 ---
 
@@ -80,13 +102,13 @@ search_event_log(
 ## Capabilities
 
 | Capability | Purpose |
-|------------|---------|
+|------------|------------|
 | `search_event_log` | Search the registration log (via ClickHouse) |
 | `navigate_symbol` | Jump to code by metadata from an RJ entry |
 
 ---
 
-## Common mistakes
+## Common Mistakes
 
 | Error | Workaround |
 |--------|---------------|

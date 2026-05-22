@@ -44,6 +44,15 @@ v8-runner build --full-rebuild
 
 If `tools.client_mcp.extension` is configured, `build` also prepares this tool extension after the project's source-set stage, including for narrow builds with `--source-set`. Source-based tool extensions use their own change-detection state and are skipped if nothing changed; use `build --full-rebuild` to force an update. Do not add the tool extension as a project source-set and do not select it through `--source-set`.
 
+### Monitoring the Build Result
+
+`v8-runner build` can take minutes. For long runs use the Monitor tool:
+
+1. Launch in the background (`Bash run_in_background: true`) and redirect stdout to a file.
+2. Subscribe via **Monitor** with the filter `ERROR:|Failed|error:` — a notification arrives on the first match.
+3. Terminate the wait when the process exits OR stdout contains `ERROR:` / `Failed` / an explicit success marker.
+4. After completion: exit code 0 = success; otherwise read stdout for the error.
+
 ## Syntax
 
 Choose syntax checks based on the config capabilities, not on assumptions from the repository name.
@@ -134,6 +143,10 @@ For `launch mcp`, use `--mcp-config` and `--mcp-port`; do not pass `/C` through 
 Read `testing.md` for `launch mcp va`; it is part of the workflow for debugging and authoring Vanessa Automation scenarios.
 
 ## WS mode for session-manager
+
+> **SteelMorgan forks in use.** The WS transport is implemented in forks because upstream PRs are not accepted:
+> - v8-runner: upstream [`alkoleft/v8-runner-rust`](https://github.com/alkoleft/v8-runner-rust) → used fork [`SteelMorgan/v8-runner-rust`](https://github.com/SteelMorgan/v8-runner-rust)
+> - onec-client-mcp-devkit: used fork [`SteelMorgan/onec-client-mcp-devkit`](https://github.com/SteelMorgan/onec-client-mcp-devkit)
 
 When [`v8-client-session-manager`](https://github.com/SteelMorgan/v8-client-session-manager) is running alongside the project, the 1С client can connect to it over WebSocket instead of the local HTTP MCP server (legacy `runMcp` mode). v8-runner makes the choice automatically.
 

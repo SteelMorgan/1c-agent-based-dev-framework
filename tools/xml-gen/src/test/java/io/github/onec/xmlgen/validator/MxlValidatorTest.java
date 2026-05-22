@@ -167,4 +167,248 @@ class MxlValidatorTest {
         Files.writeString(file, content, StandardCharsets.UTF_8);
         return file;
     }
+
+    // ==================== Canon-borrowed (MXL-201..207) ====================
+    // Семь классов ошибок из канона Широкова.
+
+    // --- MXL-201: out-of-bounds column ---
+
+    @Test
+    void mxl201_happyPathNoOutOfBoundsColumn() throws Exception {
+        Path file = writeMxlBody(
+                "\t<columns><size>3</size></columns>\n" +
+                "\t<height>1</height>\n" +
+                "\t<rowsItem><index>0</index><row>\n" +
+                "\t\t<c><i>0</i><c><f>0</f></c></c>\n" +
+                "\t\t<c><i>1</i><c><f>0</f></c></c>\n" +
+                "\t\t<c><i>2</i><c><f>0</f></c></c>\n" +
+                "\t</row></rowsItem>\n");
+        List<ValidationIssue> issues = validator.validate(reader.parse(file), ValidationLevel.SEMANTIC);
+        assertThat(issues).noneMatch(i -> i.getCode().equals("MXL-201"));
+    }
+
+    @Test
+    void mxl201_failsOnCellPastColumns() throws Exception {
+        Path file = writeMxlBody(
+                "\t<columns><size>2</size></columns>\n" +
+                "\t<height>1</height>\n" +
+                "\t<rowsItem><index>0</index><row>\n" +
+                "\t\t<c><i>5</i><c><f>0</f></c></c>\n" +
+                "\t</row></rowsItem>\n");
+        List<ValidationIssue> issues = validator.validate(reader.parse(file), ValidationLevel.SEMANTIC);
+        assertThat(issues).anyMatch(i -> i.getCode().equals("MXL-201"));
+    }
+
+    // --- MXL-202: overlapping cells ---
+
+    @Test
+    void mxl202_happyPathNoOverlap() throws Exception {
+        Path file = writeMxlBody(
+                "\t<columns><size>3</size></columns>\n" +
+                "\t<height>1</height>\n" +
+                "\t<rowsItem><index>0</index><row>\n" +
+                "\t\t<c><i>0</i><c><f>0</f></c></c>\n" +
+                "\t\t<c><i>1</i><c><f>0</f></c></c>\n" +
+                "\t</row></rowsItem>\n");
+        List<ValidationIssue> issues = validator.validate(reader.parse(file), ValidationLevel.SEMANTIC);
+        assertThat(issues).noneMatch(i -> i.getCode().equals("MXL-202"));
+    }
+
+    @Test
+    void mxl202_failsOnTwoCellsAtSamePosition() throws Exception {
+        Path file = writeMxlBody(
+                "\t<columns><size>3</size></columns>\n" +
+                "\t<height>1</height>\n" +
+                "\t<rowsItem><index>0</index><row>\n" +
+                "\t\t<c><i>1</i><c><f>0</f></c></c>\n" +
+                "\t\t<c><i>1</i><c><f>0</f></c></c>\n" +
+                "\t</row></rowsItem>\n");
+        List<ValidationIssue> issues = validator.validate(reader.parse(file), ValidationLevel.SEMANTIC);
+        assertThat(issues).anyMatch(i -> i.getCode().equals("MXL-202"));
+    }
+
+    // --- MXL-203: rowspan beyond area ---
+
+    @Test
+    void mxl203_happyPathRowspanWithinHeight() throws Exception {
+        Path file = writeMxlBody(
+                "\t<columns><size>2</size></columns>\n" +
+                "\t<height>3</height>\n" +
+                "\t<rowsItem><index>0</index><row>\n" +
+                "\t\t<c><i>0</i><c><f>0</f><rowMerge>1</rowMerge></c></c>\n" +
+                "\t</row></rowsItem>\n" +
+                "\t<rowsItem><index>1</index><row/></rowsItem>\n" +
+                "\t<rowsItem><index>2</index><row/></rowsItem>\n");
+        List<ValidationIssue> issues = validator.validate(reader.parse(file), ValidationLevel.SEMANTIC);
+        assertThat(issues).noneMatch(i -> i.getCode().equals("MXL-203"));
+    }
+
+    @Test
+    void mxl203_failsWhenRowspanExceedsDocumentHeight() throws Exception {
+        Path file = writeMxlBody(
+                "\t<columns><size>2</size></columns>\n" +
+                "\t<height>2</height>\n" +
+                "\t<rowsItem><index>0</index><row>\n" +
+                "\t\t<c><i>0</i><c><f>0</f><rowMerge>5</rowMerge></c></c>\n" +
+                "\t</row></rowsItem>\n" +
+                "\t<rowsItem><index>1</index><row/></rowsItem>\n");
+        List<ValidationIssue> issues = validator.validate(reader.parse(file), ValidationLevel.SEMANTIC);
+        assertThat(issues).anyMatch(i -> i.getCode().equals("MXL-203"));
+    }
+
+    // --- MXL-204: unknown parameter name (empty heuristic) ---
+
+    @Test
+    void mxl204_happyPathParameterHasName() throws Exception {
+        Path file = writeMxlBody(
+                "\t<columns><size>1</size></columns>\n" +
+                "\t<height>1</height>\n" +
+                "\t<rowsItem><index>0</index><row>\n" +
+                "\t\t<c><i>0</i><c><f>0</f>" +
+                "<parameter xmlns:v8=\"http://v8.1c.ru/8.1/data/core\"><v8:content>OK</v8:content></parameter>" +
+                "</c></c>\n" +
+                "\t</row></rowsItem>\n");
+        List<ValidationIssue> issues = validator.validate(reader.parse(file), ValidationLevel.SEMANTIC);
+        assertThat(issues).noneMatch(i -> i.getCode().equals("MXL-204"));
+    }
+
+    @Test
+    void mxl204_failsOnEmptyParameterName() throws Exception {
+        Path file = writeMxlBody(
+                "\t<columns><size>1</size></columns>\n" +
+                "\t<height>1</height>\n" +
+                "\t<rowsItem><index>0</index><row>\n" +
+                "\t\t<c><i>0</i><c><f>0</f>" +
+                "<parameter xmlns:v8=\"http://v8.1c.ru/8.1/data/core\"><v8:content></v8:content></parameter>" +
+                "</c></c>\n" +
+                "\t</row></rowsItem>\n");
+        List<ValidationIssue> issues = validator.validate(reader.parse(file), ValidationLevel.SEMANTIC);
+        assertThat(issues).anyMatch(i -> i.getCode().equals("MXL-204"));
+    }
+
+    // --- MXL-205: format mismatch ---
+
+    @Test
+    void mxl205_happyPathNumericFormatOnNumericCell() throws Exception {
+        Path file = writeMxlBody(
+                "\t<format>\n" +
+                "\t\t<id>num</id>\n" +
+                "\t\t<format>ЧДЦ=2</format>\n" +
+                "\t</format>\n" +
+                "\t<columns><size>1</size></columns>\n" +
+                "\t<height>1</height>\n" +
+                "\t<rowsItem><index>0</index><row>\n" +
+                "\t\t<c><i>0</i><c><f>num</f><tl xmlns:v8=\"http://v8.1c.ru/8.1/data/core\">" +
+                "<v8:item><v8:lang>ru</v8:lang><v8:content>123.45</v8:content></v8:item></tl>" +
+                "</c></c>\n" +
+                "\t</row></rowsItem>\n");
+        List<ValidationIssue> issues = validator.validate(reader.parse(file), ValidationLevel.SEMANTIC);
+        assertThat(issues).noneMatch(i -> i.getCode().equals("MXL-205"));
+    }
+
+    @Test
+    void mxl205_failsWhenNumericFormatOnTextCell() throws Exception {
+        Path file = writeMxlBody(
+                "\t<format>\n" +
+                "\t\t<id>num</id>\n" +
+                "\t\t<format>ЧДЦ=2</format>\n" +
+                "\t</format>\n" +
+                "\t<columns><size>1</size></columns>\n" +
+                "\t<height>1</height>\n" +
+                "\t<rowsItem><index>0</index><row>\n" +
+                "\t\t<c><i>0</i><c><f>num</f><tl xmlns:v8=\"http://v8.1c.ru/8.1/data/core\">" +
+                "<v8:item><v8:lang>ru</v8:lang><v8:content>HelloText</v8:content></v8:item></tl>" +
+                "</c></c>\n" +
+                "\t</row></rowsItem>\n");
+        List<ValidationIssue> issues = validator.validate(reader.parse(file), ValidationLevel.SEMANTIC);
+        assertThat(issues).anyMatch(i -> i.getCode().equals("MXL-205"));
+    }
+
+    // --- MXL-206: page size impossible ---
+
+    @Test
+    void mxl206_happyPathWidthsFitPage() throws Exception {
+        Path file = writeMxlBody(
+                "\t<format>\n" +
+                "\t\t<id>__cw_100</id>\n" +
+                "\t\t<width>100</width>\n" +
+                "\t</format>\n" +
+                "\t<format>\n" +
+                "\t\t<id>__cw_200</id>\n" +
+                "\t\t<width>200</width>\n" +
+                "\t</format>\n" +
+                "\t<columns><size>2</size></columns>\n" +
+                "\t<height>0</height>\n" +
+                "\t<pageSetup>\n" +
+                "\t\t<orientation>Landscape</orientation>\n" +
+                "\t\t<pageWidth>780</pageWidth>\n" +
+                "\t</pageSetup>\n");
+        List<ValidationIssue> issues = validator.validate(reader.parse(file), ValidationLevel.SEMANTIC);
+        assertThat(issues).noneMatch(i -> i.getCode().equals("MXL-206"));
+    }
+
+    @Test
+    void mxl206_failsWhenWidthsExceedPage() throws Exception {
+        Path file = writeMxlBody(
+                "\t<format>\n" +
+                "\t\t<id>__cw_500</id>\n" +
+                "\t\t<width>500</width>\n" +
+                "\t</format>\n" +
+                "\t<format>\n" +
+                "\t\t<id>__cw_600</id>\n" +
+                "\t\t<width>600</width>\n" +
+                "\t</format>\n" +
+                "\t<columns><size>2</size></columns>\n" +
+                "\t<height>0</height>\n" +
+                "\t<pageSetup>\n" +
+                "\t\t<orientation>Portrait</orientation>\n" +
+                "\t\t<pageWidth>540</pageWidth>\n" +
+                "\t</pageSetup>\n");
+        List<ValidationIssue> issues = validator.validate(reader.parse(file), ValidationLevel.SEMANTIC);
+        assertThat(issues).anyMatch(i -> i.getCode().equals("MXL-206"));
+    }
+
+    // --- MXL-207: style reference broken ---
+
+    @Test
+    void mxl207_happyPathStyleIsDefined() throws Exception {
+        Path file = writeMxlBody(
+                "\t<format>\n" +
+                "\t\t<id>bordered</id>\n" +
+                "\t</format>\n" +
+                "\t<columns><size>1</size></columns>\n" +
+                "\t<height>1</height>\n" +
+                "\t<rowsItem><index>0</index><row>\n" +
+                "\t\t<c><i>0</i><c><f>bordered</f></c></c>\n" +
+                "\t</row></rowsItem>\n");
+        List<ValidationIssue> issues = validator.validate(reader.parse(file), ValidationLevel.SEMANTIC);
+        assertThat(issues).noneMatch(i -> i.getCode().equals("MXL-207"));
+    }
+
+    @Test
+    void mxl207_failsOnUnknownStyleId() throws Exception {
+        Path file = writeMxlBody(
+                "\t<format>\n" +
+                "\t\t<id>defined</id>\n" +
+                "\t</format>\n" +
+                "\t<columns><size>1</size></columns>\n" +
+                "\t<height>1</height>\n" +
+                "\t<rowsItem><index>0</index><row>\n" +
+                "\t\t<c><i>0</i><c><f>missing</f></c></c>\n" +
+                "\t</row></rowsItem>\n");
+        List<ValidationIssue> issues = validator.validate(reader.parse(file), ValidationLevel.SEMANTIC);
+        assertThat(issues).anyMatch(i -> i.getCode().equals("MXL-207"));
+    }
+
+    private Path writeMxlBody(String body) throws Exception {
+        Path file = tempDir.resolve("Template.xml");
+        String xml = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n" +
+                "<document xmlns=\"http://v8.1c.ru/8.2/data/spreadsheet\" " +
+                "xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\">\n" +
+                "\t<templateMode>true</templateMode>\n" +
+                body +
+                "</document>\n";
+        Files.writeString(file, xml, StandardCharsets.UTF_8);
+        return file;
+    }
 }

@@ -81,37 +81,37 @@ capabilities:
     kind: mcp
     server: 1c-mcp
     tool: list_metadata_objects
-    skill: framework/skills/tool-usage/platform-data/metadata-discovery
+    skill: framework/skills/tool-usage/platform-data/platform-data-core
 
   get_metadata_structure:
     kind: mcp
     server: 1c-mcp
     tool: get_metadata_structure
-    skill: framework/skills/tool-usage/platform-data/metadata-discovery
+    skill: framework/skills/tool-usage/platform-data/platform-data-core
 
   validate_query:
     kind: mcp
     server: 1c-mcp
     tool: validate_query
-    skill: framework/skills/tool-usage/platform-data/query-execution
+    skill: framework/skills/tool-usage/platform-data/platform-data-core
 
   execute_query:
     kind: mcp
     server: 1c-mcp
     tool: execute_query
-    skill: framework/skills/tool-usage/platform-data/query-execution
+    skill: framework/skills/tool-usage/platform-data/platform-data-core
 
   parse_nav_link:
     kind: mcp
     server: 1c-mcp
     tool: parse_nav_link
-    skill: framework/skills/tool-usage/platform-data/nav-link
+    skill: framework/skills/tool-usage/platform-data/platform-data-core
 
   get_nav_link:
     kind: mcp
     server: 1c-mcp
     tool: get_nav_link
-    skill: framework/skills/tool-usage/platform-data/nav-link
+    skill: framework/skills/tool-usage/platform-data/platform-data-core
 
   # ───────────────────────────────────────────────────────
   # 1c-platform-context — справочник синтаксиса и API платформы

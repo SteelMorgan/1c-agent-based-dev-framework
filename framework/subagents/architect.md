@@ -6,13 +6,20 @@ description: Проектирует технические решения и п�
 
 readonly: true
 skills:
-  - metadata-discovery
+  - platform-data-core
   - ssl-patterns
   - code-navigation
   - tech-log-analysis
-  - query-execution
   - technical-design-standard
-  - task-breakdown-subagent
+  - task-breakdown
+  - api-design
+  - background-jobs
+  - integration-patterns
+  - data-exchange
+  - query-optimize
+  - db-performance
+  - xml-generation
+  - security
   - v8-session-manager
   - agent-context-protocol
 ---
@@ -81,13 +88,12 @@ skills:
 
 ---
 depends_on:
-  - framework/skills/tool-usage/platform-data/metadata-discovery/SKILL.md
+  - framework/skills/tool-usage/platform-data/platform-data-core/SKILL.md
   - framework/skills/bsl-practices/ssl-patterns/SKILL.md
   - framework/skills/tool-usage/code-analysis/code-navigation/SKILL.md
   - framework/skills/tool-usage/diagnostics/tech-log-analysis/SKILL.md
-  - framework/skills/tool-usage/platform-data/query-execution/SKILL.md
   - framework/skills/spec-writing/technical-design-standard/SKILL.md
-  - framework/skills/spec-writing/task-breakdown-subagent/SKILL.md
+  - framework/skills/spec-writing/task-breakdown/SKILL.md
   - framework/skills/tool-usage/v8-session-manager/SKILL.md
   - framework/rules/agent-context-protocol.md
   - framework/rules/capability-resolution.mdc

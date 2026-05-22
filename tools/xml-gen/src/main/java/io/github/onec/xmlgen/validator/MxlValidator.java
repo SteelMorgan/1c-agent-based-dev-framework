@@ -7,6 +7,14 @@ import java.util.*;
  * <p>
  * Level 1 (Structure): MXL-001..005
  * Level 2 (Semantic):  MXL-101..106
+ * Level 2 (Canon-borrowed, structured error classes from Shirokov canon):
+ *   MXL-201 Out-of-bounds column
+ *   MXL-202 Overlapping cells
+ *   MXL-203 Rowspan beyond area
+ *   MXL-204 Unknown parameter name
+ *   MXL-205 Format mismatch (numeric format on non-numeric cell)
+ *   MXL-206 Page size impossible (sum of widths exceeds page)
+ *   MXL-207 Style reference broken
  */
 public class MxlValidator implements XmlValidator {
 
@@ -34,6 +42,7 @@ public class MxlValidator implements XmlValidator {
 
         if (level == ValidationLevel.SEMANTIC) {
             validateSemantic(document, issues);
+            validateCanonBorrowed(document, issues);
         }
 
         return issues;
@@ -191,6 +200,250 @@ public class MxlValidator implements XmlValidator {
             issues.add(ValidationIssue.error(code,
                     "Unknown " + elementName + " '" + value + "', expected: " + validValues,
                     cell.getLine(), cellPath + "/" + elementName));
+        }
+    }
+
+    // ==================== Canon-borrowed (MXL-201..207) ====================
+
+    /**
+     * Структурированные классы ошибок, заимствованные из канона Широкова.
+     * Реализованы аддитивно к существующим MXL-001..MXL-106.
+     */
+    private void validateCanonBorrowed(XmlDocument document, List<ValidationIssue> issues) {
+        XmlNode root = document.getRoot();
+
+        // Read columns size
+        int columnsSize = 0;
+        XmlNode columns = root.child("columns");
+        if (columns != null) {
+            String sizeStr = columns.childText("size");
+            if (sizeStr != null) {
+                try { columnsSize = Integer.parseInt(sizeStr); } catch (NumberFormatException ignored) {}
+            }
+        }
+
+        // Collect defined format IDs (styles + width formats)
+        Set<String> definedFormatIds = new HashSet<>();
+        for (XmlNode fmt : root.children("format")) {
+            String id = fmt.childText("id");
+            if (id != null && !id.isEmpty()) definedFormatIds.add(id);
+        }
+        // Numeric format ids referenced via formatIndex in columnsItem are auto-defined too
+        // (we don't enforce numeric vs string; collect for cross-check anyway)
+        // Add "0" as the default format reference (XML uses <f>0</f> as default)
+        definedFormatIds.add("0");
+
+        // Build per-cell positions: rowIndex -> set of column indices and overlaps
+        List<XmlNode> rowsItems = root.children("rowsItem");
+        // Map<rowIndex, Set<colIndex>>
+        Map<Integer, Set<Integer>> occupied = new HashMap<>();
+        int totalRows = rowsItems.size();
+
+        for (int i = 0; i < rowsItems.size(); i++) {
+            XmlNode rowsItem = rowsItems.get(i);
+            String rowPath = "/document/rowsItem[" + (i + 1) + "]";
+            String idxStr = rowsItem.childText("index");
+            int rowIdx;
+            try { rowIdx = idxStr != null ? Integer.parseInt(idxStr) : i; } catch (NumberFormatException e) { rowIdx = i; }
+
+            XmlNode row = rowsItem.child("row");
+            if (row == null) continue;
+
+            int implicitCol = 0;
+            List<XmlNode> cellGroups = row.children("c");
+            for (int j = 0; j < cellGroups.size(); j++) {
+                XmlNode cOuter = cellGroups.get(j);
+                XmlNode cInner = cOuter.child("c");
+                if (cInner == null) continue;
+                String cellPath = rowPath + "/c[" + (j + 1) + "]";
+
+                // Column index: explicit <i> or implicit
+                String iStr = cOuter.childText("i");
+                int colIdx;
+                if (iStr != null) {
+                    try { colIdx = Integer.parseInt(iStr); } catch (NumberFormatException e) { colIdx = implicitCol; }
+                } else {
+                    colIdx = implicitCol;
+                }
+
+                // MXL-201: out-of-bounds column
+                if (columnsSize > 0 && colIdx >= columnsSize) {
+                    issues.add(ValidationIssue.error("MXL-201",
+                            "Cell column " + colIdx + " out of bounds (columns=" + columnsSize + ")",
+                            cInner.getLine(), cellPath));
+                }
+
+                // Span / Rowspan
+                int span = parseNonNegInt(cInner.childText("merge"));     // 0 means span=1
+                int rowSpan = parseNonNegInt(cInner.childText("rowMerge"));
+
+                // MXL-201 (extended): span past columns
+                if (columnsSize > 0 && colIdx + span >= columnsSize) {
+                    issues.add(ValidationIssue.error("MXL-201",
+                            "Cell at col " + colIdx + " with span " + (span + 1)
+                                    + " exceeds columns " + columnsSize,
+                            cInner.getLine(), cellPath + "/merge"));
+                }
+
+                // MXL-203: rowspan beyond document
+                if (totalRows > 0 && (rowIdx + rowSpan) >= totalRows) {
+                    issues.add(ValidationIssue.error("MXL-203",
+                            "Rowspan from row " + rowIdx + " by " + (rowSpan + 1)
+                                    + " extends beyond document height " + totalRows,
+                            cInner.getLine(), cellPath + "/rowMerge"));
+                }
+
+                // MXL-202: overlapping cells (track occupied cells)
+                for (int dr = 0; dr <= rowSpan; dr++) {
+                    int r = rowIdx + dr;
+                    Set<Integer> cols = occupied.computeIfAbsent(r, k -> new HashSet<>());
+                    for (int dc = 0; dc <= span; dc++) {
+                        int c = colIdx + dc;
+                        if (!cols.add(c)) {
+                            issues.add(ValidationIssue.error("MXL-202",
+                                    "Cell at row " + r + " col " + c + " overlaps with previous cell",
+                                    cInner.getLine(), cellPath));
+                        }
+                    }
+                }
+
+                // MXL-207: style reference broken
+                String f = cInner.childText("f");
+                if (f != null && !f.isEmpty() && !definedFormatIds.contains(f)
+                        && !looksLikeNumericIndex(f) && !f.startsWith("__cw_")) {
+                    issues.add(ValidationIssue.error("MXL-207",
+                            "Style reference '" + f + "' is not defined in <format> palette",
+                            cInner.getLine(), cellPath + "/f"));
+                }
+
+                // MXL-205: format mismatch — numeric format string on non-numeric (text) cell.
+                // We treat presence of <tl> (localized text) as non-numeric.
+                // Look up the style's format string from the palette.
+                if (f != null && !"0".equals(f)) {
+                    String formatString = lookupFormatString(root, f);
+                    if (formatString != null && isNumericFormat(formatString)
+                            && cInner.child("tl") != null
+                            && cInner.child("parameter") == null
+                            && !cellTextIsNumeric(cInner)) {
+                        issues.add(ValidationIssue.error("MXL-205",
+                                "Numeric format '" + formatString + "' applied to non-numeric text cell",
+                                cInner.getLine(), cellPath));
+                    }
+                }
+
+                implicitCol = colIdx + span + 1;
+            }
+        }
+
+        // MXL-206: page size impossible (sum of widths > page)
+        XmlNode pageSetup = root.child("pageSetup");
+        if (pageSetup != null) {
+            String pageWidthStr = pageSetup.childText("pageWidth");
+            if (pageWidthStr != null) {
+                try {
+                    int pageWidth = Integer.parseInt(pageWidthStr);
+                    int sumWidths = 0;
+                    boolean anyWidth = false;
+                    for (XmlNode fmt : root.children("format")) {
+                        String id = fmt.childText("id");
+                        String widthStr = fmt.childText("width");
+                        if (id != null && id.startsWith("__cw_") && widthStr != null) {
+                            try {
+                                sumWidths += Integer.parseInt(widthStr);
+                                anyWidth = true;
+                            } catch (NumberFormatException ignored) {}
+                        }
+                    }
+                    if (anyWidth && sumWidths > pageWidth) {
+                        issues.add(ValidationIssue.error("MXL-206",
+                                "Sum of column widths " + sumWidths + " exceeds page width " + pageWidth,
+                                pageSetup.getLine(), "/document/pageSetup"));
+                    }
+                } catch (NumberFormatException ignored) {}
+            }
+        }
+
+        // MXL-204: unknown parameter name. We can only check when a schema of allowed
+        // params is provided. As a heuristic: scan for parameters with empty name —
+        // treat as unknown. Stricter check requires external schema, beyond MVP scope.
+        for (int i = 0; i < rowsItems.size(); i++) {
+            XmlNode rowsItem = rowsItems.get(i);
+            XmlNode row = rowsItem.child("row");
+            if (row == null) continue;
+            int j = 0;
+            for (XmlNode cOuter : row.children("c")) {
+                j++;
+                XmlNode cInner = cOuter.child("c");
+                if (cInner == null) continue;
+                XmlNode param = cInner.child("parameter");
+                if (param != null) {
+                    String content = param.childText("content");
+                    if (content == null) content = param.getText();
+                    if (content == null || content.trim().isEmpty()) {
+                        issues.add(ValidationIssue.error("MXL-204",
+                                "Cell parameter has empty/unknown name",
+                                param.getLine(),
+                                "/document/rowsItem[" + (i + 1) + "]/c[" + j + "]/parameter"));
+                    }
+                }
+            }
+        }
+    }
+
+    private static int parseNonNegInt(String s) {
+        if (s == null) return 0;
+        try {
+            int v = Integer.parseInt(s);
+            return v < 0 ? 0 : v;
+        } catch (NumberFormatException e) {
+            return 0;
+        }
+    }
+
+    private static boolean looksLikeNumericIndex(String s) {
+        if (s == null || s.isEmpty()) return false;
+        for (int i = 0; i < s.length(); i++) {
+            if (!Character.isDigit(s.charAt(i))) return false;
+        }
+        return true;
+    }
+
+    private static String lookupFormatString(XmlNode root, String formatId) {
+        for (XmlNode fmt : root.children("format")) {
+            String id = fmt.childText("id");
+            if (formatId.equals(id)) {
+                return fmt.childText("format");
+            }
+        }
+        return null;
+    }
+
+    private static boolean isNumericFormat(String fmt) {
+        if (fmt == null) return false;
+        // 1C numeric format tokens: ЧДЦ (digits after decimal), ЧЦ (total digits),
+        // ЧО (group separator), ЧС (decimal separator), ЧРГ (group sep).
+        // Date tokens: ДФ (date format) — distinguish.
+        return fmt.contains("ЧДЦ") || fmt.contains("ЧЦ=") || fmt.contains("ЧО=") || fmt.contains("ЧРГ=");
+    }
+
+    private static boolean cellTextIsNumeric(XmlNode cInner) {
+        // Try to extract textual content and check if numeric
+        XmlNode tl = cInner.child("tl");
+        if (tl == null) return false;
+        String text = null;
+        XmlNode item = tl.child("item");
+        if (item != null) {
+            text = item.childText("content");
+        }
+        if (text == null) text = tl.getText();
+        if (text == null || text.isEmpty()) return true; // empty -> assume valid
+        // Allow comma or dot as decimal, leading minus
+        String t = text.trim().replace(',', '.');
+        try {
+            Double.parseDouble(t);
+            return true;
+        } catch (NumberFormatException e) {
+            return false;
         }
     }
 }

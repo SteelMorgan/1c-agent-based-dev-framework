@@ -1,6 +1,6 @@
 ---
 name: form-dsl
-description: "JSON DSL for generating managed 1C forms with UI elements, attributes, and commands. Use for form compile and editing forms through xml-gen-cli."
+description: "JSON DSL for generating 1С managed forms with UI elements, attributes, and commands. Use for form compile and editing forms through xml-generation (edit commands)."
 ---
 
 # Form DSL
@@ -10,24 +10,23 @@ description: "JSON DSL for generating managed 1C forms with UI elements, attribu
 ```bash
 xml-gen form compile [--format designer|edt] <input.json> <output.xml>
 
-# Generate a form from an object's metadata (Catalog/Document/Register and other objects)
-# Object type and purpose are derived from the OutputPath path.
+# Generate a form from object metadata
 xml-gen form compile --from-object [--preset erp-standard] [--object <path>] <output.xml>
 
 xml-gen form info <Form.xml>
 ```
 
-Editing existing forms (add-attribute, add-element, move-element, etc.) — see [xml-gen-cli](../xml-gen-cli/)
+Editing existing forms (add-attribute, add-element, move-element, etc.) — see [xml-generation](../SKILL.md) §3 Edit commands
 
 ## `--from-object` Mode
 
-Generates `Form.xml` automatically from the object's XML description. Coverage: `Catalog` (item/folder/list/choice), `Document` (item/list/choice), `InformationRegister` (record/list), `AccumulationRegister` (list), `ChartOfCharacteristicTypes`, `ExchangePlan`, `ChartOfAccounts`, `DataProcessor`/`Report` (template).
+Generates `Form.xml` from the object's XML description. Coverage: `Catalog` (item/folder/list/choice), `Document` (item/list/choice), `InformationRegister` (record/list), `AccumulationRegister` (list), `ChartOfCharacteristicTypes`, `ExchangePlan`, `ChartOfAccounts`, `DataProcessor`/`Report` (template).
 
-Purpose is determined by the form folder name: `ФормаСписка`→list, `ФормаВыбора`→choice, `ФормаГруппы`→folder, `ФормаЗаписи`→record, otherwise item/default.
+Purpose is determined by the folder name: `ФормаСписка`→list, `ФормаВыбора`→choice, `ФормаГруппы`→folder, `ФормаЗаписи`→record, otherwise item.
 
-Layout is controlled through the `erp-standard` JSON preset (built in) — overridden by file `<project-root>/presets/skills/form/erp-standard.json`.
+The `erp-standard` preset is built in and overridden by file `<project-root>/presets/skills/form/erp-standard.json`.
 
-Guardrails: `ValueStorage` attributes are automatically skipped; `FormDataStructure/Collection/Tree` in an attribute → `FromObjectException`.
+Guardrails: `ValueStorage` attributes are skipped; `FormDataStructure/Collection/Tree` in an attribute → `FromObjectException`.
 
 ## DSL Structure
 
@@ -41,7 +40,7 @@ Minimal form: `{"attributes": [], "elements": []}`
 
 **Types:** `string`, `string(N)`, `number`, `number(D,F)`, `boolean`, `date`, `uuid`, `CatalogRef.Name`, `DocumentRef.Name`, `ValueTable`
 
-**Prohibited runtime types:** `FormDataStructure`, `FormDataCollection`, `FormDataTree` do not exist in the form XML schema and cause an XDTO error when loading. The compiler throws `IllegalArgumentException`, and the validator returns `FORM-114 ERROR`. Use `CatalogObject.X` / `DocumentObject.X` / `DataProcessorObject.X`, `ValueTable`, `ValueTree`.
+**Prohibited runtime types:** `FormDataStructure`, `FormDataCollection`, `FormDataTree` do not exist in the XML schema and cause an XDTO error when loading (compiler: `IllegalArgumentException`; validator: `FORM-114 ERROR`). Use `CatalogObject.X` / `DocumentObject.X` / `DataProcessorObject.X`, `ValueTable`, `ValueTree`.
 
 ### UI Elements
 
@@ -56,47 +55,34 @@ Minimal form: `{"attributes": [], "elements": []}`
 | `pages` | Pages | Container for pages |
 | `page` | Page | Page (only inside `pages`) |
 
-### Commands (commands)
+### Commands and Events
 
 ```json
 {"name": "Сохранить", "action": "Save", "title": "Сохранить"}
-```
-
-### Events (events)
-
-```json
 {"events": {"onCreateAtServer": "ПриСозданииНаСервере", "onOpen": "ПриОткрытии"}}
 ```
 
-The DSL specifies only the procedure name. Set the compiler directive in the form module manually:
+The DSL specifies only the procedure name; set the compiler directive in the module manually: `onCreateAtServer` → `&НаСервере`, `onOpen`/`onClose`/`beforeClose` → `&НаКлиенте`. Mixing contexts = compilation error or server objects being unavailable.
 
-| DSL event | Directive |
-|-------------|-----------|
-| `onCreateAtServer` | `&НаСервере` |
-| `onOpen`, `onClose`, `beforeClose` | `&НаКлиенте` |
+UUID, ID, ContextMenu, ExtendedTooltip are created automatically.
 
-Mixing contexts = compilation error or server objects being unavailable on the client.
-
-## Automatic Generation
-
-UUID, ID, ContextMenu, ExtendedTooltip are created automatically. Arbitrary nesting: group → group → input, pages → page → table.
-
-## Correct / Incorrect
+## Pitfalls
 
 ```json
-// ❌ dataPath не совпадает с реквизитом → элемент не отобразит данные
-{"attributes": [{"name": "Наименование", "type": "string(100)"}], "elements": [{"type": "input", "name": "Поле1", "dataPath": "Поле1"}]}
+// ❌ dataPath does not match the attribute → the element will not display data
+{"attributes": [{"name": "Наименование", "type": "string(100)"}],
+ "elements": [{"type": "input", "name": "Поле1", "dataPath": "Поле1"}]}
 
-// ✅ dataPath = name реквизита (или путь к полю ТЧ: Товары.Номенклатура)
-{"attributes": [{"name": "Наименование", "type": "string(100)"}], "elements": [{"type": "input", "name": "Наименование", "dataPath": "Наименование"}]}
+// ✅ dataPath = attribute name (or the path to a tabular section field: Товары.Номенклатура)
+{"elements": [{"type": "input", "name": "Наименование", "dataPath": "Наименование"}]}
 ```
 
 ```json
-// ❌ page без родителя pages
+// ❌ page without a pages parent — the platform will not load the form
 {"elements": [{"type": "page", "name": "Страница1", "children": [...]}]}
 
-// ✅ pages как контейнер, page внутри
-{"elements": [{"type": "pages", "name": "Страницы", "children": [{"type": "page", "name": "Страница1", "children": [...]}]}]}
+// ✅ pages as a container
+{"elements": [{"type": "pages", "name": "Страницы", "children": [{"type": "page", ...}]}]}
 ```
 
 ---

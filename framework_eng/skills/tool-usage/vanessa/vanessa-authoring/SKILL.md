@@ -1,6 +1,6 @@
 ---
 name: vanessa-authoring
-description: "Creating and refining Vanessa Automation feature scenarios from real project requirements. Use when you need to write or update a scenario test, not just run it."
+description: "Creating and refining Vanessa Automation feature scenarios based on real project requirements. Use when you need to write or update a scenario test, not just run it."
 uses_capabilities:
   - run_vanessa
   - build_project
@@ -43,7 +43,7 @@ uses_capabilities:
 ```
 
 - `Context:` is executed **before each** scenario in the file.
-- Step keywords: `Given`, `When`, `Then`, `And`, `Next` are syntactically interchangeable.
+- Step keywords: `Given`, `When`, `Then`, `And`, `But` are syntactically interchangeable.
 - Strings use apostrophes or quotes; special characters: `\'`, `\"`, `\\`.
 - `Scenario structure:` + `Examples:` runs the scenario for each row in the parameter table.
 - `@tree` in the header enables Turbo Gherkin: Tab indentation defines the step tree (spaces are not allowed!).
@@ -142,7 +142,7 @@ depends_on:
   - framework/rules/vanessa-run-loop.mdc
   - framework/skills/tool-usage/vanessa/vanessa-run/SKILL.md
   - framework/skills/tool-usage/vanessa/vanessa-diagnostics/SKILL.md
-  - framework/skills/tool-usage/forms/form-element-mapping/SKILL.md
+  - framework/skills/tool-usage/platform-data/xml-generation/SKILL.md
 requires:
   - tools
 ---

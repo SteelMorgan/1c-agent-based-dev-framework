@@ -1,5 +1,6 @@
 package io.github.onec.xmlgen.info;
 
+import io.github.onec.xmlgen.info.skd.SkdTraceBuilder;
 import io.github.onec.xmlgen.validator.XmlDocument;
 import io.github.onec.xmlgen.validator.XmlNode;
 
@@ -11,42 +12,27 @@ import java.util.regex.Pattern;
 
 /**
  * Анализ структуры СКД (DataCompositionSchema / Template.xml).
- * Режимы: overview (default), query, fields, params.
+ * Режимы: overview, query, fields, links, calculated, resources, params,
+ *         variant, templates, trace, full.
  */
 public class SkdInfoPrinter {
 
     private static final Pattern BATCH_SEPARATOR = Pattern.compile(";\\s*\\r?\\n\\s*/{16,}\\s*\\r?\\n");
 
     /**
-     * @param document распарсенный Template.xml
-     * @param mode     режим: overview, query, fields, params
-     * @param name     имя набора/поля (опционально)
-     * @param limit    макс строк (0 = без ограничения)
-     * @param offset   смещение
-     * @param out      поток вывода
+     * @param document   распарсенный Template.xml
+     * @param mode       режим: overview, query, fields, links, calculated, resources,
+     *                   params, variant, templates, trace, full
+     * @param nameFilter имя набора/поля/варианта (опционально)
+     * @param limit      макс строк (0 = без ограничения)
+     * @param offset     смещение
+     * @param out        поток вывода
      */
-    public void print(XmlDocument document, String mode, String name,
+    public void print(XmlDocument document, String mode, String nameFilter,
                       int limit, int offset, PrintStream out) {
         XmlNode root = document.getRoot();
         List<String> lines = new ArrayList<>();
-
-        switch (mode) {
-            case "overview":
-                showOverview(root, document.getFile(), lines);
-                break;
-            case "query":
-                showQuery(root, name, lines);
-                break;
-            case "fields":
-                showFields(root, name, lines);
-                break;
-            case "params":
-                showParams(root, lines);
-                break;
-            default:
-                throw new IllegalArgumentException("Unknown skd info mode: '" + mode
-                        + "'. Supported modes: overview, query, fields, params");
-        }
+        printByMode(root, document.getFile(), mode, nameFilter, lines);
 
         // Pagination
         int totalLines = lines.size();
@@ -73,9 +59,54 @@ public class SkdInfoPrinter {
         }
     }
 
+    /**
+     * Dispatch to mode-specific method.
+     */
+    public void printByMode(XmlNode root, Path file, String mode, String nameFilter, List<String> lines) {
+        switch (mode) {
+            case "overview":
+                printOverview(root, file, lines);
+                break;
+            case "query":
+                printQuery(root, nameFilter, lines);
+                break;
+            case "fields":
+                printFields(root, nameFilter, lines);
+                break;
+            case "links":
+                printLinks(root, lines);
+                break;
+            case "calculated":
+                printCalculated(root, nameFilter, lines);
+                break;
+            case "resources":
+                printResources(root, nameFilter, lines);
+                break;
+            case "params":
+                printParams(root, lines);
+                break;
+            case "variant":
+                printVariant(root, nameFilter, lines);
+                break;
+            case "templates":
+                printTemplates(root, nameFilter, lines);
+                break;
+            case "trace":
+                printTrace(root, nameFilter, lines);
+                break;
+            case "full":
+                printFull(root, file, lines);
+                break;
+            default:
+                throw new IllegalArgumentException("Unknown skd info mode: '" + mode
+                        + "'. Supported modes: overview, query, fields, links, calculated, resources, "
+                        + "params, variant, templates, trace, full");
+        }
+    }
+
     // ==================== Overview ====================
 
-    private void showOverview(XmlNode root, Path file, List<String> lines) {
+    private void printOverview(XmlNode root, Path file, List<String> lines) {
         String templateName = resolveTemplateName(file);
         lines.add("=== DCS: " + templateName + " ===");
         lines.add("");
@@ -87,8 +118,10 @@ public class SkdInfoPrinter {
             String dsType = ds.childText("dataSourceType");
             sources.add((dsName != null ? dsName : "") + " (" + (dsType != null ? dsType : "") + ")");
         }
-        lines.add("Sources: " + String.join(", ", sources));
-        lines.add("");
+        if (!sources.isEmpty()) {
+            lines.add("Sources: " + String.join(", ", sources));
+            lines.add("");
+        }
 
         // Datasets
         lines.add("Datasets:");
@@ -112,9 +145,9 @@ public class SkdInfoPrinter {
                     int subFields = sub.children("field").size();
                     if ("Query".equals(subType)) {
                         int subQueryLines = countQueryLines(sub);
-                        lines.add("    \u251C\u2500 [Query] " + subName + "   " + subFields + " fields, query " + subQueryLines + " lines");
+                        lines.add("    ├─ [Query] " + subName + "   " + subFields + " fields, query " + subQueryLines + " lines");
                     } else {
-                        lines.add("    \u251C\u2500 [" + subType + "] " + subName + "  " + subFields + " fields");
+                        lines.add("    ├─ [" + subType + "] " + subName + "  " + subFields + " fields");
                     }
                 }
             }
@@ -159,6 +192,13 @@ public class SkdInfoPrinter {
             } else {
                 lines.add("Resources: " + totalFields.size() + " (" + uniquePaths.size() + " fields" + groupNote + ")");
             }
+        }
+
+        // Templates
+        List<XmlNode> templates = root.children("template");
+        List<XmlNode> groupTemplates = root.children("groupTemplate");
+        if (!templates.isEmpty() || !groupTemplates.isEmpty()) {
+            lines.add("Templates: " + templates.size() + " templates, " + groupTemplates.size() + " group bindings");
         }
 
         // Parameters
@@ -232,14 +272,20 @@ public class SkdInfoPrinter {
         // Hints
         lines.add("");
         lines.add("Next:");
-        lines.add("  --mode query             query text");
-        lines.add("  --mode fields            field tables by dataset");
-        lines.add("  --mode params            parameter details");
+        lines.add("  --mode query              query text");
+        lines.add("  --mode fields             field tables by dataset");
+        lines.add("  --mode calculated         calculated field expressions");
+        lines.add("  --mode resources          resource aggregation");
+        lines.add("  --mode params             parameter details");
+        lines.add("  --mode variant            variant structure");
+        lines.add("  --mode links              dataset links");
+        lines.add("  --mode templates          template bindings");
+        lines.add("  --mode trace --name <f>   field origin chain");
     }
 
     // ==================== Query ====================
 
-    private void showQuery(XmlNode root, String name, List<String> lines) {
+    private void printQuery(XmlNode root, String name, List<String> lines) {
         XmlNode targetDs = findQueryDataset(root, name);
         if (targetDs == null) {
             lines.add("No Query dataset found" + (name != null ? " with name '" + name + "'" : ""));
@@ -254,18 +300,51 @@ public class SkdInfoPrinter {
 
         String rawQuery = safeText(queryNode.getText());
         String dsName = safeText(targetDs.childText("name"));
+
+        // Detect batches
+        String[] batches = BATCH_SEPARATOR.split(rawQuery);
         int totalQueryLines = rawQuery.split("\n").length;
 
-        lines.add("=== Query: " + dsName + " (" + totalQueryLines + " lines) ===");
-        lines.add("");
-        for (String ql : rawQuery.split("\n")) {
-            lines.add(ql.replaceFirst("\\s+$", ""));
+        if (batches.length > 1) {
+            lines.add("=== Query: " + dsName + " (" + totalQueryLines + " lines, " + batches.length + " batches) ===");
+            // Table of contents
+            int lineNum = 1;
+            for (int i = 0; i < batches.length; i++) {
+                String[] batchLines = batches[i].split("\n");
+                int batchEnd = lineNum + batchLines.length - 1;
+                String tempTableName = extractTempTableName(batches[i]);
+                String ttStr = tempTableName != null ? " → " + tempTableName : "";
+                lines.add("  Batch " + (i + 1) + ": lines " + lineNum + "-" + batchEnd + ttStr);
+                lineNum = batchEnd + 2;
+            }
+            lines.add("");
+            for (int i = 0; i < batches.length; i++) {
+                lines.add("--- Batch " + (i + 1) + " ---");
+                for (String ql : batches[i].split("\n")) {
+                    lines.add(ql.replaceFirst("\\s+$", ""));
+                }
+                lines.add("");
+            }
+        } else {
+            lines.add("=== Query: " + dsName + " (" + totalQueryLines + " lines) ===");
+            lines.add("");
+            for (String ql : rawQuery.split("\n")) {
+                lines.add(ql.replaceFirst("\\s+$", ""));
+            }
         }
+    }
+
+    private String extractTempTableName(String batch) {
+        // Look for "ПОМЕСТИТЬ <Name>" pattern
+        Pattern p = Pattern.compile("(?i)\\bПОМЕСТИТЬ\\s+(\\w+)");
+        Matcher m = p.matcher(batch);
+        if (m.find()) return m.group(1);
+        return null;
     }
 
     // ==================== Fields ====================
 
-    private void showFields(XmlNode root, String name, List<String> lines) {
+    private void printFields(XmlNode root, String name, List<String> lines) {
         if (name != null && !name.isEmpty()) {
             showFieldDetail(root, name, lines);
             return;
@@ -299,7 +378,6 @@ public class SkdInfoPrinter {
     }
 
     private void showFieldDetail(XmlNode root, String fieldName, List<String> lines) {
-        // Search all datasets for the field
         for (XmlNode ds : root.children("dataSet")) {
             XmlNode found = findFieldByPath(ds, fieldName);
             if (found != null) {
@@ -362,11 +440,169 @@ public class SkdInfoPrinter {
             }
             if (!rParts.isEmpty()) lines.add("Restrict: " + String.join(", ", rParts));
         }
+
+        XmlNode presExpr = field.child("presentationExpression");
+        if (presExpr != null && presExpr.getText() != null && !presExpr.getText().trim().isEmpty()) {
+            lines.add("Presentation: " + presExpr.getText().trim());
+        }
+    }
+
+    // ==================== Links ====================
+
+    private void printLinks(XmlNode root, List<String> lines) {
+        List<XmlNode> links = root.children("dataSetLink");
+        if (links.isEmpty()) {
+            lines.add("=== Links (0) ===");
+            lines.add("(no dataset links defined)");
+            return;
+        }
+
+        lines.add("=== Links (" + links.size() + ") ===");
+        lines.add("");
+
+        // Group by source->dest pair
+        Map<String, List<XmlNode>> grouped = new LinkedHashMap<>();
+        for (XmlNode lnk : links) {
+            String src = safeText(lnk.childText("sourceDataSet"));
+            String dst = safeText(lnk.childText("destinationDataSet"));
+            String key = src + " -> " + dst;
+            grouped.computeIfAbsent(key, k -> new ArrayList<>()).add(lnk);
+        }
+
+        for (Map.Entry<String, List<XmlNode>> entry : grouped.entrySet()) {
+            lines.add(entry.getKey() + " :");
+            for (XmlNode lnk : entry.getValue()) {
+                String srcExpr = safeText(lnk.childText("sourceExpression"));
+                String dstExpr = safeText(lnk.childText("destExpression"));
+                if (!srcExpr.isEmpty() || !dstExpr.isEmpty()) {
+                    // Align columns
+                    lines.add("  " + padRight(srcExpr, 20) + " -> " + dstExpr);
+                }
+            }
+            lines.add("");
+        }
+    }
+
+    // ==================== Calculated ====================
+
+    private void printCalculated(XmlNode root, String name, List<String> lines) {
+        List<XmlNode> calcFields = root.children("calculatedField");
+        if (calcFields.isEmpty()) {
+            lines.add("(no calculated fields)");
+            return;
+        }
+
+        if (name != null && !name.isEmpty()) {
+            // Find specific field
+            for (XmlNode cf : calcFields) {
+                String cfName = safeText(cf.childText("name"));
+                if (name.equals(cfName)) {
+                    showCalculatedFieldDetail(cf, lines);
+                    return;
+                }
+            }
+            lines.add("Calculated field '" + name + "' not found");
+            return;
+        }
+
+        lines.add("=== Calculated fields (" + calcFields.size() + ") ===");
+        for (XmlNode cf : calcFields) {
+            String cfName = safeText(cf.childText("name"));
+            String title = getMlText(cf.child("title"));
+            String titleStr = !title.isEmpty() ? "  \"" + title + "\"" : "";
+            lines.add("  " + cfName + titleStr);
+        }
+        lines.add("");
+        lines.add("Use --name <field> for expression details.");
+    }
+
+    private void showCalculatedFieldDetail(XmlNode cf, List<String> lines) {
+        String cfName = safeText(cf.childText("name"));
+        lines.add("=== Calculated: " + cfName + " ===");
+        lines.add("");
+
+        String title = getMlText(cf.child("title"));
+        if (!title.isEmpty()) lines.add("Title: " + title);
+
+        XmlNode vt = cf.child("valueType");
+        if (vt != null) {
+            String typeStr = getCompactType(vt);
+            if (!typeStr.isEmpty()) lines.add("Type: " + typeStr);
+        }
+
+        String expr = safeText(cf.childText("expression"));
+        if (!expr.isEmpty()) {
+            lines.add("Expression:");
+            for (String eLine : expr.split("\n")) {
+                lines.add("  " + eLine.replaceFirst("\\s+$", ""));
+            }
+        }
+
+        XmlNode restrict = cf.child("useRestriction");
+        if (restrict != null) {
+            List<String> rParts = new ArrayList<>();
+            for (XmlNode child : restrict.getChildren()) {
+                if ("true".equals(safeText(child.getText()).trim())) {
+                    rParts.add(child.getName());
+                }
+            }
+            if (!rParts.isEmpty()) lines.add("Restrict: " + String.join(", ", rParts));
+        }
+    }
+
+    // ==================== Resources ====================
+
+    private void printResources(XmlNode root, String name, List<String> lines) {
+        List<XmlNode> totalFields = root.children("totalField");
+        if (totalFields.isEmpty()) {
+            lines.add("(no resources / total fields)");
+            return;
+        }
+
+        // Build map: dataPath -> list of totalField nodes
+        Map<String, List<XmlNode>> byPath = new LinkedHashMap<>();
+        for (XmlNode tf : totalFields) {
+            String dp = safeText(tf.childText("dataPath"));
+            byPath.computeIfAbsent(dp, k -> new ArrayList<>()).add(tf);
+        }
+
+        if (name != null && !name.isEmpty()) {
+            // Specific resource detail
+            List<XmlNode> tfs = byPath.get(name);
+            if (tfs == null) {
+                lines.add("Resource '" + name + "' not found");
+                return;
+            }
+            lines.add("=== Resource: " + name + " ===");
+            lines.add("");
+            for (XmlNode tf : tfs) {
+                XmlNode groupNode = tf.child("group");
+                String groupStr = groupNode != null ? "[" + safeText(groupNode.getText()) + "] " : "";
+                String expr = safeText(tf.childText("expression"));
+                lines.add("  " + groupStr + expr);
+            }
+            return;
+        }
+
+        lines.add("=== Resources (" + byPath.size() + ") ===");
+        for (Map.Entry<String, List<XmlNode>> entry : byPath.entrySet()) {
+            String dp = entry.getKey();
+            boolean hasGroup = entry.getValue().stream().anyMatch(tf -> tf.child("group") != null);
+            lines.add("  " + dp + (hasGroup ? " *" : ""));
+        }
+
+        boolean anyHasGroup = totalFields.stream().anyMatch(tf -> tf.child("group") != null);
+        if (anyHasGroup) {
+            lines.add("");
+            lines.add("  * = has group-level formulas");
+        }
+        lines.add("");
+        lines.add("Use --name <field> for aggregation details.");
     }
 
     // ==================== Params ====================
 
-    private void showParams(XmlNode root, List<String> lines) {
+    private void printParams(XmlNode root, List<String> lines) {
         List<XmlNode> params = root.children("parameter");
         if (params.isEmpty()) {
             lines.add("(no parameters)");
@@ -375,6 +611,8 @@ public class SkdInfoPrinter {
 
         lines.add("=== Parameters (" + params.size() + ") ===");
         lines.add("");
+        lines.add("  " + padRight("Name", 24) + padRight("Type", 24) + padRight("Default", 12) + "Visible  Expression");
+        lines.add("  " + repeat("-", 80));
 
         for (XmlNode p : params) {
             String pName = safeText(p.childText("name"));
@@ -382,37 +620,429 @@ public class SkdInfoPrinter {
             String typeStr = vt != null ? getCompactType(vt) : "";
 
             boolean isHidden = "true".equals(safeText(p.childText("useRestriction")).trim());
-            String hiddenStr = isHidden ? " [hidden]" : "";
-
-            XmlNode titleNode = p.child("title");
-            String title = titleNode != null ? getMlText(titleNode) : "";
-            String titleStr = !title.isEmpty() ? "  \"" + title + "\"" : "";
+            String visStr = isHidden ? "hidden" : "yes";
 
             // Default value
             XmlNode defValue = p.child("value");
-            String defStr = "";
+            String defStr = "-";
             if (defValue != null) {
                 String dv = safeText(defValue.getText());
-                if (!dv.isEmpty()) defStr = "  default=" + dv;
+                if (!dv.isEmpty()) defStr = dv;
             }
 
             // Expression
             XmlNode expr = p.child("expression");
-            String exprStr = "";
+            String exprStr = "-";
             if (expr != null) {
                 String ev = safeText(expr.getText());
-                if (!ev.isEmpty()) exprStr = "  expr=" + ev;
+                if (!ev.isEmpty()) exprStr = ev;
             }
 
-            String typePart = !typeStr.isEmpty() ? ": " + typeStr : "";
-            lines.add("  " + pName + typePart + titleStr + defStr + exprStr + hiddenStr);
+            lines.add("  " + padRight(pName, 24) + padRight(typeStr.length() > 22 ? typeStr.substring(0, 22) : typeStr, 24)
+                    + padRight(defStr.length() > 10 ? defStr.substring(0, 10) : defStr, 12)
+                    + padRight(visStr, 9) + exprStr);
         }
+    }
+
+    // ==================== Variant ====================
+
+    private void printVariant(XmlNode root, String name, List<String> lines) {
+        List<XmlNode> variants = root.children("settingsVariant");
+        if (variants.isEmpty()) {
+            lines.add("(no variants)");
+            return;
+        }
+
+        if (name == null || name.isEmpty()) {
+            // List all
+            lines.add("=== Variants (" + variants.size() + ") ===");
+            int idx = 0;
+            for (XmlNode v : variants) {
+                idx++;
+                String vName = safeText(v.childText("name"));
+                String pres = getMlText(v.child("presentation"));
+                String presStr = !pres.isEmpty() ? "  \"" + pres + "\"" : "";
+
+                XmlNode settings = v.child("settings");
+                int filterCount = 0;
+                if (settings != null) {
+                    XmlNode filter = settings.child("filter");
+                    if (filter != null) filterCount = filter.children("item").size();
+                }
+                String filterStr = filterCount > 0 ? "  " + filterCount + " filters" : "";
+
+                List<String> structItems = new ArrayList<>();
+                if (settings != null) {
+                    for (XmlNode si : settings.children("item")) {
+                        String siType = getStructureItemType(si);
+                        List<String> gf = getGroupFields(si);
+                        String gStr = !gf.isEmpty() ? "(" + String.join(",", gf) + ")" : "(detail)";
+                        structItems.add(siType + gStr);
+                    }
+                }
+                String structStr = !structItems.isEmpty() ? "  " + String.join(", ", structItems) : "";
+
+                lines.add("  [" + idx + "] " + vName + presStr + structStr + filterStr);
+            }
+            lines.add("");
+            lines.add("Use --name <N|name> for variant structure details.");
+            return;
+        }
+
+        // Find specific variant by name or index
+        XmlNode targetVariant = null;
+        int targetIdx = -1;
+        int idx = 0;
+        for (XmlNode v : variants) {
+            idx++;
+            String vName = safeText(v.childText("name"));
+            if (name.equals(vName) || name.equals(String.valueOf(idx))) {
+                targetVariant = v;
+                targetIdx = idx;
+                break;
+            }
+        }
+
+        if (targetVariant == null) {
+            lines.add("Variant '" + name + "' not found");
+            return;
+        }
+
+        String vName = safeText(targetVariant.childText("name"));
+        String pres = getMlText(targetVariant.child("presentation"));
+        String presStr = !pres.isEmpty() ? " \"" + pres + "\"" : "";
+        lines.add("=== Variant [" + targetIdx + "]: " + vName + presStr + " ===");
+        lines.add("");
+
+        XmlNode settings = targetVariant.child("settings");
+        if (settings == null) {
+            lines.add("(no settings)");
+            return;
+        }
+
+        // Structure
+        List<XmlNode> structItems = settings.children("item");
+        if (!structItems.isEmpty()) {
+            lines.add("Structure:");
+            for (XmlNode si : structItems) {
+                String siType = getStructureItemType(si);
+                String siName = safeText(si.childText("name"));
+                String siNameStr = !siName.isEmpty() ? " \"" + siName + "\"" : "";
+                lines.add("  " + siType + siNameStr);
+
+                // Selection
+                XmlNode sel = si.child("selection");
+                if (sel != null) {
+                    List<String> selFields = new ArrayList<>();
+                    for (XmlNode item : sel.children("item")) {
+                        selFields.add(safeText(item.childText("field")));
+                    }
+                    if (!selFields.isEmpty()) {
+                        lines.add("    Selection: " + String.join(", ", selFields));
+                    }
+                }
+
+                // GroupBy
+                XmlNode groupItems = si.child("groupItems");
+                if (groupItems != null) {
+                    List<String> groupFields = new ArrayList<>();
+                    for (XmlNode gi : groupItems.children("item")) {
+                        groupFields.add(safeText(gi.childText("field")));
+                    }
+                    if (!groupFields.isEmpty()) {
+                        lines.add("    GroupBy: " + String.join(", ", groupFields));
+                    }
+                }
+            }
+            lines.add("");
+        }
+
+        // Filter
+        XmlNode filter = settings.child("filter");
+        if (filter != null) {
+            List<XmlNode> filterItems = filter.children("item");
+            if (!filterItems.isEmpty()) {
+                lines.add("Filter:");
+                for (XmlNode fi : filterItems) {
+                    String field = safeText(fi.childText("leftValue"));
+                    if (field.isEmpty()) field = safeText(fi.childText("field"));
+                    String op = safeText(fi.childText("comparisonType"));
+                    String val = safeText(fi.childText("rightValue"));
+                    String use = safeText(fi.childText("use"));
+                    String useStr = "true".equals(use) ? "[x]" : "[ ]";
+                    XmlNode viewMode = fi.child("viewMode");
+                    String vmStr = viewMode != null ? " [" + safeText(viewMode.getText()) + "]" : "";
+                    String titleNode = getMlText(fi.child("presentation"));
+                    String titleStr = !titleNode.isEmpty() ? " \"" + titleNode + "\"" : "";
+                    lines.add("  " + useStr + " " + field + " " + op + " " + val + titleStr + vmStr);
+                }
+                lines.add("");
+            }
+        }
+
+        // Selection
+        List<XmlNode> selNodes = settings.children("selection");
+        if (!selNodes.isEmpty()) {
+            List<String> selFields = new ArrayList<>();
+            for (XmlNode sel : selNodes) {
+                for (XmlNode item : sel.children("item")) {
+                    selFields.add(safeText(item.childText("field")));
+                }
+            }
+            if (!selFields.isEmpty()) {
+                lines.add("Selection: " + String.join(", ", selFields));
+            }
+        }
+
+        // Order
+        List<XmlNode> orderNodes = settings.children("order");
+        if (!orderNodes.isEmpty()) {
+            List<String> orderFields = new ArrayList<>();
+            for (XmlNode ord : orderNodes) {
+                for (XmlNode item : ord.children("item")) {
+                    String field = safeText(item.childText("field"));
+                    String dir = safeText(item.childText("orderType"));
+                    orderFields.add(field + (dir.isEmpty() ? "" : " " + dir));
+                }
+            }
+            if (!orderFields.isEmpty()) {
+                lines.add("Order: " + String.join(", ", orderFields));
+            }
+        }
+
+        // DataParameters
+        XmlNode dataParams = settings.child("dataParameters");
+        if (dataParams != null) {
+            lines.add("");
+            lines.add("DataParams:");
+            for (XmlNode item : dataParams.children("item")) {
+                String pName = safeText(item.childText("parameterName"));
+                String pVal = safeText(item.childText("value"));
+                lines.add("  " + pName + " = " + pVal);
+            }
+        }
+
+        // OutputParameters
+        XmlNode outputParams = settings.child("outputParameters");
+        if (outputParams != null && !outputParams.getChildren().isEmpty()) {
+            lines.add("");
+            lines.add("Output:");
+            for (XmlNode op : outputParams.getChildren()) {
+                String opVal = safeText(op.getText());
+                if (!opVal.isEmpty()) {
+                    lines.add("  " + op.getName() + "=" + opVal);
+                }
+            }
+        }
+    }
+
+    // ==================== Templates ====================
+
+    private void printTemplates(XmlNode root, String name, List<String> lines) {
+        List<XmlNode> templates = root.children("template");
+        List<XmlNode> groupTemplates = root.children("groupTemplate");
+
+        if (templates.isEmpty() && groupTemplates.isEmpty()) {
+            lines.add("(no templates defined)");
+            return;
+        }
+
+        if (name == null || name.isEmpty()) {
+            lines.add("=== Templates (" + templates.size() + " defined: "
+                    + templates.size() + " field, " + groupTemplates.size() + " group) ===");
+            lines.add("");
+
+            if (!templates.isEmpty()) {
+                lines.add("Field bindings (" + templates.size() + "):");
+                List<String> names = new ArrayList<>();
+                for (XmlNode t : templates) {
+                    names.add(safeText(t.childText("name")));
+                }
+                String nameList = String.join(", ", names);
+                if (nameList.length() > 120) {
+                    lines.add("  (all: " + nameList.substring(0, 117) + "...)");
+                } else {
+                    lines.add("  " + nameList);
+                }
+                lines.add("");
+            }
+
+            if (!groupTemplates.isEmpty()) {
+                lines.add("Group bindings (" + groupTemplates.size() + "):");
+                // Group by groupField/groupName
+                Map<String, List<XmlNode>> byGroup = new LinkedHashMap<>();
+                for (XmlNode gt : groupTemplates) {
+                    String gf = safeText(gt.childText("groupField"));
+                    if (gf.isEmpty()) gf = safeText(gt.childText("groupName"));
+                    byGroup.computeIfAbsent(gf, k -> new ArrayList<>()).add(gt);
+                }
+                for (Map.Entry<String, List<XmlNode>> entry : byGroup.entrySet()) {
+                    lines.add("  " + entry.getKey());
+                    for (XmlNode gt : entry.getValue()) {
+                        String tplType = safeText(gt.childText("templateType"));
+                        String tplName = safeText(gt.childText("template"));
+                        lines.add("    " + tplType + " -> " + tplName);
+                    }
+                }
+            }
+            return;
+        }
+
+        // Specific template/groupfield
+        // Check group templates first
+        boolean found = false;
+        lines.add("=== Templates: " + name + " ===");
+        lines.add("");
+
+        List<XmlNode> matchedGroupTemplates = new ArrayList<>();
+        for (XmlNode gt : groupTemplates) {
+            String gf = safeText(gt.childText("groupField"));
+            if (gf.isEmpty()) gf = safeText(gt.childText("groupName"));
+            if (name.equals(gf)) {
+                matchedGroupTemplates.add(gt);
+                found = true;
+            }
+        }
+
+        for (XmlNode gt : matchedGroupTemplates) {
+            String tplType = safeText(gt.childText("templateType"));
+            String tplName = safeText(gt.childText("template"));
+            lines.add(tplType + " -> " + tplName);
+        }
+
+        // Check field templates
+        for (XmlNode t : templates) {
+            String tName = safeText(t.childText("name"));
+            if (name.equals(tName)) {
+                found = true;
+                String tplName = safeText(t.childText("template"));
+                lines.add("Field -> " + tplName);
+            }
+        }
+
+        if (!found) {
+            lines.add("No templates found for '" + name + "'");
+        }
+    }
+
+    // ==================== Trace ====================
+
+    private void printTrace(XmlNode root, String name, List<String> lines) {
+        if (name == null || name.isEmpty()) {
+            lines.add("Usage: --mode trace --name <fieldName>");
+            lines.add("Find field by dataPath or title substring, show origin chain.");
+            return;
+        }
+
+        SkdTraceBuilder builder = new SkdTraceBuilder();
+        List<SkdTraceBuilder.TraceNode> traceNodes = builder.build(root, name);
+
+        if (traceNodes.isEmpty()) {
+            lines.add("=== Trace: " + name + " ===");
+            lines.add("");
+            lines.add("Field '" + name + "' not found in datasets or calculated fields.");
+            return;
+        }
+
+        for (SkdTraceBuilder.TraceNode tn : traceNodes) {
+            for (SkdTraceBuilder.FieldNode fn : tn.fields) {
+                lines.add("=== Trace: " + fn.fieldName + " ===");
+                lines.add("");
+                lines.add("Dataset: " + tn.dataSetName + " (" + tn.dataSetType + ")");
+                if (!fn.fieldType.isEmpty()) lines.add("Type: " + fn.fieldType);
+                if (!fn.role.isEmpty()) lines.add("Role: " + fn.role);
+                lines.add("");
+
+                String fieldPrefix = "DataSet \"" + tn.dataSetName + "\" (" + tn.dataSetType + ")";
+                lines.add(fieldPrefix);
+                renderFieldNode(fn, "  ", lines);
+                lines.add("");
+            }
+        }
+    }
+
+    private void renderFieldNode(SkdTraceBuilder.FieldNode fn, String indent, List<String> lines) {
+        // Determine children count for tree chars
+        int totalChildren = fn.totals.size() + fn.calcFields.size() + fn.variantRefs.size();
+        int childIdx = 0;
+
+        String roleStr = !fn.role.isEmpty() ? ", " + fn.role : "";
+        String typeStr = !fn.fieldType.isEmpty() ? " (" + fn.fieldType + roleStr + ")" : (!fn.role.isEmpty() ? " (" + fn.role + ")" : "");
+
+        lines.add(indent + "└── Field \"" + fn.fieldName + "\"" + typeStr);
+
+        String childIndent = indent + "    ";
+
+        for (SkdTraceBuilder.TotalNode tn : fn.totals) {
+            childIdx++;
+            String treeChar = childIdx < totalChildren ? "├── " : "└── ";
+            lines.add(childIndent + treeChar + "Total: " + tn.expression);
+        }
+
+        for (SkdTraceBuilder.CalcNode cn : fn.calcFields) {
+            childIdx++;
+            String treeChar = childIdx < totalChildren ? "├── " : "└── ";
+            // Truncate long expressions
+            String exprDisplay = cn.expression;
+            if (exprDisplay.length() > 80) exprDisplay = exprDisplay.substring(0, 77) + "...";
+            lines.add(childIndent + treeChar + "CalculatedField \"" + cn.name + "\" = " + exprDisplay);
+
+            if (!cn.variantRefs.isEmpty()) {
+                String calcChildIndent = childIndent + (childIdx < totalChildren ? "│   " : "    ");
+                for (SkdTraceBuilder.VariantRef vr : cn.variantRefs) {
+                    lines.add(calcChildIndent + "└── Variant \"" + vr.variantName + "\" → " + vr.kind + "[\"" + cn.name + "\"]");
+                }
+            }
+        }
+
+        for (SkdTraceBuilder.VariantRef vr : fn.variantRefs) {
+            childIdx++;
+            String treeChar = childIdx < totalChildren ? "├── " : "└── ";
+            lines.add(childIndent + treeChar + "Variant \"" + vr.variantName + "\" → " + vr.kind + "[\"" + fn.fieldName + "\"]");
+        }
+    }
+
+    // ==================== Full ====================
+
+    private void printFull(XmlNode root, Path file, List<String> lines) {
+        printOverview(root, file, lines);
+        lines.add("");
+        lines.add("────────────────────────────────────────");
+        lines.add("");
+        printQuery(root, null, lines);
+        lines.add("");
+        lines.add("────────────────────────────────────────");
+        lines.add("");
+        printFields(root, null, lines);
+        lines.add("");
+        lines.add("────────────────────────────────────────");
+        lines.add("");
+        printLinks(root, lines);
+        lines.add("");
+        lines.add("────────────────────────────────────────");
+        lines.add("");
+        printCalculated(root, null, lines);
+        lines.add("");
+        lines.add("────────────────────────────────────────");
+        lines.add("");
+        printResources(root, null, lines);
+        lines.add("");
+        lines.add("────────────────────────────────────────");
+        lines.add("");
+        printParams(root, lines);
+        lines.add("");
+        lines.add("────────────────────────────────────────");
+        lines.add("");
+        printVariant(root, null, lines);
+        lines.add("");
+        lines.add("────────────────────────────────────────");
+        lines.add("");
+        printTemplates(root, null, lines);
     }
 
     // ==================== Helpers ====================
 
     private String getDatasetType(XmlNode ds) {
-        // Check xsi:type attribute
         String xsiType = ds.attr("xsi:type");
         if (xsiType == null) xsiType = ds.attr("type");
         if (xsiType == null) xsiType = "";
@@ -457,13 +1087,11 @@ public class SkdInfoPrinter {
     private XmlNode findQueryDataset(XmlNode root, String name) {
         for (XmlNode ds : root.children("dataSet")) {
             if (name != null && !name.isEmpty()) {
-                // Search by name: nested first, then top-level
                 for (XmlNode sub : ds.children("item")) {
                     if (name.equals(safeText(sub.childText("name")))) return sub;
                 }
                 if (name.equals(safeText(ds.childText("name")))) return ds;
             } else {
-                // First Query dataset
                 if ("Query".equals(getDatasetType(ds))) return ds;
                 if ("Union".equals(getDatasetType(ds))) {
                     for (XmlNode sub : ds.children("item")) {
@@ -522,5 +1150,19 @@ public class SkdInfoPrinter {
 
     private static String safeText(String s) {
         return s != null ? s : "";
+    }
+
+    private static String padRight(String s, int n) {
+        if (s == null) s = "";
+        if (s.length() >= n) return s + " ";
+        StringBuilder sb = new StringBuilder(s);
+        while (sb.length() < n) sb.append(' ');
+        return sb.toString();
+    }
+
+    private static String repeat(String s, int n) {
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < n; i++) sb.append(s);
+        return sb.toString();
     }
 }

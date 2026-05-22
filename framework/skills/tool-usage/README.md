@@ -44,11 +44,11 @@
 │   контекст  │    │             │    │             │    │             │    │  проверка   │
 └─────────────┘    └─────────────┘    └─────────────┘    └─────────────┘    └─────────────┘
   (вне агента)      spec-writing       bsl-practices       bsl-practices    test-execution
-                    metadata-disc.     code-navigation     tool-usage/core  visual-check
-                    query-execution    review-*            xml-gen          syntax-checking
-                    search-before-w.   event-log-analysis  review-*         event-log-analysis
-                    code-navigation    tech-log-analysis   spec-writing     tech-log-analysis
-                                       metadata-disc.                       review-*
+                    platform-data-core code-navigation     tool-usage/core  visual-check
+                    search-before-w.   review-*            xml-gen          syntax-checking
+                    code-navigation    event-log-analysis  review-*         event-log-analysis
+                                       tech-log-analysis   spec-writing     tech-log-analysis
+                                       platform-data-core                   review-*
 ```
 
 > **Примечание о пайплайне:** Перед Phase 1 (ФА) запускается **Phase 0 (Explorer)** — техническая роль оркестратора для классификации задачи (простая → `quick-fix`, средняя/сложная → full-cycle). Explorer не является бизнес-ролью жизненного цикла. Подробнее см. [`framework/workflows/full-cycle.md`](../../../framework/workflows/full-cycle.md).
@@ -77,11 +77,10 @@
 | Категория | Навык | Назначение | MCP Tools |
 |-----------|-------|------------|-----------|
 | spec-writing | `spec-standard` | Структурирование требований по шаблону SDD, RFC2119 | — |
-| spec-writing | `task-breakdown-subagent` | Декомпозиция задачи в JSON-формате (субагентный режим) | — |
-| spec-writing | `task-breakdown-linear` | Декомпозиция задачи (линейный режим) | — |
-| tool-usage | `metadata-discovery` | Проверка, существуют ли нужные объекты метаданных | `list_metadata_objects`, `get_metadata_structure` |
+| spec-writing | `task-breakdown` | Декомпозиция задачи в JSON-формате (linear или subagent режим) | — |
+| tool-usage | `platform-data-core` | Поиск объектов метаданных, выполнение запросов, работа с навигационными ссылками | `list_metadata_objects`, `get_metadata_structure`, `validate_query`, `execute_query`, `parse_nav_link`, `get_nav_link` |
 
-**Пример рабочего сценария:** БА получает запрос «Добавить скидку по промокоду». Агент помогает оформить требование по шаблону `spec-standard`, декомпозирует на подзадачи через `task-breakdown-linear`, а через `metadata-discovery` проверяет, есть ли уже справочник «ПромоКоды» или регистр скидок в конфигурации.
+**Пример рабочего сценария:** БА получает запрос «Добавить скидку по промокоду». Агент помогает оформить требование по шаблону `spec-standard`, декомпозирует на подзадачи через `task-breakdown` (linear mode), а через `platform-data-core` § Metadata Discovery проверяет, есть ли уже справочник «ПромоКоды» или регистр скидок в конфигурации.
 
 **Незакрытые зоны:**
 - Моделирование бизнес-процессов (BPMN/EPC-диаграммы) — нет инструмента
@@ -107,15 +106,13 @@
 | Категория | Навык | Назначение | MCP Tools |
 |-----------|-------|------------|-----------|
 | spec-writing | `spec-standard` | Генерация SDD по шаблону | — |
-| spec-writing | `task-breakdown-subagent` | Декомпозиция SDD на задачи разработки | — |
-| spec-writing | `task-breakdown-linear` | Декомпозиция (линейный режим) | — |
-| tool-usage | `metadata-discovery` | Исследование существующей модели данных | `list_metadata_objects`, `get_metadata_structure`, `navigate_symbol`, `get_call_graph`, `dump_config` |
-| tool-usage | `query-execution` | Проверка гипотез о данных, валидация запросов | `validate_query`, `execute_query`, `get_metadata_structure` |
+| spec-writing | `task-breakdown` | Декомпозиция SDD на задачи разработки (linear или subagent режим) | — |
+| tool-usage | `platform-data-core` | Исследование модели данных, проверка гипотез, выполнение запросов, работа с навигационными ссылками | `list_metadata_objects`, `get_metadata_structure`, `navigate_symbol`, `get_call_graph`, `validate_query`, `execute_query`, `parse_nav_link`, `get_nav_link` |
 | tool-usage | `search-before-write` | Поиск существующих решений перед проектированием | `navigate_symbol`, `list_metadata_objects`, `get_metadata_structure`, `search_syntax_reference`, `get_type_info`, `search_ssl_functions`, `ask_ai_assistant` |
 | tool-usage | `code-navigation` | Анализ существующего кода для понимания паттернов | `navigate_symbol`, `get_call_graph`, `rename_symbol`, `get_diagnostics`, `get_code_actions` |
 | bsl-practices | `form-visual-requirements` | Предварительная оценка визуальных требований при проектировании форм | — |
 
-**Пример рабочего сценария:** ФА проектирует систему скидок по промокодам. Агент через `metadata-discovery` анализирует существующие объекты (Справочник.Номенклатура, Документ.ЗаказКлиента), через `search-before-write` находит готовые функции в БСП для работы со скидками, через `query-execution` проверяет текущую структуру данных, а затем генерирует SDD-спецификацию по шаблону `spec-standard`.
+**Пример рабочего сценария:** ФА проектирует систему скидок по промокодам. Агент через `platform-data-core` § Metadata Discovery анализирует существующие объекты (Справочник.Номенклатура, Документ.ЗаказКлиента), через `search-before-write` находит готовые функции в БСП для работы со скидками, через `platform-data-core` § Query Execution проверяет текущую структуру данных, а затем генерирует SDD-спецификацию по шаблону `spec-standard`.
 
 **Незакрытые зоны:**
 - Построение диаграмм (ER, sequence, use-case) — нет генератора
@@ -146,11 +143,10 @@
 | bsl-practices | `query-patterns` | Правила оптимизации запросов | — |
 | bsl-practices | `ssl-patterns` | Паттерны использования БСП | — |
 | tool-usage | `code-navigation` | Навигация по коду: определения, вызовы, иерархия; верификация API платформы после ошибки | `navigate_symbol`, `get_call_graph`, `rename_symbol`, `get_diagnostics`, `get_code_actions`, `search_syntax_reference`, `getMembers`, `getMember`, `getConstructors` |
-| tool-usage | `metadata-discovery` | Анализ структуры метаданных | `list_metadata_objects`, `get_metadata_structure`, `navigate_symbol`, `get_call_graph`, `dump_config` |
+| tool-usage | `platform-data-core` | Анализ метаданных, валидация/выполнение запросов при ревью, навигационные ссылки | `list_metadata_objects`, `get_metadata_structure`, `navigate_symbol`, `get_call_graph`, `validate_query`, `execute_query`, `parse_nav_link`, `get_nav_link` |
 | tool-usage | `search-before-write` | Поиск готовых решений в БСП и платформе | `navigate_symbol`, `list_metadata_objects`, `get_metadata_structure`, `search_syntax_reference`, `get_type_info`, `search_ssl_functions`, `ask_ai_assistant` |
 | tool-usage | `event-log-analysis` | Журнал регистрации: ошибки, аудит действий | `search_event_log`, `navigate_symbol` |
 | tool-usage | `tech-log-analysis` | Технологический журнал: диагностика производительности и блокировок | `search_tech_log`, `logc_get_techlog_config`, `logc_save_techlog`, `logc_configure_techlog`, `logc_get_actual_log_timestamp`, `logc_restore_techlog`, `logc_disable_techlog`, `navigate_symbol` |
-| tool-usage | `query-execution` | Валидация запросов при ревью и оценке производительности | `validate_query`, `execute_query`, `get_metadata_structure` |
 | tool-usage | `syntax-checking` | Проверка синтаксиса при ревью | `check_syntax`, `get_diagnostics` |
 | tool-usage | `cross-provider-review` | Cross-family второе мнение (Claude↔Codex, изолированный sandbox, read-only) | `.agents/skills/cross-provider-review/scripts/{claude_opus_review,codex_review}.py` |
 | tool-usage | `gemini-review` | Независимое ревью через Gemini | — (внешний CLI) |
@@ -184,17 +180,14 @@
 | tool-usage | `code-navigation` | LSP-навигация по коду; верификация API платформы после ошибки | `navigate_symbol`, `get_call_graph`, `rename_symbol`, `get_diagnostics`, `get_code_actions`, `search_syntax_reference`, `getMembers`, `getMember`, `getConstructors` |
 | tool-usage | `event-log-analysis` | Анализ ЖР для отладки | `search_event_log`, `navigate_symbol` |
 | tool-usage | `tech-log-analysis` | Анализ ТЖ и управление жизненным циклом | `search_tech_log`, `logc_get_techlog_config`, `logc_save_techlog`, `logc_configure_techlog`, `logc_get_actual_log_timestamp`, `logc_restore_techlog`, `logc_disable_techlog`, `navigate_symbol` |
-| tool-usage | `metadata-discovery` | Исследование метаданных конфигурации | `list_metadata_objects`, `get_metadata_structure`, `navigate_symbol`, `get_call_graph`, `dump_config` |
-| tool-usage | `nav-link` | Работа с навигационными ссылками 1С | `parse_nav_link`, `get_nav_link` |
-| tool-usage | `query-execution` | Валидация и выполнение запросов | `validate_query`, `execute_query`, `get_metadata_structure` |
+| tool-usage | `platform-data-core` | Метаданные, запросы, навигационные ссылки | `list_metadata_objects`, `get_metadata_structure`, `navigate_symbol`, `get_call_graph`, `validate_query`, `execute_query`, `parse_nav_link`, `get_nav_link` |
 | tool-usage | `search-before-write` | Поиск перед написанием кода | `navigate_symbol`, `list_metadata_objects`, `get_metadata_structure`, `search_syntax_reference`, `get_type_info`, `search_ssl_functions`, `ask_ai_assistant` |
 | tool-usage | `syntax-checking` | Проверка синтаксиса BSL | `check_syntax`, `get_diagnostics` |
 | tool-usage | `test-execution` | TDD: сборка, запуск тестов, анализ | `run_tests`, `build_project`, `navigate_symbol`, `check_syntax` |
 | tool-usage | `visual-check` | Визуальная проверка форм в браузере | `browser_navigate`, `browser_snapshot`, `browser_fill`, `browser_click`, `browser_take_screenshot`, `browser_console_messages`, `browser_wait_for` |
 | **tool-usage / xml-gen** | | | |
-| tool-usage | `xml-generation` | Обзор генерации XML-метаданных | — (CLI) |
-| tool-usage | `xml-gen-cli` | Команды CLI для xml-gen.jar | — (CLI) |
-| tool-usage | `epf-operations` | Создание обработок (EPF) | — (CLI) |
+| tool-usage | `xml-generation` | Обзор генерации XML-метаданных + CLI (validate, edit, replace-text) | — (CLI) |
+| tool-usage | `epf-full` | Создание EPF/ERF, макеты объектов, BSP-регистрация | — (CLI) |
 | tool-usage | `form-dsl` | JSON DSL для генерации форм | — (CLI) |
 | tool-usage | `mxl-dsl` | JSON DSL для табличных документов | — (CLI) |
 | tool-usage | `role-dsl` | JSON DSL для ролей и прав | — (CLI) |
@@ -211,8 +204,7 @@
 | bsl-practices | `ssl-patterns` | Паттерны использования БСП | — |
 | **spec-writing** | | | |
 | spec-writing | `spec-standard` | Структура спецификации | — |
-| spec-writing | `task-breakdown-subagent` | Декомпозиция задач (субагент) | — |
-| spec-writing | `task-breakdown-linear` | Декомпозиция задач (линейная) | — |
+| spec-writing | `task-breakdown` | Декомпозиция задач (linear / subagent режим) | — |
 | **framework-meta** | | | |
 | framework-meta | `1c-ai-agent-cli` | CLI фреймворка | — |
 | framework-meta | `skill-creator` | Создание новых навыков | — |
@@ -220,7 +212,7 @@
 | framework-meta | `agent-development` | Разработка субагентов | — |
 | framework-meta | `agent-development-ext` | Разработка субагентов (1С) | — |
 
-**Пример рабочего сценария:** Программист реализует справочник «ПромоКоды» с формой. Агент: (1) через `search-before-write` ищет аналоги в конфигурации, (2) через `epf-operations` / `form-dsl` генерирует XML-метаданные справочника и формы, (3) пишет BSL-код модуля по `coding-standards`, (4) через `syntax-checking` проверяет синтаксис, (5) через `test-execution` запускает YaxUnit-тесты, (6) через `visual-check` проверяет отображение формы в браузере, (7) через `cross-provider-review` получает второе мнение от opposite-family модели.
+**Пример рабочего сценария:** Программист реализует справочник «ПромоКоды» с формой. Агент: (1) через `search-before-write` ищет аналоги в конфигурации, (2) через `epf-full` / `form-dsl` генерирует XML-метаданные справочника и формы, (3) пишет BSL-код модуля по `coding-standards`, (4) через `syntax-checking` проверяет синтаксис, (5) через `test-execution` запускает YaxUnit-тесты, (6) через `visual-check` проверяет отображение формы в браузере, (7) через `cross-provider-review` получает второе мнение от opposite-family модели.
 
 **Незакрытые зоны:**
 - Работа с жизненным циклом ТЖ — покрыто навыком `tech-log-analysis`
@@ -270,16 +262,13 @@
 | 1 | `code-navigation` | tool-usage | | ◐ | ● | ● | ◐ |
 | 2 | `event-log-analysis` | tool-usage | | | ● | ● | ● |
 | 3 | `tech-log-analysis` | tool-usage | | | ● | ● | ● |
-| 4 | `metadata-discovery` | tool-usage | ◐ | ● | ◐ | ● | |
-| 5 | `nav-link` | tool-usage | | | | ● | |
-| 6 | `query-execution` | tool-usage | | ● | ◐ | ● | |
+| 4 | `platform-data-core` | tool-usage | ◐ | ● | ◐ | ● | |
 | 7 | `search-before-write` | tool-usage | | ● | ● | ● | |
 | 8 | `syntax-checking` | tool-usage | | | ● | ● | ● |
 | 9 | `test-execution` | tool-usage | | | | ● | ● |
 | 10 | `visual-check` | tool-usage | | | | ● | ● |
 | 11 | `xml-generation` | tool-usage | | | | ● | |
-| 12 | `xml-gen-cli` | tool-usage | | | | ● | |
-| 13 | `epf-operations` | tool-usage | | | | ● | |
+| 12 | `epf-full` | tool-usage | | | | ● | |
 | 14 | `form-dsl` | tool-usage | | | | ● | |
 | 15 | `mxl-dsl` | tool-usage | | | | ● | |
 | 16 | `role-dsl` | tool-usage | | | | ● | |
@@ -294,9 +283,8 @@
 | 25 | `ssl-patterns` | bsl-practices | | | ● | ● | |
 | 26 | `test-writing` | bsl-practices | | | | ● | ◐ |
 | 27 | `spec-standard` | spec-writing | ● | ● | ◐ | ◐ | |
-| 28 | `task-breakdown-subagent` | spec-writing | ● | ● | | ◐ | |
-| 29 | `task-breakdown-linear` | spec-writing | ● | ● | | ◐ | |
-| 30 | `1c-ai-agent-cli` | framework-meta | | | | ● | |
+| 28 | `task-breakdown` | spec-writing | ● | ● | | ◐ | |
+| 29 | `1c-ai-agent-cli` | framework-meta | | | | ● | |
 | 31 | `skill-creator` | framework-meta | | | | ● | |
 | 32 | `skill-creator-ext` | framework-meta | | | | ● | |
 | 33 | `agent-development` | framework-meta | | | | ● | |
@@ -334,8 +322,8 @@
 | `did_change_watched_files` | mcp-bsl-lsp-bridge | Уведомление об изменении файлов | Программист | ⚪ Системный, не требует навыка |
 | `lsp_status` | mcp-bsl-lsp-bridge | Статус подключения к LSP | Программист | ⚪ Системный, не требует навыка |
 | **Покрыты существующими навыками** | | | | |
-| `navigate_symbol` | lsp-bsl-bridge | Навигация по символам | Все роли | 🟢 `code-navigation`, `search-before-write`, `metadata-discovery`, `event-log-analysis`, `tech-log-analysis`, `test-execution` |
-| `get_call_graph` | lsp-bsl-bridge | Граф вызовов | СА, Программист | 🟢 `code-navigation`, `metadata-discovery` |
+| `navigate_symbol` | lsp-bsl-bridge | Навигация по символам | Все роли | 🟢 `code-navigation`, `search-before-write`, `platform-data-core`, `event-log-analysis`, `tech-log-analysis`, `test-execution` |
+| `get_call_graph` | lsp-bsl-bridge | Граф вызовов | СА, Программист | 🟢 `code-navigation`, `platform-data-core` |
 | `get_diagnostics` | lsp-bsl-bridge | Диагностика (= `document_diagnostics` в LSP) | Программист, QA | 🟢 `syntax-checking`, `code-navigation` |
 | `get_code_actions` | lsp-bsl-bridge | Быстрые исправления | Программист | 🟢 `code-navigation` |
 | `rename_symbol` | lsp-bsl-bridge | Переименование символа | Программист | 🟢 `code-navigation` |
@@ -343,13 +331,13 @@
 | `check_syntax` | test-runner | Проверка синтаксиса (абстрагирует `check_syntax_edt`, `check_syntax_designer_modules`) | Программист, QA | 🟢 `syntax-checking`, `test-execution` |
 | `run_tests` | test-runner | Запуск тестов (абстрагирует `run_all_tests`, `run_module_tests`) | Программист, QA | 🟢 `test-execution` |
 | `build_project` | test-runner | Сборка проекта | Программист, QA | 🟢 `test-execution` |
-| `dump_config` | test-runner | Выгрузка конфигурации | Программист | 🟢 `metadata-discovery` |
-| `list_metadata_objects` | 1c-mcp | Список объектов метаданных | ФА, СА, Программист | 🟢 `metadata-discovery`, `search-before-write` |
-| `get_metadata_structure` | 1c-mcp | Структура объекта метаданных | ФА, СА, Программист | 🟢 `metadata-discovery`, `query-execution`, `search-before-write` |
-| `validate_query` | 1c-mcp | Валидация запроса | ФА, Программист | 🟢 `query-execution` |
-| `execute_query` | 1c-mcp | Выполнение запроса | ФА, Программист | 🟢 `query-execution` |
-| `parse_nav_link` | 1c-mcp | Парсинг навигационной ссылки | Программист | 🟢 `nav-link` |
-| `get_nav_link` | 1c-mcp | Генерация навигационной ссылки | Программист | 🟢 `nav-link` |
+| `dump_config` | test-runner | Выгрузка конфигурации | Программист | 🟢 `platform-data-core` |
+| `list_metadata_objects` | 1c-mcp | Список объектов метаданных | ФА, СА, Программист | 🟢 `platform-data-core`, `search-before-write` |
+| `get_metadata_structure` | 1c-mcp | Структура объекта метаданных | ФА, СА, Программист | 🟢 `platform-data-core`, `search-before-write` |
+| `validate_query` | 1c-mcp | Валидация запроса | ФА, Программист | 🟢 `platform-data-core` |
+| `execute_query` | 1c-mcp | Выполнение запроса | ФА, Программист | 🟢 `platform-data-core` |
+| `parse_nav_link` | 1c-mcp | Парсинг навигационной ссылки | Программист | 🟢 `platform-data-core` |
+| `get_nav_link` | 1c-mcp | Генерация навигационной ссылки | Программист | 🟢 `platform-data-core` |
 | `search_syntax_reference` | 1c-platform-context | Поиск по справке синтаксиса (= `search` в MCP) | СА, Программист | 🟢 `search-before-write`, `code-navigation` (Сценарий 6) |
 | `get_type_info` | 1c-platform-context | Информация о типе (= `info` в MCP) | СА, Программист | 🟢 `search-before-write` |
 | `getMember` | mcp-bsl-platform-context | Получение метода/свойства типа | СА, Программист | 🟢 `code-navigation` (Сценарий 6: верификация API после ошибки) |
@@ -415,14 +403,8 @@ framework/skills/tool-usage/
 ├── tech-log-analysis/
 │   └── SKILL.md                       # Технологический журнал: полный цикл save→configure→read→restore
 │
-├── metadata-discovery/
-│   └── SKILL.md                       # Исследование структуры метаданных
-│
-├── nav-link/
-│   └── SKILL.md                       # Парсинг и генерация e1cib-ссылок
-│
-├── query-execution/
-│   ├── SKILL.md                       # Валидация и выполнение BSL-запросов; ограничения MCP
+├── platform-data-core/
+│   ├── SKILL.md                       # Метаданные + запросы + навигационные ссылки (объединённый)
 │   └── references/
 │       └── query-syntax-cheatsheet.md # Справочник синтаксиса запросов и примеры
 │
@@ -440,11 +422,13 @@ framework/skills/tool-usage/
 │
 ├── xml-generation/
 │   ├── xml-generation/
-│   │   └── SKILL.md                   # Обзор JSON→XML генерации
-│   ├── xml-gen-cli/
-│   │   └── SKILL.md                   # CLI-команды xml-gen.jar
-│   ├── epf-operations/
-│   │   └── SKILL.md                   # Создание внешних обработок (EPF)
+│   │   └── SKILL.md                   # Обзор JSON→XML генерации + CLI (validate, edit, replace-text)
+│   ├── epf-full/
+│   │   ├── SKILL.md                   # Полный цикл EPF/ERF: init, шаблоны, BSP-регистрация
+│   │   └── references/
+│   │       ├── epf-base.md            # init, add-form, add-template, add-attribute
+│   │       ├── templates.md           # template add/remove/add-help для любых объектов
+│   │       └── epf-bsp.md             # BSP-регистрация: СведенияОВнешнейОбработке + add-command
 │   ├── form-dsl/
 │   │   └── SKILL.md                   # JSON DSL для форм
 │   ├── mxl-dsl/
@@ -465,5 +449,5 @@ framework/skills/tool-usage/
 
 **Соседние категории:**
 - [`../bsl-practices/`](../bsl-practices/) — coding-standards, error-handling, form-patterns, form-visual-requirements, query-patterns, ssl-patterns, test-writing
-- [`../spec-writing/`](../spec-writing/) — spec-standard, task-breakdown-subagent, task-breakdown-linear
+- [`../spec-writing/`](../spec-writing/) — spec-standard, task-breakdown
 - [`../framework-meta/`](../framework-meta/) — 1c-ai-agent-cli, skill-creator, skill-creator-ext, agent-development, agent-development-ext

@@ -16,7 +16,7 @@ skills:
   - runtime-investigation
   - agent-debug
   - event-log-analysis
-  - query-execution
+  - platform-data-core
   - code-navigation
   - syntax-checking
   - v8-runner
@@ -24,6 +24,9 @@ skills:
   - gui-control
   - screenshot
   - tech-log-analysis
+  - db-performance
+  - xml-generation
+  - img-grid
   - v8-session-manager
   - agent-context-protocol
 ---
@@ -136,7 +139,7 @@ depends_on:
   - framework/skills/tool-usage/diagnostics/agent-debug/SKILL.md
   - framework/skills/tool-usage/diagnostics/event-log-analysis/SKILL.md
   - framework/skills/tool-usage/diagnostics/tech-log-analysis/SKILL.md
-  - framework/skills/tool-usage/platform-data/query-execution/SKILL.md
+  - framework/skills/tool-usage/platform-data/platform-data-core/SKILL.md
   - framework/skills/tool-usage/code-analysis/code-navigation/SKILL.md
   - framework/skills/tool-usage/code-analysis/syntax-checking/SKILL.md
   - framework/skills/tool-usage/v8-runner/SKILL.md

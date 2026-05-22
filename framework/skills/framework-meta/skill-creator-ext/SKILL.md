@@ -38,7 +38,7 @@ description: >
 | Категория | Каталог | Назначение | Примеры |
 |-----------|---------|------------|---------|
 | **BSL-практики** | `skills/bsl-practices/` | Стандарты кодирования и паттерны | `coding-standards`, `query-patterns` |
-| **Tool-usage** | `skills/tool-usage/` | Когда и как использовать MCP-инструменты | `syntax-checking`, `metadata-discovery`, `test-execution` |
+| **Tool-usage** | `skills/tool-usage/` | Когда и как использовать MCP-инструменты | `syntax-checking`, `platform-data-core`, `test-execution` |
 | **Spec-writing** | `skills/spec-writing/` | Стандарты документации и спецификаций | `spec-standard` |
 | **Расширения** | `skills/*-ext/` | Расширения внешних skills (Anthropic и др.) | `agent-development-ext`, `skill-creator-ext` |
 

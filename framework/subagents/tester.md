@@ -20,7 +20,8 @@ skills:
   - form-visual-requirements
   - code-navigation
   - syntax-checking
-  - query-execution
+  - platform-data-core
+  - xml-generation
   - bug-reporting
   - v8-session-manager
   - agent-context-protocol
@@ -128,7 +129,7 @@ depends_on:
   - framework/skills/tool-usage/code-analysis/code-navigation/SKILL.md
   - framework/skills/tool-usage/code-analysis/syntax-checking/SKILL.md
   - framework/skills/bsl-practices/form-visual-requirements/SKILL.md
-  - framework/skills/tool-usage/platform-data/query-execution/SKILL.md
+  - framework/skills/tool-usage/platform-data/platform-data-core/SKILL.md
   - framework/skills/tool-usage/diagnostics/bug-reporting/SKILL.md
   - framework/skills/tool-usage/v8-session-manager/SKILL.md
   - framework/rules/agent-context-protocol.md

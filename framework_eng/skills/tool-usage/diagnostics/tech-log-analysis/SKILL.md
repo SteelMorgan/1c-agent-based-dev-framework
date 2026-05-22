@@ -1,6 +1,6 @@
 ---
 name: tech-log-analysis
-description: "Working with the 1C technological log (Tech Log). The skill teaches the agent to manage the full TLog lifecycle - setup, enablement, collection, analysis, restoration - and diagnose technical problems such as slow queries, locks, exceptions."
+description: "Working with the 1C technological log (Tech Log). The skill teaches the agent to manage the full TLog lifecycle - configuration, enablement, collection, analysis, restoration - and diagnose technical problems such as slow queries, locks, exceptions."
 uses_capabilities:
   - search_tech_log
   - configure_tech_log

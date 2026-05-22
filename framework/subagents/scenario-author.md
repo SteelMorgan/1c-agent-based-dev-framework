@@ -11,7 +11,7 @@ skills:
   - vanessa-authoring
   - search-before-write
   - web-test-1c
-  - form-info
+  - xml-generation
   - code-navigation
   - v8-session-manager
   - agent-context-protocol
@@ -72,7 +72,7 @@ depends_on:
   - framework/skills/tool-usage/vanessa/vanessa-authoring/SKILL.md
   - framework/skills/tool-usage/code-analysis/search-before-write/SKILL.md
   - framework/skills/tool-usage/browser-ui/web-test-1c/SKILL.md
-  - framework/skills/tool-usage/forms/form-info/SKILL.md
+  - framework/skills/tool-usage/platform-data/xml-generation/SKILL.md
   - framework/skills/tool-usage/code-analysis/code-navigation/SKILL.md
   - framework/skills/tool-usage/v8-session-manager/SKILL.md
   - framework/rules/agent-context-protocol.md

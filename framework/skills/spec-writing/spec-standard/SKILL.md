@@ -95,7 +95,7 @@ description: "Универсальный навык написания спец�
 
 Для задач со спецификацией декомпозиция **обязательна** (отдельный JSON-файл Task Breakdown). В спецификации — ссылка на JSON и/или краткая выжимка.
 
-Процесс контроля качества — вне этого навыка: `task-breakdown-subagent` (cross-review) или `task-breakdown-linear` (self-check).
+Процесс контроля качества — вне этого навыка: `task-breakdown` (§3 Linear — self-check, §4 Subagent — cross-review).
 
 ---
 

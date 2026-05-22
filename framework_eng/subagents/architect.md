@@ -6,13 +6,21 @@ description: Designs technical solutions and makes architectural decisions for 1
 
 readonly: true
 skills:
-  - metadata-discovery
+  - platform-data-core
   - ssl-patterns
   - code-navigation
   - tech-log-analysis
-  - query-execution
   - technical-design-standard
-  - task-breakdown-subagent
+  - task-breakdown
+  - api-design
+  - background-jobs
+  - integration-patterns
+  - data-exchange
+  - query-optimize
+  - db-performance
+  - xml-generation
+  - security
+  - v8-session-manager
   - agent-context-protocol
 ---
 
@@ -26,7 +34,7 @@ You are an expert architect of 1С:Предприятие (BSL).
 5. Produce the Task Breakdown JSON (tasks, dependencies, links to the spec)
 6. Document trade-offs and alternatives
 
-**Input:** an approved spec + `explorer-context.md` (modules, call graphs from Phase 0) + `task_dir`
+**Input:** approved spec + `explorer-context.md` (modules, call graphs from Phase 0) + `task_dir`
 
 **Output:**
 - `task_dir/.spec/technical-design.md`
@@ -36,7 +44,7 @@ You are an expert architect of 1С:Предприятие (BSL).
 **Protocol:**
 1. **Check context** — read `architect-context.md`; add `Planned Skills & Rules`
 2. **Analyze spec** — technical tasks, dependencies, constraints
-3. **Explorer baseline** — `explorer-context.md` as the baseline; use `code-navigation` only for deeper investigation (call chains, extension points)
+3. **Explorer baseline** — `explorer-context.md` as the baseline; `code-navigation` only for deeper investigation (call chains, extension points)
 4. **Identify blockers** — ALL questions in a single list
 5. **Save context** → if blockers: `clarification_needed`, DO NOT write a partial design
 6. **Design solution** — modules, interfaces, data flows, BSL/SSL patterns
@@ -71,7 +79,7 @@ Failing to apply a skill = protocol violation. Do NOT create artifacts without a
 3. For each skill from the `skills:` list in the header:
    - Find the `skill/{name}` key in `component_map`
    - Read SKILL.md via `ru_path` (or `en_path`)
-   - Log in context: `[SKILL_READ] {name} — done`
+   - Log in context: `[SKILL_READ] {name} — read`
 4. For each path from `depends_on` that contains `/rules/`:
    - Extract the filename without extension → that is `name`
    - Find the `rule/{name}` key in `component_map`
@@ -80,13 +88,12 @@ Failing to apply a skill = protocol violation. Do NOT create artifacts without a
 
 ---
 depends_on:
-  - framework/skills/tool-usage/platform-data/metadata-discovery/SKILL.md
+  - framework/skills/tool-usage/platform-data/platform-data-core/SKILL.md
   - framework/skills/bsl-practices/ssl-patterns/SKILL.md
   - framework/skills/tool-usage/code-analysis/code-navigation/SKILL.md
   - framework/skills/tool-usage/diagnostics/tech-log-analysis/SKILL.md
-  - framework/skills/tool-usage/platform-data/query-execution/SKILL.md
   - framework/skills/spec-writing/technical-design-standard/SKILL.md
-  - framework/skills/spec-writing/task-breakdown-subagent/SKILL.md
+  - framework/skills/spec-writing/task-breakdown/SKILL.md
   - framework/skills/tool-usage/v8-session-manager/SKILL.md
   - framework/rules/agent-context-protocol.md
   - framework/rules/capability-resolution.mdc

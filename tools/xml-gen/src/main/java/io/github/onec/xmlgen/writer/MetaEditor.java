@@ -1,7 +1,12 @@
 package io.github.onec.xmlgen.writer;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+import io.github.onec.xmlgen.dsl.MetaBatchDsl;
+import io.github.onec.xmlgen.dsl.MetaBatchDsl.Operation;
+import io.github.onec.xmlgen.model.CompositeType;
 import io.github.onec.xmlgen.model.MetadataTypeRegistry;
 import io.github.onec.xmlgen.model.MetadataTypeRegistry.TypeDescriptor;
+import io.github.onec.xmlgen.model.MlText;
 
 import java.io.*;
 import java.nio.charset.StandardCharsets;
@@ -1058,16 +1063,21 @@ public class MetaEditor {
     private String resolveType(String type) {
         if (type == null || type.isEmpty()) return "String";
 
-        // Parameterized: Число(15,2) -> Number(15,2)
+        // Parameterized: Число(15,2) -> Number(15,2) or string(50) -> String(50)
         Matcher m = Pattern.compile("^([^(]+)\\((.+)\\)$").matcher(type);
         if (m.matches()) {
             String base = m.group(1).trim();
             String params = m.group(2);
+            // Russian synonyms
             for (Map.Entry<String, String> entry : RU_TYPE_SYNONYMS.entrySet()) {
                 if (base.equalsIgnoreCase(entry.getKey())) {
                     return entry.getValue() + "(" + params + ")";
                 }
             }
+            // English canonical names — normalize case
+            if (base.equalsIgnoreCase("String"))  return "String("  + params + ")";
+            if (base.equalsIgnoreCase("Number"))  return "Number("  + params + ")";
+            if (base.equalsIgnoreCase("Date"))    return "Date("    + params + ")";
             return type;
         }
 
@@ -1302,4 +1312,476 @@ public class MetaEditor {
 
     private void info(String msg) { out.println("[INFO] " + msg); }
     private void warn(String msg) { out.println("[WARN] " + msg); warnCount++; }
+
+    // ═══════════════════════════════════════════════════════════════════════
+    // BATCH PATCH
+    // ═══════════════════════════════════════════════════════════════════════
+
+    /**
+     * Apply a batch of operations from a JSON file atomically.
+     *
+     * <p>Transactional: all operations are applied to an in-memory copy of the XML.
+     * If any operation throws an exception the file is NOT written (rollback).
+     *
+     * @param objectPath path to the object XML (or directory)
+     * @param batchFile  path to the JSON batch file
+     */
+    public void applyBatch(Path objectPath, Path batchFile) throws IOException {
+        Path xmlPath = resolveObjectPath(objectPath);
+        MetaBatchDsl batch = new ObjectMapper().readValue(batchFile.toFile(), MetaBatchDsl.class);
+        applyBatch(xmlPath, batch);
+    }
+
+    /**
+     * Apply a pre-parsed batch to the given XML path (low-level, used by tests).
+     *
+     * @param xmlPath absolute path to the object XML file
+     * @param batch   parsed batch DSL
+     */
+    public void applyBatch(Path xmlPath, MetaBatchDsl batch) throws IOException {
+        String content = readFileContent(xmlPath);
+
+        addCount = 0;
+        removeCount = 0;
+        modifyCount = 0;
+        warnCount = 0;
+
+        String objType = detectObjectType(content);
+        String objName = detectObjectName(content);
+        out.println("[INFO] Batch: " + objType + "." + objName
+                + ", " + batch.getOperations().size() + " operations");
+
+        // Transactional: work on in-memory copy; only write if ALL ops succeed
+        String result = content;
+        int opIndex = 0;
+        for (Operation op : batch.getOperations()) {
+            opIndex++;
+            try {
+                result = applyBatchOperation(result, objType, objName, op);
+            } catch (Exception e) {
+                throw new RuntimeException(
+                        "Batch rolled back: operation #" + opIndex
+                        + " (" + op.getOp() + " " + op.getName() + ") failed: " + e.getMessage(), e);
+            }
+        }
+
+        // Write atomically only if something changed
+        if (addCount + removeCount + modifyCount > 0) {
+            writeFileWithBom(xmlPath, result);
+            out.println("[INFO] Batch saved: " + xmlPath);
+        }
+
+        out.println();
+        out.println("=== meta-batch summary ===");
+        out.println("  Object:    " + objType + "." + objName);
+        out.println("  Added:     " + addCount);
+        out.println("  Removed:   " + removeCount);
+        out.println("  Modified:  " + modifyCount);
+        if (warnCount > 0) out.println("  Warnings:  " + warnCount);
+        if (addCount + removeCount + modifyCount == 0) out.println("  No changes applied.");
+    }
+
+    // ─── Batch operation dispatcher ─────────────────────────────────────
+
+    private String applyBatchOperation(String content, String objType, String objName,
+                                       Operation op) {
+        if (op.getOp() == null) throw new IllegalArgumentException("Operation 'op' field is required");
+
+        return switch (op.getOp()) {
+            case "add-attribute"         -> batchAddAttr(content, objType, objName, "Attribute", op);
+            case "add-dimension"         -> batchAddAttr(content, objType, objName, "Dimension", op);
+            case "add-resource"          -> batchAddAttr(content, objType, objName, "Resource", op);
+            case "add-enumValue"         -> addEnumValue(content, objName,
+                                                requireName(op.getName(), "add-enumValue"));
+            case "remove-attribute"      -> removeChild(content, "Attribute",
+                                                requireName(op.getName(), "remove-attribute"));
+            case "remove-dimension"      -> removeChild(content, "Dimension",
+                                                requireName(op.getName(), "remove-dimension"));
+            case "remove-resource"       -> removeChild(content, "Resource",
+                                                requireName(op.getName(), "remove-resource"));
+            case "remove-ts", "remove-tabularSection" ->
+                                            removeChild(content, "TabularSection",
+                                                requireName(op.getName(), op.getOp()));
+            case "modify-attribute"      -> batchModifyAttr(content, "Attribute", op);
+            case "modify-dimension"      -> batchModifyAttr(content, "Dimension", op);
+            case "modify-resource"       -> batchModifyAttr(content, "Resource", op);
+            case "modify-property"       -> batchModifyProperty(content, op);
+            case "set-property"          -> batchSetProperty(content, op);
+            case "add-property"          -> batchAddOrSetRootProperty(content, op);
+            case "modify-tabularSection" -> batchModifyTabularSection(content, objType, objName, op);
+            default -> throw new IllegalArgumentException("Unknown batch op: " + op.getOp());
+        };
+    }
+
+    // ─── Batch add-attribute / add-dimension / add-resource ─────────────
+
+    private String batchAddAttr(String content, String objType, String objName,
+                                String xmlTag, Operation op) {
+        String name = requireName(op.getName(), op.getOp());
+
+        // Build shorthand for the existing addChildElement method.
+        // The shorthand parser supports " + " for composite types (not "|"),
+        // so normalise pipe-separated composite types to " + ".
+        StringBuilder shorthand = new StringBuilder(name);
+        if (op.getType() != null && !op.getType().isBlank()) {
+            String normalizedType = normalizePipeType(op.getType());
+            shorthand.append(": ").append(normalizedType);
+        }
+        if (op.getFillChecking() != null && "ShowError".equalsIgnoreCase(op.getFillChecking())) {
+            shorthand.append(" | req");
+        }
+        if (op.getAfter() != null) shorthand.append(" >> after ").append(op.getAfter());
+        if (op.getBefore() != null) shorthand.append(" << before ").append(op.getBefore());
+
+        String result = addChildElement(content, objType, objName, xmlTag, shorthand.toString());
+
+        // If synonym was provided as MlText — apply it to the newly added element
+        if (op.getSynonym() != null) {
+            result = batchApplySynonymToElement(result, xmlTag, name, op.getSynonym());
+        }
+        return result;
+    }
+
+    /**
+     * Normalise a pipe-separated composite type string to the " + " format
+     * understood by the existing shorthand parser, while preserving parentheses.
+     * E.g. {@code "string(50)|number(15,2)"} → {@code "string(50) + number(15,2)"}.
+     */
+    private static String normalizePipeType(String typeStr) {
+        List<String> parts = CompositeType.splitCompositeTypes(typeStr);
+        if (parts.size() <= 1) return typeStr;
+        return String.join(" + ", parts);
+    }
+
+    // ─── Batch modify-attribute / modify-dimension / modify-resource ─────
+
+    private String batchModifyAttr(String content, String xmlTag, Operation op) {
+        String name = requireName(op.getName(), op.getOp());
+
+        int elemStart = findChildByName(content, xmlTag, name, true);
+        if (elemStart < 0) {
+            warn(xmlTag + " '" + name + "' not found for batch modify");
+            return content;
+        }
+        int elemEnd = findClosingTag(content, xmlTag, elemStart);
+        if (elemEnd < 0) throw new IllegalStateException("Malformed " + xmlTag + " for: " + name);
+
+        String elemBlock = content.substring(elemStart, elemEnd);
+
+        if (op.getSynonym() != null) {
+            elemBlock = op.getSynonym().applyToBlock(elemBlock, "Synonym");
+            info("Batch modified Synonym of " + xmlTag + " '" + name + "'");
+            modifyCount++;
+        }
+        if (op.getFillChecking() != null) {
+            String propPattern = "(<FillChecking>)[^<]*(</FillChecking>)";
+            elemBlock = elemBlock.replaceFirst(propPattern, "$1" + esc(op.getFillChecking()) + "$2");
+            info("Batch modified FillChecking of " + xmlTag + " '" + name + "'");
+            modifyCount++;
+        }
+        if (op.getType() != null) {
+            elemBlock = replaceTypeBlock(elemBlock, op.getType());
+            info("Batch modified type of " + xmlTag + " '" + name + "'");
+            modifyCount++;
+        }
+        if (op.getNewName() != null) {
+            elemBlock = elemBlock.replace("<Name>" + esc(name) + "</Name>",
+                                         "<Name>" + esc(op.getNewName()) + "</Name>");
+            info("Batch renamed " + xmlTag + ": " + name + " -> " + op.getNewName());
+            modifyCount++;
+        }
+
+        return content.substring(0, elemStart) + elemBlock + content.substring(elemEnd);
+    }
+
+    // ─── Batch modify-property ───────────────────────────────────────────
+
+    /**
+     * Handle {@code "op": "modify-property"}.
+     * Value can be: String, Map (deserialized as MlText if {ru/en}), or List.
+     */
+    private String batchModifyProperty(String content, Operation op) {
+        String propName = requireName(op.getName(), "modify-property");
+        return applyPropertyValue(content, propName, op.getValue(), op.getSynonym());
+    }
+
+    /**
+     * Handle {@code "op": "set-property"}.
+     * Similar to modify-property; also accepts List values.
+     */
+    private String batchSetProperty(String content, Operation op) {
+        String propName = requireName(op.getName(), "set-property");
+        return applyPropertyValue(content, propName, op.getValue(), op.getSynonym());
+    }
+
+    /**
+     * Handle {@code "op": "add-property"}.
+     * Adds or replaces a root-level property.
+     */
+    private String batchAddOrSetRootProperty(String content, Operation op) {
+        String propName = requireName(op.getName(), "add-property");
+        return applyPropertyValue(content, propName, op.getValue(), op.getSynonym());
+    }
+
+    /**
+     * Apply a value to a named root property.
+     *
+     * <ul>
+     *   <li>If {@code synonym} (MlText) is provided — use it regardless of {@code value}.</li>
+     *   <li>If {@code value} is already an MlText-like Map ({@code {"ru":...}}) — treat as MlText.</li>
+     *   <li>If {@code value} is a List — serialise as repeated tags.</li>
+     *   <li>Otherwise — simple scalar property.</li>
+     * </ul>
+     */
+    @SuppressWarnings("unchecked")
+    private String applyPropertyValue(String content, String propName, Object value, MlText mlOverride) {
+        // MLText properties (Synonym, Comment, Explanation) — always via MlText path
+        boolean isMlProp = "Synonym".equals(propName) || "Comment".equals(propName)
+                || "Explanation".equals(propName);
+
+        if (mlOverride != null) {
+            content = mlOverride.applyToBlock(content, propName);
+            info("Batch modified " + propName + " (MLText)");
+            modifyCount++;
+            return content;
+        }
+
+        if (value instanceof Map<?,?> map) {
+            // Treat as MLText: {"ru": "...", "en": "..."}
+            MlText ml = new MlText();
+            for (Map.Entry<?,?> e : map.entrySet()) {
+                ml.setLang(String.valueOf(e.getKey()), String.valueOf(e.getValue()));
+            }
+            content = ml.applyToBlock(content, propName);
+            info("Batch modified " + propName + " (MLText from map)");
+            modifyCount++;
+            return content;
+        }
+
+        if (isMlProp && value instanceof String sv) {
+            content = replaceMlTextProperty(content, propName, sv);
+            info("Batch modified " + propName + " (MLText string)");
+            modifyCount++;
+            return content;
+        }
+
+        if (value instanceof List<?> list) {
+            // Serialize list as multiple child elements e.g. BasedOn
+            return batchSetListProperty(content, propName, (List<String>) list);
+        }
+
+        if (value instanceof String sv) {
+            content = addOrSetProperty(content, propName + "=" + sv);
+            return content;
+        }
+
+        if (value instanceof Boolean bv) {
+            content = addOrSetProperty(content, propName + "=" + bv);
+            return content;
+        }
+
+        if (value instanceof Number nv) {
+            content = addOrSetProperty(content, propName + "=" + nv);
+            return content;
+        }
+
+        warn("Batch: property '" + propName + "' has unrecognised value type, skipping");
+        return content;
+    }
+
+    /**
+     * Set a list-valued property (e.g. BasedOn with multiple entries).
+     * Replaces existing tag content or inserts after Synonym.
+     */
+    private String batchSetListProperty(String content, String propName, List<String> values) {
+        // Build new tag block
+        StringBuilder newBlock = new StringBuilder();
+        newBlock.append("<").append(propName).append(">");
+        for (String v : values) {
+            newBlock.append(esc(v));
+        }
+        newBlock.append("</").append(propName).append(">");
+
+        // Replace existing
+        String existingPattern = "<" + Pattern.quote(propName) + ">.*?</" + Pattern.quote(propName) + ">";
+        if (content.matches("(?s).*" + existingPattern + ".*")) {
+            String result = content.replaceFirst(existingPattern,
+                    Matcher.quoteReplacement(newBlock.toString()));
+            info("Batch set list property: " + propName);
+            modifyCount++;
+            return result;
+        }
+
+        // Try self-closing
+        String selfClose = "<" + Pattern.quote(propName) + "\\s*/>";
+        if (content.matches("(?s).*" + selfClose + ".*")) {
+            String result = content.replaceFirst(selfClose,
+                    Matcher.quoteReplacement(newBlock.toString()));
+            info("Batch set list property (was self-close): " + propName);
+            modifyCount++;
+            return result;
+        }
+
+        warn("Batch: could not find property '" + propName + "' for list set");
+        return content;
+    }
+
+    // ─── Batch modify-tabularSection ─────────────────────────────────────
+
+    private String batchModifyTabularSection(String content, String objType, String objName,
+                                             Operation op) {
+        String tsName = requireName(op.getName(), "modify-tabularSection");
+        if (op.getOperations().isEmpty()) {
+            warn("modify-tabularSection '" + tsName + "': no nested operations");
+            return content;
+        }
+
+        int tsStart = findChildByName(content, "TabularSection", tsName);
+        if (tsStart < 0) {
+            throw new IllegalArgumentException("TabularSection '" + tsName + "' not found");
+        }
+        int tsEnd = findClosingTag(content, "TabularSection", tsStart);
+        if (tsEnd < 0) throw new IllegalStateException("Malformed TabularSection: " + tsName);
+
+        String tsBlock = content.substring(tsStart, tsEnd);
+
+        for (Operation nested : op.getOperations()) {
+            tsBlock = applyNestedTsOperation(tsBlock, objType, objName, tsName, nested);
+        }
+
+        return content.substring(0, tsStart) + tsBlock + content.substring(tsEnd);
+    }
+
+    private String applyNestedTsOperation(String tsBlock, String objType, String objName,
+                                          String tsName, Operation op) {
+        return switch (op.getOp()) {
+            case "add-attribute" -> batchAddTsAttr(tsBlock, objType, tsName, op);
+            case "remove-attribute" -> {
+                // Remove within TS block
+                String attrName = requireName(op.getName(), "remove-attribute in TS");
+                int attrStart = findChildByName(tsBlock, "Attribute", attrName);
+                if (attrStart < 0) {
+                    warn("Attribute '" + attrName + "' not found in TS '" + tsName + "'");
+                    yield tsBlock;
+                }
+                int attrEnd = findClosingTag(tsBlock, "Attribute", attrStart);
+                if (attrEnd < 0) throw new IllegalStateException("Malformed Attribute XML in TS");
+                int lineStart = tsBlock.lastIndexOf('\n', attrStart - 1);
+                int removeFrom = lineStart >= 0 ? lineStart : attrStart;
+                info("Batch removed attr from TS '" + tsName + "': " + attrName);
+                removeCount++;
+                yield tsBlock.substring(0, removeFrom) + tsBlock.substring(attrEnd);
+            }
+            case "modify-attribute" -> batchModifyTsAttr(tsBlock, tsName, op);
+            default -> throw new IllegalArgumentException(
+                    "Unsupported nested op in tabularSection: " + op.getOp());
+        };
+    }
+
+    private String batchAddTsAttr(String tsBlock, String objType, String tsName, Operation op) {
+        String name = requireName(op.getName(), "add-attribute in TS");
+
+        // Check duplicate
+        if (tsBlock.contains("<Name>" + name + "</Name>")) {
+            warn("Attribute '" + name + "' already exists in TS '" + tsName + "', skipping");
+            return tsBlock;
+        }
+
+        String indent = "\t\t\t\t";
+        StringBuilder sb = new StringBuilder();
+        AttrDef def = new AttrDef();
+        def.name = name;
+        if (op.getType() != null) {
+            List<String> types = CompositeType.parse(op.getType());
+            for (String t : types) {
+                def.types.add(resolveType(t));
+            }
+        } else {
+            def.types.add("String");
+        }
+        if (op.getFillChecking() != null && "ShowError".equalsIgnoreCase(op.getFillChecking())) {
+            def.flags.add("req");
+        }
+
+        buildTsAttribute(sb, indent, def);
+        String fragment = sb.toString();
+
+        // Insert into ChildObjects
+        int coIdx = tsBlock.indexOf("<ChildObjects/>");
+        if (coIdx >= 0) {
+            String newTs = tsBlock.substring(0, coIdx)
+                    + "<ChildObjects>\n" + fragment
+                    + "\t\t\t\t</ChildObjects>"
+                    + tsBlock.substring(coIdx + "<ChildObjects/>".length());
+            info("Batch added attr to TS '" + tsName + "': " + name);
+            addCount++;
+            return newTs;
+        }
+
+        coIdx = tsBlock.indexOf("</ChildObjects>");
+        if (coIdx >= 0) {
+            String newTs = tsBlock.substring(0, coIdx) + fragment + tsBlock.substring(coIdx);
+            info("Batch added attr to TS '" + tsName + "': " + name);
+            addCount++;
+            return newTs;
+        }
+
+        warn("No ChildObjects found in TS '" + tsName + "'");
+        return tsBlock;
+    }
+
+    private String batchModifyTsAttr(String tsBlock, String tsName, Operation op) {
+        String name = requireName(op.getName(), "modify-attribute in TS");
+
+        int attrStart = findChildByName(tsBlock, "Attribute", name);
+        if (attrStart < 0) {
+            warn("Attribute '" + name + "' not found in TS '" + tsName + "'");
+            return tsBlock;
+        }
+        int attrEnd = findClosingTag(tsBlock, "Attribute", attrStart);
+        if (attrEnd < 0) throw new IllegalStateException("Malformed Attribute in TS: " + name);
+
+        String attrBlock = tsBlock.substring(attrStart, attrEnd);
+
+        if (op.getSynonym() != null) {
+            attrBlock = op.getSynonym().applyToBlock(attrBlock, "Synonym");
+            modifyCount++;
+        }
+        if (op.getFillChecking() != null) {
+            String pp = "(<FillChecking>)[^<]*(</FillChecking>)";
+            attrBlock = attrBlock.replaceFirst(pp, "$1" + esc(op.getFillChecking()) + "$2");
+            modifyCount++;
+        }
+        if (op.getType() != null) {
+            attrBlock = replaceTypeBlock(attrBlock, op.getType());
+            modifyCount++;
+        }
+        info("Batch modified attr in TS '" + tsName + "': " + name);
+        return tsBlock.substring(0, attrStart) + attrBlock + tsBlock.substring(attrEnd);
+    }
+
+    // ─── Synonym helper ─────────────────────────────────────────────────
+
+    /**
+     * Apply MlText synonym to a just-added element (identified by xmlTag + name).
+     */
+    private String batchApplySynonymToElement(String content, String xmlTag,
+                                              String elemName, MlText synonym) {
+        int start = findChildByName(content, xmlTag, elemName, true);
+        if (start < 0) return content;
+        int end = findClosingTag(content, xmlTag, start);
+        if (end < 0) return content;
+        String block = content.substring(start, end);
+        block = synonym.applyToBlock(block, "Synonym");
+        return content.substring(0, start) + block + content.substring(end);
+    }
+
+    // ─── Validation helper ───────────────────────────────────────────────
+
+    private static String requireName(String name, String opName) {
+        if (name == null || name.isBlank()) {
+            throw new IllegalArgumentException("'name' is required for op: " + opName);
+        }
+        return name;
+    }
 }
