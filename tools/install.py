@@ -2314,6 +2314,10 @@ EXTERNAL_TOOLS_DIR_NAME = "external"
 EXTERNAL_TOOLS = {
     "v8-runner": {
         "repo": "alkoleft/v8-runner-rust",
+        # fork_repo — наш форк с PR-ами, которые upstream долго не принимает.
+        # Берётся, если его Latest-релиз published_at СВЕЖЕЕ, чем у upstream,
+        # И в нём есть ассет для текущей платформы. Иначе — upstream.
+        "fork_repo": "SteelMorgan/v8-runner-rust",
         "binary": "v8-runner",
         # (platform.system(), нормализованная machine) → (asset name, kind)
         "assets": {
@@ -2427,8 +2431,84 @@ def _place_binary(tool_dir: Path, binary: str) -> Optional[Path]:
 
 
 def _read_version_marker(tool_dir: Path) -> Optional[str]:
+    """Возвращает строку маркера в новом формате `<tag>@<source>`.
+
+    Backward-compat: старые маркеры содержат только `<tag>` (без источника) —
+    считаем их `<tag>@upstream`, чтобы не передёргивать ре-инсталл при апгрейде
+    схемы маркеров.
+    """
     marker = tool_dir / ".version"
-    return marker.read_text().strip() if marker.is_file() else None
+    if not marker.is_file():
+        return None
+    raw = marker.read_text().strip()
+    if not raw:
+        return None
+    if "@" not in raw:
+        return f"{raw}@upstream"
+    return raw
+
+
+def _select_release_source(spec: dict, asset_name: str) -> Optional[tuple[str, str, dict]]:
+    """Выбирает источник релиза: upstream или fork.
+
+    Возвращает (source_label, repo, release_json) либо None если ни один
+    источник недоступен. source_label — "upstream" или "fork", удобно
+    для логов и хранения в .version.
+
+    Логика выбора (см. EXTERNAL_TOOLS[*]["fork_repo"]):
+      1. Тянем Latest у upstream и fork (если fork_repo задан).
+      2. Если у форка есть нужный ассет И его published_at СТРОГО позже
+         upstream — берём форк.
+      3. Иначе берём upstream (включая случай «у форка нет ассета для
+         этой платформы», «форк недоступен», «форк старше или равен»).
+    """
+    upstream_repo = spec["repo"]
+    fork_repo = spec.get("fork_repo")
+
+    upstream = _fetch_latest_release(upstream_repo)
+
+    if not fork_repo:
+        return ("upstream", upstream_repo, upstream) if upstream else None
+
+    fork = _fetch_latest_release(fork_repo)
+
+    # Готовим asset-индекс для проверки наличия ассета в форке
+    def _has_asset(release: Optional[dict]) -> bool:
+        if not release:
+            return False
+        return any(a.get("name") == asset_name for a in release.get("assets", []))
+
+    fork_has = _has_asset(fork)
+    upstream_has = _has_asset(upstream)
+
+    fork_date = (fork or {}).get("published_at") or ""
+    upstream_date = (upstream or {}).get("published_at") or ""
+
+    # ISO-8601 строки сравниваются лексикографически — это и есть сравнение времени.
+    fork_newer = bool(fork_date) and fork_date > upstream_date
+
+    if fork and fork_has and fork_newer:
+        print(dim(f"    Источник: fork ({fork_repo}) — релиз {fork.get('tag_name')} "
+                  f"свежее upstream {upstream.get('tag_name') if upstream else '(нет)'}"))
+        return ("fork", fork_repo, fork)
+
+    # Если fork-релиза нет/нет ассета/он не свежее — упадём на upstream
+    if upstream and upstream_has:
+        if fork:
+            reason = (
+                "форк старше или равен upstream" if not fork_newer
+                else "у форка нет ассета для этой платформы"
+            )
+            print(dim(f"    Источник: upstream ({upstream_repo}) — {reason}"))
+        return ("upstream", upstream_repo, upstream)
+
+    # Крайний случай: fork есть и подходит, но upstream вообще недоступен —
+    # тоже берём fork, лишь бы что-то поставить.
+    if fork and fork_has:
+        print(dim(f"    Источник: fork ({fork_repo}) — upstream недоступен"))
+        return ("fork", fork_repo, fork)
+
+    return None
 
 
 def install_external_tool(
@@ -2440,10 +2520,14 @@ def install_external_tool(
     """Скачивает Latest-релиз указанного инструмента в base_dir/name.
     Возвращает True, если инструмент в актуальном состоянии после вызова."""
     tool_dir = base_dir / name
-    repo = spec["repo"]
+    upstream_repo = spec["repo"]
+    fork_repo = spec.get("fork_repo")
     binary = spec["binary"]
 
-    print(f"\n  ── {bold(name)} ({repo}) ──")
+    title = f"{upstream_repo}"
+    if fork_repo:
+        title += f" + fork {fork_repo}"
+    print(f"\n  ── {bold(name)} ({title}) ──")
 
     # 1) Платформа поддерживается?
     plat_key = (platform.system(), _normalize_machine())
@@ -2455,27 +2539,35 @@ def install_external_tool(
         return False
     asset_name, kind = asset_info
 
-    # 2) Узнаём Latest-тег. Если API недоступен — fallback на ранее установленный.
+    # 2) Узнаём актуальную пару (источник, релиз).
+    #    Источник — upstream или fork (если fork_repo задан и релиз свежее).
     installed = _read_version_marker(tool_dir)
     has_binary = (tool_dir / binary).exists() or (tool_dir / (binary + ".exe")).exists()
 
-    release = _fetch_latest_release(repo)
-    if release is None or not release.get("tag_name"):
+    selection = _select_release_source(spec, asset_name)
+    if selection is None:
         if has_binary:
             print(yellow(f"    GitHub недоступен — используем уже установленный "
                          f"{installed or '(версия неизвестна)'}."))
             return True
         print(yellow(f"    GitHub недоступен и локальной копии нет — пропуск."))
         return False
-    tag = release["tag_name"]
+    source, repo, release = selection
+    tag = release.get("tag_name") or ""
+    if not tag:
+        print(yellow(f"    Выбранный релиз ({source}) без tag_name — пропуск."))
+        return False
+
+    # marker = "<tag>@<source>" — обновляемся, если изменился любой компонент
+    version_id = f"{tag}@{source}"
 
     # 3) Уже актуален?
-    if installed == tag and has_binary:
-        print(green(f"    Уже установлен {tag} — пропуск."))
+    if installed == version_id and has_binary:
+        print(green(f"    Уже установлен {tag} ({source}) — пропуск."))
         return True
 
     if dry_run:
-        print(f"    [dry-run] Скачал бы {asset_name} из {tag} → {tool_dir / binary}")
+        print(f"    [dry-run] Скачал бы {asset_name} из {tag} ({source}) → {tool_dir / binary}")
         return True
 
     # 4) Находим asset URL и (опционально) sha256-sidecar
@@ -2524,8 +2616,8 @@ def install_external_tool(
             print(red(f"    Не удалось найти бинарь '{binary}' после распаковки."))
             return False
 
-        (tool_dir / ".version").write_text(tag + "\n")
-        print(green(f"    ✓ {binary_path}  ({tag})"))
+        (tool_dir / ".version").write_text(version_id + "\n")
+        print(green(f"    ✓ {binary_path}  ({tag} from {source})"))
 
     return True
 
