@@ -8,6 +8,8 @@
   2) CLI --check <path> [--tool <Name>] — direct invocation. exit 0 = allow,
      exit 2 = block (сообщение в stderr). Подходит для Codex-обёрток и
      ручной проверки.
+  3) CLI --check-bash "<command>" — проверка одной Bash-команды. Используется
+     pre-commit guard и ручными обёртками; exit 0 = allow, exit 2 = block.
 
 Логика блокировки:
   - Любой *.mxl — блок (двоичный формат, только xml-gen).
@@ -22,8 +24,12 @@
       * Тестовые fixtures (пути с /test/, /tests/, /fixtures/, /__fixtures__/)
       * Документация и примеры (docs/, examples/) — если только не реальная
         1С-конфигурация внутри
-  - Скрипт не блокирует Read/Bash — только запись (Edit/Write/MultiEdit/
-    NotebookEdit).
+  - Для Edit/Write/MultiEdit/NotebookEdit блокируется запись по file_path /
+    notebook_path.
+  - Для Bash блокируется команда, которая упоминает путь к 1С metadata XML/MXL
+    и содержит маркеры записи (in-place sed/awk/perl, shell redirect >/>>,
+    tee, inline Python с open(..., 'w*') / .write / .replace). Команды,
+    содержащие "xml-gen" в любой подкоманде, считаются доверенными.
 """
 
 from __future__ import annotations
@@ -36,6 +42,42 @@ import sys
 from pathlib import PurePosixPath
 
 WRITE_TOOLS = {"Edit", "Write", "MultiEdit", "NotebookEdit"}
+
+# Tools, для которых нужно проверять Bash command на инлайн-правку XML/MXL.
+BASH_TOOLS = {"Bash"}
+
+# Маркеры записи в Bash. Регистр игнорируется не везде — sed/awk сами
+# case-sensitive, поэтому матчим как есть.
+_BASH_WRITE_MARKERS = (
+    # in-place редакторы
+    re.compile(r"(?<![\w-])sed\s+(?:-[^\s]*[iI][^\s]*|--in-place)"),
+    re.compile(r"(?<![\w-])(?:g?awk)\s+(?:-[^\s]*i[^\s]*\s+)?(?:'[^']*'|\"[^\"]*\")?\s*-i\s+inplace"),
+    re.compile(r"(?<![\w-])perl\s+(?:-[^\s]*i[^\s]*|-i(?:\.[\w-]+)?)"),
+    re.compile(r"(?<![\w-])(?:ed|ex|vim)\s+-s\b"),
+    # shell-редиректы (любой > или >>, кроме 2>, 2>>, &> — их исключаем
+    # вокруг проверки целевого пути ниже)
+    re.compile(r"(?<![\w&\d])(?:>>?)\s*['\"]?[^\s'\"|;&]+\.(xml|mxl)\b", re.IGNORECASE),
+    re.compile(r"(?<![\w-])tee\s+(?:-[a]\s+)?['\"]?[^\s'\";|&]+\.(xml|mxl)\b", re.IGNORECASE),
+    # inline Python write-патерны: open(..., 'w*'/'a*'), f.write, .replace
+    # (последнее — типичная байтовая замена), os.replace/shutil
+    re.compile(r"open\(\s*[^)]*\.(xml|mxl)[^)]*['\"](w|wb|a|ab|r\+|rb\+)['\"]", re.IGNORECASE),
+    re.compile(r"\.write\s*\(\s*[^)]*(xml|mxl)", re.IGNORECASE),
+    re.compile(r"\.replace\s*\(.*\.(xml|mxl)", re.IGNORECASE),
+    re.compile(r"(?:os\.replace|shutil\.move|shutil\.copy(?:2|file)?)\s*\(\s*[^)]*\.(xml|mxl)", re.IGNORECASE),
+    # cp/mv в .xml/.mxl как цель
+    re.compile(r"(?<![\w-])(?:cp|mv|install)\s+(?:-[^\s]+\s+)*\S+\s+['\"]?[^\s'\";|&]+\.(xml|mxl)\b", re.IGNORECASE),
+)
+
+# Доверенные команды — если встретились в строке (отдельной подкомандой),
+# проверка пропускается. xml-gen — единственный канонический путь правки.
+_BASH_TRUSTED = re.compile(r"(?<![\w-])(?:xml-gen|xml_gen|xmlgen)\b")
+
+# Регулярка для извлечения путей с расширением .xml/.mxl из bash-команды.
+# Берём токены, отделённые пробелом/кавычками/служебными символами.
+_BASH_XML_PATH = re.compile(
+    r"""(?P<quote>['"])?(?P<path>(?:[^\s'"<>|&;]+)\.(?:xml|mxl))(?(quote)(?P=quote))""",
+    re.IGNORECASE,
+)
 
 ONEC_ROOT_DIRS = (
     "Catalogs",
@@ -228,6 +270,132 @@ def check_file(path: str, tool: str | None) -> int:
     return 2
 
 
+def _split_bash_subcommands(command: str) -> list[str]:
+    """Грубо разбивает bash-строку по ; && || | на подкоманды.
+
+    Внутри одинарных и двойных кавычек разделители игнорируем — это даёт
+    нормальную точность для типичных однострочников и heredoc-баз.
+    """
+    parts: list[str] = []
+    buf: list[str] = []
+    i = 0
+    n = len(command)
+    in_single = False
+    in_double = False
+    while i < n:
+        c = command[i]
+        if c == "\\" and i + 1 < n:
+            buf.append(c)
+            buf.append(command[i + 1])
+            i += 2
+            continue
+        if c == "'" and not in_double:
+            in_single = not in_single
+            buf.append(c)
+            i += 1
+            continue
+        if c == '"' and not in_single:
+            in_double = not in_double
+            buf.append(c)
+            i += 1
+            continue
+        if not in_single and not in_double:
+            # ; — разделитель; && — пара; || — пара; | (одиночный) — pipe.
+            if c == ";":
+                parts.append("".join(buf))
+                buf = []
+                i += 1
+                continue
+            if c in ("&", "|") and i + 1 < n and command[i + 1] == c:
+                parts.append("".join(buf))
+                buf = []
+                i += 2
+                continue
+            if c == "|":
+                parts.append("".join(buf))
+                buf = []
+                i += 1
+                continue
+        buf.append(c)
+        i += 1
+    tail = "".join(buf).strip()
+    if tail:
+        parts.append(tail)
+    return [p.strip() for p in parts if p.strip()]
+
+
+def _extract_metadata_paths(command: str) -> list[tuple[str, str]]:
+    """Возвращает список (path, reason) для всех .xml/.mxl токенов, попадающих
+    под is_onec_metadata_path. Read-only пути отфильтрованы."""
+    found: list[tuple[str, str]] = []
+    for m in _BASH_XML_PATH.finditer(command):
+        path = m.group("path")
+        blocked, reason = is_onec_metadata_path(path)
+        if blocked:
+            found.append((path, reason))
+    return found
+
+
+def check_bash_command(command: str) -> int:
+    """Анализирует Bash-команду на признаки прямой правки 1С XML/MXL.
+
+    Возвращает 0 если ничего подозрительного, 2 если найден риск.
+    Heuristic-based — false positives возможны (тогда переписать через
+    xml-gen или вынести команду из единой строки).
+    """
+    if not command or not command.strip():
+        return 0
+
+    # Если в команде вообще нет токенов вида *.xml / *.mxl среди metadata —
+    # выходим сразу, чтобы не блокировать обычные pyhton/sed/awk операции.
+    metadata_paths = _extract_metadata_paths(command)
+    if not metadata_paths:
+        return 0
+
+    # Доверяем xml-gen.
+    if _BASH_TRUSTED.search(command):
+        return 0
+
+    # Проверяем по подкомандам — write-маркер должен совпасть с подкомандой,
+    # содержащей metadata путь. Это снижает шум: например, `cat foo.xml |
+    # python3 -c "..."` (read+pipe) не должно блокироваться, если python3
+    # ничего не пишет в xml.
+    subcmds = _split_bash_subcommands(command)
+    if not subcmds:
+        subcmds = [command]
+
+    blocked_paths: list[tuple[str, str, str]] = []  # (subcmd, path, marker)
+    for sub in subcmds:
+        paths_here = _extract_metadata_paths(sub)
+        if not paths_here:
+            continue
+        for marker in _BASH_WRITE_MARKERS:
+            mm = marker.search(sub)
+            if mm:
+                for path, _reason in paths_here:
+                    blocked_paths.append((sub, path, mm.group(0)[:80]))
+                break
+
+    if not blocked_paths:
+        return 0
+
+    sys.stderr.write("\n[xml-gen guard] tool=Bash — подозрение на прямую правку 1С XML/MXL.\n")
+    for sub, path, marker in blocked_paths:
+        sys.stderr.write(
+            f"  path={path}\n"
+            f"  marker={marker!r}\n"
+            f"  subcommand={sub[:200]}{'...' if len(sub) > 200 else ''}\n\n"
+        )
+    sys.stderr.write(HINT_MESSAGE)
+    sys.stderr.write(
+        "\nЕсли это ложное срабатывание (например, проверочный скрипт, который\n"
+        "ничего не пишет в файл) — измени команду так, чтобы целевой .xml/.mxl\n"
+        "не совпадал с маркером записи в той же подкоманде, или используй\n"
+        "промежуточный файл вне 1С metadata путей.\n"
+    )
+    return 2
+
+
 def run_claude_code() -> int:
     """Читает PreToolUse JSON со stdin и решает allow/block."""
     try:
@@ -241,10 +409,17 @@ def run_claude_code() -> int:
         return 0
 
     tool = payload.get("tool_name") or payload.get("tool") or ""
-    if tool not in WRITE_TOOLS:
+    if tool not in WRITE_TOOLS and tool not in BASH_TOOLS:
         return 0
 
     tool_input = payload.get("tool_input") or payload.get("input") or {}
+
+    if tool in BASH_TOOLS:
+        if isinstance(tool_input, dict):
+            command = tool_input.get("command") or ""
+            if isinstance(command, str):
+                return check_bash_command(command)
+        return 0
 
     paths: list[str] = []
     if isinstance(tool_input, dict):
@@ -276,6 +451,11 @@ def main(argv: list[str]) -> int:
         help="Проверить путь напрямую (для Codex/ручных обёрток).",
     )
     parser.add_argument(
+        "--check-bash",
+        metavar="COMMAND",
+        help="Проверить Bash-команду на признаки прямой правки 1С XML/MXL.",
+    )
+    parser.add_argument(
         "--tool",
         metavar="NAME",
         default=None,
@@ -292,6 +472,9 @@ def main(argv: list[str]) -> int:
 
     if args.check:
         return check_file(args.check, args.tool or "Edit")
+
+    if args.check_bash is not None:
+        return check_bash_command(args.check_bash)
 
     if args.claude_code or not sys.stdin.isatty():
         return run_claude_code()

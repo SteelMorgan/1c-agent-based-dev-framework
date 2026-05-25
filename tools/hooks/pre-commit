@@ -1,13 +1,96 @@
 #!/usr/bin/env bash
-# pre-commit hook: auto-translate changed framework/ files → framework_eng/
+# pre-commit hook:
+#   1) Сканирует staged 1C XML/MXL на отпечатки ручной байтовой замены
+#      (см. tools/hooks/block-direct-xml-edit.py).
+#   2) Auto-translates changed framework/ files → framework_eng/.
 #
-# Блокирует коммит если перевод не удался.
-# Автоматически добавляет framework_eng/ и .skills-sync-state.json в коммит.
+# Блокирует коммит если перевод не удался ИЛИ если найден явный отпечаток
+# обхода no-manual-xml-edit (см. ниже).
 
 set -euo pipefail
 
 REPO_ROOT="$(git rev-parse --show-toplevel)"
 SYNC_SCRIPT="$REPO_ROOT/tools/sync-skill.py"
+XML_GUARD="$REPO_ROOT/tools/hooks/block-direct-xml-edit.py"
+
+# ─── 1. No-manual-xml-edit guard для staged 1C XML/MXL ───────────────────────
+#
+# Логика:
+#  • Берём staged .xml / .mxl файлы.
+#  • Для каждого пути спрашиваем block-direct-xml-edit.py --check — относится ли
+#    он к 1C metadata.
+#  • Если относится — сканируем staged diff (только added/modified строки) на
+#    отпечатки байтовой замены в обход xml-gen:
+#       – вхождения  &lt;-&gt;  /  &lt;->  /  &lt;--&gt;  (типичная замена
+#         символов вроде ↔, →, ← в комментариях, см. TASK-140 round 2/3);
+#       – вхождения  &#x2014;  /  &#8212;  (EM DASH, попавший в XML после
+#         «нормализации» через python -c).
+#  Эти отпечатки практически невозможно получить, проходя через xml-gen edit
+#  replace-text — он сохраняет канонические entity и не пишет «полудлинные»
+#  кодировки. Найдено → коммит блокируем.
+#
+# Это «вторая сетка»: основной фильтр — PreToolUse хук в Claude Code. Здесь
+# ловим то, что прошло мимо (другой агент, ручной запуск, шелл-однострочник
+# с обфускацией).
+
+STAGED_XML=$(git diff --cached --name-only --diff-filter=ACMR | \
+    grep -E '\.(xml|mxl)$' || true)
+
+if [ -n "$STAGED_XML" ]; then
+    XML_VIOLATIONS=""
+    XML_METADATA=""
+
+    while IFS= read -r f; do
+        [ -z "$f" ] && continue
+        # 1С metadata?
+        if python3 "$XML_GUARD" --check "$f" --tool Edit >/dev/null 2>&1; then
+            : # not metadata (exit 0)
+        else
+            XML_METADATA="${XML_METADATA}${f}\n"
+            # Сканируем добавленные строки на отпечатки байтовой замены.
+            FOOTPRINT=$(git diff --cached --no-color -U0 -- "$f" 2>/dev/null | \
+                grep -E '^\+' | grep -v '^\+\+\+' | \
+                grep -E '&lt;-&gt;|&lt;->|&lt;--&gt;|&#x2014;|&#8212;' || true)
+            if [ -n "$FOOTPRINT" ]; then
+                XML_VIOLATIONS="${XML_VIOLATIONS}--- $f ---\n${FOOTPRINT}\n"
+            fi
+        fi
+    done <<< "$STAGED_XML"
+
+    if [ -n "$XML_METADATA" ]; then
+        echo ""
+        echo "[xml-gen guard] staged 1С metadata XML/MXL:"
+        echo -e "$XML_METADATA" | sed 's/^/  • /'
+        echo "  → убедись, что правка прошла через xml-gen (skill: xml-generation)"
+        echo ""
+    fi
+
+    if [ -n "$XML_VIOLATIONS" ]; then
+        echo ""
+        echo "╔══════════════════════════════════════════════════════════╗"
+        echo "║  ✗ COMMIT BLOCKED: no-manual-xml-edit footprint detected ║"
+        echo "╚══════════════════════════════════════════════════════════╝"
+        echo ""
+        echo "В staged-диффе 1С XML/MXL найдены последовательности, типичные"
+        echo "для байтовой замены в обход xml-gen (например, '&lt;-&gt;' —"
+        echo "след замены символа '↔' через python3 -c open(...,'wb')):"
+        echo ""
+        echo -e "$XML_VIOLATIONS"
+        echo "Что делать:"
+        echo "  1) Откати диff в XML:    git restore --staged <file> && git checkout -- <file>"
+        echo "  2) Повтори правку через: xml-gen edit replace-text --file <file> ..."
+        echo "     (skill: framework/skills/tool-usage/platform-data/xml-generation/SKILL.md)"
+        echo "  3) Re-stage и коммить."
+        echo ""
+        echo "Если это легитимный случай (например, специально написанный комментарий"
+        echo "с такой последовательностью) — обойди коммитом с --no-verify ТОЛЬКО при"
+        echo "явном согласовании с пользователем (см. правило no-manual-xml-edit)."
+        echo ""
+        exit 1
+    fi
+fi
+
+# ─── 2. skills-i18n-sync для framework/ ──────────────────────────────────────
 
 # ─── Найти изменённые файлы в framework/ (кроме README.md) ───────────────────
 
