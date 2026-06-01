@@ -34,7 +34,11 @@ public class ConfigValidator {
             "AccumulationRegister", "ChartOfCharacteristicTypes",
             "ChartOfAccounts", "AccountingRegister", "ChartOfCalculationTypes",
             "CalculationRegister", "BusinessProcess", "Task",
-            "IntegrationService"
+            "IntegrationService",
+            // TASK-171 D-5: тип платформы 8.3.27, легитимно присутствует в реальной
+            // Configuration.xml (<WebSocketClient>биг_ВебСокет_ОКХ</WebSocketClient>).
+            // Без него валидатор давал ложный WARN «unknown type 'WebSocketClient'».
+            "WebSocketClient"
     );
 
     /** Маппинг тип → каталог выгрузки (plural). */
@@ -80,6 +84,7 @@ public class ConfigValidator {
             Map.entry("XDTOPackage", "XDTOPackages"),
             Map.entry("WebService", "WebServices"),
             Map.entry("HTTPService", "HTTPServices"),
+            Map.entry("WebSocketClient", "WebSocketClients"), // TASK-171 D-5
             Map.entry("WSReference", "WSReferences"),
             Map.entry("CommandGroup", "CommandGroups"),
             Map.entry("IntegrationService", "IntegrationServices")
@@ -107,6 +112,23 @@ public class ConfigValidator {
     );
 
     // ConfigurationExtensionCompatibilityMode uses same values as CompatibilityMode
+
+    /**
+     * 7 канонических ClassId для InternalInfo конфигурации (TASK-171 D-4).
+     * Сверены с грунт-труф {@code src/xml/Configuration.xml}, эталоном Николая
+     * ({@code cf-validate.py VALID_CLASS_IDS}) и {@code ExtensionWriter.CLASS_IDS}.
+     * Раньше валидатор проверял только КОЛИЧЕСТВО (count==7), но не ЗНАЧЕНИЯ —
+     * и поэтому пропускал битый InternalInfo (D-1: ConfigWriter писал 4 неверных GUID).
+     */
+    private static final Set<String> VALID_CLASS_IDS = Set.of(
+            "9cd510cd-abfc-11d4-9434-004095e12fc7",
+            "9fcd25a0-4822-11d4-9414-008048da11f9",
+            "e3687481-0a87-462c-a166-9f34594f9bba",
+            "9de14907-ec23-4a07-96f0-85521cb6b53b",
+            "51f2d5d8-ea4d-4064-8892-82951750031e",
+            "e68182ea-4237-4383-967f-90c1e3370bc7",
+            "fb282519-d103-4dd3-bc12-cb271d631dfc"
+    );
 
     private final List<ValidationMessage> messages = new ArrayList<>();
 
@@ -153,7 +175,10 @@ public class ConfigValidator {
             error("Structure: invalid uuid format '" + cfgUuid + "'");
         }
 
-        // Check 2: InternalInfo
+        // Check 2: InternalInfo — количество ContainedObject И значения их ClassId.
+        // TASK-171 D-4: раньше проверялось только count<7; значения ClassId не валидировались,
+        // поэтому битый InternalInfo (D-1) проходил как «Configuration is valid». Теперь, как у
+        // Николая (cf-validate.py), каждый ClassId сверяется с каноническим набором VALID_CLASS_IDS.
         XmlNode internalInfo = config.child("InternalInfo");
         if (internalInfo == null) {
             warn("InternalInfo: section missing");
@@ -161,6 +186,13 @@ public class ConfigValidator {
             List<XmlNode> contained = internalInfo.children("ContainedObject");
             if (contained.size() < 7) {
                 warn("InternalInfo: expected 7 ContainedObject entries, found " + contained.size());
+            }
+            for (XmlNode co2 : contained) {
+                String classId = co2.childText("ClassId");
+                if (classId == null || classId.isEmpty()) continue;
+                if (!VALID_CLASS_IDS.contains(classId.trim().toLowerCase())) {
+                    error("InternalInfo: unknown ClassId '" + classId + "'");
+                }
             }
         }
 
@@ -209,7 +241,6 @@ public class ConfigValidator {
         if (co != null) {
             Set<String> seen = new HashSet<>();
             String lastType = null;
-            String lastName = null;
             int lastTypeOrder = -1;
 
             for (XmlNode child : co.getChildren()) {
@@ -227,22 +258,22 @@ public class ConfigValidator {
                     error("ChildObjects: duplicate entry '" + fullName + "'");
                 }
 
-                // Order check
+                // Order check — ТОЛЬКО порядок ТИПОВ (канонический), НЕ порядок объектов внутри типа.
+                // TASK-171 D-2: проверка алфавитного порядка объектов внутри типа удалена —
+                // Designer экспортирует ChildObjects в порядке создания / внутреннем, а НЕ по алфавиту,
+                // поэтому она давала 111 ложных WARN на реальной валидной src/xml/Configuration.xml.
+                // У Николая (cf-validate.py) этой проверки нет; алфавит — лишь эвристика вставки
+                // (ConfigEditor.insertChildObject), а НЕ инвариант валидации.
                 int typeOrder = getTypeOrder(type);
                 if (typeOrder >= 0) {
-                    if (lastType != null && lastType.equals(type)) {
-                        // Same type — check alphabetical order within type
-                        if (objName != null && lastName != null && objName.compareTo(lastName) < 0) {
-                            warn("ChildObjects: '" + type + "." + objName
-                                    + "' is out of alphabetical order (after '" + lastName + "')");
+                    if (lastType == null || !lastType.equals(type)) {
+                        if (typeOrder < lastTypeOrder) {
+                            warn("ChildObjects: type '" + type + "' is out of canonical order (after '" + lastType + "')");
                         }
-                    } else if (typeOrder < lastTypeOrder) {
-                        warn("ChildObjects: type '" + type + "' is out of canonical order (after '" + lastType + "')");
                     }
                     lastTypeOrder = typeOrder;
                 }
                 lastType = type;
-                lastName = objName;
             }
         }
 
@@ -309,7 +340,7 @@ public class ConfigValidator {
                 "Language", "Subsystem", "StyleItem", "Style", "CommonPicture",
                 "SessionParameter", "Role", "CommonTemplate", "FilterCriterion",
                 "CommonModule", "CommonAttribute", "ExchangePlan", "XDTOPackage",
-                "WebService", "HTTPService", "WSReference", "EventSubscription",
+                "WebService", "HTTPService", "WebSocketClient", "WSReference", "EventSubscription",
                 "ScheduledJob", "SettingsStorage", "FunctionalOption",
                 "FunctionalOptionsParameter", "DefinedType", "CommonCommand",
                 "CommandGroup", "Constant", "CommonForm", "Catalog", "Document",
@@ -318,7 +349,7 @@ public class ConfigValidator {
                 "AccumulationRegister", "ChartOfCharacteristicTypes",
                 "ChartOfAccounts", "AccountingRegister", "ChartOfCalculationTypes",
                 "CalculationRegister", "BusinessProcess", "Task",
-                "IntegrationService"
+                "IntegrationService" // TASK-171 D-5: WebSocketClient добавлен между HTTPService и WSReference
         );
         return order.indexOf(type);
     }

@@ -44,14 +44,15 @@ class FormWriterTest {
         assertThat(content).contains("<?xml version=\"1.0\" encoding=\"UTF-8\"?>");
         assertThat(content).contains("<Form");
         assertThat(content).contains("version=\"2.17\"");
-        assertThat(content).contains("<Title>Тестовая форма</Title>");
+        // TASK-171: корневой Title теперь мультиязычный v8:item (LocalStringType), не плоский текст
+        assertThat(content).contains("<v8:content>Тестовая форма</v8:content>");
         assertThat(content).contains("<AutoCommandBar");
         assertThat(content).contains("name=\"ФормаКоманднаяПанель\"");
         assertThat(content).contains("id=\"-1\"");
         
-        // БЕЗ BOM
+        // TASK-171: Designer-формат Form.xml ДОЛЖЕН быть с UTF-8 BOM (иначе XDTO-отказ платформы)
         byte[] bytes = Files.readAllBytes(outputXml);
-        assertThat(bytes[0]).isNotEqualTo((byte) 0xEF);
+        assertThat(bytes[0]).isEqualTo((byte) 0xEF);
     }
     
     /**
@@ -223,7 +224,7 @@ class FormWriterTest {
         String content = Files.readString(outputXml);
         
         // Проверки всех секций
-        assertThat(content).contains("<Title>Полная форма</Title>");
+        assertThat(content).contains("<v8:content>Полная форма</v8:content>");
         assertThat(content).contains("<AutoTitle>false</AutoTitle>");
         assertThat(content).contains("<WindowOpeningMode>LockOwnerWindow</WindowOpeningMode>");
         assertThat(content).contains("<Events>");
@@ -367,7 +368,8 @@ class FormWriterTest {
         assertThat(outputXml).exists();
         String content = Files.readString(outputXml);
         
-        assertThat(content).contains("<Title>Тестовая форма</Title>");
+        // TASK-171: корневой Title теперь мультиязычный v8:item (LocalStringType), не плоский текст
+        assertThat(content).contains("<v8:content>Тестовая форма</v8:content>");
         assertThat(content).contains("<AutoTitle>false</AutoTitle>");
         assertThat(content).contains("<Event name=\"OnCreateAtServer\">ПриСозданииНаСервере</Event>");
         assertThat(content).contains("<Attribute name=\"Параметр1\" id=\"1\">");

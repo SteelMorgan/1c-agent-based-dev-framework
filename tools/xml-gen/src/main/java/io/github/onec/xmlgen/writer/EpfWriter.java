@@ -10,6 +10,7 @@ import io.github.onec.xmlgen.model.UuidGenerator;
 
 import javax.xml.stream.XMLStreamException;
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.HashMap;
@@ -463,7 +464,7 @@ public class EpfWriter extends XmlWriter {
     private void createTemplateBody(Path outputPath, String templateType, String templateName) throws IOException {
         TemplateType tt = TemplateType.valueByName(templateType);
         String content;
-        
+
         if (tt == TemplateType.SPREADSHEET_DOCUMENT) {
             content = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n" +
                      "<SpreadsheetDocument xmlns=\"http://v8.1c.ru/8.2/data/spreadsheet\">\n" +
@@ -481,15 +482,30 @@ public class EpfWriter extends XmlWriter {
                      "</body>\n" +
                      "</html>\n";
         } else if (tt == TemplateType.TEXT_DOCUMENT) {
-            content = "// Текстовый документ " + templateName + "\n";
+            // TASK-171: текстовый макет должен быть пустым (как у Николая / демо),
+            // а не псевдо-BSL-комментарием "// Текстовый документ ..." — это был мусор.
+            content = "";
         } else if (tt == TemplateType.BINARY_DATA) {
             Files.write(outputPath, new byte[0]);
             return;
         } else {
             throw new IllegalArgumentException("Unknown template type: " + templateType);
         }
-        
-        Files.writeString(outputPath, content);
+
+        // TASK-171: тела макетов в Designer-выводе пишем с UTF-8 BOM — реальные демо-макеты
+        // (src/xml/Documents/_Демо*/Templates/**) начинаются с ef bb bf, как и весь Designer-дамп.
+        // Раньше Files.writeString писал без BOM, байтово расходясь с Конфигуратором.
+        writeBodyWithBom(outputPath, content);
+    }
+
+    /** Записать текстовое тело макета с UTF-8 BOM (канон Designer-вывода, TASK-171). */
+    private void writeBodyWithBom(Path path, String content) throws IOException {
+        byte[] bom = new byte[] {(byte) 0xEF, (byte) 0xBB, (byte) 0xBF};
+        byte[] bytes = content.getBytes(StandardCharsets.UTF_8);
+        byte[] result = new byte[bom.length + bytes.length];
+        System.arraycopy(bom, 0, result, 0, bom.length);
+        System.arraycopy(bytes, 0, result, bom.length, bytes.length);
+        Files.write(path, result);
     }
     
     /**

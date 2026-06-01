@@ -160,7 +160,9 @@ public class MetaValidator {
                 validateEnum(props, "DefaultPresentation", "AsDescription", "AsCode");
                 validateEnum(props, "SubordinationUse",
                         "ToItems", "ToFolders", "ToFoldersAndItems");
-                validateEnum(props, "ChoiceMode", "BothWays", "FromChoiceForm", "QuickChoice");
+                // TASK-171 (D3): платформа пишет ChoiceMode='FromForm', а не 'FromChoiceForm'.
+                // Грунт-труф: _Демо Catalogs → BothWays×127, FromForm×1, QuickChoice×1; FromChoiceForm не встречается.
+                validateEnum(props, "ChoiceMode", "BothWays", "FromForm", "QuickChoice");
                 validateEnum(props, "EditType", "InDialog", "InList", "BothWays");
                 validateHierarchyConsistency(props);
                 break;
@@ -174,10 +176,14 @@ public class MetaValidator {
                         "Nonperiodical", "Year", "Quarter", "Month", "Day");
                 validateEnum(props, "DefaultPresentation", "AsDescription", "AsCode");
                 validateEnum(props, "RealTimePosting", "Allow", "Deny");
+                // TASK-171 (D2): реальное платформенное значение — 'AutoDeleteOnUnpost' (самое частое,
+                // 25 _Демо), а 'DoNotDelete' платформа не пишет. Грунт-труф: _Демо Documents →
+                // AutoDeleteOnUnpost×25, AutoDelete×8, AutoDeleteOff×1.
                 validateEnum(props, "RegisterRecordsDeletion",
-                        "AutoDelete", "AutoDeleteOff", "DoNotDelete");
+                        "AutoDelete", "AutoDeleteOnUnpost", "AutoDeleteOff");
+                // TASK-171 (D5): дополнено платформенным значением 'WriteAll' (режим «Записывать все»).
                 validateEnum(props, "RegisterRecordsWritingOnPost",
-                        "WriteSelected", "WriteModified");
+                        "WriteSelected", "WriteModified", "WriteAll");
                 break;
 
             case "Enum":
@@ -192,7 +198,10 @@ public class MetaValidator {
                 break;
 
             case "AccumulationRegister":
-                validateEnum(props, "RegisterType", "Balances", "Turnovers");
+                // TASK-171 (D1): платформа пишет RegisterType='Balance' (ед.ч.), а не 'Balances'.
+                // Грунт-труф: _Демо AccumulationRegisters → Balance×2, Turnovers×3. 'Balances' принимаем
+                // как алиас (наш writer/DSL-историческое значение), но платформенное — 'Balance'.
+                validateEnum(props, "RegisterType", "Balance", "Balances", "Turnovers");
                 break;
 
             case "AccountingRegister":
@@ -212,8 +221,10 @@ public class MetaValidator {
                     warn(type + ": ChartOfCalculationTypes reference format — expected 'ChartOfCalculationTypes.Name'");
                 }
                 validateEnum(props, "Periodicity", "Day", "Month", "Quarter", "Year");
-                validateEnum(props, "ActionPeriodUse", "DontUse", "Use");
-                validateEnum(props, "RequireCalculationTypes", "DontUse", "Use");
+                // TASK-171 (D4): ActionPeriodUse / RequireCalculationTypes — НЕ свойства CalculationRegister
+                // и НЕ enum DontUse/Use. ActionPeriodUse — Boolean-свойство ChartOfCalculationTypes
+                // (грунт-труф _ДемоОсновныеНачисления: <ActionPeriodUse>true</ActionPeriodUse>).
+                // Проверка перенесена в case ChartOfCalculationTypes как Boolean. Здесь — удалена.
                 break;
 
             case "ChartOfAccounts":
@@ -239,6 +250,14 @@ public class MetaValidator {
                 validatePositiveInt(props, "DescriptionLength", false);
                 validateEnum(props, "CodeType", "String", "Number");
                 validateEnum(props, "CodeAllowedLength", "Variable", "Fixed");
+                // TASK-171 (D4): ActionPeriodUse / RequireCalculationTypes — Boolean-свойства ВПР,
+                // а не enum (грунт-труф _ДемоОсновныеНачисления: <ActionPeriodUse>true</ActionPeriodUse>).
+                validateBoolean(props, "ActionPeriodUse");
+                validateBoolean(props, "RequireCalculationTypes");
+                // TASK-171 (D4/D7): DependenceOnCalculationTypes — enum с платформенными значениями
+                // DontUse / OnActionPeriod (грунт-труф: <DependenceOnCalculationTypes>OnActionPeriod</…>).
+                // НЕ NotUsed/ExclusionAndDependence (это ошибка таблички meta-dsl-spec.md, см. D9).
+                validateEnum(props, "DependenceOnCalculationTypes", "DontUse", "OnActionPeriod");
                 break;
 
             case "CommonModule":

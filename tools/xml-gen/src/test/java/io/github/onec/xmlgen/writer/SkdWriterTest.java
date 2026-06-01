@@ -56,9 +56,11 @@ class SkdWriterTest {
         assertThat(content).contains("<settingsVariant>");
         assertThat(content).contains("<dcsset:name>Основной</dcsset:name>");
         
-        // БЕЗ BOM
+        // TASK-171 (Р-4): Designer-вывод СКД обязан содержать UTF-8 BOM (как платформенные Template.xml).
         byte[] bytes = Files.readAllBytes(outputXml);
-        assertThat(bytes[0]).isNotEqualTo((byte) 0xEF);
+        assertThat(bytes[0]).isEqualTo((byte) 0xEF);
+        assertThat(bytes[1]).isEqualTo((byte) 0xBB);
+        assertThat(bytes[2]).isEqualTo((byte) 0xBF);
     }
     
     /**
@@ -587,7 +589,8 @@ class SkdWriterTest {
         String content = Files.readString(out);
         assertThat(content).contains("<dataSetLink>");
         assertThat(content).contains("<sourceDataSet>Основной</sourceDataSet>");
-        assertThat(content).contains("<destDataSet>Доп</destDataSet>");
+        // TASK-171 (Р-5): платформенный элемент — destinationDataSet, а не destDataSet.
+        assertThat(content).contains("<destinationDataSet>Доп</destinationDataSet>");
         assertThat(content).contains("<sourceExpression>Контрагент</sourceExpression>");
     }
 

@@ -56,7 +56,10 @@ public class SkdWriter extends XmlWriter {
     }
 
     private void createDesigner(SkdDsl dsl, Path outputPath) throws IOException, XMLStreamException {
-        createWriter(outputPath, false, DCS_NAMESPACES);
+        // TASK-171 (Р-4): Designer-вывод СКД обязан содержать UTF-8 BOM. Все платформенные
+        // Template.xml СКД начинаются с ef bb bf; без BOM наш файл байтово расходится с каноном
+        // Конфигуратора. Эталон — RoleWriter/FormWriter Designer (createWriter(..., true, ...)).
+        createWriter(outputPath, true, DCS_NAMESPACES);
         writeXmlDeclaration();
 
         Map<String, String> rootAttrs = new HashMap<>();
@@ -540,7 +543,9 @@ public class SkdWriter extends XmlWriter {
             throws XMLStreamException {
         startElement("dataSetLink");
         if (source != null) writeElement("sourceDataSet", source);
-        if (dest != null) writeElement("destDataSet", dest);
+        // TASK-171 (Р-5): платформенный элемент — 'destinationDataSet' (48 вхождений в _Демо),
+        // а не 'destDataSet'. Иначе writer расходится с каноном и SkdValidator SKD-109 не видит назначение.
+        if (dest != null) writeElement("destinationDataSet", dest);
         if (sourceExpr != null) writeElement("sourceExpression", sourceExpr);
         if (destExpr != null) writeElement("destExpression", destExpr);
         endElement();

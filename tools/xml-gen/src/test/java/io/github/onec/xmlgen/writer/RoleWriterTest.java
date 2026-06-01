@@ -227,4 +227,55 @@ class RoleWriterTest {
         // & в условии должен быть экранирован
         assertThat(rightsContent).contains("&amp;Модификатор");
     }
+
+    /**
+     * Тест 5 (TASK-171): версия формата детектируется из Configuration.xml конфигурации,
+     * а не хардкодится. На проекте Configuration.xml = version="2.20" → роль тоже 2.20.
+     */
+    @Test
+    void testFormatVersionDetectedFromConfiguration() throws Exception {
+        // Кладём Configuration.xml версии 2.20 в корень конфигурации (с BOM, как Designer).
+        String configXml = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
+                + "<MetaDataObject xmlns=\"http://v8.1c.ru/8.3/MDClasses\"\n"
+                + "\txmlns:v8=\"http://v8.1c.ru/8.1/data/core\"\n"
+                + "\tversion=\"2.20\">\n"
+                + "\t<Configuration uuid=\"00000000-0000-0000-0000-000000000001\"/>\n"
+                + "</MetaDataObject>\n";
+        byte[] bom = {(byte) 0xEF, (byte) 0xBB, (byte) 0xBF};
+        byte[] body = configXml.getBytes(java.nio.charset.StandardCharsets.UTF_8);
+        byte[] withBom = new byte[bom.length + body.length];
+        System.arraycopy(bom, 0, withBom, 0, bom.length);
+        System.arraycopy(body, 0, withBom, bom.length, body.length);
+        Files.write(tempDir.resolve("Configuration.xml"), withBom);
+
+        RoleDsl dsl = new RoleDsl("РольВ220", "Роль 2.20", null,
+                null, null, null, null, null);
+
+        RoleWriter writer = new RoleWriter(OutputFormat.DESIGNER);
+        writer.create(dsl, tempDir);
+
+        String metaContent = Files.readString(tempDir.resolve("Roles/РольВ220.xml"));
+        String rightsContent = Files.readString(tempDir.resolve("Roles/РольВ220/Ext/Rights.xml"));
+
+        assertThat(metaContent).contains("version=\"2.20\"");
+        assertThat(metaContent).doesNotContain("version=\"2.17\"");
+        assertThat(rightsContent).contains("version=\"2.20\"");
+        assertThat(rightsContent).doesNotContain("version=\"2.17\"");
+    }
+
+    /**
+     * Тест 6 (TASK-171): без Configuration.xml версия откатывается к дефолту 2.17
+     * (ConfigurationXmlReader.DEFAULT_FORMAT_VERSION) — без падения.
+     */
+    @Test
+    void testFormatVersionFallbackWhenNoConfiguration() throws Exception {
+        RoleDsl dsl = new RoleDsl("РольБезКонфига", "Роль без конфига", null,
+                null, null, null, null, null);
+
+        RoleWriter writer = new RoleWriter(OutputFormat.DESIGNER);
+        writer.create(dsl, tempDir);
+
+        String metaContent = Files.readString(tempDir.resolve("Roles/РольБезКонфига.xml"));
+        assertThat(metaContent).contains("version=\"2.17\"");
+    }
 }

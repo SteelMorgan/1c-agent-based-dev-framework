@@ -223,6 +223,21 @@ class ExtensionEditorTest {
     }
 
     @Test
+    void testPatchMethod_PrefixWithUnderscore_NoDoubleUnderscore() throws Exception {
+        // TASK-171 D-3: реальные NamePrefix оканчиваются на разделитель (mcp_, тк_, OPI_).
+        // Раньше procName = prefix + "_" + method давало двойное подчёркивание (mcp__ПриЗаписи).
+        // Конвенция 1С: <Префикс><ИмяМетода> → mcp_ПриЗаписи.
+        Path ext = makeExtension("mcp_");
+        ExtensionEditor.PatchMethodResult r = silent().patchMethod(
+                ext, "Catalog.X.ObjectModule", "ПриЗаписи",
+                ExtensionEditor.InterceptorType.BEFORE, null, null, false);
+        assertThat(r.procedureName).isEqualTo("mcp_ПриЗаписи");
+        String bsl = readNoBom(r.bslFile);
+        assertThat(bsl).contains("Процедура mcp_ПриЗаписи()");
+        assertThat(bsl).doesNotContain("mcp__ПриЗаписи");
+    }
+
+    @Test
     void testPatchMethod_After_GeneratesCorrectAnnotation() throws Exception {
         Path ext = makeExtension("Расш1");
         ExtensionEditor.PatchMethodResult r = silent().patchMethod(

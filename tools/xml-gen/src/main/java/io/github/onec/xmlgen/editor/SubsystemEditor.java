@@ -56,8 +56,14 @@ public class SubsystemEditor {
     public void addContent(String spec) {
         String[] items = parseItems(spec);
         for (String item : items) {
-            String trimmed = item.trim();
-            if (trimmed.isEmpty()) continue;
+            String raw = item.trim();
+            if (raw.isEmpty()) continue;
+
+            // TASK-171: нормализуем тип ссылки до канонического singular-English
+            // (Catalogs.X→Catalog.X, Справочник.X→Catalog.X), как делает эталон Николая.
+            // Без этого writer мог записать невалидный для 1С тип (Catalogs.X), который
+            // платформа отвергает. Нормализация ЛОКАЛЬНАЯ (MetadataTypeRegistry не трогаем).
+            String trimmed = normalizeContentType(raw);
 
             // TASK-155 A3: fail-fast — проверить существование целевого объекта.
             checkTargetObjectExists(trimmed);
@@ -102,18 +108,50 @@ public class SubsystemEditor {
         String name = contentItem.substring(dot + 1);
         String dir = resolveDirectoryForType(type);
 
-        // extensionRoot = directory where the subsystem xml file lives.
-        // In the standard harness layout: exts/XMLGEN_TEST/SS_001.xml → exts/XMLGEN_TEST/.
-        Path extensionRoot = filePath.getParent();
+        // TASK-171: корень для резолва объекта = walk-up до Configuration.xml (config-layout),
+        // а НЕ просто filePath.getParent(). В config-layout подсистема лежит в
+        // src/xml/Subsystems/X.xml, и filePath.getParent() = src/xml/Subsystems промахивается
+        // мимо src/xml/ — fail-fast ложно падал на существующих объектах (src/xml/Catalogs/...).
+        // Для вложенных подсистем (Parent/Subsystems/Child.xml) промах ещё больше.
+        // Fallback на filePath.getParent() сохраняет прежнее поведение для extension-layout
+        // (exts/XMLGEN_TEST/SS_001.xml без Configuration.xml).
+        Path extensionRoot = locateConfigRoot(filePath);
+        if (extensionRoot == null) {
+            extensionRoot = filePath.getParent();
+        }
         if (extensionRoot == null) return; // cannot determine — skip check
 
+        // Объект может быть представлен файлом <dir>/<Name>.xml ИЛИ каталогом <dir>/<Name>/
+        // (распакованный объект со своими формами/макетами) — учитываем оба варианта.
         Path objFile = extensionRoot.resolve(dir).resolve(name + ".xml");
-        if (!Files.exists(objFile)) {
+        Path objDir = extensionRoot.resolve(dir).resolve(name);
+        if (!Files.exists(objFile) && !Files.isDirectory(objDir)) {
             throw new IllegalArgumentException(
                     "ERROR: target object " + contentItem + " does not exist"
                     + " (expected file: " + objFile + ")."
                     + " Create the object first before referencing it in a subsystem.");
         }
+    }
+
+    /**
+     * TASK-171: подъём по дереву каталогов до первого Configuration.xml — надёжное
+     * определение корня конфигурации для config-layout. Возвращает null, если корень
+     * не найден (extension-layout / изолированный файл) — тогда вызывающий код
+     * использует прежний fallback.
+     */
+    private static Path locateConfigRoot(Path start) {
+        if (start == null) return null;
+        Path dir = start.toAbsolutePath().normalize();
+        if (Files.isRegularFile(dir)) {
+            dir = dir.getParent();
+        }
+        while (dir != null) {
+            if (Files.isRegularFile(dir.resolve("Configuration.xml"))) {
+                return dir;
+            }
+            dir = dir.getParent();
+        }
+        return null;
     }
 
     /**
@@ -164,6 +202,89 @@ public class SubsystemEditor {
             case "Constant" -> "Constants";
             default -> type + "s";
         };
+    }
+
+    /**
+     * TASK-171: канонизация типа Content-ссылки к singular-English форме.
+     * Принимает "Type.Name", нормализует только сегмент типа (имя не трогаем — оно может
+     * содержать точки в крайне редких случаях, но для Content это всегда "Type.Name").
+     * Покрывает plural-English (Catalogs→Catalog) и RU-синонимы (Справочник→Catalog).
+     * Неизвестный/уже канонический тип оставляем как есть.
+     */
+    static String normalizeContentType(String item) {
+        int dot = item.indexOf('.');
+        if (dot <= 0) return item;
+        String type = item.substring(0, dot);
+        String rest = item.substring(dot + 1);
+        String canon = CONTENT_TYPE_NORM.get(type);
+        if (canon == null) return item; // уже канонический либо неизвестный — не трогаем
+        return canon + "." + rest;
+    }
+
+    /** Карта нормализации типа Content: plural-English и RU-синонимы → singular-English. */
+    private static final java.util.Map<String, String> CONTENT_TYPE_NORM = buildContentTypeNorm();
+
+    private static java.util.Map<String, String> buildContentTypeNorm() {
+        java.util.Map<String, String> m = new java.util.HashMap<>();
+        // plural English → singular
+        m.put("Catalogs", "Catalog");
+        m.put("Documents", "Document");
+        m.put("InformationRegisters", "InformationRegister");
+        m.put("AccumulationRegisters", "AccumulationRegister");
+        m.put("AccountingRegisters", "AccountingRegister");
+        m.put("CalculationRegisters", "CalculationRegister");
+        m.put("BusinessProcesses", "BusinessProcess");
+        m.put("Tasks", "Task");
+        m.put("ExchangePlans", "ExchangePlan");
+        m.put("ChartsOfCharacteristicTypes", "ChartOfCharacteristicTypes");
+        m.put("ChartsOfAccounts", "ChartOfAccounts");
+        m.put("ChartsOfCalculationTypes", "ChartOfCalculationTypes");
+        m.put("DataProcessors", "DataProcessor");
+        m.put("Reports", "Report");
+        m.put("DocumentJournals", "DocumentJournal");
+        m.put("Enums", "Enum");
+        m.put("CommonModules", "CommonModule");
+        m.put("Constants", "Constant");
+        // RU → English singular
+        m.put("Справочник", "Catalog");
+        m.put("Документ", "Document");
+        m.put("РегистрСведений", "InformationRegister");
+        m.put("РегистрНакопления", "AccumulationRegister");
+        m.put("РегистрБухгалтерии", "AccountingRegister");
+        m.put("РегистрРасчета", "CalculationRegister");
+        m.put("БизнесПроцесс", "BusinessProcess");
+        m.put("Задача", "Task");
+        m.put("ПланОбмена", "ExchangePlan");
+        m.put("ПланВидовХарактеристик", "ChartOfCharacteristicTypes");
+        m.put("ПланСчетов", "ChartOfAccounts");
+        m.put("ПланВидовРасчета", "ChartOfCalculationTypes");
+        m.put("Обработка", "DataProcessor");
+        m.put("Отчет", "Report");
+        m.put("ЖурналДокументов", "DocumentJournal");
+        m.put("Перечисление", "Enum");
+        m.put("ОбщийМодуль", "CommonModule");
+        m.put("Константа", "Constant");
+        // TASK-171: русские МНОЖЕСТВЕННЫЕ формы — это имена секций дерева конфигурации 1С,
+        // которые агент/пользователь может передать вместо канонического типа.
+        m.put("Справочники", "Catalog");
+        m.put("Документы", "Document");
+        m.put("РегистрыСведений", "InformationRegister");
+        m.put("РегистрыНакопления", "AccumulationRegister");
+        m.put("РегистрыБухгалтерии", "AccountingRegister");
+        m.put("РегистрыРасчета", "CalculationRegister");
+        m.put("БизнесПроцессы", "BusinessProcess");
+        m.put("Задачи", "Task");
+        m.put("ПланыОбмена", "ExchangePlan");
+        m.put("ПланыВидовХарактеристик", "ChartOfCharacteristicTypes");
+        m.put("ПланыСчетов", "ChartOfAccounts");
+        m.put("ПланыВидовРасчета", "ChartOfCalculationTypes");
+        m.put("Обработки", "DataProcessor");
+        m.put("Отчеты", "Report");
+        m.put("ЖурналыДокументов", "DocumentJournal");
+        m.put("Перечисления", "Enum");
+        m.put("ОбщиеМодули", "CommonModule");
+        m.put("Константы", "Constant");
+        return m;
     }
 
     /**

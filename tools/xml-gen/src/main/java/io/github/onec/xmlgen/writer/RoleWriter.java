@@ -4,6 +4,7 @@ import com.github._1c_syntax.bsl.mdo.support.RoleRight;
 import com.github._1c_syntax.bsl.types.MDOType;
 import io.github.onec.xmlgen.dsl.RoleDsl;
 import io.github.onec.xmlgen.format.OutputFormat;
+import io.github.onec.xmlgen.model.ConfigurationXmlReader;
 import io.github.onec.xmlgen.model.UuidGenerator;
 
 import javax.xml.stream.XMLStreamException;
@@ -43,17 +44,25 @@ public class RoleWriter extends XmlWriter {
         String name = dsl.getName();
         String synonym = dsl.getSynonym() != null ? dsl.getSynonym() : name;
         String uuid = UuidGenerator.generate();
-        
+
+        // TASK-171: версия формата сериализации берётся детерминированно из Configuration.xml
+        // конфигурации, а не хардкодится 2.17. Несовпадение версии роли с конфигурацией
+        // (на этом проекте — 2.20) — потенциальный отказ Конфигуратора при загрузке/сравнении.
+        // Образец резолва — FormWriter.resolveFormatVersion; читаем через ConfigurationXmlReader.
+        // outputDir — корень конфигурации (тут же лежит Configuration.xml и сюда пишутся Roles/).
+        String formatVersion = ConfigurationXmlReader.readFormatVersion(
+                outputDir.resolve("Configuration.xml"));
+
         // Создать структуру каталогов
         Path roleDir = outputDir.resolve("Roles").resolve(name);
         Files.createDirectories(roleDir.resolve("Ext"));
-        
+
         // 1. Создать метаданные роли (Roles/<Name>.xml)
-        createRoleMetadata(outputDir.resolve("Roles").resolve(name + ".xml"), name, synonym, 
-                          dsl.getComment(), uuid);
-        
+        createRoleMetadata(outputDir.resolve("Roles").resolve(name + ".xml"), name, synonym,
+                          dsl.getComment(), uuid, formatVersion);
+
         // 2. Создать Rights.xml
-        createRightsXml(roleDir.resolve("Ext/Rights.xml"), dsl);
+        createRightsXml(roleDir.resolve("Ext/Rights.xml"), dsl, formatVersion);
         
         System.out.println("Created role: " + name);
         System.out.println("  Metadata: " + outputDir.resolve("Roles").resolve(name + ".xml"));
@@ -63,18 +72,20 @@ public class RoleWriter extends XmlWriter {
     /**
      * Создать метаданные роли (Roles/<Name>.xml).
      */
-    private void createRoleMetadata(Path outputPath, String name, String synonym, String comment, String uuid) 
+    private void createRoleMetadata(Path outputPath, String name, String synonym, String comment, String uuid,
+                                    String formatVersion)
             throws IOException, XMLStreamException {
         createWriter(outputPath, true, METADATA_NAMESPACES);
         writeXmlDeclaration();
-        
+
         Map<String, String> allNamespaces = new HashMap<>(METADATA_NAMESPACES);
         allNamespaces.put("xr", "http://v8.1c.ru/8.3/xcf/readable");
         allNamespaces.put("xen", "http://v8.1c.ru/8.3/xcf/enums");
         allNamespaces.put("xpr", "http://v8.1c.ru/8.3/xcf/predef");
-        
+
         Map<String, String> rootAttrs = new HashMap<>();
-        rootAttrs.put("version", "2.17");
+        // TASK-171: версия формата — из Configuration.xml (раньше хардкод 2.17).
+        rootAttrs.put("version", formatVersion);
         writeRootElement("MetaDataObject", allNamespaces, rootAttrs);
         
         // Role
@@ -102,17 +113,19 @@ public class RoleWriter extends XmlWriter {
     /**
      * Создать Rights.xml.
      */
-    private void createRightsXml(Path outputPath, RoleDsl dsl) throws IOException, XMLStreamException {
+    private void createRightsXml(Path outputPath, RoleDsl dsl, String formatVersion)
+            throws IOException, XMLStreamException {
         createWriter(outputPath, true, new HashMap<>()); // С BOM
         writeXmlDeclaration();
-        
+
         // Корневой элемент Rights
         writer.writeStartElement("Rights");
         writer.writeDefaultNamespace("http://v8.1c.ru/8.2/roles");
         writer.writeNamespace("xs", "http://www.w3.org/2001/XMLSchema");
         writer.writeNamespace("xsi", "http://www.w3.org/2001/XMLSchema-instance");
         writer.writeAttribute("http://www.w3.org/2001/XMLSchema-instance", "type", "Rights");
-        writer.writeAttribute("version", "2.17");
+        // TASK-171: версия формата — из Configuration.xml (раньше хардкод 2.17).
+        writer.writeAttribute("version", formatVersion);
         writer.writeCharacters("\n");
         indentLevel = 1;
         

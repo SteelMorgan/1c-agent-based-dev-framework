@@ -168,9 +168,17 @@ public class RoleValidator implements XmlValidator {
             String objName = obj.childText("name");
             if (objName == null) continue;
 
-            // ROLE-105: Формат object.name: <MDOType>.<Name>
-            if (!objName.contains(".") || objName.indexOf('.') != objName.lastIndexOf('.')) {
-                // Допускаем формат без точки для Configuration и Subsystem.*
+            // ROLE-105: Формат object.name: <MDOType>.<Name>[.<ВложенныйТип>.<ВложенноеИмя>...]
+            // TASK-171: модель Николая Широкова — count('.') >= 2 (т.е. >=1 разделитель) считается
+            // валидным составным именем. Реальная выгрузка БСП содержит вложенные имена с 2-4 точками:
+            //   Catalog.X.Command.Y, Task.X.Command.Y, InformationRegister.X.Command.Y,
+            //   CalculationRegister.X.Recalculation.Y, Document.X.TabularSection.Y.Attribute.Z.
+            // Прежняя проверка требовала РОВНО одну точку и валила 15/36 заведомо корректных _Демо-ролей
+            // ложным ERROR (exit=1), делая validate непригодным для реальных ролей. Вложенность
+            // (.Command. / .Attribute. / .Recalculation. и т.п.) — НЕ ошибка формата.
+            // ERROR оставляем только для имени без единого разделителя (нет <Тип>.<Имя>),
+            // кроме белого списка Configuration./Subsystem.*.
+            if (!objName.contains(".")) {
                 if (!objName.startsWith("Configuration.") && !objName.startsWith("Subsystem.")) {
                     issues.add(ValidationIssue.error("ROLE-105",
                             "Object name must be in format '<MDOType>.<Name>', found '" + objName + "'",

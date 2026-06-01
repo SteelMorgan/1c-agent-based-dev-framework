@@ -2028,7 +2028,38 @@ public class Commands {
     }
 
     private static boolean isMetadataFile(String type) {
-        return "role".equals(type) || "form".equals(type) || "epf".equals(type);
+        // TASK-171: добавлены skd и mxl. Все платформенные Template.xml для СКД и MXL
+        // Конфигуратор пишет С UTF-8 BOM (грунт-труф: все 7 _Демо СКД и ПФ_MXL — ef bb bf).
+        // Раньше skd/mxl не входили в metadata-файлы → GEN-003 их не проверял на BOM,
+        // и одновременно ложно ворнил «Unexpected UTF-8 BOM» на каноничных файлах.
+        return "role".equals(type) || "form".equals(type) || "epf".equals(type)
+                || "skd".equals(type) || "mxl".equals(type);
+    }
+
+    /**
+     * TASK-171: надёжное определение корня конфигурации — подъём по дереву каталогов
+     * до первого {@code Configuration.xml}. Заменяет хрупкое фиксированное число
+     * {@code .getParent()}, которое промахивалось мимо корня из-за каталога
+     * {@code Subsystems/} и вложенных подсистем ({@code Parent/Subsystems/Child.xml}).
+     *
+     * <p>Возвращает {@code null}, если {@code Configuration.xml} не найден (например,
+     * подсистема в плоском extension-layout либо изолированный тестовый файл) — тогда
+     * вызывающий код использует прежний fallback, сохраняя совместимость.
+     */
+    private static Path locateConfigRoot(Path start) {
+        if (start == null) return null;
+        Path dir = start.toAbsolutePath().normalize();
+        // start обычно файл (Subsystem.xml / CommandInterface.xml) — поднимаемся от родителя.
+        if (Files.isRegularFile(dir)) {
+            dir = dir.getParent();
+        }
+        while (dir != null) {
+            if (Files.isRegularFile(dir.resolve("Configuration.xml"))) {
+                return dir;
+            }
+            dir = dir.getParent();
+        }
+        return null;
     }
     
     private static String getArg(String[] args, String key, boolean required) {
@@ -2612,7 +2643,15 @@ public class Commands {
         }
 
         Path subsystemXml = target;
-        Path subsystemDir = target.getParent();
+        // TASK-171: корень конфигурации = walk-up до Configuration.xml, а НЕ target.getParent().
+        // Прежний getParent() давал .../Subsystems (а для вложенных подсистем — ещё глубже),
+        // из-за чего existence-чек Content искал объекты в Subsystems/Catalogs/... и ложно
+        // ругался ERROR на существующих объектах (9/10 _Демо валились, exit=1).
+        // Fallback на getParent() — для extension-layout без Configuration.xml.
+        Path subsystemDir = locateConfigRoot(target);
+        if (subsystemDir == null) {
+            subsystemDir = target.getParent();
+        }
 
         if (!Files.exists(subsystemXml)) {
             throw new IllegalArgumentException("Subsystem XML not found: " + subsystemXml);
@@ -2810,12 +2849,17 @@ public class Commands {
         try {
             XmlDocument doc = new XmlStructureReader().parse(target);
             // TASK-155 A2 iter-2: pass configRoot so validator can check object existence.
-            // CommandInterface.xml lives at <configRoot>/<SubsystemName>/Ext/CommandInterface.xml
-            // → configRoot = target.getParent().getParent().getParent()
-            Path configRoot = null;
-            Path p2 = target.getParent();   // Ext/
-            Path p3 = (p2 != null) ? p2.getParent() : null;  // SubsystemName/
-            if (p3 != null) configRoot = p3.getParent();      // configRoot
+            // TASK-171: корень конфигурации = walk-up до Configuration.xml.
+            // Прежние 3× .getParent() (Ext → SubsystemName → Subsystems) давали .../Subsystems
+            // вместо корня; для вложенных подсистем промах ещё больше. Итог — ложные ERROR
+            // на существующих объектах команд (6/8 _Демо CI валились, exit=1).
+            // Fallback на 3×getParent() — для extension-layout без Configuration.xml.
+            Path configRoot = locateConfigRoot(target);
+            if (configRoot == null) {
+                Path p2 = target.getParent();   // Ext/
+                Path p3 = (p2 != null) ? p2.getParent() : null;  // SubsystemName/
+                if (p3 != null) configRoot = p3.getParent();      // configRoot
+            }
             InterfaceValidator validator = new InterfaceValidator();
             List<InterfaceValidator.ValidationMessage> messages = validator.validate(doc, configRoot);
 

@@ -64,15 +64,76 @@ class EpfValidatorTest {
 
     @Test
     void testWrongClassId() throws Exception {
+        // TASK-171: InternalInfo — СОСЕД Properties (прямой ребёнок ExternalDataProcessor),
+        // как в реальном Designer-дампе и у Николая. Прежний тест клал InternalInfo ВНУТРЬ
+        // Properties — это была подгонка под баг навигации; на такой структуре EPF-003 не должен
+        // (и теперь не будет) срабатывать, потому что её платформа не порождает.
         Path file = writeXml("Test.xml",
                 "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n" +
-                "<MetaDataObject xmlns=\"http://v8.1c.ru/8.3/MDClasses\">\n" +
+                "<MetaDataObject xmlns=\"http://v8.1c.ru/8.3/MDClasses\" xmlns:xr=\"http://v8.1c.ru/8.3/xcf/readable\">\n" +
                 "\t<ExternalDataProcessor uuid=\"11111111-1111-1111-1111-111111111111\">\n" +
+                "\t\t<InternalInfo>\n" +
+                "\t\t\t<xr:ContainedObject>\n" +
+                "\t\t\t\t<xr:ClassId>00000000-0000-0000-0000-000000000000</xr:ClassId>\n" +
+                "\t\t\t\t<xr:ObjectId>11111111-1111-1111-1111-111111111111</xr:ObjectId>\n" +
+                "\t\t\t</xr:ContainedObject>\n" +
+                "\t\t</InternalInfo>\n" +
                 "\t\t<Properties>\n" +
                 "\t\t\t<Name>Test</Name>\n" +
-                "\t\t\t<InternalInfo>\n" +
-                "\t\t\t\t<ClassId>00000000-0000-0000-0000-000000000000</ClassId>\n" +
-                "\t\t\t</InternalInfo>\n" +
+                "\t\t</Properties>\n" +
+                "\t\t<ChildObjects/>\n" +
+                "\t</ExternalDataProcessor>\n" +
+                "</MetaDataObject>\n");
+
+        XmlDocument doc = reader.parse(file);
+        List<ValidationIssue> issues = validator.validate(doc, ValidationLevel.STRUCTURE);
+
+        assertThat(issues).anyMatch(i -> i.getCode().equals("EPF-003"));
+    }
+
+    @Test
+    void epf003_correctClassId_ok() throws Exception {
+        // TASK-171: регресс — на корректном ClassId EPF (c3831ec8-...) EPF-003 НЕ срабатывает,
+        // InternalInfo при этом — сосед Properties.
+        Path file = writeXml("Test.xml",
+                "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n" +
+                "<MetaDataObject xmlns=\"http://v8.1c.ru/8.3/MDClasses\" xmlns:xr=\"http://v8.1c.ru/8.3/xcf/readable\">\n" +
+                "\t<ExternalDataProcessor uuid=\"11111111-1111-1111-1111-111111111111\">\n" +
+                "\t\t<InternalInfo>\n" +
+                "\t\t\t<xr:ContainedObject>\n" +
+                "\t\t\t\t<xr:ClassId>c3831ec8-d8d5-4f93-8a22-f9bfae07327f</xr:ClassId>\n" +
+                "\t\t\t\t<xr:ObjectId>11111111-1111-1111-1111-111111111111</xr:ObjectId>\n" +
+                "\t\t\t</xr:ContainedObject>\n" +
+                "\t\t</InternalInfo>\n" +
+                "\t\t<Properties>\n" +
+                "\t\t\t<Name>Test</Name>\n" +
+                "\t\t</Properties>\n" +
+                "\t\t<ChildObjects/>\n" +
+                "\t</ExternalDataProcessor>\n" +
+                "</MetaDataObject>\n");
+
+        XmlDocument doc = reader.parse(file);
+        List<ValidationIssue> issues = validator.validate(doc, ValidationLevel.STRUCTURE);
+
+        assertThat(issues).noneMatch(i -> i.getCode().equals("EPF-003"));
+    }
+
+    @Test
+    void epf003_erfClassIdOnProcessor_reported() throws Exception {
+        // TASK-171: регресс на подмену вида EPF↔ERF — у обработки указан ClassId отчёта
+        // (e41aff26-...). Раньше этот баг не ловился (мёртвый код навигации).
+        Path file = writeXml("Test.xml",
+                "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n" +
+                "<MetaDataObject xmlns=\"http://v8.1c.ru/8.3/MDClasses\" xmlns:xr=\"http://v8.1c.ru/8.3/xcf/readable\">\n" +
+                "\t<ExternalDataProcessor uuid=\"11111111-1111-1111-1111-111111111111\">\n" +
+                "\t\t<InternalInfo>\n" +
+                "\t\t\t<xr:ContainedObject>\n" +
+                "\t\t\t\t<xr:ClassId>e41aff26-25cf-4bb6-b6c1-3f478a75f374</xr:ClassId>\n" +
+                "\t\t\t\t<xr:ObjectId>11111111-1111-1111-1111-111111111111</xr:ObjectId>\n" +
+                "\t\t\t</xr:ContainedObject>\n" +
+                "\t\t</InternalInfo>\n" +
+                "\t\t<Properties>\n" +
+                "\t\t\t<Name>Test</Name>\n" +
                 "\t\t</Properties>\n" +
                 "\t\t<ChildObjects/>\n" +
                 "\t</ExternalDataProcessor>\n" +
@@ -233,5 +294,30 @@ class EpfValidatorTest {
         XmlDocument doc = reader.parse(file);
         List<ValidationIssue> issues = validator.validate(doc, ValidationLevel.SEMANTIC);
         assertThat(issues).anyMatch(i -> i.getCode().equals("EPF-010"));
+    }
+
+    @Test
+    void epf010_malformedClassId_reported() throws Exception {
+        // TASK-171: регресс — невалидный по GUID-формату ClassId в InternalInfo (соседе Properties)
+        // ловится EPF-010. Раньше навигация props.child("InternalInfo") давала null → не ловилось.
+        Path file = writeXml("Test.xml",
+                "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n" +
+                "<MetaDataObject xmlns=\"http://v8.1c.ru/8.3/MDClasses\" xmlns:xr=\"http://v8.1c.ru/8.3/xcf/readable\">\n" +
+                "  <ExternalDataProcessor uuid=\"a1b2c3d4-e5f6-4789-abcd-0123456789ab\">\n" +
+                "    <InternalInfo>\n" +
+                "      <xr:ContainedObject>\n" +
+                "        <xr:ClassId>NOT-A-GUID</xr:ClassId>\n" +
+                "        <xr:ObjectId>a1b2c3d4-e5f6-4789-abcd-0123456789ab</xr:ObjectId>\n" +
+                "      </xr:ContainedObject>\n" +
+                "    </InternalInfo>\n" +
+                "    <Properties><Name>Test</Name></Properties>\n" +
+                "    <ChildObjects/>\n" +
+                "  </ExternalDataProcessor>\n" +
+                "</MetaDataObject>\n");
+
+        XmlDocument doc = reader.parse(file);
+        List<ValidationIssue> issues = validator.validate(doc, ValidationLevel.SEMANTIC);
+        assertThat(issues).anyMatch(i -> i.getCode().equals("EPF-010")
+                && i.getMessage().contains("ClassId"));
     }
 }

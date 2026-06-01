@@ -14,15 +14,19 @@ public class ConfigWriter {
 
     private static final byte[] BOM = {(byte) 0xEF, (byte) 0xBB, (byte) 0xBF};
 
-    // ClassId констант для InternalInfo (из спецификации)
+    // 7 канонических ClassId для InternalInfo конфигурации.
+    // TASK-171 (D-1): позиции 2,5,6,7 раньше были неверны → config init генерил битый InternalInfo
+    // (cf-validate ловил 4 Unknown ClassId). Канон сверен с грунт-труф (grep ClassId
+    // src/xml/Configuration.xml даёт ровно эти 7 GUID), с эталоном Николая (cf-init.py / cf-validate.py
+    // VALID_CLASS_IDS) и с ExtensionWriter.CLASS_IDS (там те же 7 GUID были уже правильными).
     private static final String[] INTERNAL_CLASS_IDS = {
             "9cd510cd-abfc-11d4-9434-004095e12fc7",
-            "9fcd25a0-4541-11d5-adf1-83caef21083c",
+            "9fcd25a0-4822-11d4-9414-008048da11f9",
             "e3687481-0a87-462c-a166-9f34594f9bba",
             "9de14907-ec23-4a07-96f0-85521cb6b53b",
-            "51f2d5d8-ea4d-4064-8892-82571f1df657",
-            "a3b46c5a-029f-41fa-921c-9cdddbb6f9c5",
-            "24c43748-c112-44b3-8f6a-efb4c9e07576"
+            "51f2d5d8-ea4d-4064-8892-82951750031e",
+            "e68182ea-4237-4383-967f-90c1e3370bc7",
+            "fb282519-d103-4dd3-bc12-cb271d631dfc"
     };
 
     /**

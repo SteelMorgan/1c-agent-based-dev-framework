@@ -174,4 +174,46 @@ class EpfWriterTest {
         assertThat(formDefBytes[0]).isNotEqualTo((byte) 0xEF);
         assertThat(formDefBytes[0]).isEqualTo((byte) '<'); // Начинается с '<'
     }
+
+    // ==================== TASK-171 D7: BOM в телах макетов ====================
+
+    @Test
+    void task171_templateBodiesHaveBom() throws Exception {
+        // TASK-171: тела макетов (Template.xml/.html/.txt) должны писаться с UTF-8 BOM,
+        // как реальные демо-макеты Designer. Раньше Files.writeString писал без BOM.
+        EpfWriter writer = new EpfWriter(OutputFormat.DESIGNER);
+        writer.init("ТестоваяОбработка", "Тестовая обработка", tempDir);
+        writer.addTemplate("ТестоваяОбработка", "Макет", "Табличный документ", "SpreadsheetDocument", tempDir);
+        writer.addTemplate("ТестоваяОбработка", "Справка", "Справка", "HTMLDocument", tempDir);
+        writer.addTemplate("ТестоваяОбработка", "Текст", "Текст", "TextDocument", tempDir);
+
+        byte[] mxlBody = Files.readAllBytes(tempDir.resolve("ТестоваяОбработка/Templates/Макет/Ext/Template.xml"));
+        assertBom(mxlBody);
+        byte[] htmlBody = Files.readAllBytes(tempDir.resolve("ТестоваяОбработка/Templates/Справка/Ext/Template.html"));
+        assertBom(htmlBody);
+        byte[] txtBody = Files.readAllBytes(tempDir.resolve("ТестоваяОбработка/Templates/Текст/Ext/Template.txt"));
+        assertBom(txtBody);
+    }
+
+    @Test
+    void task171_textTemplateBodyIsEmpty() throws Exception {
+        // TASK-171: текстовый макет — пустой (после BOM), а не псевдо-BSL-комментарий.
+        EpfWriter writer = new EpfWriter(OutputFormat.DESIGNER);
+        writer.init("ТестоваяОбработка", "Тестовая обработка", tempDir);
+        writer.addTemplate("ТестоваяОбработка", "Текст", "Текст", "TextDocument", tempDir);
+
+        byte[] txtBody = Files.readAllBytes(tempDir.resolve("ТестоваяОбработка/Templates/Текст/Ext/Template.txt"));
+        // только 3 байта BOM, без содержимого
+        assertThat(txtBody.length).isEqualTo(3);
+        assertBom(txtBody);
+        String text = new String(txtBody, java.nio.charset.StandardCharsets.UTF_8);
+        assertThat(text).doesNotContain("Текстовый документ");
+    }
+
+    private static void assertBom(byte[] bytes) {
+        assertThat(bytes.length).isGreaterThanOrEqualTo(3);
+        assertThat(bytes[0]).isEqualTo((byte) 0xEF);
+        assertThat(bytes[1]).isEqualTo((byte) 0xBB);
+        assertThat(bytes[2]).isEqualTo((byte) 0xBF);
+    }
 }
