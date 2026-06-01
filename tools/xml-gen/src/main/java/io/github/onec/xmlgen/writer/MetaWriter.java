@@ -346,34 +346,28 @@ public class MetaWriter {
         sb.append("\t\t</Properties>\n");
     }
 
+    // TASK-171 W1: полный набор Properties Catalog в строгом порядке xs:sequence
+    // по образцу _ДемоВидыНоменклатуры (54 элемента). Раньше выпускалось ~19
+    // элементов в произвольном порядке без StandardAttributes — риск отказа full-load.
     private void writeCatalogProperties(StringBuilder sb, JsonNode root) {
-        // Hierarchy
+        String objectName = requireString(root, "name");
+
+        // Hierarchy — поля иерархии присутствуют ВСЕГДА (как в _Демо), а не только
+        // при hierarchical=true; платформа ожидает их в xs:sequence.
         boolean hierarchical = getBool(root, "hierarchical", false);
         writeElement(sb, 3, "Hierarchical", String.valueOf(hierarchical));
-        if (hierarchical) {
-            writeElement(sb, 3, "HierarchyType",
-                    getString(root, "hierarchyType", "HierarchyFoldersAndItems"));
-            writeElement(sb, 3, "LimitLevelCount",
-                    String.valueOf(getBool(root, "limitLevelCount", false)));
-            writeElement(sb, 3, "LevelCount", String.valueOf(getInt(root, "levelCount", 2)));
-            writeElement(sb, 3, "FoldersOnTop",
-                    String.valueOf(getBool(root, "foldersOnTop", true)));
-        }
+        writeElement(sb, 3, "HierarchyType",
+                getString(root, "hierarchyType", "HierarchyFoldersAndItems"));
+        writeElement(sb, 3, "LimitLevelCount",
+                String.valueOf(getBool(root, "limitLevelCount", false)));
+        writeElement(sb, 3, "LevelCount", String.valueOf(getInt(root, "levelCount", 2)));
+        writeElement(sb, 3, "FoldersOnTop",
+                String.valueOf(getBool(root, "foldersOnTop", true)));
 
-        // Code & description
-        writeElement(sb, 3, "CodeLength", String.valueOf(getInt(root, "codeLength", 9)));
-        writeElement(sb, 3, "CodeType", getString(root, "codeType", "String"));
-        writeElement(sb, 3, "CodeAllowedLength", getString(root, "codeAllowedLength", "Variable"));
-        writeElement(sb, 3, "DescriptionLength", String.valueOf(getInt(root, "descriptionLength", 25)));
-        writeElement(sb, 3, "Autonumbering", String.valueOf(getBool(root, "autonumbering", true)));
-        writeElement(sb, 3, "CheckUnique", String.valueOf(getBool(root, "checkUnique", false)));
-        writeElement(sb, 3, "CodeSeries", getString(root, "codeSeries", "WholeCatalog"));
-        writeElement(sb, 3, "DefaultPresentation",
-                getString(root, "defaultPresentation", "AsDescription"));
-        writeElement(sb, 3, "PredefinedDataUpdate",
-                getString(root, "predefinedDataUpdate", "Auto"));
+        writeElement(sb, 3, "UseStandardCommands",
+                String.valueOf(getBool(root, "useStandardCommands", true)));
 
-        // Owners + subordination
+        // Owners + subordination (SubordinationUse идёт сразу за Owners)
         List<String> owners = getStringList(root, "owners");
         if (owners.isEmpty()) {
             writeEmptyElement(sb, 3, "Owners");
@@ -385,19 +379,72 @@ public class MetaWriter {
             }
             sb.append(indent(3)).append("</Owners>\n");
         }
-        if (!owners.isEmpty() || root.has("subordinationUse")) {
-            writeElement(sb, 3, "SubordinationUse",
-                    getString(root, "subordinationUse", "ToItems"));
-        }
+        writeElement(sb, 3, "SubordinationUse",
+                getString(root, "subordinationUse", "ToItems"));
 
-        // Common behavior
+        // Code & description — порядок _Демо: CodeLength, DescriptionLength, CodeType,
+        // CodeAllowedLength, CodeSeries, CheckUnique, Autonumbering, DefaultPresentation
+        writeElement(sb, 3, "CodeLength", String.valueOf(getInt(root, "codeLength", 9)));
+        writeElement(sb, 3, "DescriptionLength", String.valueOf(getInt(root, "descriptionLength", 25)));
+        writeElement(sb, 3, "CodeType", getString(root, "codeType", "String"));
+        writeElement(sb, 3, "CodeAllowedLength", getString(root, "codeAllowedLength", "Variable"));
+        writeElement(sb, 3, "CodeSeries", getString(root, "codeSeries", "WholeCatalog"));
+        writeElement(sb, 3, "CheckUnique", String.valueOf(getBool(root, "checkUnique", true)));
+        writeElement(sb, 3, "Autonumbering", String.valueOf(getBool(root, "autonumbering", true)));
+        writeElement(sb, 3, "DefaultPresentation",
+                getString(root, "defaultPresentation", "AsDescription"));
+
+        // StandardAttributes + Characteristics + PredefinedDataUpdate
+        writeStandardAttributes(sb, "Catalog");
+        writeEmptyElement(sb, 3, "Characteristics");
+        writeElement(sb, 3, "PredefinedDataUpdate",
+                getString(root, "predefinedDataUpdate", "Auto"));
+
+        // Edit / choice
         writeElement(sb, 3, "EditType", getString(root, "editType", "InDialog"));
-        writeElement(sb, 3, "QuickChoice", String.valueOf(getBool(root, "quickChoice", true)));
+        writeElement(sb, 3, "QuickChoice", String.valueOf(getBool(root, "quickChoice", false)));
         writeElement(sb, 3, "ChoiceMode", getString(root, "choiceMode", "BothWays"));
-        writeBehaviorProperties(sb, root);
+
+        // Input-by-string + режимы поиска
+        writeInputByString(sb, "Catalog", objectName, "Description", "Code");
+        writeElement(sb, 3, "SearchStringModeOnInputByString",
+                getString(root, "searchStringModeOnInputByString", "Begin"));
+        writeElement(sb, 3, "FullTextSearchOnInputByString",
+                getString(root, "fullTextSearchOnInputByString", "DontUse"));
+        writeElement(sb, 3, "ChoiceDataGetModeOnInputByString",
+                getString(root, "choiceDataGetModeOnInputByString", "Directly"));
+
+        // Формы (Default*/Auxiliary*) — всегда пустые по дефолту
+        writePresentationBlocks(sb, "DefaultObjectForm", "DefaultFolderForm",
+                "DefaultListForm", "DefaultChoiceForm", "DefaultFolderChoiceForm",
+                "AuxiliaryObjectForm", "AuxiliaryFolderForm", "AuxiliaryListForm",
+                "AuxiliaryChoiceForm", "AuxiliaryFolderChoiceForm");
+
+        writeElement(sb, 3, "IncludeHelpInContents",
+                String.valueOf(getBool(root, "includeHelpInContents", false)));
+        writeEmptyElement(sb, 3, "BasedOn");
+        writeEmptyElement(sb, 3, "DataLockFields");
+        writeBehaviorProperties(sb, root); // DataLockControlMode + FullTextSearch
+        writePresentationBlocks(sb, "ObjectPresentation", "ExtendedObjectPresentation",
+                "ListPresentation", "ExtendedListPresentation", "Explanation");
+
+        writeElement(sb, 3, "CreateOnInput", getString(root, "createOnInput", "DontUse"));
+        writeElement(sb, 3, "ChoiceHistoryOnInput",
+                getString(root, "choiceHistoryOnInput", "Auto"));
+        writeDataHistoryTail(sb, root);
     }
 
+    // TASK-171 W1: полный набор Properties Document в строгом порядке xs:sequence
+    // по образцу _ДемоЗаказПокупателя (46 элементов). КРИТИЧНО: PostInPrivilegedMode/
+    // UnpostInPrivilegedMode идут ПОСЛЕ RegisterRecords (а тот — после SequenceFilling).
+    // Старый writer ставил Post*/Unpost* ДО RegisterRecords и до движений —
+    // платформа отвергает такой xs:sequence (XDTO-отказ).
     private void writeDocumentProperties(StringBuilder sb, JsonNode root) {
+        String objectName = requireString(root, "name");
+
+        writeElement(sb, 3, "UseStandardCommands",
+                String.valueOf(getBool(root, "useStandardCommands", true)));
+
         // Numbering
         writeEmptyElement(sb, 3, "Numerator");
         writeElement(sb, 3, "NumberType", getString(root, "numberType", "String"));
@@ -407,15 +454,37 @@ public class MetaWriter {
         writeElement(sb, 3, "CheckUnique", String.valueOf(getBool(root, "checkUnique", true)));
         writeElement(sb, 3, "Autonumbering", String.valueOf(getBool(root, "autonumbering", true)));
 
-        // Posting
+        // StandardAttributes + Characteristics + BasedOn
+        writeStandardAttributes(sb, "Document");
+        writeEmptyElement(sb, 3, "Characteristics");
+        writeEmptyElement(sb, 3, "BasedOn");
+
+        // Input-by-string (Number) + CreateOnInput + режимы поиска
+        writeInputByString(sb, "Document", objectName, "Number");
+        writeElement(sb, 3, "CreateOnInput", getString(root, "createOnInput", "DontUse"));
+        writeElement(sb, 3, "SearchStringModeOnInputByString",
+                getString(root, "searchStringModeOnInputByString", "Begin"));
+        writeElement(sb, 3, "FullTextSearchOnInputByString",
+                getString(root, "fullTextSearchOnInputByString", "DontUse"));
+        writeElement(sb, 3, "ChoiceDataGetModeOnInputByString",
+                getString(root, "choiceDataGetModeOnInputByString", "Directly"));
+
+        // Формы
+        writePresentationBlocks(sb, "DefaultObjectForm", "DefaultListForm",
+                "DefaultChoiceForm", "AuxiliaryObjectForm", "AuxiliaryListForm",
+                "AuxiliaryChoiceForm");
+
+        // Posting + движения. Порядок _Демо: Posting, RealTimePosting,
+        // RegisterRecordsDeletion, RegisterRecordsWritingOnPost, SequenceFilling,
+        // RegisterRecords, PostInPrivilegedMode, UnpostInPrivilegedMode.
         writeElement(sb, 3, "Posting", getString(root, "posting", "Allow"));
         writeElement(sb, 3, "RealTimePosting", getString(root, "realTimePosting", "Deny"));
-        writeElement(sb, 3, "PostInPrivilegedMode",
-                String.valueOf(getBool(root, "postInPrivilegedMode", true)));
-        writeElement(sb, 3, "UnpostInPrivilegedMode",
-                String.valueOf(getBool(root, "unpostInPrivilegedMode", true)));
+        writeElement(sb, 3, "RegisterRecordsDeletion",
+                getString(root, "registerRecordsDeletion", "AutoDeleteOnUnpost"));
+        writeElement(sb, 3, "RegisterRecordsWritingOnPost",
+                getString(root, "registerRecordsWritingOnPost", "WriteSelected"));
+        writeElement(sb, 3, "SequenceFilling", getString(root, "sequenceFilling", "AutoFill"));
 
-        // Register records
         List<String> registerRecords = getStringList(root, "registerRecords");
         if (registerRecords.isEmpty()) {
             writeEmptyElement(sb, 3, "RegisterRecords");
@@ -427,18 +496,38 @@ public class MetaWriter {
             }
             sb.append(indent(3)).append("</RegisterRecords>\n");
         }
-        writeElement(sb, 3, "RegisterRecordsDeletion",
-                getString(root, "registerRecordsDeletion", "AutoDelete"));
-        writeElement(sb, 3, "RegisterRecordsWritingOnPost",
-                getString(root, "registerRecordsWritingOnPost", "WriteModified"));
-        writeElement(sb, 3, "SequenceFilling", getString(root, "sequenceFilling", "AutoFill"));
+        writeElement(sb, 3, "PostInPrivilegedMode",
+                String.valueOf(getBool(root, "postInPrivilegedMode", true)));
+        writeElement(sb, 3, "UnpostInPrivilegedMode",
+                String.valueOf(getBool(root, "unpostInPrivilegedMode", true)));
 
-        writeBehaviorProperties(sb, root);
+        writeElement(sb, 3, "IncludeHelpInContents",
+                String.valueOf(getBool(root, "includeHelpInContents", false)));
+        writeEmptyElement(sb, 3, "DataLockFields");
+        writeBehaviorProperties(sb, root); // DataLockControlMode + FullTextSearch
+        writePresentationBlocks(sb, "ObjectPresentation", "ExtendedObjectPresentation",
+                "ListPresentation", "ExtendedListPresentation", "Explanation");
+
+        writeElement(sb, 3, "ChoiceHistoryOnInput",
+                getString(root, "choiceHistoryOnInput", "Auto"));
+        writeDataHistoryTail(sb, root);
     }
 
+    // TASK-171 W1: полный набор Properties Enum по образцу
+    // _ДемоСтатусыЗаказовПокупателей. Ранее выпускались только QuickChoice/ChoiceMode
+    // без UseStandardCommands/StandardAttributes/форм/презентаций.
     private void writeEnumProperties(StringBuilder sb, JsonNode root) {
-        writeElement(sb, 3, "QuickChoice", "true");
-        writeElement(sb, 3, "ChoiceMode", "BothWays");
+        writeElement(sb, 3, "UseStandardCommands",
+                String.valueOf(getBool(root, "useStandardCommands", false)));
+        writeStandardAttributes(sb, "Enum");
+        writeEmptyElement(sb, 3, "Characteristics");
+        writeElement(sb, 3, "QuickChoice", String.valueOf(getBool(root, "quickChoice", true)));
+        writeElement(sb, 3, "ChoiceMode", getString(root, "choiceMode", "BothWays"));
+        writePresentationBlocks(sb, "DefaultListForm", "DefaultChoiceForm",
+                "AuxiliaryListForm", "AuxiliaryChoiceForm",
+                "ListPresentation", "ExtendedListPresentation", "Explanation");
+        writeElement(sb, 3, "ChoiceHistoryOnInput",
+                getString(root, "choiceHistoryOnInput", "Auto"));
     }
 
     private void writeChartOfAccountsProperties(StringBuilder sb, JsonNode root) {
@@ -512,8 +601,10 @@ public class MetaWriter {
         writeElement(sb, 3, "Autonumbering", String.valueOf(getBool(root, "autonumbering", true)));
         writeElement(sb, 3, "CheckUnique", String.valueOf(getBool(root, "checkUnique", false)));
 
+        // TASK-171 D-7: дефолт DontUse (не "NotUsed" — такого значения у платформы нет;
+        // грунт-труф _ДемоОсновныеНачисления = OnActionPeriod, валидные = DontUse/OnActionPeriod).
         writeElement(sb, 3, "DependenceOnCalculationTypes",
-                getString(root, "dependenceOnCalculationTypes", "NotUsed"));
+                normalizeDependence(getString(root, "dependenceOnCalculationTypes", "DontUse")));
 
         // BaseCalculationTypes
         List<String> baseCT = getStringList(root, "baseCalculationTypes");
@@ -549,77 +640,258 @@ public class MetaWriter {
         writeBehaviorProperties(sb, root);
     }
 
+    // TASK-171 W1: полный набор Properties InformationRegister по образцу
+    // _ДемоГрафикиРаботы. Ранее выпускались только периодичность/режим записи
+    // без UseStandardCommands/форм/StandardAttributes/презентаций.
     private void writeInformationRegisterProperties(StringBuilder sb, JsonNode root) {
+        writeElement(sb, 3, "UseStandardCommands",
+                String.valueOf(getBool(root, "useStandardCommands", true)));
+        writeElement(sb, 3, "EditType", getString(root, "editType", "InDialog"));
+        writePresentationBlocks(sb, "DefaultRecordForm", "DefaultListForm",
+                "AuxiliaryRecordForm", "AuxiliaryListForm");
+        writeStandardAttributes(sb, "InformationRegister");
+
         String periodicity = getString(root, "periodicity", "Nonperiodical");
         writeElement(sb, 3, "InformationRegisterPeriodicity", periodicity);
         writeElement(sb, 3, "WriteMode", getString(root, "writeMode", "Independent"));
-
-        // MainFilterOnPeriod: auto = true if periodic
         boolean isPeriodic = !"Nonperiodical".equals(periodicity);
         writeElement(sb, 3, "MainFilterOnPeriod",
                 String.valueOf(getBool(root, "mainFilterOnPeriod", isPeriodic)));
 
+        writeElement(sb, 3, "IncludeHelpInContents",
+                String.valueOf(getBool(root, "includeHelpInContents", false)));
+        writeBehaviorProperties(sb, root); // DataLockControlMode + FullTextSearch
         writeElement(sb, 3, "EnableTotalsSliceFirst",
                 String.valueOf(getBool(root, "enableTotalsSliceFirst", false)));
         writeElement(sb, 3, "EnableTotalsSliceLast",
                 String.valueOf(getBool(root, "enableTotalsSliceLast", false)));
-
-        writeBehaviorProperties(sb, root);
+        writePresentationBlocks(sb, "RecordPresentation", "ExtendedRecordPresentation",
+                "ListPresentation", "ExtendedListPresentation", "Explanation");
+        writeDataHistoryTail(sb, root);
     }
 
+    // TASK-171 W1: полный набор Properties AccumulationRegister по образцу
+    // _ДемоОстаткиТоваровВМестахХранения. TASK-171 D-8: дефолт RegisterType=Balance
+    // (не "Balances" — такого значения у платформы нет, см. D-1).
     private void writeAccumulationRegisterProperties(StringBuilder sb, JsonNode root) {
-        writeElement(sb, 3, "RegisterType", getString(root, "registerType", "Balances"));
+        writeElement(sb, 3, "UseStandardCommands",
+                String.valueOf(getBool(root, "useStandardCommands", true)));
+        writePresentationBlocks(sb, "DefaultListForm", "AuxiliaryListForm");
+        writeElement(sb, 3, "RegisterType",
+                normalizeRegisterType(getString(root, "registerType", "Balance")));
+        writeElement(sb, 3, "IncludeHelpInContents",
+                String.valueOf(getBool(root, "includeHelpInContents", false)));
+        writeStandardAttributes(sb, "AccumulationRegister");
+        writeBehaviorProperties(sb, root); // DataLockControlMode + FullTextSearch
         writeElement(sb, 3, "EnableTotalsSplitting",
                 String.valueOf(getBool(root, "enableTotalsSplitting", true)));
-
-        writeBehaviorProperties(sb, root);
+        writePresentationBlocks(sb, "ListPresentation", "ExtendedListPresentation", "Explanation");
     }
 
+    /** TASK-171 D-1/D-8: нормализация значения RegisterType (алиас Balances → Balance). */
+    private static String normalizeRegisterType(String value) {
+        return "Balances".equalsIgnoreCase(value) ? "Balance" : value;
+    }
+
+    /** TASK-171 D-7: нормализация DependenceOnCalculationTypes (фантомные алиасы → DontUse). */
+    private static String normalizeDependence(String value) {
+        if (value == null) return "DontUse";
+        return switch (value) {
+            case "NotUsed", "NoDependence", "NotDependOnCalculationTypes" -> "DontUse";
+            default -> value;
+        };
+    }
+
+    // TASK-171 W1: полный набор Properties AccountingRegister по образцу
+    // _ДемоЖурналПроводокБухгалтерскогоУчета. Порядок _Демо: EnableTotalsSplitting
+    // между DataLockControlMode и FullTextSearch.
     private void writeAccountingRegisterProperties(StringBuilder sb, JsonNode root) {
         String coa = getString(root, "chartOfAccounts", "");
         if (coa.isEmpty()) {
             throw new IllegalArgumentException(
                     "AccountingRegister requires 'chartOfAccounts' property");
         }
+        writeElement(sb, 3, "UseStandardCommands",
+                String.valueOf(getBool(root, "useStandardCommands", true)));
+        writeElement(sb, 3, "IncludeHelpInContents",
+                String.valueOf(getBool(root, "includeHelpInContents", false)));
         writeElement(sb, 3, "ChartOfAccounts", coa);
         writeElement(sb, 3, "Correspondence",
                 String.valueOf(getBool(root, "correspondence", false)));
         writeElement(sb, 3, "PeriodAdjustmentLength",
                 String.valueOf(getInt(root, "periodAdjustmentLength", 0)));
-
-        writeBehaviorProperties(sb, root);
+        writePresentationBlocks(sb, "DefaultListForm", "AuxiliaryListForm");
+        writeStandardAttributes(sb, "AccountingRegister");
+        writeElement(sb, 3, "DataLockControlMode",
+                getString(root, "dataLockControlMode", "Automatic"));
+        writeElement(sb, 3, "EnableTotalsSplitting",
+                String.valueOf(getBool(root, "enableTotalsSplitting", true)));
+        writeElement(sb, 3, "FullTextSearch", getString(root, "fullTextSearch", "Use"));
+        writePresentationBlocks(sb, "ListPresentation", "ExtendedListPresentation", "Explanation");
     }
 
+    // TASK-171 W1: полный набор Properties CalculationRegister по образцу
+    // _ДемоОсновныеНачисления. Порядок _Демо (грунт-труф) — ChartOfCalculationTypes
+    // идёт ПОСЛЕ блока Schedule, а Schedule/ScheduleValue/ScheduleDate присутствуют
+    // всегда (пустыми). Раньше ChartOfCalculationTypes писался первым и Schedule*
+    // пропускались при отсутствии — несоответствие xs:sequence.
     private void writeCalculationRegisterProperties(StringBuilder sb, JsonNode root) {
         String coct = getString(root, "chartOfCalculationTypes", "");
         if (coct.isEmpty()) {
             throw new IllegalArgumentException(
                     "CalculationRegister requires 'chartOfCalculationTypes' property");
         }
-        writeElement(sb, 3, "ChartOfCalculationTypes", coct);
+        writeElement(sb, 3, "UseStandardCommands",
+                String.valueOf(getBool(root, "useStandardCommands", true)));
+        writePresentationBlocks(sb, "DefaultListForm", "AuxiliaryListForm");
         writeElement(sb, 3, "Periodicity", getString(root, "periodicity", "Month"));
         writeElement(sb, 3, "ActionPeriod",
                 String.valueOf(getBool(root, "actionPeriod", false)));
         writeElement(sb, 3, "BasePeriod",
                 String.valueOf(getBool(root, "basePeriod", false)));
 
-        // Schedule (optional)
+        // Schedule-блок присутствует всегда (пустой, если не задан).
         String schedule = getString(root, "schedule", "");
-        if (!schedule.isEmpty()) {
-            writeElement(sb, 3, "Schedule", schedule);
-            String scheduleValue = getString(root, "scheduleValue", "");
-            if (!scheduleValue.isEmpty()) writeElement(sb, 3, "ScheduleValue", scheduleValue);
-            String scheduleDate = getString(root, "scheduleDate", "");
-            if (!scheduleDate.isEmpty()) writeElement(sb, 3, "ScheduleDate", scheduleDate);
-        }
+        if (schedule.isEmpty()) writeEmptyElement(sb, 3, "Schedule");
+        else writeElement(sb, 3, "Schedule", schedule);
+        String scheduleValue = getString(root, "scheduleValue", "");
+        if (scheduleValue.isEmpty()) writeEmptyElement(sb, 3, "ScheduleValue");
+        else writeElement(sb, 3, "ScheduleValue", scheduleValue);
+        String scheduleDate = getString(root, "scheduleDate", "");
+        if (scheduleDate.isEmpty()) writeEmptyElement(sb, 3, "ScheduleDate");
+        else writeElement(sb, 3, "ScheduleDate", scheduleDate);
 
-        writeBehaviorProperties(sb, root);
+        writeElement(sb, 3, "ChartOfCalculationTypes", coct);
+        writeElement(sb, 3, "IncludeHelpInContents",
+                String.valueOf(getBool(root, "includeHelpInContents", false)));
+        writeStandardAttributes(sb, "CalculationRegister");
+        writeBehaviorProperties(sb, root); // DataLockControlMode + FullTextSearch
+        writePresentationBlocks(sb, "ListPresentation", "ExtendedListPresentation", "Explanation");
     }
 
     private void writeBehaviorProperties(StringBuilder sb, JsonNode root) {
         writeElement(sb, 3, "DataLockControlMode",
                 getString(root, "dataLockControlMode", "Automatic"));
         writeElement(sb, 3, "FullTextSearch", getString(root, "fullTextSearch", "Use"));
+    }
+
+    // ==================== StandardAttributes (TASK-171 W1/D-6) ====================
+
+    /**
+     * TASK-171 W1: набор и порядок стандартных реквизитов по типу объекта —
+     * по образцу платформенных _Демо и Python emit_standard_attributes.
+     * Без этого блока full-load платформы валит ссылочные типы/регистры
+     * («Отсутствует внутренняя информация»), а собственный MetaValidator
+     * выдаёт ложный WARN «StandardAttributes section missing» на нашем же выводе.
+     */
+    private static final Map<String, List<String>> STANDARD_ATTRIBUTES_BY_TYPE = new LinkedHashMap<>();
+    static {
+        STANDARD_ATTRIBUTES_BY_TYPE.put("Catalog", List.of(
+                "PredefinedDataName", "Predefined", "Ref", "DeletionMark",
+                "IsFolder", "Owner", "Parent", "Description", "Code"));
+        STANDARD_ATTRIBUTES_BY_TYPE.put("Document", List.of(
+                "Posted", "Ref", "DeletionMark", "Date", "Number"));
+        STANDARD_ATTRIBUTES_BY_TYPE.put("Enum", List.of("Order", "Ref"));
+        STANDARD_ATTRIBUTES_BY_TYPE.put("InformationRegister", List.of(
+                "Active", "LineNumber", "Recorder", "Period"));
+        STANDARD_ATTRIBUTES_BY_TYPE.put("AccumulationRegister", List.of(
+                "Active", "LineNumber", "Recorder", "Period"));
+        STANDARD_ATTRIBUTES_BY_TYPE.put("AccountingRegister", List.of(
+                "Active", "Period", "Recorder", "LineNumber", "Account"));
+        STANDARD_ATTRIBUTES_BY_TYPE.put("CalculationRegister", List.of(
+                "Active", "Recorder", "LineNumber", "RegistrationPeriod",
+                "CalculationType", "ReversingEntry"));
+        STANDARD_ATTRIBUTES_BY_TYPE.put("ChartOfAccounts", List.of(
+                "PredefinedDataName", "Predefined", "Ref", "DeletionMark",
+                "Description", "Code", "Parent", "Order", "Type", "OffBalance"));
+        STANDARD_ATTRIBUTES_BY_TYPE.put("ChartOfCharacteristicTypes", List.of(
+                "PredefinedDataName", "Predefined", "Ref", "DeletionMark",
+                "Description", "Code", "Parent", "ValueType"));
+        STANDARD_ATTRIBUTES_BY_TYPE.put("ChartOfCalculationTypes", List.of(
+                "PredefinedDataName", "Predefined", "Ref", "DeletionMark",
+                "Description", "Code", "ActionPeriodIsBasic"));
+        STANDARD_ATTRIBUTES_BY_TYPE.put("BusinessProcess", List.of(
+                "Ref", "DeletionMark", "Date", "Number", "Started", "Completed", "HeadTask"));
+        STANDARD_ATTRIBUTES_BY_TYPE.put("Task", List.of(
+                "Ref", "DeletionMark", "Date", "Number", "Executed",
+                "Description", "RoutePoint", "BusinessProcess"));
+        STANDARD_ATTRIBUTES_BY_TYPE.put("ExchangePlan", List.of(
+                "Ref", "DeletionMark", "Code", "Description", "ThisNode", "SentNo", "ReceivedNo"));
+        STANDARD_ATTRIBUTES_BY_TYPE.put("DocumentJournal", List.of(
+                "Type", "Ref", "Date", "Posted", "DeletionMark", "Number"));
+    }
+
+    /** Эмитит блок {@code <StandardAttributes>} с полным набором по типу. */
+    private void writeStandardAttributes(StringBuilder sb, String type) {
+        List<String> attrs = STANDARD_ATTRIBUTES_BY_TYPE.get(type);
+        if (attrs == null || attrs.isEmpty()) {
+            return;
+        }
+        sb.append(indent(3)).append("<StandardAttributes>\n");
+        for (String a : attrs) {
+            writeStandardAttribute(sb, 4, a);
+        }
+        sb.append(indent(3)).append("</StandardAttributes>\n");
+    }
+
+    /**
+     * Один {@code <xr:StandardAttribute>} с дефолтным набором свойств
+     * (порядок дочерних — как у платформенных _Демо).
+     */
+    private void writeStandardAttribute(StringBuilder sb, int ind, String attrName) {
+        sb.append(indent(ind)).append("<xr:StandardAttribute name=\"").append(esc(attrName)).append("\">\n");
+        sb.append(indent(ind + 1)).append("<xr:LinkByType/>\n");
+        sb.append(indent(ind + 1)).append("<xr:FillChecking>DontCheck</xr:FillChecking>\n");
+        sb.append(indent(ind + 1)).append("<xr:MultiLine>false</xr:MultiLine>\n");
+        sb.append(indent(ind + 1)).append("<xr:FillFromFillingValue>false</xr:FillFromFillingValue>\n");
+        sb.append(indent(ind + 1)).append("<xr:CreateOnInput>Auto</xr:CreateOnInput>\n");
+        sb.append(indent(ind + 1)).append("<xr:MaxValue xsi:nil=\"true\"/>\n");
+        sb.append(indent(ind + 1)).append("<xr:ToolTip/>\n");
+        sb.append(indent(ind + 1)).append("<xr:ExtendedEdit>false</xr:ExtendedEdit>\n");
+        sb.append(indent(ind + 1)).append("<xr:Format/>\n");
+        sb.append(indent(ind + 1)).append("<xr:ChoiceForm/>\n");
+        sb.append(indent(ind + 1)).append("<xr:QuickChoice>Auto</xr:QuickChoice>\n");
+        sb.append(indent(ind + 1)).append("<xr:ChoiceHistoryOnInput>Auto</xr:ChoiceHistoryOnInput>\n");
+        sb.append(indent(ind + 1)).append("<xr:EditFormat/>\n");
+        sb.append(indent(ind + 1)).append("<xr:PasswordMode>false</xr:PasswordMode>\n");
+        sb.append(indent(ind + 1)).append("<xr:DataHistory>Use</xr:DataHistory>\n");
+        sb.append(indent(ind + 1)).append("<xr:MarkNegatives>false</xr:MarkNegatives>\n");
+        sb.append(indent(ind + 1)).append("<xr:MinValue xsi:nil=\"true\"/>\n");
+        sb.append(indent(ind + 1)).append("<xr:Synonym/>\n");
+        sb.append(indent(ind + 1)).append("<xr:Comment/>\n");
+        sb.append(indent(ind + 1)).append("<xr:FullTextSearch>Use</xr:FullTextSearch>\n");
+        sb.append(indent(ind + 1)).append("<xr:ChoiceParameterLinks/>\n");
+        sb.append(indent(ind + 1)).append("<xr:FillValue xsi:nil=\"true\"/>\n");
+        sb.append(indent(ind + 1)).append("<xr:Mask/>\n");
+        sb.append(indent(ind + 1)).append("<xr:ChoiceParameters/>\n");
+        sb.append(indent(ind)).append("</xr:StandardAttribute>\n");
+    }
+
+    /** Блок ввода по строке {@code <InputByString>} c полями стандартных реквизитов. */
+    private void writeInputByString(StringBuilder sb, String type, String objectName, String... fields) {
+        sb.append(indent(3)).append("<InputByString>\n");
+        for (String f : fields) {
+            sb.append(indent(4)).append("<xr:Field>")
+                    .append(esc(type + "." + objectName + ".StandardAttribute." + f))
+                    .append("</xr:Field>\n");
+        }
+        sb.append(indent(3)).append("</InputByString>\n");
+    }
+
+    /** Многоязычный текстовый блок презентаций (всегда пустой по дефолту). */
+    private void writePresentationBlocks(StringBuilder sb, String... tags) {
+        for (String t : tags) {
+            writeEmptyElement(sb, 3, t);
+        }
+    }
+
+    /** Хвостовой блок DataHistory, общий для ссылочных типов и регистров. */
+    private void writeDataHistoryTail(StringBuilder sb, JsonNode root) {
+        writeElement(sb, 3, "DataHistory", getString(root, "dataHistory", "DontUse"));
+        writeElement(sb, 3, "UpdateDataHistoryImmediatelyAfterWrite",
+                String.valueOf(getBool(root, "updateDataHistoryImmediatelyAfterWrite", false)));
+        writeElement(sb, 3, "ExecuteAfterWriteDataHistoryVersionProcessing",
+                String.valueOf(getBool(root, "executeAfterWriteDataHistoryVersionProcessing", false)));
     }
 
     // ==================== Phase 5d Property Writers ====================

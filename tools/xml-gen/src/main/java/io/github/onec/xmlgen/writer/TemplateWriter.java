@@ -70,11 +70,14 @@ public class TemplateWriter {
 
         // Handle MainDataCompositionSchema for Report
         if (templateType == TemplateType.DATA_COMPOSITION_SCHEME && object.isReport()) {
+            // TASK-171 D6: префикс берём из фактического типа объекта (Report / ExternalReport),
+            // а не хардкодим "Report." — иначе для внешнего отчёта ссылка будет битой.
+            String mainDcs = mainDcsValue(object, name);
             if (setMainDcs) {
-                editor.setMainDataCompositionSchema("Report." + object.getName() + ".Template." + name);
+                editor.setMainDataCompositionSchema(mainDcs);
             } else {
                 // Only set if currently empty
-                editor.setMainDataCompositionSchemaIfEmpty("Report." + object.getName() + ".Template." + name);
+                editor.setMainDataCompositionSchemaIfEmpty(mainDcs);
             }
         }
 
@@ -110,7 +113,8 @@ public class TemplateWriter {
 
         // If this was the MainDataCompositionSchema — clear it
         if (object.isReport()) {
-            editor.clearMainDataCompositionSchemaIfMatches("Report." + object.getName() + ".Template." + name);
+            // TASK-171 D6: префикс из типа объекта, согласованно с addTemplate.
+            editor.clearMainDataCompositionSchemaIfMatches(mainDcsValue(object, name));
         }
 
         editor.save();
@@ -198,6 +202,20 @@ public class TemplateWriter {
     // ===== package-private helpers for testing =====
 
     static TemplateType parseTemplateType(String typeStr) {
+        return TemplateType.valueByName(canonicalTemplateTypeName(typeStr));
+    }
+
+    /**
+     * Привести тип макета (с учётом алиасов) к канонической строке 1С.
+     * <p>TASK-171: вынесено отдельно от {@link #parseTemplateType}, т.к. EpfWriter нужна именно
+     * каноническая <b>строка</b> (для {@code <TemplateType>} и для выбора тела/расширения через
+     * {@code ObjectContainerEditor.getTemplateBody}/{@code getExtension}), а у {@link TemplateType}
+     * нет публичного метода вернуть это имя. Единый источник нормализации для обеих веток (W5).
+     *
+     * @return каноническое имя типа (e.g. {@code SpreadsheetDocument}, {@code DataCompositionSchema})
+     * @throws IllegalArgumentException если тип пустой или неизвестен
+     */
+    static String canonicalTemplateTypeName(String typeStr) {
         if (typeStr == null || typeStr.isBlank()) {
             throw new IllegalArgumentException("--type is required");
         }
@@ -234,10 +252,19 @@ public class TemplateWriter {
             throw new IllegalArgumentException("Unknown template type: '" + typeStr
                     + "'. Supported: HTMLDocument, TextDocument, SpreadsheetDocument, BinaryData, DataCompositionSchema");
         }
-        return tt;
+        return typeStr;
     }
 
     // ===== private helpers =====
+
+    /**
+     * Значение MainDataCompositionSchema: префикс из фактического типа объекта.
+     * TASK-171 D6: для конфиг-отчёта — {@code Report.}, для внешнего — {@code ExternalReport.}
+     * (хотя сейчас MdoPath допускает только Report; делаем устойчиво к расширению).
+     */
+    private static String mainDcsValue(MdoPath object, String templateName) {
+        return object.getType() + "." + object.getName() + ".Template." + templateName;
+    }
 
     private Path resolveSrcDir(Path configDir, String srcDir) {
         String dir = (srcDir != null && !srcDir.isBlank()) ? srcDir : "src";

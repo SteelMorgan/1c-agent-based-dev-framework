@@ -213,4 +213,138 @@ class MetaWriterTask171Test {
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("не поддерживает предопределённые");
     }
+
+    // ─── W1 / D-6: полнота и порядок Properties ──────────────────────────
+    // Эталон набора/порядка — платформенные _Демо. Старый writer выпускал
+    // ~19 элементов для Catalog и ~20 для Document без StandardAttributes и
+    // в неверном порядке xs:sequence (риск отказа full-load).
+
+    /** Индекс открывающего тега {@code <name>} или {@code <name/>} в XML (или -1). */
+    private static int idx(String xml, String tag) {
+        int open = xml.indexOf("<" + tag + ">");
+        int selfClose = xml.indexOf("<" + tag + "/>");
+        if (open < 0) return selfClose;
+        if (selfClose < 0) return open;
+        return Math.min(open, selfClose);
+    }
+
+    @Test
+    void compile_catalog_emitsKeyPropertiesIncludingStandardAttributes() throws IOException {
+        Path json = writeJson("kc.json", "{\"type\":\"Catalog\",\"name\":\"test_Полн\"}");
+        new MetaWriter().compile(json, tempDir);
+        String xml = read(tempDir.resolve("Catalogs/test_Полн.xml"));
+        // Ключевые недостающие ранее свойства
+        assertThat(xml).contains("<UseStandardCommands>true</UseStandardCommands>");
+        assertThat(xml).contains("<StandardAttributes>");
+        assertThat(xml).contains("<xr:StandardAttribute name=\"Ref\">");
+        assertThat(xml).contains("<xr:StandardAttribute name=\"Description\">");
+        assertThat(xml).contains("<InputByString>");
+        assertThat(xml).contains("<DefaultObjectForm/>");
+        assertThat(xml).contains("<AuxiliaryFolderChoiceForm/>");
+        assertThat(xml).contains("<DataHistory>DontUse</DataHistory>");
+        assertThat(xml).contains("<ExecuteAfterWriteDataHistoryVersionProcessing>false");
+        // Каталог требует минимум 6 стандартных реквизитов (Ref/DeletionMark/Code/...)
+        assertThat(countOccurrences(xml, "<xr:StandardAttribute name=")).isGreaterThanOrEqualTo(6);
+    }
+
+    @Test
+    void compile_document_registerRecordsBeforePrivilegedModeFlags() throws IOException {
+        // КРИТИЧНО (D-6): RegisterRecords ДОЛЖЕН идти ПОСЛЕ SequenceFilling и
+        // ПЕРЕД PostInPrivilegedMode/UnpostInPrivilegedMode. Старый writer ставил
+        // Post*/Unpost* до RegisterRecords — платформа отвергает такой xs:sequence.
+        Path json = writeJson("kd.json",
+                "{\"type\":\"Document\",\"name\":\"test_Док\",\"registerRecords\":[\"AccumulationRegister.X\"]}");
+        new MetaWriter().compile(json, tempDir);
+        String xml = read(tempDir.resolve("Documents/test_Док.xml"));
+
+        assertThat(xml).contains("<StandardAttributes>");
+        assertThat(xml).contains("<UseStandardCommands>true</UseStandardCommands>");
+
+        int seqFilling = idx(xml, "SequenceFilling");
+        int regRecords = idx(xml, "RegisterRecords");
+        int postPriv = idx(xml, "PostInPrivilegedMode");
+        int unpostPriv = idx(xml, "UnpostInPrivilegedMode");
+
+        assertThat(seqFilling).isGreaterThan(0);
+        assertThat(regRecords).isGreaterThan(seqFilling);
+        assertThat(postPriv).isGreaterThan(regRecords);
+        assertThat(unpostPriv).isGreaterThan(postPriv);
+    }
+
+    @Test
+    void compile_document_satisfiesStandardAttributesMinimum() throws IOException {
+        Path json = writeJson("ds.json", "{\"type\":\"Document\",\"name\":\"test_ДокСА\"}");
+        new MetaWriter().compile(json, tempDir);
+        String xml = read(tempDir.resolve("Documents/test_ДокСА.xml"));
+        // Document требует минимум 4 (Ref/DeletionMark/Number/Date) — у нас 5
+        assertThat(countOccurrences(xml, "<xr:StandardAttribute name=")).isGreaterThanOrEqualTo(4);
+    }
+
+    @Test
+    void compile_accumulationRegister_registerTypeDefaultIsBalance() throws IOException {
+        // D-8: дефолт RegisterType=Balance (не "Balances" — фантомное значение)
+        Path json = writeJson("ar.json", "{\"type\":\"AccumulationRegister\",\"name\":\"test_РН\"}");
+        new MetaWriter().compile(json, tempDir);
+        String xml = read(tempDir.resolve("AccumulationRegisters/test_РН.xml"));
+        assertThat(xml).contains("<RegisterType>Balance</RegisterType>");
+        assertThat(xml).doesNotContain("<RegisterType>Balances</RegisterType>");
+        assertThat(xml).contains("<StandardAttributes>");
+        assertThat(xml).contains("<UseStandardCommands>true</UseStandardCommands>");
+    }
+
+    @Test
+    void compile_accumulationRegister_normalizesBalancesAlias() throws IOException {
+        Path json = writeJson("ar2.json",
+                "{\"type\":\"AccumulationRegister\",\"name\":\"test_РН2\",\"registerType\":\"Balances\"}");
+        new MetaWriter().compile(json, tempDir);
+        String xml = read(tempDir.resolve("AccumulationRegisters/test_РН2.xml"));
+        assertThat(xml).contains("<RegisterType>Balance</RegisterType>");
+    }
+
+    @Test
+    void compile_informationRegister_emitsFormsAndStandardAttributes() throws IOException {
+        Path json = writeJson("ir.json", "{\"type\":\"InformationRegister\",\"name\":\"test_РС\"}");
+        new MetaWriter().compile(json, tempDir);
+        String xml = read(tempDir.resolve("InformationRegisters/test_РС.xml"));
+        assertThat(xml).contains("<UseStandardCommands>true</UseStandardCommands>");
+        assertThat(xml).contains("<DefaultRecordForm/>");
+        assertThat(xml).contains("<StandardAttributes>");
+        // EditType и формы идут ДО периодичности (порядок _Демо)
+        assertThat(idx(xml, "EditType")).isLessThan(idx(xml, "InformationRegisterPeriodicity"));
+        assertThat(idx(xml, "StandardAttributes")).isLessThan(idx(xml, "InformationRegisterPeriodicity"));
+    }
+
+    @Test
+    void compile_calculationRegister_chartAfterScheduleBlock() throws IOException {
+        // Порядок _Демо: Periodicity → ActionPeriod/BasePeriod → Schedule* →
+        // ChartOfCalculationTypes (а не Chart первым, как было раньше).
+        Path json = writeJson("cr.json",
+                "{\"type\":\"CalculationRegister\",\"name\":\"test_РР\","
+                + "\"chartOfCalculationTypes\":\"ChartOfCalculationTypes.X\"}");
+        new MetaWriter().compile(json, tempDir);
+        String xml = read(tempDir.resolve("CalculationRegisters/test_РР.xml"));
+        assertThat(xml).contains("<Schedule/>");
+        assertThat(xml).contains("<ScheduleValue/>");
+        assertThat(xml).contains("<ScheduleDate/>");
+        assertThat(idx(xml, "Periodicity")).isLessThan(idx(xml, "Schedule"));
+        assertThat(idx(xml, "Schedule")).isLessThan(idx(xml, "ChartOfCalculationTypes"));
+        assertThat(xml).contains("<StandardAttributes>");
+    }
+
+    @Test
+    void compile_enum_emitsUseStandardCommandsAndStandardAttributes() throws IOException {
+        Path json = writeJson("enf.json",
+                "{\"type\":\"Enum\",\"name\":\"test_ПерП\",\"values\":[\"A\"]}");
+        new MetaWriter().compile(json, tempDir);
+        String xml = read(tempDir.resolve("Enums/test_ПерП.xml"));
+        assertThat(xml).contains("<UseStandardCommands>false</UseStandardCommands>");
+        assertThat(xml).contains("<StandardAttributes>");
+        assertThat(xml).contains("<DefaultListForm/>");
+    }
+
+    private static int countOccurrences(String haystack, String needle) {
+        int c = 0, i = 0;
+        while ((i = haystack.indexOf(needle, i)) >= 0) { c++; i += needle.length(); }
+        return c;
+    }
 }

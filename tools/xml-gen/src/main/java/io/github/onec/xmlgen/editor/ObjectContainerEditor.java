@@ -319,7 +319,10 @@ public class ObjectContainerEditor {
         String ext = getExtension(templateType);
         Path bodyPath = extDir.resolve("Template." + ext);
         String body = getTemplateBody(templateType);
-        Files.writeString(bodyPath, body, StandardCharsets.UTF_8);
+        // TASK-171 D7: тела макетов в Designer-выводе пишем с UTF-8 BOM — реальные демо-макеты
+        // (src/xml/.../Templates/**/Ext/Template.xml) начинаются с ef bb bf, как и весь Designer-дамп.
+        // BinaryData/TextDocument дают пустое тело — пишем только BOM (как в EPF-ветке).
+        writeWithBom(bodyPath, body);
     }
 
     /**
@@ -436,7 +439,11 @@ public class ObjectContainerEditor {
         Files.write(path, result);
     }
 
-    private static String getExtension(String templateType) {
+    /**
+     * Расширение файла тела макета по типу (Designer-раскладка).
+     * TASK-171: public static — единый источник истины для EpfWriter (EPF/ERF идут тем же путём, W5).
+     */
+    public static String getExtension(String templateType) {
         switch (templateType) {
             case "HTMLDocument": return "html";
             case "TextDocument": return "txt";
@@ -445,7 +452,13 @@ public class ObjectContainerEditor {
         }
     }
 
-    private static String getTemplateBody(String templateType) {
+    /**
+     * Каноническое тело макета по типу.
+     * TASK-171: public static — EpfWriter делегирует сюда генерацию тел (D1/D3/W5),
+     * чтобы EPF/ERF и конфиг-объекты использовали один корректный шаблон
+     * (SpreadsheetDocument → корень {@code <document>}, DCS → {@code <DataCompositionSchema>}).
+     */
+    public static String getTemplateBody(String templateType) {
         switch (templateType) {
             case "SpreadsheetDocument":
                 return "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
