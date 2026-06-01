@@ -320,4 +320,83 @@ class EpfValidatorTest {
         assertThat(issues).anyMatch(i -> i.getCode().equals("EPF-010")
                 && i.getMessage().contains("ClassId"));
     }
+
+    // ==================== TASK-171: init --type report --with-skd ====================
+
+    @Test
+    void task171_initWithSkd_createsErfWithDcsTemplate_validators0Errors() throws Exception {
+        // TASK-171: флаг --with-skd создаёт ERF "из коробки" с основной схемой компоновки данных.
+        // Воспроизводит канон грунт-труф (src/xml/Reports/_ДемоФайлыВспомогательный):
+        // макет ОсновнаяСхемаКомпоновкиДанных (DataCompositionSchema) + ChildObjects + MainDCS.
+        EpfWriter writer = new EpfWriter(OutputFormat.DESIGNER, true); // isReport → ERF
+        writer.initWithSkd("ТестовыйОтчет", "Тестовый отчёт", tempDir);
+
+        Path rootXml = tempDir.resolve("ТестовыйОтчет.xml");
+        Path templateMeta = tempDir.resolve("ТестовыйОтчет/Templates/ОсновнаяСхемаКомпоновкиДанных.xml");
+        Path templateBody = tempDir.resolve("ТестовыйОтчет/Templates/ОсновнаяСхемаКомпоновкиДанных/Ext/Template.xml");
+
+        assertThat(rootXml).exists();
+        assertThat(templateMeta).exists();
+        assertThat(templateBody).exists();
+
+        // Связка: ChildObjects + MainDataCompositionSchema с префиксом ExternalReport. (D6).
+        String root = Files.readString(rootXml);
+        assertThat(root).contains("<ExternalReport uuid=");
+        assertThat(root).contains("<Template>ОсновнаяСхемаКомпоновкиДанных</Template>");
+        assertThat(root).contains(
+                "<MainDataCompositionSchema>ExternalReport.ТестовыйОтчет.Template.ОсновнаяСхемаКомпоновкиДанных</MainDataCompositionSchema>");
+
+        // Тело макета — DataCompositionSchema (корректный корень) и тип в метаданных.
+        String body = Files.readString(templateBody);
+        assertThat(body).contains("<DataCompositionSchema xmlns=\"http://v8.1c.ru/8.1/data-composition-system/schema\">");
+        assertThat(Files.readString(templateMeta)).contains("<TemplateType>DataCompositionSchema</TemplateType>");
+
+        // BOM на всех файлах связки (Designer-канон): ef bb bf.
+        assertThat(hasUtf8Bom(rootXml)).as("BOM в корневом XML ERF").isTrue();
+        assertThat(hasUtf8Bom(templateMeta)).as("BOM в метаданных макета").isTrue();
+        assertThat(hasUtf8Bom(templateBody)).as("BOM в теле DataCompositionSchema").isTrue();
+
+        // Валидатор ERF: 0 ошибок по проверкам структуры/семантики самого корневого XML.
+        // EPF-006 здесь исключён намеренно: это ПРЕДСУЩЕСТВУЮЩИЙ дефект EpfValidator вне моего
+        // scope (validator/EpfValidator.java — файл агента-валидатора). Он резолвит каталоги
+        // Forms/Templates относительно каталога корневого XML (<outputDir>), тогда как канон
+        // Designer (xml-generation SKILL §4.6 + грунт-труф) кладёт их под <outputDir>/<name>/.
+        // Дефект стреляет на ЛЮБОЙ EPF/ERF с макетами (в т.ч. на уже отгруженном epf add-template),
+        // а не привнесён флагом --with-skd. Раскладка на диске у нас каноничная — проверено выше
+        // (assertThat(templateBody).exists()). Доложено как находка в fix-epf-withskd.md.
+        XmlDocument erfDoc = reader.parse(rootXml);
+        List<ValidationIssue> erfIssues = validator.validate(erfDoc, ValidationLevel.SEMANTIC);
+        List<ValidationIssue> erfErrors = erfIssues.stream()
+                .filter(i -> i.getSeverity() == Severity.ERROR)
+                .filter(i -> !"EPF-006".equals(i.getCode()))
+                .toList();
+        assertThat(erfErrors).as("Ошибки валидатора ERF (кроме предсуществующего EPF-006): " + erfErrors).isEmpty();
+
+        // Валидатор СКД на теле макета: 0 ошибок.
+        SkdValidator skdValidator = new SkdValidator();
+        XmlDocument skdDoc = reader.parse(templateBody);
+        List<ValidationIssue> skdIssues = skdValidator.validate(skdDoc, ValidationLevel.SEMANTIC);
+        List<ValidationIssue> skdErrors = skdIssues.stream()
+                .filter(i -> i.getSeverity() == Severity.ERROR).toList();
+        assertThat(skdErrors).as("Ошибки валидатора СКД: " + skdErrors).isEmpty();
+    }
+
+    @Test
+    void task171_initWithSkd_onProcessor_throws() throws Exception {
+        // --with-skd для обычной обработки (не отчёт) — внятная ошибка, не тихий no-op:
+        // у EPF нет свойства MainDataCompositionSchema, привязывать схему не к чему.
+        EpfWriter writer = new EpfWriter(OutputFormat.DESIGNER, false); // EPF, не отчёт
+        assertThatThrownBy(() -> writer.initWithSkd("ОбычнаяОбработка", "Обработка", tempDir))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("--with-skd");
+    }
+
+    /** Проверка UTF-8 BOM (ef bb bf) в начале файла. */
+    private static boolean hasUtf8Bom(Path path) throws java.io.IOException {
+        byte[] bytes = Files.readAllBytes(path);
+        return bytes.length >= 3
+                && (bytes[0] & 0xFF) == 0xEF
+                && (bytes[1] & 0xFF) == 0xBB
+                && (bytes[2] & 0xFF) == 0xBF;
+    }
 }

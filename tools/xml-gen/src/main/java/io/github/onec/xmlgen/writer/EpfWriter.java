@@ -25,6 +25,15 @@ public class EpfWriter extends XmlWriter {
     private static final String EPF_CLASS_ID = "c3831ec8-d8d5-4f93-8a22-f9bfae07327f";
     private static final String ERF_CLASS_ID = "e41aff26-25cf-4bb6-b6c1-3f478a75f374";
 
+    //++agent TASK-171 [01.06.2026 12:00:00]
+    // Каноническое имя основной схемы компоновки данных внешнего отчёта.
+    // Совпадает с тем, как Конфигуратор именует основной макет отчёта в грунт-труф
+    // (src/xml/Reports/_Демо*/Templates/ОсновнаяСхемаКомпоновкиДанных): главный макет
+    // отчёта называется именно так, и на него ссылается MainDataCompositionSchema.
+    public static final String MAIN_DCS_TEMPLATE_NAME = "ОсновнаяСхемаКомпоновкиДанных";
+    public static final String MAIN_DCS_TEMPLATE_SYNONYM = "Основная схема компоновки данных";
+    //++agent TASK-171
+
     private final OutputFormat format;
     private final boolean isReport;
 
@@ -71,7 +80,40 @@ public class EpfWriter extends XmlWriter {
             initEdt(name, synonym, outputDir);
         }
     }
-    
+
+    //++agent TASK-171 [01.06.2026 12:00:00]
+    /**
+     * Создать внешний отчёт (ERF) "из коробки" вместе с основной схемой компоновки данных.
+     *
+     * <p>Зачем: каноничный внешний отчёт почти всегда строится на СКД. Раньше основной кейс
+     * закрывался только ручной связкой {@code init --type report} + {@code add-template --type
+     * DataCompositionSchema}; флаг {@code --with-skd} делает это за один шаг, воспроизводя
+     * связку из грунт-труф (src/xml/Reports/_ДемоФайлыВспомогательный): макет
+     * {@code ОсновнаяСхемаКомпоновкиДанных} типа DataCompositionSchema + регистрация в
+     * ChildObjects + проставленный {@code MainDataCompositionSchema}.
+     *
+     * <p>Связка целиком переиспользует уже проверенный путь {@link #addTemplate} (D3/D6):
+     * тело DCS из единого источника {@link ObjectContainerEditor#getTemplateBody} (BOM+CRLF),
+     * аккуратная вставка {@code <Template>} в ChildObjects, а для ERF — выставление
+     * {@code MainDataCompositionSchema} с префиксом {@code ExternalReport.}.
+     *
+     * @throws IllegalStateException если writer создан не для отчёта (DCS-макет вне отчёта
+     *                               не имеет MainDataCompositionSchema, поэтому флаг бессмысленен)
+     */
+    public void initWithSkd(String name, String synonym, Path outputDir) throws IOException, XMLStreamException {
+        if (!isReport) {
+            // Флаг --with-skd применим только к внешнему отчёту: у обычной обработки нет свойства
+            // MainDataCompositionSchema, привязывать схему не к чему. Внятная ошибка вместо тихого no-op.
+            throw new IllegalStateException(
+                    "--with-skd is only valid for external reports (--type report); "
+                    + "external data processors have no MainDataCompositionSchema to bind a schema to.");
+        }
+        init(name, synonym, outputDir);
+        // Синоним макета не зависит от синонима самого отчёта — у макета своё каноничное имя.
+        addTemplate(name, MAIN_DCS_TEMPLATE_NAME, MAIN_DCS_TEMPLATE_SYNONYM, "DataCompositionSchema", outputDir);
+    }
+    //++agent TASK-171
+
     /**
      * Добавить форму в обработку.
      * 

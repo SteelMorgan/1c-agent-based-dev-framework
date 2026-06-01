@@ -125,7 +125,7 @@ public class Commands {
 
     private static void executeEpf(String[] args) {
         if (args.length == 0) {
-            throw new IllegalArgumentException("EPF subcommand required: init [--type report], add-form, add-template, add-attribute, add-tabular-section, bsp-init, bsp-add-command");
+            throw new IllegalArgumentException("EPF subcommand required: init [--type report] [--with-skd], add-form, add-template, add-attribute, add-tabular-section, bsp-init, bsp-add-command");
         }
 
         String subcommand = args[0];
@@ -270,6 +270,7 @@ public class Commands {
         String name = null;
         String synonym = null;
         boolean isReport = false;
+        boolean withSkd = false; //++agent TASK-171 [01.06.2026 12:00:00] флаг основной СКД для ERF //++agent TASK-171
         Path outputDir = null;
 
         for (int i = 1; i < args.length; i++) {
@@ -286,6 +287,12 @@ public class Commands {
                 } else if (!"processor".equals(typeArg)) {
                     throw new IllegalArgumentException("--type must be 'processor' or 'report'");
                 }
+            //++agent TASK-171 [01.06.2026 12:00:00]
+            // --with-skd: за один шаг создать ERF с основной схемой компоновки данных.
+            // Это булев флаг без значения, поэтому отдельная ветка (не "--opt <value>").
+            } else if ("--with-skd".equals(args[i])) {
+                withSkd = true;
+            //++agent TASK-171
             } else if (outputDir == null) {
                 outputDir = Paths.get(args[i]);
             }
@@ -297,6 +304,16 @@ public class Commands {
         if (outputDir == null) {
             throw new IllegalArgumentException("output directory is required");
         }
+
+        //++agent TASK-171 [01.06.2026 12:00:00]
+        // Ранняя валидация: --with-skd осмыслен только для отчёта. Проверяем до создания
+        // файлов, чтобы не оставить на диске половину артефакта (init без схемы).
+        if (withSkd && !isReport) {
+            throw new IllegalArgumentException(
+                "--with-skd is only valid with --type report "
+                + "(external data processors have no MainDataCompositionSchema).");
+        }
+        //++agent TASK-171
 
         //++agent TASK-155 [22.05.2026 00:00:00]
         // TASK-155 A2 iter-3: name validation for EPF init (bug-T-154-epf-002).
@@ -312,7 +329,16 @@ public class Commands {
 
         try {
             EpfWriter writer = new EpfWriter(format, isReport);
-            writer.init(name, synonym, outputDir);
+            //++agent TASK-171 [01.06.2026 12:00:00]
+            // С флагом --with-skd создаём ERF сразу с основной схемой компоновки данных
+            // (init + add-template DataCompositionSchema + MainDataCompositionSchema) — единый
+            // путь через initWithSkd, переиспользующий проверенную связку add-template (D3/D6).
+            if (withSkd) {
+                writer.initWithSkd(name, synonym, outputDir);
+            } else {
+                writer.init(name, synonym, outputDir);
+            }
+            //++agent TASK-171
         } catch (Exception e) {
             String kind = isReport ? "ERF" : "EPF";
             throw new RuntimeException("Failed to create " + kind + ": " + e.getMessage(), e);
