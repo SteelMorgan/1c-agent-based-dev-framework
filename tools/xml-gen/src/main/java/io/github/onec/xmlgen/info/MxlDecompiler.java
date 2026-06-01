@@ -43,6 +43,10 @@ public class MxlDecompiler {
         boolean wrap = false;
         String fillType = "";
         String dataFormat = "";
+        // TASK-171 (R5): цвета (литерал "#RRGGBB" или "style:Имя"). Пустая строка = не задан.
+        String textColor = "";
+        String backColor = "";
+        String borderColor = "";
     }
 
     /**
@@ -111,16 +115,61 @@ public class MxlDecompiler {
 
         // --- 6. Объединения (document-level) ---
         // TASK-171: ключ "r,c" -> {W,H}. Это исправляет 100% потерю merge реальных макетов.
+        // r=-1 — объединение колонок всего документа: выносим в отдельный список columnMerges
+        // (в area-модели cell.span не может его выразить — нет привязки к строке).
         Map<String, int[]> mergeMap = new HashMap<>(); // "r,c" -> [w,h]
+        List<Map<String, Object>> columnMergesOut = new ArrayList<>();
         for (XmlNode m : root.children("merge")) {
             int r = parseInt(m.childText("r"), Integer.MIN_VALUE);
             int c = parseInt(m.childText("c"), Integer.MIN_VALUE);
             int w = parseInt(m.childText("w"), 0);
             int h = parseInt(m.childText("h"), 0);
-            if (r != Integer.MIN_VALUE && c != Integer.MIN_VALUE) {
+            if (r == Integer.MIN_VALUE || c == Integer.MIN_VALUE) continue;
+            if (r == -1) {
+                Map<String, Object> cm = new LinkedHashMap<>();
+                cm.put("c", c);
+                cm.put("w", w);
+                if (h > 0) cm.put("h", h);
+                columnMergesOut.add(cm);
+            } else {
                 mergeMap.put(r + "," + c, new int[]{w, h});
             }
         }
+
+        // TASK-171: verticalUnmerge (после merge в каноне). Round-trip сохранение.
+        List<Map<String, Object>> verticalUnmergesOut = new ArrayList<>();
+        for (XmlNode u : root.children("verticalUnmerge")) {
+            int r = parseInt(u.childText("r"), Integer.MIN_VALUE);
+            int c = parseInt(u.childText("c"), Integer.MIN_VALUE);
+            int w = parseInt(u.childText("w"), 0);
+            if (r == Integer.MIN_VALUE || c == Integer.MIN_VALUE) continue;
+            Map<String, Object> uo = new LinkedHashMap<>();
+            uo.put("r", r);
+            uo.put("c", c);
+            if (w > 0) uo.put("w", w);
+            verticalUnmergesOut.add(uo);
+        }
+
+        // TASK-171 (R9): рисунки (document-level <drawing>). Round-trip сохранение всех полей.
+        List<Map<String, Object>> drawingsOut = readDrawings(root);
+        // Имена рисунков из <namedItem xsi:type="NamedItemDrawing"> -> привязка к drawing.id.
+        Map<Integer, String> drawingNames = readDrawingNames(root);
+        for (Map<String, Object> d : drawingsOut) {
+            Object id = d.get("id");
+            if (id instanceof Integer && drawingNames.containsKey(id)) {
+                // name кладём после id для читаемости — пересборка с сохранением порядка.
+                Map<String, Object> reordered = new LinkedHashMap<>();
+                for (Map.Entry<String, Object> en : d.entrySet()) {
+                    reordered.put(en.getKey(), en.getValue());
+                    if ("id".equals(en.getKey())) reordered.put("name", drawingNames.get(id));
+                }
+                d.clear();
+                d.putAll(reordered);
+            }
+        }
+
+        // TASK-171 (R9): палитра картинок (<picture>). Round-trip сохранение data/ref.
+        List<Map<String, Object>> picturesOut = readPictures(root);
 
         // --- 7. Именованные области (Rows) ---
         List<NamedArea> namedAreas = new ArrayList<>();
@@ -250,6 +299,12 @@ public class MxlDecompiler {
 
         if (!areas.isEmpty()) result.put("areas", areas);
 
+        // TASK-171: новые секции канона (после areas — read для round-trip).
+        if (!drawingsOut.isEmpty()) result.put("drawings", drawingsOut);
+        if (!picturesOut.isEmpty()) result.put("pictures", picturesOut);
+        if (!verticalUnmergesOut.isEmpty()) result.put("verticalUnmerges", verticalUnmergesOut);
+        if (!columnMergesOut.isEmpty()) result.put("columnMerges", columnMergesOut);
+
         // --- JSON ---
         ObjectMapper mapper = new ObjectMapper();
         mapper.enable(SerializationFeature.INDENT_OUTPUT);
@@ -323,6 +378,10 @@ public class MxlDecompiler {
             rf.va = orEmpty(fmt.childText("verticalAlignment"));
             rf.wrap = "Wrap".equals(fmt.childText("textPlacement"));
             rf.fillType = orEmpty(fmt.childText("fillType"));
+            // TASK-171 (R5): цвета. Сохраняем литерал как есть (hex / style-ref).
+            rf.textColor = orEmpty(fmt.childText("textColor"));
+            rf.backColor = orEmpty(fmt.childText("backColor"));
+            rf.borderColor = orEmpty(fmt.childText("borderColor"));
             // Строка формата: <format><v8:item><v8:content>..
             XmlNode nestedFormat = fmt.child("format");
             if (nestedFormat != null) {
@@ -332,6 +391,89 @@ public class MxlDecompiler {
             formats.add(rf);
         }
         return formats;
+    }
+
+    /**
+     * TASK-171 (R9): прочитать рисунки (&lt;drawing&gt;) в список map (только заданные поля,
+     * порядок ключей как в каноне). Числовые поля парсятся в Integer, autoSize в Boolean.
+     */
+    private List<Map<String, Object>> readDrawings(XmlNode root) {
+        List<Map<String, Object>> out = new ArrayList<>();
+        for (XmlNode d : root.children("drawing")) {
+            Map<String, Object> dm = new LinkedHashMap<>();
+            putStr(dm, "drawingType", d.childText("drawingType"));
+            putInt(dm, "id", d.childText("id"));
+            putInt(dm, "formatIndex", d.childText("formatIndex"));
+            putInt(dm, "beginRow", d.childText("beginRow"));
+            putInt(dm, "beginRowOffset", d.childText("beginRowOffset"));
+            putInt(dm, "endRow", d.childText("endRow"));
+            putInt(dm, "endRowOffset", d.childText("endRowOffset"));
+            putInt(dm, "beginColumn", d.childText("beginColumn"));
+            putInt(dm, "beginColumnOffset", d.childText("beginColumnOffset"));
+            putInt(dm, "endColumn", d.childText("endColumn"));
+            putInt(dm, "endColumnOffset", d.childText("endColumnOffset"));
+            putBool(dm, "autoSize", d.childText("autoSize"));
+            putStr(dm, "pictureSize", d.childText("pictureSize"));
+            putInt(dm, "zOrder", d.childText("zOrder"));
+            putInt(dm, "pictureIndex", d.childText("pictureIndex"));
+            if (!dm.isEmpty()) out.add(dm);
+        }
+        return out;
+    }
+
+    /** TASK-171: имена рисунков из &lt;namedItem xsi:type="NamedItemDrawing"&gt; → drawingID. */
+    private Map<Integer, String> readDrawingNames(XmlNode root) {
+        Map<Integer, String> names = new LinkedHashMap<>();
+        for (XmlNode ni : root.children("namedItem")) {
+            String t = ni.attr("xsi:type");
+            if (t == null || !t.contains("NamedItemDrawing")) continue;
+            String name = ni.childText("name");
+            Integer did = parseIntOrNull(ni.childText("drawingID"));
+            if (name != null && did != null) names.put(did, name);
+        }
+        return names;
+    }
+
+    /**
+     * TASK-171 (R9): прочитать палитру картинок (&lt;picture&gt;).
+     * Каждый ресурс: index + вложенный &lt;picture&gt; (base64 data в теле ИЛИ ref-атрибут).
+     */
+    private List<Map<String, Object>> readPictures(XmlNode root) {
+        List<Map<String, Object>> out = new ArrayList<>();
+        for (XmlNode p : root.children("picture")) {
+            Map<String, Object> pm = new LinkedHashMap<>();
+            putInt(pm, "index", p.childText("index"));
+            XmlNode inner = p.child("picture");
+            if (inner != null) {
+                String ref = inner.attr("ref");
+                String data = inner.getText();
+                String t = inner.attr("t");
+                if (ref != null && !ref.isEmpty()) {
+                    pm.put("ref", ref);
+                } else if (data != null && !data.isEmpty()) {
+                    pm.put("data", data);
+                    if (t != null && !t.isEmpty()) pm.put("t", t);
+                }
+            }
+            // Пустой <picture/> (placeholder) сохраняем — только index.
+            out.add(pm);
+        }
+        return out;
+    }
+
+    private static void putStr(Map<String, Object> m, String k, String v) {
+        if (v != null && !v.isEmpty()) m.put(k, v);
+    }
+
+    private static void putInt(Map<String, Object> m, String k, String v) {
+        Integer i = parseIntOrNull(v);
+        if (i != null) m.put(k, i);
+    }
+
+    private static void putBool(Map<String, Object> m, String k, String v) {
+        if (v == null) return;
+        if ("true".equals(v.trim())) m.put(k, Boolean.TRUE);
+        else if ("false".equals(v.trim())) m.put(k, Boolean.FALSE);
     }
 
     /** Формат по 1-based индексу (0 = не задан). */
@@ -496,8 +638,11 @@ public class MxlDecompiler {
             if (fmt == null) return "empty";
             int fi = fmt.fontIdx >= 0 ? fmt.fontIdx : 0;
             BorderDesc bd = borderDesc(fmt);
+            // TASK-171 (R5): цвета — часть сигнатуры стиля, иначе форматы с разными
+            // цветами схлопывались бы в один стиль и цвет терялся бы при round-trip.
             return "f=" + fi + "|b=" + bd.border + "|bw=" + bd.thick
-                    + "|ha=" + fmt.ha + "|va=" + fmt.va + "|wr=" + fmt.wrap + "|df=" + fmt.dataFormat;
+                    + "|ha=" + fmt.ha + "|va=" + fmt.va + "|wr=" + fmt.wrap + "|df=" + fmt.dataFormat
+                    + "|tc=" + fmt.textColor + "|bc=" + fmt.backColor + "|brc=" + fmt.borderColor;
         }
 
         String nameStyle(RawFormat fmt) {
@@ -517,6 +662,10 @@ public class MxlDecompiler {
             else if ("Top".equals(fmt.va)) parts.add("vtop");
             if (fmt.wrap) parts.add("wrap");
             if (!fmt.dataFormat.isEmpty()) parts.add("fmt");
+            // TASK-171 (R5): признак цвета в имени стиля (без значения — оно в def).
+            if (!fmt.textColor.isEmpty()) parts.add("tcolor");
+            if (!fmt.backColor.isEmpty()) parts.add("bgcolor");
+            if (!fmt.borderColor.isEmpty() && parts.isEmpty()) parts.add("bcolor");
             if (parts.isEmpty()) return "default";
             return String.join("-", parts);
         }
@@ -542,6 +691,10 @@ public class MxlDecompiler {
             }
             if (fmt.wrap) def.put("wrap", true);
             if (!fmt.dataFormat.isEmpty()) def.put("format", fmt.dataFormat);
+            // TASK-171 (R5): цвета в def стиля — round-trip-сохранение литерала.
+            if (!fmt.textColor.isEmpty()) def.put("textColor", fmt.textColor);
+            if (!fmt.backColor.isEmpty()) def.put("backColor", fmt.backColor);
+            if (!fmt.borderColor.isEmpty()) def.put("borderColor", fmt.borderColor);
             return def;
         }
 

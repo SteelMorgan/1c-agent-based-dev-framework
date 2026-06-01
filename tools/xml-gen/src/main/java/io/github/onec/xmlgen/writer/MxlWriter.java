@@ -71,11 +71,17 @@ public class MxlWriter extends XmlWriter {
         boolean wrap = false;
         String fillType = "";
         String numberFormat = "";
+        // TASK-171 (R5): цвета. Пустая строка = не задан. Хранятся как литерал из DSL
+        // ("#RRGGBB" или "style:ИмяЦвета") — пишутся в XML дословно, по канону реальных макетов.
+        String textColor = "";
+        String backColor = "";
+        String borderColor = "";
 
         String key() {
             return "f=" + fontIdx + "|lb=" + lb + "|tb=" + tb + "|rb=" + rb + "|bb=" + bb
                     + "|ha=" + ha + "|va=" + va + "|wr=" + wrap + "|ft=" + fillType
-                    + "|nf=" + numberFormat + "|w=" + width + "|h=" + height;
+                    + "|nf=" + numberFormat + "|w=" + width + "|h=" + height
+                    + "|tc=" + textColor + "|bc=" + backColor + "|brc=" + borderColor;
         }
     }
 
@@ -102,6 +108,9 @@ public class MxlWriter extends XmlWriter {
 
         int totalColumns = dsl.getColumns() != null ? dsl.getColumns() : 1;
         int defaultWidth = dsl.getDefaultWidth() != null ? dsl.getDefaultWidth() : 10;
+        // TASK-171 (R8): авто-расчёт defaultWidth из page при наличии "Nx" пропорций
+        // (порт mxl-compile.py:120-161). Без этого "Nx" молча терялись (возвращали null).
+        defaultWidth = computeDefaultWidth(dsl, totalColumns, defaultWidth);
 
         // --- 1. Палитра шрифтов ---
         boolean hasDefaultFont = false;
@@ -131,7 +140,7 @@ public class MxlWriter extends XmlWriter {
         if (hasThick) { thickLineIndex = lineCount++; }
 
         // --- 3. Ширины колонок ---
-        Map<Integer, Integer> perColumnWidths = expandColumnWidths(dsl); // 1-based col -> width
+        Map<Integer, Integer> perColumnWidths = expandColumnWidths(dsl, defaultWidth); // 1-based col -> width
 
         // --- 4. Регистрируем формат default-width (индекс 1, defaultFormatIndex) ---
         FormatEntry defFmt = new FormatEntry();
@@ -212,6 +221,14 @@ public class MxlWriter extends XmlWriter {
         }
         int totalRows = rowIndex;
 
+        // Drawings (document-level, после rowsItem — порядок канона).
+        // TASK-171 (R9): рисунки пишутся round-trip-стабильно из DSL.
+        if (dsl.getDrawings() != null) {
+            for (MxlDsl.Drawing d : dsl.getDrawings()) {
+                writeDrawing(d);
+            }
+        }
+
         // Scalar metadata (порядок канона).
         writeElement("templateMode", "true");
         writeElement("defaultFormatIndex", String.valueOf(defaultFormatIndex));
@@ -228,9 +245,41 @@ public class MxlWriter extends XmlWriter {
             endElement(); // merge
         }
 
-        // Named items.
+        // TASK-171: document-wide column merges (<r>-1</r>) — отдельный список DSL,
+        // т.к. не привязаны к строке/ячейке. Канон: 1c-spreadsheet-spec.md §«Объединения».
+        if (dsl.getColumnMerges() != null) {
+            for (MxlDsl.ColumnMerge cm : dsl.getColumnMerges()) {
+                startElement("merge");
+                writeElement("r", "-1");
+                writeElement("c", String.valueOf(cm.getC() != null ? cm.getC() : 0));
+                if (cm.getH() != null && cm.getH() > 0) writeElement("h", String.valueOf(cm.getH()));
+                writeElement("w", String.valueOf(cm.getW() != null ? cm.getW() : 0));
+                endElement(); // merge
+            }
+        }
+
+        // TASK-171: verticalUnmerge — после merge, до namedItem (порядок канона).
+        if (dsl.getVerticalUnmerges() != null) {
+            for (MxlDsl.Unmerge u : dsl.getVerticalUnmerges()) {
+                startElement("verticalUnmerge");
+                writeElement("r", String.valueOf(u.getR() != null ? u.getR() : 0));
+                writeElement("c", String.valueOf(u.getC() != null ? u.getC() : 0));
+                if (u.getW() != null && u.getW() > 0) writeElement("w", String.valueOf(u.getW()));
+                endElement(); // verticalUnmerge
+            }
+        }
+
+        // Named items (Cells-области).
         for (NamedAreaRange na : namedRanges) {
             writeNamedItem(na);
+        }
+        // TASK-171: именованные рисунки (NamedItemDrawing) — для drawing с name.
+        if (dsl.getDrawings() != null) {
+            for (MxlDsl.Drawing d : dsl.getDrawings()) {
+                if (d.getName() != null && !d.getName().isEmpty() && d.getId() != null) {
+                    writeNamedDrawing(d.getName(), d.getId());
+                }
+            }
         }
 
         // Line palette.
@@ -245,6 +294,14 @@ public class MxlWriter extends XmlWriter {
         // Format palette.
         for (FormatEntry fe : formatOrder) {
             writeFormatEntry(fe);
+        }
+
+        // Picture palette (после format — порядок канона).
+        // TASK-171 (R9): ресурсы картинок (base64 data или ref), round-trip-стабильно.
+        if (dsl.getPictures() != null) {
+            for (MxlDsl.Picture p : dsl.getPictures()) {
+                writePicture(p);
+            }
         }
 
         // Page setup (наше расширение для валидации ширин/ориентации).
@@ -328,6 +385,10 @@ public class MxlWriter extends XmlWriter {
             }
             if (Boolean.TRUE.equals(style.getWrap())) fe.wrap = true;
             if (style.getFormat() != null) fe.numberFormat = style.getFormat();
+            // TASK-171 (R5): цвета — пишем литерал как есть (hex/style-ref).
+            if (style.getTextColor() != null) fe.textColor = style.getTextColor();
+            if (style.getBackColor() != null) fe.backColor = style.getBackColor();
+            if (style.getBorderColor() != null) fe.borderColor = style.getBorderColor();
         }
         return fe;
     }
@@ -351,14 +412,22 @@ public class MxlWriter extends XmlWriter {
 
         int currentRow = startRowIndex;
         for (MxlDsl.Row row : area.getRows()) {
-            // Пустые строки
+            // Пустые строки ({empty:N}). TASK-171: канон Широкова (mxl-compile.py:368-376)
+            // эмитит ЯВНЫЙ <rowsItem><empty>true</empty> на каждую пустую строку, а не просто
+            // пропускает индекс. Без этого rowsItem-count < height → MXL-004 + ложные MXL-203
+            // (rowspan «за пределы документа») и потеря 1 строки при round-trip реальных макетов.
             if (row.getEmpty() != null && row.getEmpty() > 0) {
-                currentRow += row.getEmpty();
+                for (int k = 0; k < row.getEmpty(); k++) {
+                    writeEmptyRowsItem(currentRow);
+                    currentRow++;
+                }
                 continue;
             }
             boolean hasCells = row.getCells() != null && !row.getCells().isEmpty();
             boolean hasRowStyle = row.getRowStyle() != null;
             if (!hasCells && !hasRowStyle) {
+                // Одиночная пустая строка ({}) — тоже явный <empty>true</empty> (канон).
+                writeEmptyRowsItem(currentRow);
                 currentRow++;
                 continue;
             }
@@ -435,6 +504,22 @@ public class MxlWriter extends XmlWriter {
             currentRow++;
         }
         return currentRow;
+    }
+
+    /** TASK-171: явный пустой rowsItem (&lt;empty&gt;true&lt;/empty&gt;) для строки index. */
+    private void writeEmptyRowsItem(int index) throws XMLStreamException {
+        writer.writeCharacters("\t");
+        writer.writeStartElement("rowsItem");
+        writer.writeCharacters("\n");
+        indentLevel = 2;
+        writeElement("index", String.valueOf(index));
+        startElement("row");
+        writeElement("empty", "true");
+        endElement(); // row
+        indentLevel = 1;
+        writer.writeCharacters("\t");
+        writer.writeEndElement(); // rowsItem
+        writer.writeCharacters("\n");
     }
 
     private static final class CellEmit {
@@ -520,10 +605,17 @@ public class MxlWriter extends XmlWriter {
         if (fe.tb >= 0) writeElement("topBorder", String.valueOf(fe.tb));
         if (fe.rb >= 0) writeElement("rightBorder", String.valueOf(fe.rb));
         if (fe.bb >= 0) writeElement("bottomBorder", String.valueOf(fe.bb));
+        // TASK-171 (R5): borderColor сразу после индексов границ — порядок канона
+        // (_ДемоОписатель/Ext/Template.xml: <border>..<borderColor>..<width>).
+        if (!fe.borderColor.isEmpty()) writeElement("borderColor", fe.borderColor);
         if (fe.width >= 0) writeElement("width", String.valueOf(fe.width));
         if (fe.height >= 0) writeElement("height", String.valueOf(fe.height));
         if (!fe.ha.isEmpty()) writeElement("horizontalAlignment", fe.ha);
         if (!fe.va.isEmpty()) writeElement("verticalAlignment", fe.va);
+        // TASK-171 (R5): textColor/backColor после выравнивания, до textPlacement
+        // (канон: СчётНаОплату/Описатель — verticalAlignment, textColor, backColor, textPlacement).
+        if (!fe.textColor.isEmpty()) writeElement("textColor", fe.textColor);
+        if (!fe.backColor.isEmpty()) writeElement("backColor", fe.backColor);
         if (fe.wrap) writeElement("textPlacement", "Wrap");
         if (!fe.fillType.isEmpty()) writeElement("fillType", fe.fillType);
         if (!fe.numberFormat.isEmpty()) {
@@ -560,6 +652,77 @@ public class MxlWriter extends XmlWriter {
         writeIndentLocal();
         writer.writeEndElement(); // namedItem
         writer.writeCharacters("\n");
+    }
+
+    /**
+     * TASK-171 (R9): записать &lt;drawing&gt; (рисунок). Порядок элементов — канон
+     * (1c-spreadsheet-spec.md §«Рисунки»). Только заданные поля.
+     */
+    private void writeDrawing(MxlDsl.Drawing d) throws XMLStreamException {
+        startElement("drawing");
+        if (d.getDrawingType() != null) writeElement("drawingType", d.getDrawingType());
+        if (d.getId() != null) writeElement("id", String.valueOf(d.getId()));
+        if (d.getFormatIndex() != null) writeElement("formatIndex", String.valueOf(d.getFormatIndex()));
+        if (d.getBeginRow() != null) writeElement("beginRow", String.valueOf(d.getBeginRow()));
+        if (d.getBeginRowOffset() != null) writeElement("beginRowOffset", String.valueOf(d.getBeginRowOffset()));
+        if (d.getEndRow() != null) writeElement("endRow", String.valueOf(d.getEndRow()));
+        if (d.getEndRowOffset() != null) writeElement("endRowOffset", String.valueOf(d.getEndRowOffset()));
+        if (d.getBeginColumn() != null) writeElement("beginColumn", String.valueOf(d.getBeginColumn()));
+        if (d.getBeginColumnOffset() != null) writeElement("beginColumnOffset", String.valueOf(d.getBeginColumnOffset()));
+        if (d.getEndColumn() != null) writeElement("endColumn", String.valueOf(d.getEndColumn()));
+        if (d.getEndColumnOffset() != null) writeElement("endColumnOffset", String.valueOf(d.getEndColumnOffset()));
+        if (d.getAutoSize() != null) writeElement("autoSize", String.valueOf(d.getAutoSize()));
+        if (d.getPictureSize() != null) writeElement("pictureSize", d.getPictureSize());
+        if (d.getZOrder() != null) writeElement("zOrder", String.valueOf(d.getZOrder()));
+        if (d.getPictureIndex() != null) writeElement("pictureIndex", String.valueOf(d.getPictureIndex()));
+        endElement(); // drawing
+    }
+
+    /** TASK-171: именованный рисунок (&lt;namedItem xsi:type="NamedItemDrawing"&gt;). */
+    private void writeNamedDrawing(String name, int drawingId) throws XMLStreamException {
+        writeIndentLocal();
+        writer.writeStartElement("namedItem");
+        writer.writeAttribute("xsi", "http://www.w3.org/2001/XMLSchema-instance",
+                "type", "NamedItemDrawing");
+        writer.writeCharacters("\n");
+        indentLevel++;
+        writeElement("name", name);
+        writeElement("drawingID", String.valueOf(drawingId));
+        indentLevel--;
+        writeIndentLocal();
+        writer.writeEndElement(); // namedItem
+        writer.writeCharacters("\n");
+    }
+
+    /**
+     * TASK-171 (R9): записать ресурс картинки (&lt;picture&gt;).
+     * Канон: &lt;index&gt; + вложенный &lt;picture&gt; (base64 data в теле, либо ref-атрибут,
+     * либо пустой). См. 1c-spreadsheet-spec.md §«Ресурсы картинок».
+     */
+    private void writePicture(MxlDsl.Picture p) throws XMLStreamException {
+        startElement("picture");
+        if (p.getIndex() != null) writeElement("index", String.valueOf(p.getIndex()));
+        if (p.getRef() != null && !p.getRef().isEmpty()) {
+            // <picture ref="v8ui:Штрихкод"/>
+            writeIndentLocal();
+            writer.writeEmptyElement("picture");
+            writer.writeAttribute("ref", p.getRef());
+            writer.writeCharacters("\n");
+        } else if (p.getData() != null && !p.getData().isEmpty()) {
+            // <picture [t="false"]>base64...</picture> — атрибут t сохраняется для round-trip.
+            writeIndentLocal();
+            writer.writeStartElement("picture");
+            if (p.getT() != null && !p.getT().isEmpty()) writer.writeAttribute("t", p.getT());
+            writer.writeCharacters(p.getData());
+            writer.writeEndElement();
+            writer.writeCharacters("\n");
+        } else {
+            // <picture/> — пустой ресурс (placeholder index 0 в реальных макетах).
+            writeIndentLocal();
+            writer.writeEmptyElement("picture");
+            writer.writeCharacters("\n");
+        }
+        endElement(); // picture
     }
 
     private void writeIndentLocal() throws XMLStreamException {
@@ -631,15 +794,17 @@ public class MxlWriter extends XmlWriter {
 
     /**
      * Развернуть columnWidths-Map в плоское отображение columnIndex(1-based) -> width.
-     * Ключи: "1", "2-8", "5,7,9", "1,3-5,9". Значения — числовые литералы.
-     * "Nx" пропорции не реализованы (возвращают null → пропуск).
+     * Ключи: "1", "2-8", "5,7,9", "1,3-5,9". Значения — числовые литералы ИЛИ
+     * "Nx" пропорции (N * defaultWidth), порт mxl-compile.py:164-174.
+     *
+     * @param defaultWidth уже вычисленная (с учётом page/Nx) ширина по умолчанию.
      */
-    private Map<Integer, Integer> expandColumnWidths(MxlDsl dsl) {
+    private Map<Integer, Integer> expandColumnWidths(MxlDsl dsl, int defaultWidth) {
         Map<Integer, Integer> result = new LinkedHashMap<>();
         Map<String, Object> cw = dsl.getColumnWidths();
         if (cw != null) {
             for (Map.Entry<String, Object> e : cw.entrySet()) {
-                Integer w = parseWidthValue(e.getValue());
+                Integer w = parseWidthValue(e.getValue(), defaultWidth);
                 if (w == null) continue;
                 for (int col : parseColumnKey(e.getKey())) {
                     result.put(col, w);
@@ -647,6 +812,67 @@ public class MxlWriter extends XmlWriter {
             }
         }
         return result;
+    }
+
+    /**
+     * TASK-171 (R8): вычислить defaultWidth из page-формата и "Nx"-пропорций.
+     * Порт mxl-compile.py:120-161. Если page не задан — возвращает исходное значение.
+     * Логика: target = ширина страницы; абсолютные ширины вычитаются, "Nx" суммируются
+     * в total_units (неуказанные колонки = 1 unit). defaultWidth = (target - absSum) / units.
+     */
+    private int computeDefaultWidth(MxlDsl dsl, int totalColumns, int fallbackWidth) {
+        Integer target = pageWidth(dsl.getPage());
+        if (target == null) return fallbackWidth;
+
+        double totalUnits = 0.0;
+        int absoluteSum = 0;
+        java.util.Set<Integer> specifiedCols = new java.util.HashSet<>();
+        Map<String, Object> cw = dsl.getColumnWidths();
+        if (cw != null) {
+            for (Map.Entry<String, Object> e : cw.entrySet()) {
+                Double units = unitsOf(e.getValue());   // "Nx" → N; иначе null
+                Integer abs = absoluteOf(e.getValue()); // число → значение; иначе null
+                for (int col : parseColumnKey(e.getKey())) {
+                    specifiedCols.add(col);
+                    if (units != null) totalUnits += units;
+                    else if (abs != null) absoluteSum += abs;
+                }
+            }
+        }
+        for (int c = 1; c <= totalColumns; c++) {
+            if (!specifiedCols.contains(c)) totalUnits += 1.0;
+        }
+        if (totalUnits > 0) {
+            return (int) Math.round((target - absoluteSum) / totalUnits);
+        }
+        return fallbackWidth;
+    }
+
+    /** "Nx" → N (как double), иначе null. */
+    private Double unitsOf(Object v) {
+        if (v instanceof String) {
+            String s = ((String) v).trim();
+            if (s.endsWith("x") || s.endsWith("X")) {
+                try { return Double.parseDouble(s.substring(0, s.length() - 1)); }
+                catch (NumberFormatException e) { return null; }
+            }
+        }
+        return null;
+    }
+
+    /** Абсолютное числовое значение ширины, иначе null ("Nx" → null). */
+    private Integer absoluteOf(Object v) {
+        if (v instanceof Number) return ((Number) v).intValue();
+        if (v instanceof String) {
+            String s = ((String) v).trim();
+            if (s.endsWith("x") || s.endsWith("X")) return null;
+            try { return Integer.parseInt(s); }
+            catch (NumberFormatException e) {
+                try { return (int) Math.round(Double.parseDouble(s)); }
+                catch (NumberFormatException ignored) { return null; }
+            }
+        }
+        return null;
     }
 
     private List<Integer> parseColumnKey(String key) {
@@ -671,13 +897,21 @@ public class MxlWriter extends XmlWriter {
         return out;
     }
 
-    private Integer parseWidthValue(Object v) {
+    /**
+     * Разобрать значение ширины. Число → как есть; "Nx" → round(N * defaultWidth)
+     * (TASK-171 R8, порт mxl-compile.py:168-169).
+     */
+    private Integer parseWidthValue(Object v, int defaultWidth) {
         if (v == null) return null;
         if (v instanceof Number) return ((Number) v).intValue();
         if (v instanceof String) {
             String s = ((String) v).trim();
             if (s.isEmpty()) return null;
-            if (s.endsWith("x") || s.endsWith("X")) return null; // "Nx" пропорции — не поддержаны
+            if (s.endsWith("x") || s.endsWith("X")) {
+                Double units = unitsOf(v);
+                if (units == null) return null;
+                return (int) Math.round(units * defaultWidth);
+            }
             try {
                 return Integer.parseInt(s);
             } catch (NumberFormatException e) {

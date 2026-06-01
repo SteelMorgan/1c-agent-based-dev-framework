@@ -140,6 +140,88 @@ class MxlDecompilerTest {
         assertThat(json).contains("\"bold\" : true");
     }
 
+    /**
+     * TASK-171 (R5): цвета формата (hex + style-ref) попадают в style.def
+     * (textColor/backColor/borderColor) — round-trip сохранение значения.
+     */
+    @Test
+    void readsColorsIntoStyle() throws Exception {
+        Path file = writeMxl(
+                "\t<rowsItem><index>0</index><row>\n" +
+                "\t\t<c><i>0</i><c><f>1</f>" + tl("Цвет") + "</c></c>\n" +
+                "\t</row></rowsItem>\n" +
+                "\t<height>1</height>\n" +
+                "\t<format>\n" +
+                "\t\t<borderColor>style:FormTextColor</borderColor>\n" +
+                "\t\t<textColor>#000080</textColor>\n" +
+                "\t\t<backColor>#BBEEC7</backColor>\n" +
+                "\t</format>\n");
+
+        Path output = tempDir.resolve("dsl.json");
+        decompiler.decompile(reader.parse(file), output);
+
+        String json = Files.readString(output, StandardCharsets.UTF_8);
+        assertThat(json).contains("\"textColor\" : \"#000080\"");
+        assertThat(json).contains("\"backColor\" : \"#BBEEC7\"");
+        assertThat(json).contains("\"borderColor\" : \"style:FormTextColor\"");
+    }
+
+    /**
+     * TASK-171 (R9): drawing + picture-палитра читаются в drawings/pictures.
+     * Имя из NamedItemDrawing привязывается к drawing по id.
+     */
+    @Test
+    void readsDrawingsAndPictures() throws Exception {
+        Path file = writeMxl(
+                "\t<rowsItem><index>0</index><row>\n" +
+                "\t\t<c><i>0</i><c><f>0</f>" + tl("X") + "</c></c>\n" +
+                "\t</row></rowsItem>\n" +
+                "\t<drawing>\n" +
+                "\t\t<drawingType>Picture</drawingType>\n" +
+                "\t\t<id>1</id>\n" +
+                "\t\t<beginRow>0</beginRow>\n" +
+                "\t\t<pictureSize>Stretch</pictureSize>\n" +
+                "\t\t<pictureIndex>1</pictureIndex>\n" +
+                "\t</drawing>\n" +
+                "\t<height>1</height>\n" +
+                "\t<namedItem xsi:type=\"NamedItemDrawing\"><name>Лого</name><drawingID>1</drawingID></namedItem>\n" +
+                "\t<picture><index>1</index><picture>iVBORw0KGgo=</picture></picture>\n");
+
+        Path output = tempDir.resolve("dsl.json");
+        decompiler.decompile(reader.parse(file), output);
+
+        String json = Files.readString(output, StandardCharsets.UTF_8);
+        assertThat(json).contains("\"drawings\"");
+        assertThat(json).contains("\"drawingType\" : \"Picture\"");
+        assertThat(json).contains("\"name\" : \"Лого\"");      // имя из NamedItemDrawing
+        assertThat(json).contains("\"pictures\"");
+        assertThat(json).contains("iVBORw0KGgo=");
+    }
+
+    /**
+     * TASK-171: verticalUnmerge и document-wide column merge (&lt;r&gt;-1) выносятся
+     * в отдельные секции verticalUnmerges/columnMerges (не теряются и не путаются с обычным merge).
+     */
+    @Test
+    void readsVerticalUnmergeAndColumnMerge() throws Exception {
+        Path file = writeMxl(
+                "\t<rowsItem><index>0</index><row>\n" +
+                "\t\t<c><i>0</i><c><f>0</f>" + tl("X") + "</c></c>\n" +
+                "\t</row></rowsItem>\n" +
+                "\t<height>1</height>\n" +
+                "\t<merge><r>-1</r><c>14</c><w>1</w></merge>\n" +
+                "\t<verticalUnmerge><r>7</r><c>14</c><w>1</w></verticalUnmerge>\n");
+
+        Path output = tempDir.resolve("dsl.json");
+        decompiler.decompile(reader.parse(file), output);
+
+        String json = Files.readString(output, StandardCharsets.UTF_8);
+        assertThat(json).contains("\"columnMerges\"");
+        assertThat(json).contains("\"verticalUnmerges\"");
+        // r=-1 НЕ должен превратиться в span у ячейки (он не привязан к строке/ячейке).
+        assertThat(json).doesNotContain("\"span\"");
+    }
+
     // --- helpers ---
 
     private String tl(String text) {

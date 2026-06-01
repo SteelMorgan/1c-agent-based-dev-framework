@@ -872,4 +872,155 @@ class MxlWriterTest {
         assertThat(content).contains("<parameter>Параметр1</parameter>");
         assertThat(content).contains("<parameter>Параметр2</parameter>");
     }
+
+    // ─── TASK-171 (остаточный долг W2): цвета / Nx / рисунки / verticalUnmerge / columnMerge ───
+
+    /**
+     * R5 — цвета: textColor/backColor/borderColor пишутся дословно (hex и style-ref),
+     * в каноническом порядке (borderColor у границ; textColor/backColor до textPlacement).
+     */
+    @Test
+    void testColorsWrittenLiterally() throws Exception {
+        String json = """
+                {
+                  "columns": 1,
+                  "styles": {
+                    "c": {"border": "all", "borderColor": "style:FormTextColor",
+                          "textColor": "#000080", "backColor": "#BBEEC7"}
+                  },
+                  "areas": [{"name": "X", "rows": [{"cells": [
+                    {"col": 1, "text": "Цвет", "style": "c"}
+                  ]}]}]
+                }
+                """;
+        MxlDsl dsl = new ObjectMapper().readValue(json, MxlDsl.class);
+        Path out = tempDir.resolve("Template.xml");
+        new MxlWriter(OutputFormat.DESIGNER).create(dsl, out);
+        String content = Files.readString(out);
+        assertThat(content).contains("<textColor>#000080</textColor>");
+        assertThat(content).contains("<backColor>#BBEEC7</backColor>");
+        assertThat(content).contains("<borderColor>style:FormTextColor</borderColor>");
+        // Канон-порядок: borderColor перед width/выравниванием; textColor перед backColor,
+        // оба до textPlacement (тут textPlacement нет, проверяем взаимный порядок цветов).
+        assertThat(content.indexOf("<textColor>")).isLessThan(content.indexOf("<backColor>"));
+    }
+
+    /**
+     * R8 — "Nx" пропорции ширин: при заданном page авто-расчёт defaultWidth и ширин колонок.
+     * page=600, 3 колонки: col1=2x, остальные по 1 unit. units=2+1+1=4 → defaultWidth=150,
+     * col1 width = 2*150 = 300.
+     */
+    @Test
+    void testNxProportionalWidths() throws Exception {
+        String json = """
+                {
+                  "columns": 3,
+                  "page": "600",
+                  "columnWidths": {"1": "2x"},
+                  "areas": [{"name": "X", "rows": [{"cells": [
+                    {"col": 1, "text": "A"}
+                  ]}]}]
+                }
+                """;
+        MxlDsl dsl = new ObjectMapper().readValue(json, MxlDsl.class);
+        Path out = tempDir.resolve("Template.xml");
+        new MxlWriter(OutputFormat.DESIGNER).create(dsl, out);
+        String content = Files.readString(out);
+        // defaultWidth=150 (default format), col1 width=300 — обе ширины должны присутствовать.
+        assertThat(content).contains("<width>150</width>");
+        assertThat(content).contains("<width>300</width>");
+        // Колонка 1 (index 0) перечислена как нестандартная.
+        assertThat(content).contains("<columnsItem>");
+    }
+
+    /**
+     * R9 — рисунки: drawing пишется document-level со всеми заданными полями + picture-палитра.
+     */
+    @Test
+    void testDrawingAndPictureWritten() throws Exception {
+        String json = """
+                {
+                  "columns": 4,
+                  "areas": [{"name": "X", "rows": [{"cells": [
+                    {"col": 1, "text": "A"}
+                  ]}]}],
+                  "drawings": [
+                    {"drawingType": "Picture", "id": 1, "formatIndex": 0,
+                     "beginRow": 0, "beginColumn": 1, "endRow": 0, "endColumn": 2,
+                     "pictureSize": "Proportionally", "zOrder": 1, "pictureIndex": 1}
+                  ],
+                  "pictures": [
+                    {"index": 0},
+                    {"index": 1, "data": "iVBORw0KGgo="}
+                  ]
+                }
+                """;
+        MxlDsl dsl = new ObjectMapper().readValue(json, MxlDsl.class);
+        Path out = tempDir.resolve("Template.xml");
+        new MxlWriter(OutputFormat.DESIGNER).create(dsl, out);
+        String content = Files.readString(out);
+        assertThat(content).contains("<drawing>");
+        assertThat(content).contains("<drawingType>Picture</drawingType>");
+        assertThat(content).contains("<pictureIndex>1</pictureIndex>");
+        assertThat(content).contains("<picture>");
+        assertThat(content).contains("iVBORw0KGgo=");
+        // drawing должен идти ДО templateMode (порядок канона), picture — ПОСЛЕ format.
+        assertThat(content.indexOf("<drawing>")).isLessThan(content.indexOf("<templateMode>"));
+    }
+
+    /**
+     * verticalUnmerge + columnMerge (r=-1): пишутся document-level в правильном порядке.
+     */
+    @Test
+    void testVerticalUnmergeAndColumnMerge() throws Exception {
+        String json = """
+                {
+                  "columns": 20,
+                  "areas": [{"name": "X", "rows": [{"cells": [
+                    {"col": 1, "text": "A"}
+                  ]}]}],
+                  "columnMerges": [{"c": 14, "w": 1}],
+                  "verticalUnmerges": [{"r": 7, "c": 14, "w": 1}]
+                }
+                """;
+        MxlDsl dsl = new ObjectMapper().readValue(json, MxlDsl.class);
+        Path out = tempDir.resolve("Template.xml");
+        new MxlWriter(OutputFormat.DESIGNER).create(dsl, out);
+        String content = Files.readString(out);
+        // columnMerge: <merge> с <r>-1</r>.
+        assertThat(content).contains("<r>-1</r>");
+        // verticalUnmerge присутствует.
+        assertThat(content).contains("<verticalUnmerge>");
+        assertThat(content).contains("<r>7</r>");
+        // verticalUnmerge идёт после merge (порядок канона).
+        assertThat(content.indexOf("<r>-1</r>")).isLessThan(content.indexOf("<verticalUnmerge>"));
+    }
+
+    /**
+     * Регресс: одиночная пустая строка ({}) теперь эмитит явный &lt;empty&gt;true&lt;/empty&gt;
+     * (а не молча пропускается) — иначе rowsItem-count расходится с height (ложные MXL-203).
+     */
+    @Test
+    void testSingleEmptyRowEmitsExplicitRowsItem() throws Exception {
+        List<MxlDsl.Row> rows = Arrays.asList(
+                new MxlDsl.Row(null, null, Arrays.asList(
+                        new MxlDsl.Cell(1, null, null, null, null, null, "A", null)
+                ), null),
+                new MxlDsl.Row(null, null, null, null),  // одиночная пустая {}
+                new MxlDsl.Row(null, null, Arrays.asList(
+                        new MxlDsl.Cell(1, null, null, null, null, null, "B", null)
+                ), null)
+        );
+        MxlDsl dsl = new MxlDsl(1, 40, null, null, null, Arrays.asList(new MxlDsl.Area("X", rows)));
+        Path out = tempDir.resolve("Template.xml");
+        new MxlWriter(OutputFormat.DESIGNER).create(dsl, out);
+        String content = Files.readString(out);
+        // 3 rowsItem (включая пустую), height=3, и есть <empty>true.
+        assertThat(content).contains("<empty>true</empty>");
+        assertThat(content).contains("<height>3</height>");
+        assertThat(content).contains("<index>1</index>");
+        // Число rowsItem == height.
+        int rowsItemCount = content.split("<rowsItem>", -1).length - 1;
+        assertThat(rowsItemCount).isEqualTo(3);
+    }
 }

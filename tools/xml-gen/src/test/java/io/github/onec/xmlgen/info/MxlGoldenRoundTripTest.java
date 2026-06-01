@@ -76,6 +76,101 @@ class MxlGoldenRoundTripTest {
                 0.0, true, true);
     }
 
+    // ─── TASK-171 (остаточный долг W2): цвета / verticalUnmerge / drawings / Nx ───
+
+    /**
+     * R5 — цвета: Описатель содержит textColor (#000080, #666699), backColor (#BBEEC7)
+     * и borderColor (style:FormTextColor). До TASK-171 они терялись на 100%. Проверяем,
+     * что каждое distinct-значение цвета переживает decompile→compile (через JSON и RT XML).
+     */
+    @Test
+    void opisatel_preservesColorValues() throws Exception {
+        Path orig = PROJECT_XML.resolve(
+                "DataProcessors/ИнформацияПриЗапуске/Templates/_ДемоОписатель/Ext/Template.xml");
+        Assumptions.assumeTrue(Files.exists(orig), "Реальный макет недоступен: " + orig);
+
+        XmlDocument doc = reader.parse(orig);
+        Path json = tempDir.resolve("dsl.json");
+        decompiler.decompile(doc, json);
+        String jsonText = Files.readString(json, StandardCharsets.UTF_8);
+
+        // Все distinct color-значения должны быть в JSON.
+        assertThat(jsonText).contains("#000080");
+        assertThat(jsonText).contains("#666699");
+        assertThat(jsonText).contains("#BBEEC7");
+        assertThat(jsonText).contains("style:FormTextColor");
+        assertThat(jsonText).contains("\"textColor\"");
+        assertThat(jsonText).contains("\"backColor\"");
+        assertThat(jsonText).contains("\"borderColor\"");
+
+        // compile обратно — цвета должны попасть в XML дословно.
+        MxlDsl dsl = mapper.readValue(jsonText, MxlDsl.class);
+        Path rtXml = tempDir.resolve("Template.xml");
+        new MxlWriter(OutputFormat.DESIGNER).create(dsl, rtXml);
+        String rt = Files.readString(rtXml, StandardCharsets.UTF_8);
+        assertThat(rt).contains("<textColor>#000080</textColor>");
+        assertThat(rt).contains("<textColor>#666699</textColor>");
+        assertThat(rt).contains("<backColor>#BBEEC7</backColor>");
+        assertThat(rt).contains("<borderColor>style:FormTextColor</borderColor>");
+    }
+
+    /**
+     * Квитанция: verticalUnmerge (38 шт), document-wide column merge (&lt;r&gt;-1, 2 шт),
+     * drawings + pictures — до TASK-171 все терялись на 100%. Проверяем точное сохранение
+     * count'ов orig→RT и 100% merge (раньше было 96% из-за r=-1).
+     */
+    @Test
+    void kvitanciya_preservesUnmergeColumnMergeDrawings() throws Exception {
+        Path orig = PROJECT_XML.resolve(
+                "Documents/_ДемоСчетНаОплатуПокупателю/Templates/ПФ_MXL_Квитанция/Ext/Template.xml");
+        Assumptions.assumeTrue(Files.exists(orig), "Реальный макет недоступен: " + orig);
+
+        String ot = Files.readString(orig, StandardCharsets.UTF_8);
+        int origUnmerge = count(ot, "<verticalUnmerge>");
+        int origColMerge = count(ot, "<r>-1</r>");
+        int origDrawing = count(ot, "<drawing>");
+        int origPicture = count(ot, "<picture>");
+        int origMerge = count(ot, "<merge>");
+
+        XmlDocument doc = reader.parse(orig);
+        Path json = tempDir.resolve("dsl.json");
+        decompiler.decompile(doc, json);
+        String jsonText = Files.readString(json, StandardCharsets.UTF_8);
+        assertThat(jsonText).contains("\"verticalUnmerges\"");
+        assertThat(jsonText).contains("\"columnMerges\"");
+        assertThat(jsonText).contains("\"drawings\"");
+        assertThat(jsonText).contains("\"pictures\"");
+
+        MxlDsl dsl = mapper.readValue(jsonText, MxlDsl.class);
+        Path rtXml = tempDir.resolve("Template.xml");
+        new MxlWriter(OutputFormat.DESIGNER).create(dsl, rtXml);
+        String rt = Files.readString(rtXml, StandardCharsets.UTF_8);
+
+        assertThat(count(rt, "<verticalUnmerge>")).as("verticalUnmerge orig→RT").isEqualTo(origUnmerge);
+        assertThat(count(rt, "<r>-1</r>")).as("column merge r=-1 orig→RT").isEqualTo(origColMerge);
+        assertThat(count(rt, "<drawing>")).as("drawing orig→RT").isEqualTo(origDrawing);
+        assertThat(count(rt, "<picture>")).as("picture orig→RT").isEqualTo(origPicture);
+        // Теперь merge сохраняется на 100% (r=-1 больше не теряется).
+        assertThat(count(rt, "<merge>")).as("merge orig→RT (100%)").isEqualTo(origMerge);
+    }
+
+    /**
+     * R8 — "Nx" пропорции: синтетический DSL с page+"Nx" → авто-расчёт ширин.
+     * Не зависит от проекта (не требует реального макета).
+     */
+    @Test
+    void nxProportions_autoComputeWidths() throws Exception {
+        String json = "{\"columns\":3,\"page\":\"600\",\"columnWidths\":{\"1\":\"2x\"},"
+                + "\"areas\":[{\"name\":\"X\",\"rows\":[{\"cells\":[{\"col\":1,\"text\":\"A\"}]}]}]}";
+        MxlDsl dsl = mapper.readValue(json, MxlDsl.class);
+        Path rtXml = tempDir.resolve("Template.xml");
+        new MxlWriter(OutputFormat.DESIGNER).create(dsl, rtXml);
+        String rt = Files.readString(rtXml, StandardCharsets.UTF_8);
+        // units=2+1+1=4 → defaultWidth=150; col1=2x=300.
+        assertThat(rt).contains("<width>150</width>");
+        assertThat(rt).contains("<width>300</width>");
+    }
+
     /**
      * Общая проверка: decompile(original) → JSON должен содержать объединения/бордюры/ширины;
      * compile(JSON) → XML должен сохранить долю document-level merge не ниже minMergeRatio
