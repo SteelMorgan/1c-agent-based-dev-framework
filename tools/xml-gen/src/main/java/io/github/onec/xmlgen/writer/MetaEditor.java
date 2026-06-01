@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import io.github.onec.xmlgen.dsl.MetaBatchDsl;
 import io.github.onec.xmlgen.dsl.MetaBatchDsl.Operation;
 import io.github.onec.xmlgen.model.CompositeType;
+import io.github.onec.xmlgen.model.ConfigurationXmlReader;
 import io.github.onec.xmlgen.model.MetadataTypeRegistry;
 import io.github.onec.xmlgen.model.MetadataTypeRegistry.TypeDescriptor;
 import io.github.onec.xmlgen.model.MlText;
@@ -99,6 +100,13 @@ public class MetaEditor {
         String objType = detectObjectType(content);
         String objName = detectObjectName(content);
         out.println("[INFO] Object: " + objType + "." + objName);
+
+        // TASK-171 D-1: предопределённые элементы живут не в XML объекта, а в
+        // отдельном Ext/Predefined.xml — обрабатываем до общего content-конвейера.
+        if ("add-predefined".equals(operation)) {
+            addPredefinedItems(xmlPath, objType, value);
+            return;
+        }
 
         // Parse and execute operation
         String[] opParts = operation.split("-", 2);
@@ -289,6 +297,97 @@ public class MetaEditor {
             return result;
         }
         return content;
+    }
+
+    /**
+     * Добавить предопределённые элементы в {@code <Объект>/Ext/Predefined.xml}
+     * (TASK-171 D-1). Файл создаётся, если его нет, иначе элементы дописываются.
+     *
+     * <p>Shorthand одного элемента (батч через {@code ;;}):
+     * {@code Имя[|Описание[|Код[|folder]]]}. Код по умолчанию — авто-нумерация
+     * (max существующего + 1), дополненная нулями до длины кода (по умолчанию 9).
+     * Версия формата файла берётся из {@code Configuration.xml} (D-6).
+     */
+    private void addPredefinedItems(Path xmlPath, String objType, String value) throws IOException {
+        String xsiType = PredefinedXmlWriter.xsiTypeFor(objType);
+        if (xsiType == null) {
+            throw new IllegalArgumentException("Тип " + objType
+                    + " не поддерживает предопределённые элементы. "
+                    + "Поддерживаются: Catalog, ChartOfCharacteristicTypes, "
+                    + "ChartOfAccounts, ChartOfCalculationTypes.");
+        }
+
+        // Ext-каталог объекта на диске называется как файл (без .xml).
+        String fileName = xmlPath.getFileName().toString();
+        String fileBase = fileName.endsWith(".xml")
+                ? fileName.substring(0, fileName.length() - 4) : fileName;
+        Path extDir = xmlPath.getParent().resolve(fileBase).resolve("Ext");
+        Path predefinedFile = extDir.resolve("Predefined.xml");
+
+        // Версия формата из Configuration.xml (на 2 уровня вверх: Catalogs/<N>.xml → xml/).
+        Path configRoot = xmlPath.getParent() != null ? xmlPath.getParent().getParent() : null;
+        Path configurationXml = configRoot != null
+                ? configRoot.resolve("Configuration.xml")
+                : Paths.get("Configuration.xml");
+        String formatVersion = ConfigurationXmlReader.readFormatVersion(configurationXml);
+
+        boolean exists = Files.isRegularFile(predefinedFile);
+        String content = exists ? readFileContent(predefinedFile) : null;
+
+        int codeWidth = exists
+                ? PredefinedXmlWriter.detectCodeWidth(content, PredefinedXmlWriter.DEFAULT_CODE_WIDTH)
+                : PredefinedXmlWriter.DEFAULT_CODE_WIDTH;
+        int nextCode = exists ? PredefinedXmlWriter.nextCodeNumber(content) : 1;
+
+        List<PredefinedXmlWriter.Item> newItems = new ArrayList<>();
+        for (String raw : value.split(";;")) {
+            String item = raw.trim();
+            if (item.isEmpty()) continue;
+            String[] parts = item.split("\\|", -1);
+            String name = parts[0].trim();
+            if (name.isEmpty()) continue;
+            if (exists && findPredefinedByName(content, name)) {
+                warn("Predefined '" + name + "' already exists, skipping");
+                continue;
+            }
+            String description = parts.length > 1 && !parts[1].trim().isEmpty()
+                    ? parts[1].trim() : name;
+            String code = parts.length > 2 && !parts[2].trim().isEmpty()
+                    ? parts[2].trim() : PredefinedXmlWriter.formatCode(nextCode++, codeWidth);
+            boolean isFolder = parts.length > 3 && "folder".equalsIgnoreCase(parts[3].trim());
+            newItems.add(new PredefinedXmlWriter.Item(name, code, description, isFolder));
+            addCount++;
+        }
+
+        if (newItems.isEmpty()) {
+            out.println("[INFO] No predefined items added (all duplicates or empty).");
+            return;
+        }
+
+        Files.createDirectories(extDir);
+        String result;
+        if (exists) {
+            result = content;
+            for (PredefinedXmlWriter.Item it : newItems) {
+                result = PredefinedXmlWriter.appendItem(result, it);
+            }
+        } else {
+            result = PredefinedXmlWriter.buildFile(xsiType, formatVersion, newItems);
+        }
+        writeFileWithBom(predefinedFile, result);
+        out.println("[INFO] Saved: " + predefinedFile);
+        out.println();
+        out.println("=== meta-edit summary ===");
+        out.println("  Predefined added: " + addCount);
+    }
+
+    /** Есть ли в Predefined.xml элемент с таким {@code <Name>}. */
+    private boolean findPredefinedByName(String content, String name) {
+        Matcher m = Pattern.compile("<Name>([^<]*)</Name>").matcher(content);
+        while (m.find()) {
+            if (m.group(1).trim().equals(name)) return true;
+        }
+        return false;
     }
 
     private String addEnumValue(String content, String objName, String value) {

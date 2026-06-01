@@ -6,10 +6,23 @@ import java.util.Arrays;
  * Entry point для xml-gen CLI.
  */
 public class Main {
+    /** Fallback-версия, если в манифесте jar нет Implementation-Version. */
+    private static final String FALLBACK_VERSION = "0.1.0-SNAPSHOT";
+
     public static void main(String[] args) {
         if (args.length == 0) {
             printUsage();
             System.exit(1);
+        }
+
+        // TASK-171 D-11a: --version / -V печатает версию и выходит с кодом 0.
+        if ("--version".equals(args[0]) || "-V".equals(args[0])) {
+            System.out.println("xml-gen " + version());
+            System.exit(0);
+        }
+        if ("--help".equals(args[0]) || "-h".equals(args[0])) {
+            printUsage();
+            System.exit(0);
         }
 
         // TASK-155 A1 (UX-долг): --debug флаг как идеоматичная альтернатива XML_GEN_DEBUG env.
@@ -49,19 +62,34 @@ public class Main {
         }
     }
 
+    /** Версия из манифеста jar (Implementation-Version), иначе fallback. */
+    static String version() {
+        String v = Main.class.getPackage().getImplementationVersion();
+        return (v != null && !v.isBlank()) ? v : FALLBACK_VERSION;
+    }
+
     private static void printUsage() {
-        System.out.println("xml-gen - 1C XML metadata generator & editor");
+        System.out.println("xml-gen " + version() + " - 1C XML metadata generator & editor");
         System.out.println();
-        System.out.println("Usage: java -jar xml-gen.jar <command> [options] <input> <output>");
+        // TASK-171 D-11c: идиоматичное имя CLI вместо "java -jar xml-gen.jar".
+        System.out.println("Usage: xml-gen <command> [options] <input> <output>");
         System.out.println();
         System.out.println("Commands:");
+        System.out.println("  meta compile          - Compile metadata object (Catalog/Document/Enum/CommonModule/...) from JSON DSL");
+        System.out.println("  meta edit             - Edit metadata object (add-attribute/add-enumValue/add-predefined/...)");
+        System.out.println("  meta info             - Inspect metadata object");
+        System.out.println("  meta validate         - Validate metadata object");
+        System.out.println("  meta remove           - Remove metadata object");
+        System.out.println("  config init           - Scaffold a new Configuration.xml");
+        System.out.println("  config edit           - Edit Configuration.xml (properties, ChildObjects, DefaultRoles)");
+        System.out.println("  config info|validate  - Inspect / validate Configuration.xml");
         System.out.println("  epf init              - Create new EPF structure");
         System.out.println("  epf add-form          - Add form to EPF");
         System.out.println("  epf add-template      - Add template to EPF");
         System.out.println("  epf add-attribute     - Add attribute to EPF");
         System.out.println("  epf add-tabular-section - Add tabular section to EPF");
         System.out.println("  form compile          - Compile form from JSON DSL or metadata (--from-object)");
-        System.out.println("  form edit --json      - Apply JSON spec of mutations to existing form (replaces form-edit.py)");
+        System.out.println("  form edit --json      - Apply JSON spec of mutations to existing form");
         System.out.println("  form add-attribute    - Add attribute to form");
         System.out.println("  form add-element      - Add element to form");
         System.out.println("  form add-command      - Add command to form");
@@ -74,16 +102,25 @@ public class Main {
         System.out.println("  skd add-parameter     - Add parameter to SKD");
         System.out.println("  skd add-field         - Add field to SKD dataset");
         System.out.println("  mxl compile           - Compile MXL from JSON DSL");
+        System.out.println("  subsystem compile|info|edit|validate - Subsystems & CommandInterface");
+        System.out.println("  interface ...         - CommandInterface operations");
+        System.out.println("  extension ...         - Extension (CFE) operations: init/borrow/diff/validate");
+        System.out.println("  template add          - Add template / help to a metadata object");
+        System.out.println("  help                  - BSP help operations");
         System.out.println("  edit replace-text     - Byte-safe text replacement in XML files");
         System.out.println("  validate              - Validate 1C XML files");
         System.out.println();
         System.out.println("Options:");
+        System.out.println("  --version, -V            - Print version and exit");
+        System.out.println("  --help, -h               - Print this help and exit");
         System.out.println("  --format <designer|edt>  - Output format (default: designer)");
         System.out.println("  --verbose                - Verbose output");
         System.out.println("  --validate               - Validate JSON DSL only");
+        System.out.println("  --debug                  - Print stack traces on error");
         System.out.println();
         System.out.println("Examples:");
-        System.out.println("  java -jar xml-gen.jar epf init --format designer --name МояОбработка output/");
-        System.out.println("  java -jar xml-gen.jar form compile --format designer form.json output/");
+        System.out.println("  xml-gen epf init --format designer --name МояОбработка output/");
+        System.out.println("  xml-gen form compile --format designer form.json output/");
+        System.out.println("  xml-gen meta compile catalog.json src/xml/");
     }
 }

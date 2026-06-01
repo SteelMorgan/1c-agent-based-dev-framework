@@ -2,6 +2,8 @@ package io.github.onec.xmlgen.writer;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import io.github.onec.xmlgen.editor.ConfigEditor;
+import io.github.onec.xmlgen.model.ConfigurationXmlReader;
 import io.github.onec.xmlgen.model.MetadataTypeRegistry;
 import io.github.onec.xmlgen.model.MetadataTypeRegistry.TypeDescriptor;
 import io.github.onec.xmlgen.model.UuidGenerator;
@@ -137,21 +139,60 @@ public class MetaWriter {
         Path typeDir = outputDir.resolve(td.directory());
         Files.createDirectories(typeDir);
 
+        // Версия формата метаданных берётся из Configuration.xml в корне выгрузки
+        // (TASK-171 D-6): и объект, и Ext/Predefined.xml ДОЛЖНЫ иметь ту же версию,
+        // что и конфигурация, иначе full-load падает «Версия формата ... отличается».
+        Path configurationXml = outputDir.resolve("Configuration.xml");
+        String formatVersion = ConfigurationXmlReader.readFormatVersion(configurationXml);
+
         // Generate UUIDs
         String objectUuid = UuidGenerator.generate();
 
         // Build XML
-        String xml = generateXml(root, type, name, td, objectUuid);
+        String xml = generateXml(root, type, name, td, objectUuid, formatVersion);
         writeWithBom(typeDir.resolve(name + ".xml"), xml);
 
         // Create directory structure
         createDirStructure(typeDir, name, type, td);
+
+        // Предопределённые элементы (TASK-171 D-1): Ext/Predefined.xml для
+        // справочников и планов видов характеристик/счетов/расчёта.
+        writePredefinedItems(typeDir, name, type, root, formatVersion);
+
+        // Регистрация в Configuration.xml (TASK-171 D-3): без этого шага build
+        // падает «Неизвестное имя типа». Делаем автоматически, если конфиг найден.
+        registerInConfiguration(configurationXml, td.xmlElement(), name);
+    }
+
+    /**
+     * Зарегистрировать объект в {@code <ChildObjects>} {@code Configuration.xml}
+     * (TASK-171 D-3). Переиспользует {@link ConfigEditor} с его каноническим
+     * порядком типов. Если конфиг не найден — предупреждение, без падения:
+     * compile в принципе может вызываться вне корня выгрузки.
+     */
+    private void registerInConfiguration(Path configurationXml, String xmlElement, String name) {
+        if (!Files.isRegularFile(configurationXml)) {
+            System.err.println("WARN: Configuration.xml не найден рядом с outputDir ("
+                    + configurationXml + ") — объект " + xmlElement + "." + name
+                    + " НЕ зарегистрирован. Добавьте вручную: "
+                    + "xml-gen config edit Configuration.xml --op add-childObject --value \""
+                    + xmlElement + "." + name + "\"");
+            return;
+        }
+        try {
+            ConfigEditor editor = new ConfigEditor(configurationXml);
+            editor.addChildObject(xmlElement + "." + name);
+            editor.save();
+        } catch (IOException e) {
+            throw new RuntimeException("Не удалось зарегистрировать " + xmlElement + "." + name
+                    + " в Configuration.xml: " + e.getMessage(), e);
+        }
     }
 
     // ==================== XML Generation ====================
 
     private String generateXml(JsonNode root, String type, String name,
-                                TypeDescriptor td, String objectUuid) {
+                                TypeDescriptor td, String objectUuid, String formatVersion) {
         String synonym = getString(root, "synonym", null);
         if (synonym == null) synonym = camelCaseToWords(name);
         String comment = getString(root, "comment", "");
@@ -172,12 +213,15 @@ public class MetaWriter {
         sb.append("\txmlns:v8ui=\"http://v8.1c.ru/8.1/data/ui\"\n");
         sb.append("\txmlns:web=\"http://v8.1c.ru/8.1/data/ui/colors/web\"\n");
         sb.append("\txmlns:win=\"http://v8.1c.ru/8.1/data/ui/colors/windows\"\n");
-        sb.append("\txmlns:xen=\"http://v8.3/xcf/enums\"\n");
-        sb.append("\txmlns:xpr=\"http://v8.3/xcf/predef\"\n");
-        sb.append("\txmlns:xr=\"http://v8.3/xcf/readable\"\n");
+        // TASK-171 D-2: канонический namespace v8.1c.ru, иначе платформа при
+        // DESIGNER full-load отвергает объект («Отсутствует внутренняя информация»).
+        sb.append("\txmlns:xen=\"http://v8.1c.ru/8.3/xcf/enums\"\n");
+        sb.append("\txmlns:xpr=\"http://v8.1c.ru/8.3/xcf/predef\"\n");
+        sb.append("\txmlns:xr=\"http://v8.1c.ru/8.3/xcf/readable\"\n");
         sb.append("\txmlns:xs=\"http://www.w3.org/2001/XMLSchema\"\n");
         sb.append("\txmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\"\n");
-        sb.append("\tversion=\"2.17\">\n");
+        // TASK-171 D-6: версия формата из Configuration.xml, не хардкод.
+        sb.append("\tversion=\"").append(formatVersion).append("\">\n");
 
         // Type element
         sb.append("\t<").append(td.xmlElement()).append(" uuid=\"").append(objectUuid).append("\">\n");
@@ -201,6 +245,15 @@ public class MetaWriter {
 
     private void writeInternalInfo(StringBuilder sb, String type, String name,
                                     TypeDescriptor td) {
+        // TASK-171 D-4: блок <InternalInfo> существует только у типов с
+        // GeneratedType-категориями (ссылочные, регистры, Constant, DefinedType)
+        // ИЛИ у ExchangePlan (ThisNode). У CommonModule/ScheduledJob/EventSubscription/
+        // HTTPService/WebService категорий нет — пустой <InternalInfo></InternalInfo>
+        // платформа отвергает. Не выводим блок вовсе.
+        if (td.categories().isEmpty() && !"ExchangePlan".equals(type)) {
+            return;
+        }
+
         sb.append("\t\t<InternalInfo>\n");
 
         // ExchangePlan: ThisNode
@@ -808,6 +861,14 @@ public class MetaWriter {
 
     private void writeChildObjects(StringBuilder sb, JsonNode root, String type, String name,
                                     TypeDescriptor td) {
+        // TASK-171 D-4: блок <ChildObjects> (даже пустой <ChildObjects/>) существует
+        // только у типов, которые в принципе могут иметь дочерние объекты. У
+        // CommonModule/ScheduledJob/EventSubscription/Constant/DefinedType их нет —
+        // пустой <ChildObjects/> платформа отвергает. Не выводим блок вовсе.
+        if (td.childTypes().isEmpty()) {
+            return;
+        }
+
         boolean hasChildren = false;
 
         // Check if any ChildObjects content will be written
@@ -815,7 +876,10 @@ public class MetaWriter {
         boolean hasResources = root.has("resources") && root.get("resources").size() > 0;
         boolean hasAttributes = root.has("attributes") && root.get("attributes").size() > 0;
         boolean hasTS = root.has("tabularSections") && root.get("tabularSections").size() > 0;
-        boolean hasEnumValues = "Enum".equals(type) && root.has("values") && root.get("values").size() > 0;
+        // TASK-171 D-5: значения перечисления принимаем по ключу "values" ИЛИ
+        // алиасу "enumValues" (агенты использовали enumValues — ключ молча игнорился).
+        JsonNode enumValuesNode = enumValuesNode(root);
+        boolean hasEnumValues = "Enum".equals(type) && enumValuesNode != null && enumValuesNode.size() > 0;
         boolean hasAccountingFlags = root.has("accountingFlags") && root.get("accountingFlags").size() > 0;
         boolean hasExtDimFlags = root.has("extDimensionAccountingFlags")
                 && root.get("extDimensionAccountingFlags").size() > 0;
@@ -858,7 +922,7 @@ public class MetaWriter {
 
         // EnumValues
         if (hasEnumValues) {
-            writeEnumValues(sb, root.get("values"), name);
+            writeEnumValues(sb, enumValuesNode, name);
         }
 
         // AccountingFlags (ChartOfAccounts only)
@@ -1737,7 +1801,8 @@ public class MetaWriter {
         StringBuilder sb = new StringBuilder();
         sb.append("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n");
         sb.append("<ExchangePlanContent xmlns=\"http://v8.1c.ru/8.3/xcf/extrnprops\"\n");
-        sb.append("\txmlns:xr=\"http://v8.3/xcf/readable\"\n");
+        // TASK-171 D-2: канонический namespace v8.1c.ru
+        sb.append("\txmlns:xr=\"http://v8.1c.ru/8.3/xcf/readable\"\n");
         sb.append("\txmlns:xs=\"http://www.w3.org/2001/XMLSchema\"\n");
         sb.append("\txmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\"\n");
         sb.append("\tversion=\"2.17\"/>\n");
@@ -2029,6 +2094,16 @@ public class MetaWriter {
         return result;
     }
 
+    /**
+     * Значения перечисления: ключ {@code values} ИЛИ алиас {@code enumValues}
+     * (TASK-171 D-5). Возвращает {@code null}, если массива нет ни под одним ключом.
+     */
+    private static JsonNode enumValuesNode(JsonNode root) {
+        if (root.has("values") && root.get("values").isArray()) return root.get("values");
+        if (root.has("enumValues") && root.get("enumValues").isArray()) return root.get("enumValues");
+        return null;
+    }
+
     /** Get value types from valueTypes (array) or valueType (string or array alias). */
     private static List<String> getValueTypesList(JsonNode root) {
         List<String> result = getStringList(root, "valueTypes");
@@ -2045,6 +2120,66 @@ public class MetaWriter {
             result.add(vtNode.asText());
         }
         return result;
+    }
+
+    // ==================== Predefined items (TASK-171 D-1) ====================
+
+    /**
+     * Записать {@code <Объект>/Ext/Predefined.xml}, если в DSL есть массив
+     * {@code predefinedItems} (или алиас {@code predefined} в виде массива) и
+     * тип объекта поддерживает предопределённые элементы.
+     *
+     * <p>Каждый элемент: {@code {name, code?, description?, isFolder?}} или просто
+     * строка-имя. Код при отсутствии — авто-нумерация, дополненная нулями до
+     * {@code codeLength} (по умолчанию 9). {@code description} по умолчанию = {@code name}.
+     */
+    private void writePredefinedItems(Path typeDir, String name, String type,
+                                      JsonNode root, String formatVersion) throws IOException {
+        String xmlElement = MetadataTypeRegistry.get(type).xmlElement();
+        String xsiType = PredefinedXmlWriter.xsiTypeFor(xmlElement);
+        if (xsiType == null) {
+            return; // тип не поддерживает предопределённые
+        }
+
+        JsonNode itemsNode = null;
+        if (root.has("predefinedItems") && root.get("predefinedItems").isArray()) {
+            itemsNode = root.get("predefinedItems");
+        } else if (root.has("predefined") && root.get("predefined").isArray()) {
+            // алиас; на ScheduledJob "predefined" — boolean, поэтому проверяем isArray
+            itemsNode = root.get("predefined");
+        }
+        if (itemsNode == null || itemsNode.size() == 0) {
+            return;
+        }
+
+        int codeWidth = getInt(root, "codeLength", PredefinedXmlWriter.DEFAULT_CODE_WIDTH);
+        List<PredefinedXmlWriter.Item> items = new ArrayList<>();
+        int seq = 1;
+        for (JsonNode n : itemsNode) {
+            String itemName;
+            String code;
+            String description;
+            boolean isFolder;
+            if (n.isTextual()) {
+                itemName = n.asText();
+                code = PredefinedXmlWriter.formatCode(seq, codeWidth);
+                description = itemName;
+                isFolder = false;
+            } else {
+                itemName = requireString(n, "name");
+                String rawCode = getString(n, "code", "");
+                code = rawCode.isEmpty() ? PredefinedXmlWriter.formatCode(seq, codeWidth) : rawCode;
+                description = getString(n, "description", itemName);
+                isFolder = getBool(n, "isFolder", false);
+            }
+            items.add(new PredefinedXmlWriter.Item(itemName, code, description, isFolder));
+            seq++;
+        }
+
+        String xml = PredefinedXmlWriter.buildFile(xsiType, formatVersion, items);
+        Path extDir = typeDir.resolve(name).resolve("Ext");
+        Files.createDirectories(extDir);
+        writeWithBom(extDir.resolve("Predefined.xml"), xml);
     }
 
     // ==================== File I/O ====================

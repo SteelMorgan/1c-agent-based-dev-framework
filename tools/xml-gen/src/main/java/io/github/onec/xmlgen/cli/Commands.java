@@ -2188,6 +2188,8 @@ public class Commands {
         String vendor = null;
         String langName = null;
         String langCode = null;
+        String compat = null;          // TASK-171 D-10: CompatibilityMode
+        String formatVersion = null;   // TASK-171 D-10: версия формата (атрибут version)
 
         for (int i = 1; i < args.length; i++) {
             if ("--synonym".equals(args[i]) && i + 1 < args.length) {
@@ -2200,6 +2202,10 @@ public class Commands {
                 langName = args[++i];
             } else if ("--lang-code".equals(args[i]) && i + 1 < args.length) {
                 langCode = args[++i];
+            } else if ("--compat".equals(args[i]) && i + 1 < args.length) {
+                compat = args[++i];
+            } else if ("--format-version".equals(args[i]) && i + 1 < args.length) {
+                formatVersion = args[++i];
             } else if (outputDir == null) {
                 outputDir = Paths.get(args[i]);
             } else if (name == null) {
@@ -2209,7 +2215,8 @@ public class Commands {
 
         if (outputDir == null || name == null) {
             throw new IllegalArgumentException(
-                    "Usage: xml-gen config init <outputDir> <name> [--synonym <syn>] [--version <ver>] [--vendor <vendor>]");
+                    "Usage: xml-gen config init <outputDir> <name> [--synonym <syn>] [--version <ver>] "
+                    + "[--vendor <vendor>] [--compat <Version8_3_NN>] [--format-version <2.NN>]");
         }
 
         //++agent TASK-155 [22.05.2026 00:00:00]
@@ -2232,7 +2239,8 @@ public class Commands {
         //++agent TASK-155
 
         try {
-            new ConfigWriter().create(outputDir, name, synonym, version, vendor, langName, langCode);
+            new ConfigWriter().create(outputDir, name, synonym, version, vendor, langName, langCode,
+                    compat, formatVersion);
             System.out.println("Created configuration: " + name);
             System.out.println("  Configuration.xml: " + outputDir.resolve("Configuration.xml"));
             System.out.println("  ConfigDumpInfo.xml: " + outputDir.resolve("ConfigDumpInfo.xml"));
@@ -2998,6 +3006,7 @@ public class Commands {
                     "Usage: xml-gen meta edit <objectPath> --op <operation> --value <value>\n"
                     + "       xml-gen meta edit <objectPath> --batch <file.json>\n"
                     + "Operations: add-attribute, add-ts, add-dimension, add-resource, add-enumValue,\n"
+                    + "  add-predefined (--value \"Имя[|Описание[|Код[|folder]]]\", батч через ;;),\n"
                     + "  add-column, add-form, add-template, add-command, add-ts-attribute,\n"
                     + "  remove-attribute, remove-ts, remove-dimension, ..., remove-ts-attribute,\n"
                     + "  modify-attribute, modify-dimension, modify-resource, modify-enumValue, modify-column");
@@ -3452,13 +3461,14 @@ public class Commands {
 
         for (int i = 1; i < args.length; i++) {
             switch (args[i]) {
-                case "--old" -> {
+                // TASK-171 D-7: --search/--replace — алиасы к --old/--new (эргономика).
+                case "--old", "--search" -> {
                     if (i + 1 < args.length) oldTexts.add(args[++i]);
-                    else throw new IllegalArgumentException("--old requires a value");
+                    else throw new IllegalArgumentException(args[i] + " requires a value");
                 }
-                case "--new" -> {
+                case "--new", "--replace" -> {
                     if (i + 1 < args.length) newTexts.add(args[++i]);
-                    else throw new IllegalArgumentException("--new requires a value");
+                    else throw new IllegalArgumentException(args[i] + " requires a value");
                 }
                 case "--all" -> replaceAll = true;
                 case "--dry-run" -> dryRun = true;

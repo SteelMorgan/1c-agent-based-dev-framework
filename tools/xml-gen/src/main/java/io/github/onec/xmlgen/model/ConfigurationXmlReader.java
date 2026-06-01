@@ -28,6 +28,48 @@ public final class ConfigurationXmlReader {
     }
 
     /**
+     * Дефолтная версия формата сериализации метаданных. Используется, когда
+     * {@code Configuration.xml} недоступен. Совпадает с тем, что платформа
+     * 8.3.2x пишет по умолчанию.
+     */
+    public static final String DEFAULT_FORMAT_VERSION = "2.17";
+
+    /**
+     * Прочитать версию формата метаданных — атрибут {@code version} корневого
+     * элемента {@code <MetaDataObject ... version="2.20">} в {@code Configuration.xml}.
+     *
+     * <p>Версия формата ДОЛЖНА совпадать у всех объектов конфигурации и у файлов
+     * {@code Ext/Predefined.xml}: иначе платформа при full-load падает с
+     * «Версия формата ... отличается» (TASK-171 D-6). Поэтому генератор берёт
+     * версию из конфигурации, а не хардкодит.
+     *
+     * @return значение атрибута {@code version}, либо {@link #DEFAULT_FORMAT_VERSION},
+     *         если файл недоступен/не распарсился.
+     */
+    public static String readFormatVersion(Path configurationXml) {
+        try {
+            String content = readContent(configurationXml);
+            // Версия — атрибут именно открывающего тега <MetaDataObject ...>, а НЕ
+            // декларации <?xml version="1.0"?>. Ограничиваем поиск открывающим тегом
+            // MetaDataObject (его атрибуты могут идти на нескольких строках).
+            int mdoStart = content.indexOf("<MetaDataObject");
+            if (mdoStart >= 0) {
+                int tagEnd = content.indexOf('>', mdoStart);
+                String head = tagEnd > mdoStart
+                        ? content.substring(mdoStart, tagEnd)
+                        : content.substring(mdoStart);
+                Matcher m = Pattern.compile("\\sversion=\"([0-9]+\\.[0-9]+)\"").matcher(head);
+                if (m.find()) {
+                    return m.group(1);
+                }
+            }
+        } catch (IOException e) {
+            // нет файла/не читается — отдаём дефолт
+        }
+        return DEFAULT_FORMAT_VERSION;
+    }
+
+    /**
      * Прочитать {@code <NamePrefix>...</NamePrefix>} из {@code Configuration.xml} расширения.
      * Возвращает {@code null}, если элемент отсутствует или пуст.
      */

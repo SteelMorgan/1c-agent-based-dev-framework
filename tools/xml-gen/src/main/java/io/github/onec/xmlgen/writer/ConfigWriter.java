@@ -38,6 +38,20 @@ public class ConfigWriter {
      */
     public void create(Path outputDir, String name, String synonym, String version,
                        String vendor, String langName, String langCode) throws IOException {
+        create(outputDir, name, synonym, version, vendor, langName, langCode, null, null);
+    }
+
+    /**
+     * Создать scaffold конфигурации с указанием версии формата и режима совместимости
+     * (TASK-171 D-10).
+     *
+     * @param compatibilityMode значение {@code CompatibilityMode}/{@code ConfigurationExtensionCompatibilityMode}
+     *                          (например {@code Version8_3_27}); null = {@code Version8_3_24}
+     * @param formatVersion     версия формата сериализации (атрибут {@code version} корня); null = {@code 2.17}
+     */
+    public void create(Path outputDir, String name, String synonym, String version,
+                       String vendor, String langName, String langCode,
+                       String compatibilityMode, String formatVersion) throws IOException {
         Files.createDirectories(outputDir);
 
         String syn = synonym != null ? synonym : name;
@@ -45,12 +59,14 @@ public class ConfigWriter {
         String vnd = vendor != null ? vendor : "";
         String lName = langName != null ? langName : "Русский";
         String lCode = langCode != null ? langCode : "ru";
+        String compat = compatibilityMode != null ? compatibilityMode : "Version8_3_24";
+        String fmtVer = formatVersion != null ? formatVersion : "2.17";
 
         String configUuid = UuidGenerator.generate();
         String langUuid = UuidGenerator.generate();
 
         // 1. Configuration.xml
-        writeConfigurationXml(outputDir, name, syn, ver, vnd, lName, lCode, configUuid);
+        writeConfigurationXml(outputDir, name, syn, ver, vnd, lName, lCode, configUuid, compat, fmtVer);
 
         // 2. ConfigDumpInfo.xml
         writeConfigDumpInfo(outputDir, name, configUuid, lName, langUuid);
@@ -67,7 +83,8 @@ public class ConfigWriter {
 
     private void writeConfigurationXml(Path outputDir, String name, String synonym,
                                        String version, String vendor, String langName,
-                                       String langCode, String configUuid) throws IOException {
+                                       String langCode, String configUuid,
+                                       String compatibilityMode, String formatVersion) throws IOException {
         StringBuilder sb = new StringBuilder();
         sb.append("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n");
         sb.append("<MetaDataObject xmlns=\"http://v8.1c.ru/8.3/MDClasses\"\n");
@@ -76,7 +93,8 @@ public class ConfigWriter {
         sb.append("\txmlns:xs=\"http://www.w3.org/2001/XMLSchema\"\n");
         sb.append("\txmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\"\n");
         sb.append("\txmlns:app=\"http://v8.1c.ru/8.2/managed-application/core\"\n");
-        sb.append("\tversion=\"2.17\">\n");
+        // TASK-171 D-10: версия формата конфигурируема (раньше хардкод 2.17).
+        sb.append("\tversion=\"").append(escapeXml(formatVersion)).append("\">\n");
         sb.append("\t<Configuration uuid=\"").append(configUuid).append("\">\n");
 
         // InternalInfo
@@ -108,10 +126,12 @@ public class ConfigWriter {
         sb.append("\t\t\t<Copyright/>\n");
         sb.append("\t\t\t<VendorInformationAddress/>\n");
         sb.append("\t\t\t<ConfigurationInformationAddress/>\n");
-        sb.append("\t\t\t<ConfigurationExtensionCompatibilityMode>Version8_3_24</ConfigurationExtensionCompatibilityMode>\n");
+        // TASK-171 D-10: режим совместимости конфигурируем (раньше хардкод Version8_3_24).
+        sb.append("\t\t\t<ConfigurationExtensionCompatibilityMode>").append(escapeXml(compatibilityMode))
+                .append("</ConfigurationExtensionCompatibilityMode>\n");
         sb.append("\t\t\t<DefaultRunMode>ManagedApplication</DefaultRunMode>\n");
         sb.append("\t\t\t<ScriptVariant>Russian</ScriptVariant>\n");
-        sb.append("\t\t\t<CompatibilityMode>Version8_3_24</CompatibilityMode>\n");
+        sb.append("\t\t\t<CompatibilityMode>").append(escapeXml(compatibilityMode)).append("</CompatibilityMode>\n");
         sb.append("\t\t\t<DataLockControlMode>Managed</DataLockControlMode>\n");
         sb.append("\t\t\t<ObjectAutonumerationMode>NotAutoFree</ObjectAutonumerationMode>\n");
         sb.append("\t\t\t<ModalityUseMode>DontUse</ModalityUseMode>\n");

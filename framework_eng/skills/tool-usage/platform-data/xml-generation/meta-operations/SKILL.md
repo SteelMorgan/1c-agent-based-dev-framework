@@ -56,6 +56,19 @@ xml-gen meta compile <meta.json> <output_dir>
 
 **The `multiLine` attribute flag** makes a string field multiline (`<MultiLine>true</MultiLine>`). In shorthand: `"Description: String(500) | multiline"`.
 
+**Enum values** — key `values` OR alias `enumValues` (array of `{name, synonym?}`):
+```json
+{ "type": "Enum", "name": "Статусы", "enumValues": [ {"name":"Новый"}, {"name":"Закрыт"} ] }
+```
+
+**Predefined items** (`Ext/Predefined.xml`) — key `predefinedItems` (alias `predefined` as array) for `Catalog`, `ChartOfCharacteristicTypes`, `ChartOfAccounts`, `ChartOfCalculationTypes`. Each item: `{name, code?, description?, isFolder?}` or a bare string (name only). `code` auto-numbers padded to `codeLength` (default 9); `description` defaults to `name`:
+```json
+{ "type": "Catalog", "name": "Договоры", "codeLength": 9,
+  "predefinedItems": [ {"name":"Аренда","description":"Договор аренды"}, "Прочее" ] }
+```
+
+**`meta compile` side effects (TASK-171):** reads format `version` from `<output_dir>/Configuration.xml` (applies to object + `Ext/Predefined.xml`); registers the object in `Configuration.xml` `<ChildObjects>` automatically; for `CommonModule`/`ScheduledJob`/`EventSubscription` emits no spurious `InternalInfo`/`ChildObjects`. No manual `edit replace-text` / `config edit add-childObject` workarounds needed.
+
 ### meta info
 
 ```bash
@@ -68,7 +81,12 @@ xml-gen meta info [--mode brief|overview|full] <objectPath>
 xml-gen meta edit <objectPath> --op <operation> "<value>"
 ```
 
-Operations: `add-attribute` / `add-dimension` / `add-resource` / `add-ts` / `add-ts-attribute` / `add-enumValue` / `add-form` / `add-template` / `add-command` / `remove-attribute` / `remove-ts` / `remove-enumValue` / `modify-attribute` / `add-property` / `modify-property`
+Operations: `add-attribute` / `add-dimension` / `add-resource` / `add-ts` / `add-ts-attribute` / `add-enumValue` / `add-predefined` / `add-form` / `add-template` / `add-command` / `remove-attribute` / `remove-ts` / `remove-enumValue` / `modify-attribute` / `add-property` / `modify-property`
+
+**`add-predefined`** appends predefined items to `<Object>/Ext/Predefined.xml` (creates the file if missing). Item shorthand `Имя[|Описание[|Код[|folder]]]`, batch via `;;`; code auto-numbers if omitted:
+```bash
+xml-gen meta edit src/xml/Catalogs/Договоры.xml --op add-predefined --value "Лизинг|Договор лизинга;;Субаренда"
+```
 
 **Shorthand format:**
 ```
