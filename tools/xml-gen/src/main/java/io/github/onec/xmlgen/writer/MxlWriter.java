@@ -174,7 +174,9 @@ public class MxlWriter extends XmlWriter {
         }
 
         // --- 6. Генерация XML ---
-        createWriter(outputPath, false, MXL_NAMESPACES); // БЕЗ BOM для Template.xml
+        // TASK-171: реальные платформенные MXL Template.xml — с UTF-8 BOM (как СКД/форма).
+        // isMetadataFile теперь покрывает mxl → валидатор ждёт BOM; пишем его.
+        createWriter(outputPath, true, MXL_NAMESPACES);
         writeXmlDeclaration();
         writeRootElement("document", MXL_NAMESPACES, new HashMap<>());
 

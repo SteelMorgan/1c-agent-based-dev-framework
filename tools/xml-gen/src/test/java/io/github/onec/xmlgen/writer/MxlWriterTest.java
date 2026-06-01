@@ -61,9 +61,9 @@ class MxlWriterTest {
         assertThat(content).contains("<templateMode>true</templateMode>");
         assertThat(content).contains("<height>1</height>");
         
-        // БЕЗ BOM
+        // TASK-171: MXL Template.xml (Designer) — с UTF-8 BOM (как реальные _Демо макеты)
         byte[] bytes = Files.readAllBytes(outputXml);
-        assertThat(bytes[0]).isNotEqualTo((byte) 0xEF);
+        assertThat(bytes[0]).isEqualTo((byte) 0xEF);
     }
     
     /**
