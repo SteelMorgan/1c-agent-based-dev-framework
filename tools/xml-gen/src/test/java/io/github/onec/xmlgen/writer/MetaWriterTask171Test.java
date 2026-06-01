@@ -302,6 +302,32 @@ class MetaWriterTask171Test {
     }
 
     @Test
+    void compile_accumulationRegister_balanceEmitsRecordTypeFirst() throws IOException {
+        // Грунт-труф _ДемоОстаткиТоваровВМестахХранения: у balance-регистра
+        // RecordType — первый StandardAttribute (перед Active).
+        Path json = writeJson("arBal.json",
+                "{\"type\":\"AccumulationRegister\",\"name\":\"test_РНОст\",\"registerType\":\"Balance\"}");
+        new MetaWriter().compile(json, tempDir);
+        String xml = read(tempDir.resolve("AccumulationRegisters/test_РНОст.xml"));
+        assertThat(xml).contains("<xr:StandardAttribute name=\"RecordType\">");
+        assertThat(xml.indexOf("name=\"RecordType\""))
+                .as("RecordType перед Active")
+                .isLessThan(xml.indexOf("name=\"Active\""));
+    }
+
+    @Test
+    void compile_accumulationRegister_turnoverHasNoRecordType() throws IOException {
+        // Оборотный регистр (_ДемоОборотыПоСчетамНаОплату) RecordType НЕ пишет.
+        Path json = writeJson("arTurn.json",
+                "{\"type\":\"AccumulationRegister\",\"name\":\"test_РНОб\",\"registerType\":\"Turnovers\"}");
+        new MetaWriter().compile(json, tempDir);
+        String xml = read(tempDir.resolve("AccumulationRegisters/test_РНОб.xml"));
+        assertThat(xml).contains("<RegisterType>Turnovers</RegisterType>");
+        assertThat(xml).doesNotContain("name=\"RecordType\"");
+        assertThat(xml).contains("name=\"Active\"");
+    }
+
+    @Test
     void compile_informationRegister_emitsFormsAndStandardAttributes() throws IOException {
         Path json = writeJson("ir.json", "{\"type\":\"InformationRegister\",\"name\":\"test_РС\"}");
         new MetaWriter().compile(json, tempDir);
@@ -346,5 +372,186 @@ class MetaWriterTask171Test {
         int c = 0, i = 0;
         while ((i = haystack.indexOf(needle, i)) >= 0) { c++; i += needle.length(); }
         return c;
+    }
+
+    // ─── W1 остаточный долг: редкие типы (ChartOf*/ExchangePlan/BP/Task/Journal/
+    //     Report/DataProcessor/Constant/WebService) — набор + порядок Properties и
+    //     StandardAttributes по грунт-труфу _Демо. ────────────────────────────────
+
+    @Test
+    void compile_chartOfCharacteristicTypes_emitsStandardAttributesAndForms() throws IOException {
+        Path json = writeJson("cct.json",
+                "{\"type\":\"ChartOfCharacteristicTypes\",\"name\":\"test_ВидыХар\","
+                + "\"valueTypes\":[\"CatalogRef.X\"]}");
+        new MetaWriter().compile(json, tempDir);
+        String xml = read(tempDir.resolve("ChartsOfCharacteristicTypes/test_ВидыХар.xml"));
+        assertThat(xml).contains("<UseStandardCommands>true</UseStandardCommands>");
+        assertThat(xml).contains("<StandardAttributes>");
+        // минимум: первым стандартным реквизитом грунт-труфа идёт PredefinedDataName, затем ValueType
+        assertThat(idx(xml, "StandardAttributes")).isLessThan(idx(xml, "PredefinedDataUpdate"));
+        // Type/CharacteristicExtValues идут ДО блока кода
+        assertThat(idx(xml, "CharacteristicExtValues")).isLessThan(idx(xml, "CodeLength"));
+        // у плана видов характеристик есть папочные формы
+        assertThat(xml).contains("<DefaultFolderForm/>");
+        // CodeType отсутствует (грунт-труф его не пишет)
+        assertThat(xml).doesNotContain("<CodeType>");
+    }
+
+    @Test
+    void compile_chartOfAccounts_emitsStandardTabularSectionsAndAttributes() throws IOException {
+        Path json = writeJson("coa.json", "{\"type\":\"ChartOfAccounts\",\"name\":\"test_План\"}");
+        new MetaWriter().compile(json, tempDir);
+        String xml = read(tempDir.resolve("ChartsOfAccounts/test_План.xml"));
+        assertThat(xml).contains("<StandardAttributes>");
+        // фиксированная стандартная ТЧ ExtDimensionTypes (вербатим по грунт-труфу)
+        assertThat(xml).contains("<xr:StandardTabularSection name=\"ExtDimensionTypes\">");
+        assertThat(xml).contains("<xr:StandardAttribute name=\"ExtDimensionType\">");
+        // StandardTabularSections идёт ПОСЛЕ StandardAttributes/Characteristics и ДО PredefinedDataUpdate
+        assertThat(idx(xml, "StandardTabularSections")).isLessThan(idx(xml, "PredefinedDataUpdate"));
+        // у плана счетов НЕТ Hierarchical/Autonumbering (грунт-труф их не пишет)
+        assertThat(xml).doesNotContain("<Hierarchical>");
+        assertThat(xml).doesNotContain("<Autonumbering>");
+        // AutoOrderByCode/OrderLength присутствуют
+        assertThat(xml).contains("<AutoOrderByCode>");
+        assertThat(xml).contains("<OrderLength>");
+    }
+
+    @Test
+    void compile_chartOfCalculationTypes_chartTabularSectionsAndDependenceDefault() throws IOException {
+        Path json = writeJson("ccalc.json",
+                "{\"type\":\"ChartOfCalculationTypes\",\"name\":\"test_ВидыРасч\"}");
+        new MetaWriter().compile(json, tempDir);
+        String xml = read(tempDir.resolve("ChartsOfCalculationTypes/test_ВидыРасч.xml"));
+        // D-7: дефолт DontUse, не фантомное NotUsed
+        assertThat(xml).contains("<DependenceOnCalculationTypes>DontUse</DependenceOnCalculationTypes>");
+        assertThat(xml).doesNotContain("NotUsed");
+        // три фиксированные стандартные ТЧ
+        assertThat(xml).contains("<xr:StandardTabularSection name=\"LeadingCalculationTypes\">");
+        assertThat(xml).contains("<xr:StandardTabularSection name=\"DisplacingCalculationTypes\">");
+        assertThat(xml).contains("<xr:StandardTabularSection name=\"BaseCalculationTypes\">");
+        assertThat(xml).contains("<StandardAttributes>");
+        // BaseCalculationTypes(prop) и ActionPeriodUse идут ДО StandardAttributes
+        assertThat(idx(xml, "ActionPeriodUse")).isLessThan(idx(xml, "StandardAttributes"));
+    }
+
+    @Test
+    void compile_exchangePlan_emitsStandardAttributesBeforeDistributedFlags() throws IOException {
+        Path json = writeJson("ep.json", "{\"type\":\"ExchangePlan\",\"name\":\"test_Обмен\"}");
+        new MetaWriter().compile(json, tempDir);
+        String xml = read(tempDir.resolve("ExchangePlans/test_Обмен.xml"));
+        assertThat(xml).contains("<UseStandardCommands>true</UseStandardCommands>");
+        assertThat(xml).contains("<StandardAttributes>");
+        // КРИТИЧНО: StandardAttributes/Characteristics/BasedOn идут ДО DistributedInfoBase
+        assertThat(idx(xml, "StandardAttributes")).isLessThan(idx(xml, "DistributedInfoBase"));
+        assertThat(idx(xml, "BasedOn")).isLessThan(idx(xml, "DistributedInfoBase"));
+        // минимум стандартного реквизита — ThisNode (первый в грунт-труфе)
+        assertThat(xml).contains("<xr:StandardAttribute name=\"ThisNode\">");
+    }
+
+    @Test
+    void compile_businessProcess_emitsStandardAttributesAndCreateTaskPrivileged() throws IOException {
+        Path json = writeJson("bp.json", "{\"type\":\"BusinessProcess\",\"name\":\"test_БП\"}");
+        new MetaWriter().compile(json, tempDir);
+        String xml = read(tempDir.resolve("BusinessProcesses/test_БП.xml"));
+        assertThat(xml).contains("<UseStandardCommands>true</UseStandardCommands>");
+        assertThat(xml).contains("<StandardAttributes>");
+        assertThat(xml).contains("<xr:StandardAttribute name=\"Started\">");
+        assertThat(xml).contains("<CreateTaskInPrivilegedMode>true</CreateTaskInPrivilegedMode>");
+        // CreateTaskInPrivilegedMode идёт сразу после Task и ДО DataLockControlMode
+        assertThat(idx(xml, "Task")).isLessThan(idx(xml, "CreateTaskInPrivilegedMode"));
+        assertThat(idx(xml, "CreateTaskInPrivilegedMode")).isLessThan(idx(xml, "DataLockControlMode"));
+        // формы идут ДО блока нумерации (порядок грунт-труфа)
+        assertThat(idx(xml, "DefaultObjectForm")).isLessThan(idx(xml, "NumberType"));
+    }
+
+    @Test
+    void compile_task_emitsStandardAttributesAndAddressingBlock() throws IOException {
+        // У типа Task НЕТ _Демо-объекта в репозитории; образец — Tasks/ЗадачаИсполнителя.
+        Path json = writeJson("task.json", "{\"type\":\"Task\",\"name\":\"test_Задача\"}");
+        new MetaWriter().compile(json, tempDir);
+        String xml = read(tempDir.resolve("Tasks/test_Задача.xml"));
+        assertThat(xml).contains("<StandardAttributes>");
+        assertThat(xml).contains("<xr:StandardAttribute name=\"Executed\">");
+        // адресные поля присутствуют всегда (пустыми), ДО StandardAttributes
+        assertThat(xml).contains("<Addressing/>");
+        assertThat(xml).contains("<CurrentPerformer/>");
+        assertThat(idx(xml, "Addressing")).isLessThan(idx(xml, "StandardAttributes"));
+        assertThat(xml).contains("<TaskNumberAutoPrefix>");
+    }
+
+    @Test
+    void compile_documentJournal_emitsRegisteredDocsAndPresentations() throws IOException {
+        Path json = writeJson("dj.json",
+                "{\"type\":\"DocumentJournal\",\"name\":\"test_Журнал\","
+                + "\"registeredDocuments\":[\"Document.X\"]}");
+        new MetaWriter().compile(json, tempDir);
+        String xml = read(tempDir.resolve("DocumentJournals/test_Журнал.xml"));
+        // формы идут ДО UseStandardCommands (порядок грунт-труфа), затем RegisteredDocuments
+        assertThat(idx(xml, "DefaultForm")).isLessThan(idx(xml, "UseStandardCommands"));
+        assertThat(idx(xml, "UseStandardCommands")).isLessThan(idx(xml, "RegisteredDocuments"));
+        assertThat(xml).contains("<xr:Item xsi:type=\"xr:MDObjectRef\">Document.X</xr:Item>");
+        // хвост: IncludeHelpInContents + презентации списка ПОСЛЕ RegisteredDocuments
+        assertThat(idx(xml, "RegisteredDocuments")).isLessThan(idx(xml, "ListPresentation"));
+        // журнал НЕ содержит StandardAttributes в Properties (грунт-труф его не пишет)
+        assertThat(xml).doesNotContain("<StandardAttributes>");
+    }
+
+    @Test
+    void compile_report_emitsFormsAlwaysAndVariantsStorage() throws IOException {
+        Path json = writeJson("rep.json", "{\"type\":\"Report\",\"name\":\"test_Отчет\"}");
+        new MetaWriter().compile(json, tempDir);
+        String xml = read(tempDir.resolve("Reports/test_Отчет.xml"));
+        assertThat(xml).contains("<UseStandardCommands>true</UseStandardCommands>");
+        // формы/хранилища присутствуют всегда (пустыми), даже если не заданы
+        assertThat(xml).contains("<DefaultForm/>");
+        assertThat(xml).contains("<MainDataCompositionSchema/>");
+        assertThat(xml).contains("<VariantsStorage/>");
+        assertThat(xml).contains("<SettingsStorage/>");
+        assertThat(xml).contains("<ExtendedPresentation/>");
+        assertThat(idx(xml, "UseStandardCommands")).isLessThan(idx(xml, "DefaultForm"));
+    }
+
+    @Test
+    void compile_dataProcessor_emitsUseStandardCommandsAndForms() throws IOException {
+        Path json = writeJson("dp.json", "{\"type\":\"DataProcessor\",\"name\":\"test_Обработка\"}");
+        new MetaWriter().compile(json, tempDir);
+        String xml = read(tempDir.resolve("DataProcessors/test_Обработка.xml"));
+        assertThat(xml).contains("<UseStandardCommands>true</UseStandardCommands>");
+        assertThat(xml).contains("<DefaultForm/>");
+        assertThat(xml).contains("<AuxiliaryForm/>");
+        assertThat(xml).contains("<IncludeHelpInContents>false</IncludeHelpInContents>");
+        assertThat(xml).contains("<ExtendedPresentation/>");
+    }
+
+    @Test
+    void compile_constant_emitsChoiceFoldersAndItemsAndDataHistoryTail() throws IOException {
+        Path json = writeJson("const.json",
+                "{\"type\":\"Constant\",\"name\":\"test_Конст\",\"valueType\":\"String\",\"length\":50}");
+        new MetaWriter().compile(json, tempDir);
+        String xml = read(tempDir.resolve("Constants/test_Конст.xml"));
+        // голова: UseStandardCommands/DefaultForm/ExtendedPresentation/Explanation между Type и PasswordMode
+        assertThat(idx(xml, "Type")).isLessThan(idx(xml, "UseStandardCommands"));
+        assertThat(idx(xml, "UseStandardCommands")).isLessThan(idx(xml, "PasswordMode"));
+        // ChoiceFoldersAndItems между FillChecking и ChoiceParameterLinks
+        assertThat(xml).contains("<ChoiceFoldersAndItems>Items</ChoiceFoldersAndItems>");
+        assertThat(idx(xml, "FillChecking")).isLessThan(idx(xml, "ChoiceFoldersAndItems"));
+        assertThat(idx(xml, "ChoiceFoldersAndItems")).isLessThan(idx(xml, "ChoiceParameterLinks"));
+        // хвост DataHistory
+        assertThat(xml).contains("<DataHistory>DontUse</DataHistory>");
+        assertThat(idx(xml, "DataLockControlMode")).isLessThan(idx(xml, "DataHistory"));
+    }
+
+    @Test
+    void compile_webService_emitsDescriptorFileNameBetweenXdtoAndReuse() throws IOException {
+        Path json = writeJson("ws.json",
+                "{\"type\":\"WebService\",\"name\":\"test_ВебСервис\",\"namespace\":\"http://x\"}");
+        new MetaWriter().compile(json, tempDir);
+        String xml = read(tempDir.resolve("WebServices/test_ВебСервис.xml"));
+        // XDTOPackages и DescriptorFileName присутствуют всегда (пустыми)
+        assertThat(xml).contains("<XDTOPackages/>");
+        assertThat(xml).contains("<DescriptorFileName/>");
+        // порядок: XDTOPackages → DescriptorFileName → ReuseSessions
+        assertThat(idx(xml, "XDTOPackages")).isLessThan(idx(xml, "DescriptorFileName"));
+        assertThat(idx(xml, "DescriptorFileName")).isLessThan(idx(xml, "ReuseSessions"));
     }
 }

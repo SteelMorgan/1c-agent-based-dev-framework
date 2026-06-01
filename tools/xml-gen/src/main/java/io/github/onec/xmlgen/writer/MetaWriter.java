@@ -530,8 +530,22 @@ public class MetaWriter {
                 getString(root, "choiceHistoryOnInput", "Auto"));
     }
 
+    //++agent TASK-171 [01.06.2026 21:11:12]
+    // Полный набор Properties ChartOfAccounts в порядке xs:sequence по грунт-труфу
+    // ChartsOfAccounts/_ДемоОсновной.xml (46 элементов). Прежний writer выпускал ~12
+    // элементов без StandardAttributes/StandardTabularSections/форм/презентаций — риск
+    // отказа full-load. Особенности: Hierarchical/Autonumbering отсутствуют у плана
+    // счетов; CodeMask присутствует всегда (пустым); StandardTabularSections содержит
+    // фиксированную секцию ExtDimensionTypes (вербатим по грунт-труфу).
     private void writeChartOfAccountsProperties(StringBuilder sb, JsonNode root) {
-        // ExtDimensionTypes
+        String objectName = requireString(root, "name");
+
+        writeElement(sb, 3, "UseStandardCommands",
+                String.valueOf(getBool(root, "useStandardCommands", true)));
+        writeElement(sb, 3, "IncludeHelpInContents",
+                String.valueOf(getBool(root, "includeHelpInContents", false)));
+        writeEmptyElement(sb, 3, "BasedOn");
+
         String edt = getString(root, "extDimensionTypes", "");
         if (edt.isEmpty()) {
             writeEmptyElement(sb, 3, "ExtDimensionTypes");
@@ -541,72 +555,182 @@ public class MetaWriter {
         writeElement(sb, 3, "MaxExtDimensionCount",
                 String.valueOf(getInt(root, "maxExtDimensionCount", 3)));
 
-        // Code
+        // CodeMask присутствует всегда (как в _Демо), даже пустым.
         String codeMask = getString(root, "codeMask", "");
-        if (!codeMask.isEmpty()) {
+        if (codeMask.isEmpty()) {
+            writeEmptyElement(sb, 3, "CodeMask");
+        } else {
             writeElement(sb, 3, "CodeMask", codeMask);
         }
         writeElement(sb, 3, "CodeLength", String.valueOf(getInt(root, "codeLength", 8)));
         writeElement(sb, 3, "DescriptionLength", String.valueOf(getInt(root, "descriptionLength", 120)));
         writeElement(sb, 3, "CodeSeries", getString(root, "codeSeries", "WholeChartOfAccounts"));
+        writeElement(sb, 3, "CheckUnique", String.valueOf(getBool(root, "checkUnique", true)));
+        writeElement(sb, 3, "DefaultPresentation",
+                getString(root, "defaultPresentation", "AsDescription"));
+
+        writeStandardAttributes(sb, "ChartOfAccounts");
+        writeEmptyElement(sb, 3, "Characteristics");
+        writeChartOfAccountsStandardTabularSections(sb);
+        writeElement(sb, 3, "PredefinedDataUpdate",
+                getString(root, "predefinedDataUpdate", "Auto"));
+
+        writeElement(sb, 3, "EditType", getString(root, "editType", "InDialog"));
+        writeElement(sb, 3, "QuickChoice", String.valueOf(getBool(root, "quickChoice", false)));
+        writeElement(sb, 3, "ChoiceMode", getString(root, "choiceMode", "BothWays"));
+
+        writeInputByString(sb, "ChartOfAccounts", objectName, "Code", "Description");
+        writeElement(sb, 3, "SearchStringModeOnInputByString",
+                getString(root, "searchStringModeOnInputByString", "Begin"));
+        writeElement(sb, 3, "FullTextSearchOnInputByString",
+                getString(root, "fullTextSearchOnInputByString", "DontUse"));
+        writeElement(sb, 3, "ChoiceDataGetModeOnInputByString",
+                getString(root, "choiceDataGetModeOnInputByString", "Directly"));
+        writeElement(sb, 3, "CreateOnInput", getString(root, "createOnInput", "DontUse"));
+        writeElement(sb, 3, "ChoiceHistoryOnInput",
+                getString(root, "choiceHistoryOnInput", "Auto"));
+
+        writePresentationBlocks(sb, "DefaultObjectForm", "DefaultListForm",
+                "DefaultChoiceForm", "AuxiliaryObjectForm", "AuxiliaryListForm",
+                "AuxiliaryChoiceForm");
+
         writeElement(sb, 3, "AutoOrderByCode",
                 String.valueOf(getBool(root, "autoOrderByCode", true)));
         writeElement(sb, 3, "OrderLength", String.valueOf(getInt(root, "orderLength", 5)));
 
-        boolean hierarchical = getBool(root, "hierarchical", false);
-        writeElement(sb, 3, "Hierarchical", String.valueOf(hierarchical));
-
-        writeElement(sb, 3, "Autonumbering", String.valueOf(getBool(root, "autonumbering", true)));
-        writeElement(sb, 3, "CheckUnique", String.valueOf(getBool(root, "checkUnique", false)));
-
-        writeBehaviorProperties(sb, root);
+        writeEmptyElement(sb, 3, "DataLockFields");
+        writeBehaviorProperties(sb, root); // DataLockControlMode + FullTextSearch
+        writeDataHistoryTail(sb, root);
+        writePresentationBlocks(sb, "ObjectPresentation", "ExtendedObjectPresentation",
+                "ListPresentation", "ExtendedListPresentation", "Explanation");
     }
+    //++agent TASK-171
 
+    //++agent TASK-171 [01.06.2026 21:11:12]
+    // Полный набор Properties ChartOfCharacteristicTypes в порядке xs:sequence по
+    // грунт-труфу ChartsOfCharacteristicTypes/_ДемоВидыСубконто.xml (50 элементов).
+    // Прежний writer выпускал ~14 элементов в неверном порядке без StandardAttributes/
+    // форм/презентаций — риск отказа full-load (тот же класс, что D-6 у Catalog/Document).
+    // Особенности грунт-труфа: CodeType отсутствует (только CodeLength/CodeAllowedLength);
+    // CharacteristicExtValues, Type, Hierarchical, FoldersOnTop идут ДО блока кода.
     private void writeChartOfCharacteristicTypesProperties(StringBuilder sb, JsonNode root) {
-        writeElement(sb, 3, "CodeLength", String.valueOf(getInt(root, "codeLength", 9)));
-        writeElement(sb, 3, "CodeType", getString(root, "codeType", "String"));
-        writeElement(sb, 3, "CodeAllowedLength", getString(root, "codeAllowedLength", "Variable"));
-        writeElement(sb, 3, "DescriptionLength", String.valueOf(getInt(root, "descriptionLength", 25)));
-        writeElement(sb, 3, "Autonumbering", String.valueOf(getBool(root, "autonumbering", true)));
-        writeElement(sb, 3, "CheckUnique", String.valueOf(getBool(root, "checkUnique", false)));
+        String objectName = requireString(root, "name");
 
-        // CharacteristicExtValues
+        writeElement(sb, 3, "UseStandardCommands",
+                String.valueOf(getBool(root, "useStandardCommands", true)));
+        writeElement(sb, 3, "IncludeHelpInContents",
+                String.valueOf(getBool(root, "includeHelpInContents", false)));
+
+        // CharacteristicExtValues (ссылка на справочник доп.значений) — обычно пуст.
         String charExtVal = getString(root, "characteristicExtValues", "");
-        if (!charExtVal.isEmpty()) {
+        if (charExtVal.isEmpty()) {
+            writeEmptyElement(sb, 3, "CharacteristicExtValues");
+        } else {
             writeElement(sb, 3, "CharacteristicExtValues", charExtVal);
         }
 
-        // Type (value types for characteristics)
+        // Type — состав типов характеристик (всегда присутствует).
         List<String> valueTypes = getValueTypesList(root);
         if (valueTypes.isEmpty()) {
-            // Default: Boolean, String(100), Number(15,2), DateTime
             valueTypes = List.of("Boolean", "String(100)", "Number(15,2)", "DateTime");
         }
         writeTypeComposite(sb, 3, valueTypes);
 
-        boolean hierarchical = getBool(root, "hierarchical", false);
-        writeElement(sb, 3, "Hierarchical", String.valueOf(hierarchical));
+        // Иерархия (поля присутствуют всегда — как в _Демо).
+        writeElement(sb, 3, "Hierarchical",
+                String.valueOf(getBool(root, "hierarchical", false)));
+        writeElement(sb, 3, "FoldersOnTop",
+                String.valueOf(getBool(root, "foldersOnTop", true)));
 
-        writeElement(sb, 3, "EditType", "InDialog");
-        writeElement(sb, 3, "QuickChoice", "true");
-        writeElement(sb, 3, "ChoiceMode", "BothWays");
-        writeBehaviorProperties(sb, root);
-    }
-
-    private void writeChartOfCalculationTypesProperties(StringBuilder sb, JsonNode root) {
+        // Код/наименование (без CodeType — грунт-труф его не пишет).
         writeElement(sb, 3, "CodeLength", String.valueOf(getInt(root, "codeLength", 9)));
-        writeElement(sb, 3, "CodeType", getString(root, "codeType", "String"));
         writeElement(sb, 3, "CodeAllowedLength", getString(root, "codeAllowedLength", "Variable"));
         writeElement(sb, 3, "DescriptionLength", String.valueOf(getInt(root, "descriptionLength", 25)));
-        writeElement(sb, 3, "Autonumbering", String.valueOf(getBool(root, "autonumbering", true)));
+        writeElement(sb, 3, "CodeSeries", getString(root, "codeSeries", "WholeCharacteristicKind"));
         writeElement(sb, 3, "CheckUnique", String.valueOf(getBool(root, "checkUnique", false)));
+        writeElement(sb, 3, "Autonumbering", String.valueOf(getBool(root, "autonumbering", true)));
+        writeElement(sb, 3, "DefaultPresentation",
+                getString(root, "defaultPresentation", "AsDescription"));
+
+        writeStandardAttributes(sb, "ChartOfCharacteristicTypes");
+        writeEmptyElement(sb, 3, "Characteristics");
+        writeElement(sb, 3, "PredefinedDataUpdate",
+                getString(root, "predefinedDataUpdate", "Auto"));
+
+        writeElement(sb, 3, "EditType", getString(root, "editType", "InDialog"));
+        writeElement(sb, 3, "QuickChoice", String.valueOf(getBool(root, "quickChoice", false)));
+        writeElement(sb, 3, "ChoiceMode", getString(root, "choiceMode", "BothWays"));
+
+        writeInputByString(sb, "ChartOfCharacteristicTypes", objectName, "Description", "Code");
+        writeElement(sb, 3, "CreateOnInput", getString(root, "createOnInput", "DontUse"));
+        writeElement(sb, 3, "SearchStringModeOnInputByString",
+                getString(root, "searchStringModeOnInputByString", "Begin"));
+        writeElement(sb, 3, "ChoiceDataGetModeOnInputByString",
+                getString(root, "choiceDataGetModeOnInputByString", "Directly"));
+        writeElement(sb, 3, "FullTextSearchOnInputByString",
+                getString(root, "fullTextSearchOnInputByString", "DontUse"));
+        writeElement(sb, 3, "ChoiceHistoryOnInput",
+                getString(root, "choiceHistoryOnInput", "Auto"));
+
+        writePresentationBlocks(sb, "DefaultObjectForm", "DefaultFolderForm",
+                "DefaultListForm", "DefaultChoiceForm", "DefaultFolderChoiceForm",
+                "AuxiliaryObjectForm", "AuxiliaryFolderForm", "AuxiliaryListForm",
+                "AuxiliaryChoiceForm", "AuxiliaryFolderChoiceForm");
+
+        writeEmptyElement(sb, 3, "BasedOn");
+        writeEmptyElement(sb, 3, "DataLockFields");
+        writeBehaviorProperties(sb, root); // DataLockControlMode + FullTextSearch
+        writePresentationBlocks(sb, "ObjectPresentation", "ExtendedObjectPresentation",
+                "ListPresentation", "ExtendedListPresentation", "Explanation");
+        writeDataHistoryTail(sb, root);
+    }
+    //++agent TASK-171
+
+    //++agent TASK-171 [01.06.2026 21:11:12]
+    // Полный набор Properties ChartOfCalculationTypes в порядке xs:sequence по грунт-труфу
+    // ChartsOfCalculationTypes/_ДемоОсновныеНачисления.xml (44 элемента). Прежний writer
+    // выпускал ~13 элементов без StandardAttributes/StandardTabularSections/форм/презентаций
+    // и в неверном порядке. StandardTabularSections содержит фиксированные секции
+    // Leading/Displacing/BaseCalculationTypes (вербатим). Сохранены D-7 нормализация
+    // DependenceOnCalculationTypes и дефолт DontUse.
+    private void writeChartOfCalculationTypesProperties(StringBuilder sb, JsonNode root) {
+        String objectName = requireString(root, "name");
+
+        writeElement(sb, 3, "UseStandardCommands",
+                String.valueOf(getBool(root, "useStandardCommands", true)));
+        writeElement(sb, 3, "CodeLength", String.valueOf(getInt(root, "codeLength", 9)));
+        writeElement(sb, 3, "DescriptionLength", String.valueOf(getInt(root, "descriptionLength", 25)));
+        writeElement(sb, 3, "CodeType", getString(root, "codeType", "String"));
+        writeElement(sb, 3, "CodeAllowedLength", getString(root, "codeAllowedLength", "Variable"));
+        writeElement(sb, 3, "DefaultPresentation",
+                getString(root, "defaultPresentation", "AsDescription"));
+
+        writeElement(sb, 3, "EditType", getString(root, "editType", "InDialog"));
+        writeElement(sb, 3, "QuickChoice", String.valueOf(getBool(root, "quickChoice", false)));
+        writeElement(sb, 3, "ChoiceMode", getString(root, "choiceMode", "BothWays"));
+
+        writeInputByString(sb, "ChartOfCalculationTypes", objectName, "Description", "Code");
+        writeElement(sb, 3, "SearchStringModeOnInputByString",
+                getString(root, "searchStringModeOnInputByString", "Begin"));
+        writeElement(sb, 3, "FullTextSearchOnInputByString",
+                getString(root, "fullTextSearchOnInputByString", "DontUse"));
+        writeElement(sb, 3, "ChoiceDataGetModeOnInputByString",
+                getString(root, "choiceDataGetModeOnInputByString", "Directly"));
+        writeElement(sb, 3, "CreateOnInput", getString(root, "createOnInput", "DontUse"));
+        writeElement(sb, 3, "ChoiceHistoryOnInput",
+                getString(root, "choiceHistoryOnInput", "Auto"));
+
+        writePresentationBlocks(sb, "DefaultObjectForm", "DefaultListForm",
+                "DefaultChoiceForm", "AuxiliaryObjectForm", "AuxiliaryListForm",
+                "AuxiliaryChoiceForm");
+
+        writeEmptyElement(sb, 3, "BasedOn");
 
         // TASK-171 D-7: дефолт DontUse (не "NotUsed" — такого значения у платформы нет;
         // грунт-труф _ДемоОсновныеНачисления = OnActionPeriod, валидные = DontUse/OnActionPeriod).
         writeElement(sb, 3, "DependenceOnCalculationTypes",
                 normalizeDependence(getString(root, "dependenceOnCalculationTypes", "DontUse")));
 
-        // BaseCalculationTypes
         List<String> baseCT = getStringList(root, "baseCalculationTypes");
         if (baseCT.isEmpty()) {
             writeEmptyElement(sb, 3, "BaseCalculationTypes");
@@ -622,23 +746,75 @@ public class MetaWriter {
         writeElement(sb, 3, "ActionPeriodUse",
                 String.valueOf(getBool(root, "actionPeriodUse", false)));
 
-        writeElement(sb, 3, "EditType", "InDialog");
-        writeElement(sb, 3, "QuickChoice", "true");
-        writeElement(sb, 3, "ChoiceMode", "BothWays");
-        writeBehaviorProperties(sb, root);
-    }
+        writeStandardAttributes(sb, "ChartOfCalculationTypes");
+        writeEmptyElement(sb, 3, "Characteristics");
+        writeChartOfCalculationTypesStandardTabularSections(sb);
+        writeElement(sb, 3, "PredefinedDataUpdate",
+                getString(root, "predefinedDataUpdate", "Auto"));
 
+        writeElement(sb, 3, "IncludeHelpInContents",
+                String.valueOf(getBool(root, "includeHelpInContents", false)));
+        writeEmptyElement(sb, 3, "DataLockFields");
+        writeBehaviorProperties(sb, root); // DataLockControlMode + FullTextSearch
+        writePresentationBlocks(sb, "ObjectPresentation", "ExtendedObjectPresentation",
+                "ListPresentation", "ExtendedListPresentation", "Explanation");
+        writeDataHistoryTail(sb, root);
+    }
+    //++agent TASK-171
+
+    //++agent TASK-171 [01.06.2026 21:11:12]
+    // Полный набор Properties ExchangePlan в порядке xs:sequence по грунт-труфу
+    // ExchangePlans/_ДемоАвтономнаяРабота.xml (40 элементов). Прежний writer выпускал
+    // ~5 элементов без StandardAttributes/форм/презентаций. Особенность: DistributedInfoBase/
+    // IncludeConfigurationExtensions идут ПОСЛЕ StandardAttributes/Characteristics/BasedOn.
     private void writeExchangePlanProperties(StringBuilder sb, JsonNode root) {
+        String objectName = requireString(root, "name");
+
+        writeElement(sb, 3, "UseStandardCommands",
+                String.valueOf(getBool(root, "useStandardCommands", true)));
         writeElement(sb, 3, "CodeLength", String.valueOf(getInt(root, "codeLength", 9)));
         writeElement(sb, 3, "CodeAllowedLength", getString(root, "codeAllowedLength", "Variable"));
         writeElement(sb, 3, "DescriptionLength", String.valueOf(getInt(root, "descriptionLength", 100)));
+        writeElement(sb, 3, "DefaultPresentation",
+                getString(root, "defaultPresentation", "AsDescription"));
+
+        writeElement(sb, 3, "EditType", getString(root, "editType", "InDialog"));
+        writeElement(sb, 3, "QuickChoice", String.valueOf(getBool(root, "quickChoice", false)));
+        writeElement(sb, 3, "ChoiceMode", getString(root, "choiceMode", "BothWays"));
+
+        writeInputByString(sb, "ExchangePlan", objectName, "Description", "Code");
+        writeElement(sb, 3, "SearchStringModeOnInputByString",
+                getString(root, "searchStringModeOnInputByString", "Begin"));
+        writeElement(sb, 3, "FullTextSearchOnInputByString",
+                getString(root, "fullTextSearchOnInputByString", "DontUse"));
+        writeElement(sb, 3, "ChoiceDataGetModeOnInputByString",
+                getString(root, "choiceDataGetModeOnInputByString", "Directly"));
+
+        writePresentationBlocks(sb, "DefaultObjectForm", "DefaultListForm",
+                "DefaultChoiceForm", "AuxiliaryObjectForm", "AuxiliaryListForm",
+                "AuxiliaryChoiceForm");
+
+        writeStandardAttributes(sb, "ExchangePlan");
+        writeEmptyElement(sb, 3, "Characteristics");
+        writeEmptyElement(sb, 3, "BasedOn");
+
         writeElement(sb, 3, "DistributedInfoBase",
                 String.valueOf(getBool(root, "distributedInfoBase", false)));
         writeElement(sb, 3, "IncludeConfigurationExtensions",
                 String.valueOf(getBool(root, "includeConfigurationExtensions", false)));
 
-        writeBehaviorProperties(sb, root);
+        writeElement(sb, 3, "CreateOnInput", getString(root, "createOnInput", "DontUse"));
+        writeElement(sb, 3, "ChoiceHistoryOnInput",
+                getString(root, "choiceHistoryOnInput", "Auto"));
+        writeElement(sb, 3, "IncludeHelpInContents",
+                String.valueOf(getBool(root, "includeHelpInContents", false)));
+        writeEmptyElement(sb, 3, "DataLockFields");
+        writeBehaviorProperties(sb, root); // DataLockControlMode + FullTextSearch
+        writePresentationBlocks(sb, "ObjectPresentation", "ExtendedObjectPresentation",
+                "ListPresentation", "ExtendedListPresentation", "Explanation");
+        writeDataHistoryTail(sb, root);
     }
+    //++agent TASK-171
 
     // TASK-171 W1: полный набор Properties InformationRegister по образцу
     // _ДемоГрафикиРаботы. Ранее выпускались только периодичность/режим записи
@@ -674,14 +850,25 @@ public class MetaWriter {
     // _ДемоОстаткиТоваровВМестахХранения. TASK-171 D-8: дефолт RegisterType=Balance
     // (не "Balances" — такого значения у платформы нет, см. D-1).
     private void writeAccumulationRegisterProperties(StringBuilder sb, JsonNode root) {
+        //++agent TASK-171 [01.06.2026 21:32:00]
+        // RegisterType считаем один раз: от него зависит набор StandardAttributes.
+        String regType = normalizeRegisterType(getString(root, "registerType", "Balance"));
+        //++agent TASK-171
         writeElement(sb, 3, "UseStandardCommands",
                 String.valueOf(getBool(root, "useStandardCommands", true)));
         writePresentationBlocks(sb, "DefaultListForm", "AuxiliaryListForm");
-        writeElement(sb, 3, "RegisterType",
-                normalizeRegisterType(getString(root, "registerType", "Balance")));
+        writeElement(sb, 3, "RegisterType", regType);
         writeElement(sb, 3, "IncludeHelpInContents",
                 String.valueOf(getBool(root, "includeHelpInContents", false)));
-        writeStandardAttributes(sb, "AccumulationRegister");
+        //++agent TASK-171 [01.06.2026 21:32:00]
+        // RecordType — стандартный реквизит ТОЛЬКО у balance-регистра: грунт-труф
+        // _ДемоОстаткиТоваровВМестахХранения (RegisterType=Balance) пишет RecordType
+        // первым в <StandardAttributes>, а оборотный _ДемоОборотыПоСчетамНаОплату — нет.
+        // Прежняя статическая карта RecordType пропускала, поэтому balance-регистр
+        // недовыпускал реквизит (P3-структурный дифф прошёл по совпадению на обороте).
+        writeStandardAttributes(sb, "AccumulationRegister",
+                "Balance".equals(regType) ? "RecordType" : null);
+        //++agent TASK-171
         writeBehaviorProperties(sb, root); // DataLockControlMode + FullTextSearch
         writeElement(sb, 3, "EnableTotalsSplitting",
                 String.valueOf(getBool(root, "enableTotalsSplitting", true)));
@@ -775,6 +962,405 @@ public class MetaWriter {
         writeElement(sb, 3, "FullTextSearch", getString(root, "fullTextSearch", "Use"));
     }
 
+    //++agent TASK-171 [01.06.2026 21:11:12]
+    // Платформенные StandardTabularSections для ChartOfAccounts/ChartOfCalculationTypes.
+    // Это фиксированные структуры (атрибуты TS включают TypeReductionMode, которого нет у
+    // обычного writeStandardAttribute), поэтому эмитятся вербатимом по грунт-труфу
+    // ChartsOfAccounts/_ДемоОсновной.xml и ChartsOfCalculationTypes/_ДемоОсновныеНачисления.xml.
+    private void writeChartOfAccountsStandardTabularSections(StringBuilder sb) {
+        sb.append(indent(0)).append("<StandardTabularSections>\n");
+        sb.append(indent(4)).append("<xr:StandardTabularSection name=\"ExtDimensionTypes\">\n");
+        sb.append(indent(5)).append("<xr:Synonym/>\n");
+        sb.append(indent(5)).append("<xr:Comment/>\n");
+        sb.append(indent(5)).append("<xr:ToolTip/>\n");
+        sb.append(indent(5)).append("<xr:FillChecking>DontCheck</xr:FillChecking>\n");
+        sb.append(indent(5)).append("<xr:StandardAttributes>\n");
+        sb.append(indent(6)).append("<xr:StandardAttribute name=\"TurnoversOnly\">\n");
+        sb.append(indent(7)).append("<xr:LinkByType/>\n");
+        sb.append(indent(7)).append("<xr:FillChecking>DontCheck</xr:FillChecking>\n");
+        sb.append(indent(7)).append("<xr:MultiLine>false</xr:MultiLine>\n");
+        sb.append(indent(7)).append("<xr:FillFromFillingValue>false</xr:FillFromFillingValue>\n");
+        sb.append(indent(7)).append("<xr:CreateOnInput>Auto</xr:CreateOnInput>\n");
+        sb.append(indent(7)).append("<xr:TypeReductionMode>TransformValues</xr:TypeReductionMode>\n");
+        sb.append(indent(7)).append("<xr:MaxValue xsi:nil=\"true\"/>\n");
+        sb.append(indent(7)).append("<xr:ToolTip/>\n");
+        sb.append(indent(7)).append("<xr:ExtendedEdit>false</xr:ExtendedEdit>\n");
+        sb.append(indent(7)).append("<xr:Format/>\n");
+        sb.append(indent(7)).append("<xr:ChoiceForm/>\n");
+        sb.append(indent(7)).append("<xr:QuickChoice>Auto</xr:QuickChoice>\n");
+        sb.append(indent(7)).append("<xr:ChoiceHistoryOnInput>Auto</xr:ChoiceHistoryOnInput>\n");
+        sb.append(indent(7)).append("<xr:EditFormat/>\n");
+        sb.append(indent(7)).append("<xr:PasswordMode>false</xr:PasswordMode>\n");
+        sb.append(indent(7)).append("<xr:DataHistory>Use</xr:DataHistory>\n");
+        sb.append(indent(7)).append("<xr:MarkNegatives>false</xr:MarkNegatives>\n");
+        sb.append(indent(7)).append("<xr:MinValue xsi:nil=\"true\"/>\n");
+        sb.append(indent(7)).append("<xr:Synonym/>\n");
+        sb.append(indent(7)).append("<xr:Comment/>\n");
+        sb.append(indent(7)).append("<xr:FullTextSearch>Use</xr:FullTextSearch>\n");
+        sb.append(indent(7)).append("<xr:ChoiceParameterLinks/>\n");
+        sb.append(indent(7)).append("<xr:FillValue xsi:nil=\"true\"/>\n");
+        sb.append(indent(7)).append("<xr:Mask/>\n");
+        sb.append(indent(7)).append("<xr:ChoiceParameters/>\n");
+        sb.append(indent(6)).append("</xr:StandardAttribute>\n");
+        sb.append(indent(6)).append("<xr:StandardAttribute name=\"Predefined\">\n");
+        sb.append(indent(7)).append("<xr:LinkByType/>\n");
+        sb.append(indent(7)).append("<xr:FillChecking>DontCheck</xr:FillChecking>\n");
+        sb.append(indent(7)).append("<xr:MultiLine>false</xr:MultiLine>\n");
+        sb.append(indent(7)).append("<xr:FillFromFillingValue>false</xr:FillFromFillingValue>\n");
+        sb.append(indent(7)).append("<xr:CreateOnInput>Auto</xr:CreateOnInput>\n");
+        sb.append(indent(7)).append("<xr:TypeReductionMode>TransformValues</xr:TypeReductionMode>\n");
+        sb.append(indent(7)).append("<xr:MaxValue xsi:nil=\"true\"/>\n");
+        sb.append(indent(7)).append("<xr:ToolTip/>\n");
+        sb.append(indent(7)).append("<xr:ExtendedEdit>false</xr:ExtendedEdit>\n");
+        sb.append(indent(7)).append("<xr:Format/>\n");
+        sb.append(indent(7)).append("<xr:ChoiceForm/>\n");
+        sb.append(indent(7)).append("<xr:QuickChoice>Auto</xr:QuickChoice>\n");
+        sb.append(indent(7)).append("<xr:ChoiceHistoryOnInput>Auto</xr:ChoiceHistoryOnInput>\n");
+        sb.append(indent(7)).append("<xr:EditFormat/>\n");
+        sb.append(indent(7)).append("<xr:PasswordMode>false</xr:PasswordMode>\n");
+        sb.append(indent(7)).append("<xr:DataHistory>Use</xr:DataHistory>\n");
+        sb.append(indent(7)).append("<xr:MarkNegatives>false</xr:MarkNegatives>\n");
+        sb.append(indent(7)).append("<xr:MinValue xsi:nil=\"true\"/>\n");
+        sb.append(indent(7)).append("<xr:Synonym/>\n");
+        sb.append(indent(7)).append("<xr:Comment/>\n");
+        sb.append(indent(7)).append("<xr:FullTextSearch>Use</xr:FullTextSearch>\n");
+        sb.append(indent(7)).append("<xr:ChoiceParameterLinks/>\n");
+        sb.append(indent(7)).append("<xr:FillValue xsi:nil=\"true\"/>\n");
+        sb.append(indent(7)).append("<xr:Mask/>\n");
+        sb.append(indent(7)).append("<xr:ChoiceParameters/>\n");
+        sb.append(indent(6)).append("</xr:StandardAttribute>\n");
+        sb.append(indent(6)).append("<xr:StandardAttribute name=\"ExtDimensionType\">\n");
+        sb.append(indent(7)).append("<xr:LinkByType/>\n");
+        sb.append(indent(7)).append("<xr:FillChecking>ShowError</xr:FillChecking>\n");
+        sb.append(indent(7)).append("<xr:MultiLine>false</xr:MultiLine>\n");
+        sb.append(indent(7)).append("<xr:FillFromFillingValue>false</xr:FillFromFillingValue>\n");
+        sb.append(indent(7)).append("<xr:CreateOnInput>Auto</xr:CreateOnInput>\n");
+        sb.append(indent(7)).append("<xr:TypeReductionMode>TransformValues</xr:TypeReductionMode>\n");
+        sb.append(indent(7)).append("<xr:MaxValue xsi:nil=\"true\"/>\n");
+        sb.append(indent(7)).append("<xr:ToolTip/>\n");
+        sb.append(indent(7)).append("<xr:ExtendedEdit>false</xr:ExtendedEdit>\n");
+        sb.append(indent(7)).append("<xr:Format/>\n");
+        sb.append(indent(7)).append("<xr:ChoiceForm/>\n");
+        sb.append(indent(7)).append("<xr:QuickChoice>Auto</xr:QuickChoice>\n");
+        sb.append(indent(7)).append("<xr:ChoiceHistoryOnInput>Auto</xr:ChoiceHistoryOnInput>\n");
+        sb.append(indent(7)).append("<xr:EditFormat/>\n");
+        sb.append(indent(7)).append("<xr:PasswordMode>false</xr:PasswordMode>\n");
+        sb.append(indent(7)).append("<xr:DataHistory>Use</xr:DataHistory>\n");
+        sb.append(indent(7)).append("<xr:MarkNegatives>false</xr:MarkNegatives>\n");
+        sb.append(indent(7)).append("<xr:MinValue xsi:nil=\"true\"/>\n");
+        sb.append(indent(7)).append("<xr:Synonym/>\n");
+        sb.append(indent(7)).append("<xr:Comment/>\n");
+        sb.append(indent(7)).append("<xr:FullTextSearch>Use</xr:FullTextSearch>\n");
+        sb.append(indent(7)).append("<xr:ChoiceParameterLinks/>\n");
+        sb.append(indent(7)).append("<xr:FillValue xsi:nil=\"true\"/>\n");
+        sb.append(indent(7)).append("<xr:Mask/>\n");
+        sb.append(indent(7)).append("<xr:ChoiceParameters/>\n");
+        sb.append(indent(6)).append("</xr:StandardAttribute>\n");
+        sb.append(indent(6)).append("<xr:StandardAttribute name=\"LineNumber\">\n");
+        sb.append(indent(7)).append("<xr:LinkByType/>\n");
+        sb.append(indent(7)).append("<xr:FillChecking>DontCheck</xr:FillChecking>\n");
+        sb.append(indent(7)).append("<xr:MultiLine>false</xr:MultiLine>\n");
+        sb.append(indent(7)).append("<xr:FillFromFillingValue>false</xr:FillFromFillingValue>\n");
+        sb.append(indent(7)).append("<xr:CreateOnInput>Auto</xr:CreateOnInput>\n");
+        sb.append(indent(7)).append("<xr:TypeReductionMode>TransformValues</xr:TypeReductionMode>\n");
+        sb.append(indent(7)).append("<xr:MaxValue xsi:nil=\"true\"/>\n");
+        sb.append(indent(7)).append("<xr:ToolTip/>\n");
+        sb.append(indent(7)).append("<xr:ExtendedEdit>false</xr:ExtendedEdit>\n");
+        sb.append(indent(7)).append("<xr:Format/>\n");
+        sb.append(indent(7)).append("<xr:ChoiceForm/>\n");
+        sb.append(indent(7)).append("<xr:QuickChoice>Auto</xr:QuickChoice>\n");
+        sb.append(indent(7)).append("<xr:ChoiceHistoryOnInput>Auto</xr:ChoiceHistoryOnInput>\n");
+        sb.append(indent(7)).append("<xr:EditFormat/>\n");
+        sb.append(indent(7)).append("<xr:PasswordMode>false</xr:PasswordMode>\n");
+        sb.append(indent(7)).append("<xr:DataHistory>Use</xr:DataHistory>\n");
+        sb.append(indent(7)).append("<xr:MarkNegatives>false</xr:MarkNegatives>\n");
+        sb.append(indent(7)).append("<xr:MinValue xsi:nil=\"true\"/>\n");
+        sb.append(indent(7)).append("<xr:Synonym/>\n");
+        sb.append(indent(7)).append("<xr:Comment/>\n");
+        sb.append(indent(7)).append("<xr:FullTextSearch>Use</xr:FullTextSearch>\n");
+        sb.append(indent(7)).append("<xr:ChoiceParameterLinks/>\n");
+        sb.append(indent(7)).append("<xr:FillValue xsi:nil=\"true\"/>\n");
+        sb.append(indent(7)).append("<xr:Mask/>\n");
+        sb.append(indent(7)).append("<xr:ChoiceParameters/>\n");
+        sb.append(indent(6)).append("</xr:StandardAttribute>\n");
+        sb.append(indent(5)).append("</xr:StandardAttributes>\n");
+        sb.append(indent(4)).append("</xr:StandardTabularSection>\n");
+        sb.append(indent(3)).append("</StandardTabularSections>\n");
+    }
+
+    private void writeChartOfCalculationTypesStandardTabularSections(StringBuilder sb) {
+        sb.append(indent(0)).append("<StandardTabularSections>\n");
+        sb.append(indent(4)).append("<xr:StandardTabularSection name=\"LeadingCalculationTypes\">\n");
+        sb.append(indent(5)).append("<xr:Synonym/>\n");
+        sb.append(indent(5)).append("<xr:Comment/>\n");
+        sb.append(indent(5)).append("<xr:ToolTip/>\n");
+        sb.append(indent(5)).append("<xr:FillChecking>DontCheck</xr:FillChecking>\n");
+        sb.append(indent(5)).append("<xr:StandardAttributes>\n");
+        sb.append(indent(6)).append("<xr:StandardAttribute name=\"Predefined\">\n");
+        sb.append(indent(7)).append("<xr:LinkByType/>\n");
+        sb.append(indent(7)).append("<xr:FillChecking>DontCheck</xr:FillChecking>\n");
+        sb.append(indent(7)).append("<xr:MultiLine>false</xr:MultiLine>\n");
+        sb.append(indent(7)).append("<xr:FillFromFillingValue>false</xr:FillFromFillingValue>\n");
+        sb.append(indent(7)).append("<xr:CreateOnInput>Auto</xr:CreateOnInput>\n");
+        sb.append(indent(7)).append("<xr:TypeReductionMode>TransformValues</xr:TypeReductionMode>\n");
+        sb.append(indent(7)).append("<xr:MaxValue xsi:nil=\"true\"/>\n");
+        sb.append(indent(7)).append("<xr:ToolTip/>\n");
+        sb.append(indent(7)).append("<xr:ExtendedEdit>false</xr:ExtendedEdit>\n");
+        sb.append(indent(7)).append("<xr:Format/>\n");
+        sb.append(indent(7)).append("<xr:ChoiceForm/>\n");
+        sb.append(indent(7)).append("<xr:QuickChoice>Auto</xr:QuickChoice>\n");
+        sb.append(indent(7)).append("<xr:ChoiceHistoryOnInput>Auto</xr:ChoiceHistoryOnInput>\n");
+        sb.append(indent(7)).append("<xr:EditFormat/>\n");
+        sb.append(indent(7)).append("<xr:PasswordMode>false</xr:PasswordMode>\n");
+        sb.append(indent(7)).append("<xr:DataHistory>Use</xr:DataHistory>\n");
+        sb.append(indent(7)).append("<xr:MarkNegatives>false</xr:MarkNegatives>\n");
+        sb.append(indent(7)).append("<xr:MinValue xsi:nil=\"true\"/>\n");
+        sb.append(indent(7)).append("<xr:Synonym/>\n");
+        sb.append(indent(7)).append("<xr:Comment/>\n");
+        sb.append(indent(7)).append("<xr:FullTextSearch>Use</xr:FullTextSearch>\n");
+        sb.append(indent(7)).append("<xr:ChoiceParameterLinks/>\n");
+        sb.append(indent(7)).append("<xr:FillValue xsi:nil=\"true\"/>\n");
+        sb.append(indent(7)).append("<xr:Mask/>\n");
+        sb.append(indent(7)).append("<xr:ChoiceParameters/>\n");
+        sb.append(indent(6)).append("</xr:StandardAttribute>\n");
+        sb.append(indent(6)).append("<xr:StandardAttribute name=\"CalculationType\">\n");
+        sb.append(indent(7)).append("<xr:LinkByType/>\n");
+        sb.append(indent(7)).append("<xr:FillChecking>ShowError</xr:FillChecking>\n");
+        sb.append(indent(7)).append("<xr:MultiLine>false</xr:MultiLine>\n");
+        sb.append(indent(7)).append("<xr:FillFromFillingValue>false</xr:FillFromFillingValue>\n");
+        sb.append(indent(7)).append("<xr:CreateOnInput>Auto</xr:CreateOnInput>\n");
+        sb.append(indent(7)).append("<xr:TypeReductionMode>TransformValues</xr:TypeReductionMode>\n");
+        sb.append(indent(7)).append("<xr:MaxValue xsi:nil=\"true\"/>\n");
+        sb.append(indent(7)).append("<xr:ToolTip/>\n");
+        sb.append(indent(7)).append("<xr:ExtendedEdit>false</xr:ExtendedEdit>\n");
+        sb.append(indent(7)).append("<xr:Format/>\n");
+        sb.append(indent(7)).append("<xr:ChoiceForm/>\n");
+        sb.append(indent(7)).append("<xr:QuickChoice>Auto</xr:QuickChoice>\n");
+        sb.append(indent(7)).append("<xr:ChoiceHistoryOnInput>Auto</xr:ChoiceHistoryOnInput>\n");
+        sb.append(indent(7)).append("<xr:EditFormat/>\n");
+        sb.append(indent(7)).append("<xr:PasswordMode>false</xr:PasswordMode>\n");
+        sb.append(indent(7)).append("<xr:DataHistory>Use</xr:DataHistory>\n");
+        sb.append(indent(7)).append("<xr:MarkNegatives>false</xr:MarkNegatives>\n");
+        sb.append(indent(7)).append("<xr:MinValue xsi:nil=\"true\"/>\n");
+        sb.append(indent(7)).append("<xr:Synonym/>\n");
+        sb.append(indent(7)).append("<xr:Comment/>\n");
+        sb.append(indent(7)).append("<xr:FullTextSearch>Use</xr:FullTextSearch>\n");
+        sb.append(indent(7)).append("<xr:ChoiceParameterLinks/>\n");
+        sb.append(indent(7)).append("<xr:FillValue xsi:nil=\"true\"/>\n");
+        sb.append(indent(7)).append("<xr:Mask/>\n");
+        sb.append(indent(7)).append("<xr:ChoiceParameters/>\n");
+        sb.append(indent(6)).append("</xr:StandardAttribute>\n");
+        sb.append(indent(6)).append("<xr:StandardAttribute name=\"LineNumber\">\n");
+        sb.append(indent(7)).append("<xr:LinkByType/>\n");
+        sb.append(indent(7)).append("<xr:FillChecking>DontCheck</xr:FillChecking>\n");
+        sb.append(indent(7)).append("<xr:MultiLine>false</xr:MultiLine>\n");
+        sb.append(indent(7)).append("<xr:FillFromFillingValue>false</xr:FillFromFillingValue>\n");
+        sb.append(indent(7)).append("<xr:CreateOnInput>Auto</xr:CreateOnInput>\n");
+        sb.append(indent(7)).append("<xr:TypeReductionMode>TransformValues</xr:TypeReductionMode>\n");
+        sb.append(indent(7)).append("<xr:MaxValue xsi:nil=\"true\"/>\n");
+        sb.append(indent(7)).append("<xr:ToolTip/>\n");
+        sb.append(indent(7)).append("<xr:ExtendedEdit>false</xr:ExtendedEdit>\n");
+        sb.append(indent(7)).append("<xr:Format/>\n");
+        sb.append(indent(7)).append("<xr:ChoiceForm/>\n");
+        sb.append(indent(7)).append("<xr:QuickChoice>Auto</xr:QuickChoice>\n");
+        sb.append(indent(7)).append("<xr:ChoiceHistoryOnInput>Auto</xr:ChoiceHistoryOnInput>\n");
+        sb.append(indent(7)).append("<xr:EditFormat/>\n");
+        sb.append(indent(7)).append("<xr:PasswordMode>false</xr:PasswordMode>\n");
+        sb.append(indent(7)).append("<xr:DataHistory>Use</xr:DataHistory>\n");
+        sb.append(indent(7)).append("<xr:MarkNegatives>false</xr:MarkNegatives>\n");
+        sb.append(indent(7)).append("<xr:MinValue xsi:nil=\"true\"/>\n");
+        sb.append(indent(7)).append("<xr:Synonym/>\n");
+        sb.append(indent(7)).append("<xr:Comment/>\n");
+        sb.append(indent(7)).append("<xr:FullTextSearch>Use</xr:FullTextSearch>\n");
+        sb.append(indent(7)).append("<xr:ChoiceParameterLinks/>\n");
+        sb.append(indent(7)).append("<xr:FillValue xsi:nil=\"true\"/>\n");
+        sb.append(indent(7)).append("<xr:Mask/>\n");
+        sb.append(indent(7)).append("<xr:ChoiceParameters/>\n");
+        sb.append(indent(6)).append("</xr:StandardAttribute>\n");
+        sb.append(indent(5)).append("</xr:StandardAttributes>\n");
+        sb.append(indent(4)).append("</xr:StandardTabularSection>\n");
+        sb.append(indent(4)).append("<xr:StandardTabularSection name=\"DisplacingCalculationTypes\">\n");
+        sb.append(indent(5)).append("<xr:Synonym/>\n");
+        sb.append(indent(5)).append("<xr:Comment/>\n");
+        sb.append(indent(5)).append("<xr:ToolTip/>\n");
+        sb.append(indent(5)).append("<xr:FillChecking>DontCheck</xr:FillChecking>\n");
+        sb.append(indent(5)).append("<xr:StandardAttributes>\n");
+        sb.append(indent(6)).append("<xr:StandardAttribute name=\"Predefined\">\n");
+        sb.append(indent(7)).append("<xr:LinkByType/>\n");
+        sb.append(indent(7)).append("<xr:FillChecking>DontCheck</xr:FillChecking>\n");
+        sb.append(indent(7)).append("<xr:MultiLine>false</xr:MultiLine>\n");
+        sb.append(indent(7)).append("<xr:FillFromFillingValue>false</xr:FillFromFillingValue>\n");
+        sb.append(indent(7)).append("<xr:CreateOnInput>Auto</xr:CreateOnInput>\n");
+        sb.append(indent(7)).append("<xr:TypeReductionMode>TransformValues</xr:TypeReductionMode>\n");
+        sb.append(indent(7)).append("<xr:MaxValue xsi:nil=\"true\"/>\n");
+        sb.append(indent(7)).append("<xr:ToolTip/>\n");
+        sb.append(indent(7)).append("<xr:ExtendedEdit>false</xr:ExtendedEdit>\n");
+        sb.append(indent(7)).append("<xr:Format/>\n");
+        sb.append(indent(7)).append("<xr:ChoiceForm/>\n");
+        sb.append(indent(7)).append("<xr:QuickChoice>Auto</xr:QuickChoice>\n");
+        sb.append(indent(7)).append("<xr:ChoiceHistoryOnInput>Auto</xr:ChoiceHistoryOnInput>\n");
+        sb.append(indent(7)).append("<xr:EditFormat/>\n");
+        sb.append(indent(7)).append("<xr:PasswordMode>false</xr:PasswordMode>\n");
+        sb.append(indent(7)).append("<xr:DataHistory>Use</xr:DataHistory>\n");
+        sb.append(indent(7)).append("<xr:MarkNegatives>false</xr:MarkNegatives>\n");
+        sb.append(indent(7)).append("<xr:MinValue xsi:nil=\"true\"/>\n");
+        sb.append(indent(7)).append("<xr:Synonym/>\n");
+        sb.append(indent(7)).append("<xr:Comment/>\n");
+        sb.append(indent(7)).append("<xr:FullTextSearch>Use</xr:FullTextSearch>\n");
+        sb.append(indent(7)).append("<xr:ChoiceParameterLinks/>\n");
+        sb.append(indent(7)).append("<xr:FillValue xsi:nil=\"true\"/>\n");
+        sb.append(indent(7)).append("<xr:Mask/>\n");
+        sb.append(indent(7)).append("<xr:ChoiceParameters/>\n");
+        sb.append(indent(6)).append("</xr:StandardAttribute>\n");
+        sb.append(indent(6)).append("<xr:StandardAttribute name=\"CalculationType\">\n");
+        sb.append(indent(7)).append("<xr:LinkByType/>\n");
+        sb.append(indent(7)).append("<xr:FillChecking>ShowError</xr:FillChecking>\n");
+        sb.append(indent(7)).append("<xr:MultiLine>false</xr:MultiLine>\n");
+        sb.append(indent(7)).append("<xr:FillFromFillingValue>false</xr:FillFromFillingValue>\n");
+        sb.append(indent(7)).append("<xr:CreateOnInput>Auto</xr:CreateOnInput>\n");
+        sb.append(indent(7)).append("<xr:TypeReductionMode>TransformValues</xr:TypeReductionMode>\n");
+        sb.append(indent(7)).append("<xr:MaxValue xsi:nil=\"true\"/>\n");
+        sb.append(indent(7)).append("<xr:ToolTip/>\n");
+        sb.append(indent(7)).append("<xr:ExtendedEdit>false</xr:ExtendedEdit>\n");
+        sb.append(indent(7)).append("<xr:Format/>\n");
+        sb.append(indent(7)).append("<xr:ChoiceForm/>\n");
+        sb.append(indent(7)).append("<xr:QuickChoice>Auto</xr:QuickChoice>\n");
+        sb.append(indent(7)).append("<xr:ChoiceHistoryOnInput>Auto</xr:ChoiceHistoryOnInput>\n");
+        sb.append(indent(7)).append("<xr:EditFormat/>\n");
+        sb.append(indent(7)).append("<xr:PasswordMode>false</xr:PasswordMode>\n");
+        sb.append(indent(7)).append("<xr:DataHistory>Use</xr:DataHistory>\n");
+        sb.append(indent(7)).append("<xr:MarkNegatives>false</xr:MarkNegatives>\n");
+        sb.append(indent(7)).append("<xr:MinValue xsi:nil=\"true\"/>\n");
+        sb.append(indent(7)).append("<xr:Synonym/>\n");
+        sb.append(indent(7)).append("<xr:Comment/>\n");
+        sb.append(indent(7)).append("<xr:FullTextSearch>Use</xr:FullTextSearch>\n");
+        sb.append(indent(7)).append("<xr:ChoiceParameterLinks/>\n");
+        sb.append(indent(7)).append("<xr:FillValue xsi:nil=\"true\"/>\n");
+        sb.append(indent(7)).append("<xr:Mask/>\n");
+        sb.append(indent(7)).append("<xr:ChoiceParameters/>\n");
+        sb.append(indent(6)).append("</xr:StandardAttribute>\n");
+        sb.append(indent(6)).append("<xr:StandardAttribute name=\"LineNumber\">\n");
+        sb.append(indent(7)).append("<xr:LinkByType/>\n");
+        sb.append(indent(7)).append("<xr:FillChecking>DontCheck</xr:FillChecking>\n");
+        sb.append(indent(7)).append("<xr:MultiLine>false</xr:MultiLine>\n");
+        sb.append(indent(7)).append("<xr:FillFromFillingValue>false</xr:FillFromFillingValue>\n");
+        sb.append(indent(7)).append("<xr:CreateOnInput>Auto</xr:CreateOnInput>\n");
+        sb.append(indent(7)).append("<xr:TypeReductionMode>TransformValues</xr:TypeReductionMode>\n");
+        sb.append(indent(7)).append("<xr:MaxValue xsi:nil=\"true\"/>\n");
+        sb.append(indent(7)).append("<xr:ToolTip/>\n");
+        sb.append(indent(7)).append("<xr:ExtendedEdit>false</xr:ExtendedEdit>\n");
+        sb.append(indent(7)).append("<xr:Format/>\n");
+        sb.append(indent(7)).append("<xr:ChoiceForm/>\n");
+        sb.append(indent(7)).append("<xr:QuickChoice>Auto</xr:QuickChoice>\n");
+        sb.append(indent(7)).append("<xr:ChoiceHistoryOnInput>Auto</xr:ChoiceHistoryOnInput>\n");
+        sb.append(indent(7)).append("<xr:EditFormat/>\n");
+        sb.append(indent(7)).append("<xr:PasswordMode>false</xr:PasswordMode>\n");
+        sb.append(indent(7)).append("<xr:DataHistory>Use</xr:DataHistory>\n");
+        sb.append(indent(7)).append("<xr:MarkNegatives>false</xr:MarkNegatives>\n");
+        sb.append(indent(7)).append("<xr:MinValue xsi:nil=\"true\"/>\n");
+        sb.append(indent(7)).append("<xr:Synonym/>\n");
+        sb.append(indent(7)).append("<xr:Comment/>\n");
+        sb.append(indent(7)).append("<xr:FullTextSearch>Use</xr:FullTextSearch>\n");
+        sb.append(indent(7)).append("<xr:ChoiceParameterLinks/>\n");
+        sb.append(indent(7)).append("<xr:FillValue xsi:nil=\"true\"/>\n");
+        sb.append(indent(7)).append("<xr:Mask/>\n");
+        sb.append(indent(7)).append("<xr:ChoiceParameters/>\n");
+        sb.append(indent(6)).append("</xr:StandardAttribute>\n");
+        sb.append(indent(5)).append("</xr:StandardAttributes>\n");
+        sb.append(indent(4)).append("</xr:StandardTabularSection>\n");
+        sb.append(indent(4)).append("<xr:StandardTabularSection name=\"BaseCalculationTypes\">\n");
+        sb.append(indent(5)).append("<xr:Synonym/>\n");
+        sb.append(indent(5)).append("<xr:Comment/>\n");
+        sb.append(indent(5)).append("<xr:ToolTip/>\n");
+        sb.append(indent(5)).append("<xr:FillChecking>DontCheck</xr:FillChecking>\n");
+        sb.append(indent(5)).append("<xr:StandardAttributes>\n");
+        sb.append(indent(6)).append("<xr:StandardAttribute name=\"Predefined\">\n");
+        sb.append(indent(7)).append("<xr:LinkByType/>\n");
+        sb.append(indent(7)).append("<xr:FillChecking>DontCheck</xr:FillChecking>\n");
+        sb.append(indent(7)).append("<xr:MultiLine>false</xr:MultiLine>\n");
+        sb.append(indent(7)).append("<xr:FillFromFillingValue>false</xr:FillFromFillingValue>\n");
+        sb.append(indent(7)).append("<xr:CreateOnInput>Auto</xr:CreateOnInput>\n");
+        sb.append(indent(7)).append("<xr:TypeReductionMode>TransformValues</xr:TypeReductionMode>\n");
+        sb.append(indent(7)).append("<xr:MaxValue xsi:nil=\"true\"/>\n");
+        sb.append(indent(7)).append("<xr:ToolTip/>\n");
+        sb.append(indent(7)).append("<xr:ExtendedEdit>false</xr:ExtendedEdit>\n");
+        sb.append(indent(7)).append("<xr:Format/>\n");
+        sb.append(indent(7)).append("<xr:ChoiceForm/>\n");
+        sb.append(indent(7)).append("<xr:QuickChoice>Auto</xr:QuickChoice>\n");
+        sb.append(indent(7)).append("<xr:ChoiceHistoryOnInput>Auto</xr:ChoiceHistoryOnInput>\n");
+        sb.append(indent(7)).append("<xr:EditFormat/>\n");
+        sb.append(indent(7)).append("<xr:PasswordMode>false</xr:PasswordMode>\n");
+        sb.append(indent(7)).append("<xr:DataHistory>Use</xr:DataHistory>\n");
+        sb.append(indent(7)).append("<xr:MarkNegatives>false</xr:MarkNegatives>\n");
+        sb.append(indent(7)).append("<xr:MinValue xsi:nil=\"true\"/>\n");
+        sb.append(indent(7)).append("<xr:Synonym/>\n");
+        sb.append(indent(7)).append("<xr:Comment/>\n");
+        sb.append(indent(7)).append("<xr:FullTextSearch>Use</xr:FullTextSearch>\n");
+        sb.append(indent(7)).append("<xr:ChoiceParameterLinks/>\n");
+        sb.append(indent(7)).append("<xr:FillValue xsi:nil=\"true\"/>\n");
+        sb.append(indent(7)).append("<xr:Mask/>\n");
+        sb.append(indent(7)).append("<xr:ChoiceParameters/>\n");
+        sb.append(indent(6)).append("</xr:StandardAttribute>\n");
+        sb.append(indent(6)).append("<xr:StandardAttribute name=\"CalculationType\">\n");
+        sb.append(indent(7)).append("<xr:LinkByType/>\n");
+        sb.append(indent(7)).append("<xr:FillChecking>ShowError</xr:FillChecking>\n");
+        sb.append(indent(7)).append("<xr:MultiLine>false</xr:MultiLine>\n");
+        sb.append(indent(7)).append("<xr:FillFromFillingValue>false</xr:FillFromFillingValue>\n");
+        sb.append(indent(7)).append("<xr:CreateOnInput>Auto</xr:CreateOnInput>\n");
+        sb.append(indent(7)).append("<xr:TypeReductionMode>TransformValues</xr:TypeReductionMode>\n");
+        sb.append(indent(7)).append("<xr:MaxValue xsi:nil=\"true\"/>\n");
+        sb.append(indent(7)).append("<xr:ToolTip/>\n");
+        sb.append(indent(7)).append("<xr:ExtendedEdit>false</xr:ExtendedEdit>\n");
+        sb.append(indent(7)).append("<xr:Format/>\n");
+        sb.append(indent(7)).append("<xr:ChoiceForm/>\n");
+        sb.append(indent(7)).append("<xr:QuickChoice>Auto</xr:QuickChoice>\n");
+        sb.append(indent(7)).append("<xr:ChoiceHistoryOnInput>Auto</xr:ChoiceHistoryOnInput>\n");
+        sb.append(indent(7)).append("<xr:EditFormat/>\n");
+        sb.append(indent(7)).append("<xr:PasswordMode>false</xr:PasswordMode>\n");
+        sb.append(indent(7)).append("<xr:DataHistory>Use</xr:DataHistory>\n");
+        sb.append(indent(7)).append("<xr:MarkNegatives>false</xr:MarkNegatives>\n");
+        sb.append(indent(7)).append("<xr:MinValue xsi:nil=\"true\"/>\n");
+        sb.append(indent(7)).append("<xr:Synonym/>\n");
+        sb.append(indent(7)).append("<xr:Comment/>\n");
+        sb.append(indent(7)).append("<xr:FullTextSearch>Use</xr:FullTextSearch>\n");
+        sb.append(indent(7)).append("<xr:ChoiceParameterLinks/>\n");
+        sb.append(indent(7)).append("<xr:FillValue xsi:nil=\"true\"/>\n");
+        sb.append(indent(7)).append("<xr:Mask/>\n");
+        sb.append(indent(7)).append("<xr:ChoiceParameters/>\n");
+        sb.append(indent(6)).append("</xr:StandardAttribute>\n");
+        sb.append(indent(6)).append("<xr:StandardAttribute name=\"LineNumber\">\n");
+        sb.append(indent(7)).append("<xr:LinkByType/>\n");
+        sb.append(indent(7)).append("<xr:FillChecking>DontCheck</xr:FillChecking>\n");
+        sb.append(indent(7)).append("<xr:MultiLine>false</xr:MultiLine>\n");
+        sb.append(indent(7)).append("<xr:FillFromFillingValue>false</xr:FillFromFillingValue>\n");
+        sb.append(indent(7)).append("<xr:CreateOnInput>Auto</xr:CreateOnInput>\n");
+        sb.append(indent(7)).append("<xr:TypeReductionMode>TransformValues</xr:TypeReductionMode>\n");
+        sb.append(indent(7)).append("<xr:MaxValue xsi:nil=\"true\"/>\n");
+        sb.append(indent(7)).append("<xr:ToolTip/>\n");
+        sb.append(indent(7)).append("<xr:ExtendedEdit>false</xr:ExtendedEdit>\n");
+        sb.append(indent(7)).append("<xr:Format/>\n");
+        sb.append(indent(7)).append("<xr:ChoiceForm/>\n");
+        sb.append(indent(7)).append("<xr:QuickChoice>Auto</xr:QuickChoice>\n");
+        sb.append(indent(7)).append("<xr:ChoiceHistoryOnInput>Auto</xr:ChoiceHistoryOnInput>\n");
+        sb.append(indent(7)).append("<xr:EditFormat/>\n");
+        sb.append(indent(7)).append("<xr:PasswordMode>false</xr:PasswordMode>\n");
+        sb.append(indent(7)).append("<xr:DataHistory>Use</xr:DataHistory>\n");
+        sb.append(indent(7)).append("<xr:MarkNegatives>false</xr:MarkNegatives>\n");
+        sb.append(indent(7)).append("<xr:MinValue xsi:nil=\"true\"/>\n");
+        sb.append(indent(7)).append("<xr:Synonym/>\n");
+        sb.append(indent(7)).append("<xr:Comment/>\n");
+        sb.append(indent(7)).append("<xr:FullTextSearch>Use</xr:FullTextSearch>\n");
+        sb.append(indent(7)).append("<xr:ChoiceParameterLinks/>\n");
+        sb.append(indent(7)).append("<xr:FillValue xsi:nil=\"true\"/>\n");
+        sb.append(indent(7)).append("<xr:Mask/>\n");
+        sb.append(indent(7)).append("<xr:ChoiceParameters/>\n");
+        sb.append(indent(6)).append("</xr:StandardAttribute>\n");
+        sb.append(indent(5)).append("</xr:StandardAttributes>\n");
+        sb.append(indent(4)).append("</xr:StandardTabularSection>\n");
+        sb.append(indent(3)).append("</StandardTabularSections>\n");
+    }
+    //++agent TASK-171
+
     // ==================== StandardAttributes (TASK-171 W1/D-6) ====================
 
     /**
@@ -801,38 +1387,74 @@ public class MetaWriter {
         STANDARD_ATTRIBUTES_BY_TYPE.put("CalculationRegister", List.of(
                 "Active", "Recorder", "LineNumber", "RegistrationPeriod",
                 "CalculationType", "ReversingEntry"));
+        //**agent TASK-171 [01.06.2026 21:11:12]
+        // Порядок стандартных реквизитов выровнен ТОЧНО по грунт-труфу (порядок
+        // <xr:StandardAttribute> в _Демо значим — как у уже выверенных Catalog/Document).
+        // Прежний черновой порядок (заведён в W1, но writer'ы тогда не звали
+        // writeStandardAttributes) расходился с _Демо.
+        //STANDARD_ATTRIBUTES_BY_TYPE.put("ChartOfAccounts", List.of(
+        //        "PredefinedDataName", "Predefined", "Ref", "DeletionMark",
+        //        "Description", "Code", "Parent", "Order", "Type", "OffBalance"));
+        //STANDARD_ATTRIBUTES_BY_TYPE.put("ChartOfCharacteristicTypes", List.of(
+        //        "PredefinedDataName", "Predefined", "Ref", "DeletionMark",
+        //        "Description", "Code", "Parent", "ValueType"));
+        //STANDARD_ATTRIBUTES_BY_TYPE.put("ChartOfCalculationTypes", List.of(
+        //        "PredefinedDataName", "Predefined", "Ref", "DeletionMark",
+        //        "Description", "Code", "ActionPeriodIsBasic"));
+        //STANDARD_ATTRIBUTES_BY_TYPE.put("BusinessProcess", List.of(
+        //        "Ref", "DeletionMark", "Date", "Number", "Started", "Completed", "HeadTask"));
+        //STANDARD_ATTRIBUTES_BY_TYPE.put("Task", List.of(
+        //        "Ref", "DeletionMark", "Date", "Number", "Executed",
+        //        "Description", "RoutePoint", "BusinessProcess"));
+        //STANDARD_ATTRIBUTES_BY_TYPE.put("ExchangePlan", List.of(
+        //        "Ref", "DeletionMark", "Code", "Description", "ThisNode", "SentNo", "ReceivedNo"));
         STANDARD_ATTRIBUTES_BY_TYPE.put("ChartOfAccounts", List.of(
-                "PredefinedDataName", "Predefined", "Ref", "DeletionMark",
-                "Description", "Code", "Parent", "Order", "Type", "OffBalance"));
+                "PredefinedDataName", "Order", "OffBalance", "Type",
+                "Description", "Code", "Parent", "Predefined", "DeletionMark", "Ref"));
         STANDARD_ATTRIBUTES_BY_TYPE.put("ChartOfCharacteristicTypes", List.of(
-                "PredefinedDataName", "Predefined", "Ref", "DeletionMark",
-                "Description", "Code", "Parent", "ValueType"));
+                "PredefinedDataName", "ValueType", "Description", "Code",
+                "IsFolder", "Parent", "Predefined", "DeletionMark", "Ref"));
         STANDARD_ATTRIBUTES_BY_TYPE.put("ChartOfCalculationTypes", List.of(
                 "PredefinedDataName", "Predefined", "Ref", "DeletionMark",
-                "Description", "Code", "ActionPeriodIsBasic"));
+                "ActionPeriodIsBasic", "Description", "Code"));
         STANDARD_ATTRIBUTES_BY_TYPE.put("BusinessProcess", List.of(
-                "Ref", "DeletionMark", "Date", "Number", "Started", "Completed", "HeadTask"));
+                "Started", "HeadTask", "Completed", "Ref", "DeletionMark", "Date", "Number"));
         STANDARD_ATTRIBUTES_BY_TYPE.put("Task", List.of(
-                "Ref", "DeletionMark", "Date", "Number", "Executed",
-                "Description", "RoutePoint", "BusinessProcess"));
+                "Executed", "Description", "RoutePoint", "BusinessProcess",
+                "Ref", "DeletionMark", "Date", "Number"));
         STANDARD_ATTRIBUTES_BY_TYPE.put("ExchangePlan", List.of(
-                "Ref", "DeletionMark", "Code", "Description", "ThisNode", "SentNo", "ReceivedNo"));
+                "ThisNode", "ReceivedNo", "SentNo", "Ref", "DeletionMark", "Description", "Code"));
+        //**agent TASK-171
         STANDARD_ATTRIBUTES_BY_TYPE.put("DocumentJournal", List.of(
                 "Type", "Ref", "Date", "Posted", "DeletionMark", "Number"));
     }
 
     /** Эмитит блок {@code <StandardAttributes>} с полным набором по типу. */
     private void writeStandardAttributes(StringBuilder sb, String type) {
+        writeStandardAttributes(sb, type, null);
+    }
+
+    //++agent TASK-171 [01.06.2026 21:32:00]
+    // Перегрузка с лид-реквизитом: набор стандартных реквизитов одного типа может
+    // зависеть от подвида объекта (balance-регистр добавляет RecordType первым),
+    // а статическая карта хранит общий хвост. leadingAttr эмитится перед хвостом.
+    private void writeStandardAttributes(StringBuilder sb, String type, String leadingAttr) {
         List<String> attrs = STANDARD_ATTRIBUTES_BY_TYPE.get(type);
-        if (attrs == null || attrs.isEmpty()) {
+        if ((attrs == null || attrs.isEmpty()) && leadingAttr == null) {
             return;
         }
         sb.append(indent(3)).append("<StandardAttributes>\n");
-        for (String a : attrs) {
-            writeStandardAttribute(sb, 4, a);
+        if (leadingAttr != null) {
+            writeStandardAttribute(sb, 4, leadingAttr);
+        }
+        if (attrs != null) {
+            for (String a : attrs) {
+                writeStandardAttribute(sb, 4, a);
+            }
         }
         sb.append(indent(3)).append("</StandardAttributes>\n");
     }
+    //++agent TASK-171
 
     /**
      * Один {@code <xr:StandardAttribute>} с дефолтным набором свойств
@@ -896,12 +1518,23 @@ public class MetaWriter {
 
     // ==================== Phase 5d Property Writers ====================
 
+    //++agent TASK-171 [01.06.2026 21:11:12]
+    // Полный набор Properties Constant в порядке xs:sequence по грунт-труфу
+    // Constants/АдресКриптосервиса.xml (30 элементов). Прежний writer пропускал голову
+    // UseStandardCommands/DefaultForm/ExtendedPresentation/Explanation (между Type и
+    // PasswordMode), элемент ChoiceFoldersAndItems (перед ChoiceParameterLinks) и хвост
+    // DataHistory — риск отказа full-load по xs:sequence.
     private void writeConstantProperties(StringBuilder sb, JsonNode root) {
         // Constant value type — support split-form: "valueType":"String","length":100
         String resolvedType = resolveValueType(root);
         writeTypeElement(sb, 3, resolvedType);
 
-        writeElement(sb, 3, "PasswordMode", "false");
+        writeElement(sb, 3, "UseStandardCommands",
+                String.valueOf(getBool(root, "useStandardCommands", true)));
+        writeOptionalRefBlock(sb, "DefaultForm", getString(root, "defaultForm", ""));
+        writePresentationBlocks(sb, "ExtendedPresentation", "Explanation");
+
+        writeElement(sb, 3, "PasswordMode", String.valueOf(getBool(root, "passwordMode", false)));
         writeEmptyElement(sb, 3, "Format");
         writeEmptyElement(sb, 3, "EditFormat");
         writeEmptyElement(sb, 3, "ToolTip");
@@ -912,6 +1545,8 @@ public class MetaWriter {
         sb.append(indent(3)).append("<MinValue xsi:nil=\"true\"/>\n");
         sb.append(indent(3)).append("<MaxValue xsi:nil=\"true\"/>\n");
         writeElement(sb, 3, "FillChecking", "DontCheck");
+        writeElement(sb, 3, "ChoiceFoldersAndItems",
+                getString(root, "choiceFoldersAndItems", "Items"));
         writeEmptyElement(sb, 3, "ChoiceParameterLinks");
         writeEmptyElement(sb, 3, "ChoiceParameters");
         writeElement(sb, 3, "QuickChoice", "Auto");
@@ -920,7 +1555,9 @@ public class MetaWriter {
         writeElement(sb, 3, "ChoiceHistoryOnInput", "Auto");
         writeElement(sb, 3, "DataLockControlMode",
                 getString(root, "dataLockControlMode", "Automatic"));
+        writeDataHistoryTail(sb, root);
     }
+    //++agent TASK-171
 
     /** Resolve valueType/valueTypes with split-form support (length/precision/nonneg). */
     private String resolveValueType(JsonNode root) {
@@ -1028,36 +1665,89 @@ public class MetaWriter {
         writeElement(sb, 3, "Handler", handler);
     }
 
+    //++agent TASK-171 [01.06.2026 21:11:12]
+    // Полный набор Properties Report в порядке xs:sequence по грунт-труфу
+    // Reports/АнализОпроса.xml (15 элементов). Прежний writer выпускал только заданные
+    // формы и пропускал UseStandardCommands/VariantsStorage/SettingsStorage/
+    // IncludeHelpInContents/ExtendedPresentation/Explanation — а формы должны
+    // присутствовать всегда (пустыми). VariantsStorage/SettingsStorage — ссылки на
+    // хранилища настроек (пусты по дефолту).
     private void writeReportProperties(StringBuilder sb, JsonNode root) {
-        String defaultForm = getString(root, "defaultForm", "");
-        if (!defaultForm.isEmpty()) writeElement(sb, 3, "DefaultForm", defaultForm);
-        String auxForm = getString(root, "auxiliaryForm", "");
-        if (!auxForm.isEmpty()) writeElement(sb, 3, "AuxiliaryForm", auxForm);
-        String mainDCS = getString(root, "mainDataCompositionSchema", "");
-        if (!mainDCS.isEmpty()) writeElement(sb, 3, "MainDataCompositionSchema", mainDCS);
-        String defSettings = getString(root, "defaultSettingsForm", "");
-        if (!defSettings.isEmpty()) writeElement(sb, 3, "DefaultSettingsForm", defSettings);
-        String auxSettings = getString(root, "auxiliarySettingsForm", "");
-        if (!auxSettings.isEmpty()) writeElement(sb, 3, "AuxiliarySettingsForm", auxSettings);
-        String defVariant = getString(root, "defaultVariantForm", "");
-        if (!defVariant.isEmpty()) writeElement(sb, 3, "DefaultVariantForm", defVariant);
+        writeElement(sb, 3, "UseStandardCommands",
+                String.valueOf(getBool(root, "useStandardCommands", true)));
+        writeOptionalRefBlock(sb, "DefaultForm", getString(root, "defaultForm", ""));
+        writeOptionalRefBlock(sb, "AuxiliaryForm", getString(root, "auxiliaryForm", ""));
+        writeOptionalRefBlock(sb, "MainDataCompositionSchema",
+                getString(root, "mainDataCompositionSchema", ""));
+        writeOptionalRefBlock(sb, "DefaultSettingsForm", getString(root, "defaultSettingsForm", ""));
+        writeOptionalRefBlock(sb, "AuxiliarySettingsForm", getString(root, "auxiliarySettingsForm", ""));
+        writeOptionalRefBlock(sb, "DefaultVariantForm", getString(root, "defaultVariantForm", ""));
+        writeOptionalRefBlock(sb, "VariantsStorage", getString(root, "variantsStorage", ""));
+        writeOptionalRefBlock(sb, "SettingsStorage", getString(root, "settingsStorage", ""));
+        writeElement(sb, 3, "IncludeHelpInContents",
+                String.valueOf(getBool(root, "includeHelpInContents", false)));
+        writePresentationBlocks(sb, "ExtendedPresentation", "Explanation");
     }
+    //++agent TASK-171
 
+    //++agent TASK-171 [01.06.2026 21:11:12]
+    // Полный набор Properties DataProcessor по грунт-труфу
+    // DataProcessors/АвтоматическоеИзвлечениеТекстов.xml (9 элементов). Прежний writer
+    // выпускал только заданные формы; UseStandardCommands/формы(пустые)/IncludeHelpInContents/
+    // ExtendedPresentation/Explanation отсутствовали.
     private void writeDataProcessorProperties(StringBuilder sb, JsonNode root) {
-        String defaultForm = getString(root, "defaultForm", "");
-        if (!defaultForm.isEmpty()) writeElement(sb, 3, "DefaultForm", defaultForm);
-        String auxForm = getString(root, "auxiliaryForm", "");
-        if (!auxForm.isEmpty()) writeElement(sb, 3, "AuxiliaryForm", auxForm);
+        writeElement(sb, 3, "UseStandardCommands",
+                String.valueOf(getBool(root, "useStandardCommands", true)));
+        writeOptionalRefBlock(sb, "DefaultForm", getString(root, "defaultForm", ""));
+        writeOptionalRefBlock(sb, "AuxiliaryForm", getString(root, "auxiliaryForm", ""));
+        writeElement(sb, 3, "IncludeHelpInContents",
+                String.valueOf(getBool(root, "includeHelpInContents", false)));
+        writePresentationBlocks(sb, "ExtendedPresentation", "Explanation");
     }
+    //++agent TASK-171
 
+    //++agent TASK-171 [01.06.2026 21:11:12]
+    // Полный набор Properties BusinessProcess в порядке xs:sequence по грунт-труфу
+    // BusinessProcesses/_ДемоЗаданиеСРолевойАдресацией.xml (40 элементов). Прежний writer
+    // выпускал ~9 элементов без StandardAttributes/форм/презентаций. Особенности порядка:
+    // формы и InputByString идут ДО блока нумерации; DataLockControlMode и FullTextSearch
+    // РАЗНЕСЕНЫ (между ними IncludeHelpInContents) — потому writeBehaviorProperties не
+    // применим; добавлен CreateTaskInPrivilegedMode после Task.
     private void writeBusinessProcessProperties(StringBuilder sb, JsonNode root) {
+        String objectName = requireString(root, "name");
+
+        writeElement(sb, 3, "UseStandardCommands",
+                String.valueOf(getBool(root, "useStandardCommands", true)));
         writeElement(sb, 3, "EditType", getString(root, "editType", "InDialog"));
+
+        writeInputByString(sb, "BusinessProcess", objectName, "Number");
+        writeElement(sb, 3, "CreateOnInput", getString(root, "createOnInput", "DontUse"));
+        writeElement(sb, 3, "SearchStringModeOnInputByString",
+                getString(root, "searchStringModeOnInputByString", "Begin"));
+        writeElement(sb, 3, "ChoiceDataGetModeOnInputByString",
+                getString(root, "choiceDataGetModeOnInputByString", "Directly"));
+        writeElement(sb, 3, "FullTextSearchOnInputByString",
+                getString(root, "fullTextSearchOnInputByString", "DontUse"));
+
+        writePresentationBlocks(sb, "DefaultObjectForm", "DefaultListForm",
+                "DefaultChoiceForm", "AuxiliaryObjectForm", "AuxiliaryListForm",
+                "AuxiliaryChoiceForm");
+        writeElement(sb, 3, "ChoiceHistoryOnInput",
+                getString(root, "choiceHistoryOnInput", "Auto"));
+
         writeElement(sb, 3, "NumberType", getString(root, "numberType", "String"));
         writeElement(sb, 3, "NumberLength", String.valueOf(getInt(root, "numberLength", 11)));
         writeElement(sb, 3, "NumberAllowedLength",
                 getString(root, "numberAllowedLength", "Variable"));
         writeElement(sb, 3, "CheckUnique", String.valueOf(getBool(root, "checkUnique", true)));
+
+        writeStandardAttributes(sb, "BusinessProcess");
+        writeEmptyElement(sb, 3, "Characteristics");
+
         writeElement(sb, 3, "Autonumbering", String.valueOf(getBool(root, "autonumbering", true)));
+        writeEmptyElement(sb, 3, "BasedOn");
+        writeElement(sb, 3, "NumberPeriodicity",
+                getString(root, "numberPeriodicity", "Nonperiodical"));
 
         String task = getString(root, "task", "");
         if (task.isEmpty()) {
@@ -1065,11 +1755,33 @@ public class MetaWriter {
         } else {
             writeElement(sb, 3, "Task", task);
         }
+        writeElement(sb, 3, "CreateTaskInPrivilegedMode",
+                String.valueOf(getBool(root, "createTaskInPrivilegedMode", true)));
 
-        writeBehaviorProperties(sb, root);
+        writeEmptyElement(sb, 3, "DataLockFields");
+        writeElement(sb, 3, "DataLockControlMode",
+                getString(root, "dataLockControlMode", "Automatic"));
+        writeElement(sb, 3, "IncludeHelpInContents",
+                String.valueOf(getBool(root, "includeHelpInContents", false)));
+        writeElement(sb, 3, "FullTextSearch", getString(root, "fullTextSearch", "Use"));
+        writePresentationBlocks(sb, "ObjectPresentation", "ExtendedObjectPresentation",
+                "ListPresentation", "ExtendedListPresentation", "Explanation");
+        writeDataHistoryTail(sb, root);
     }
+    //++agent TASK-171
 
+    //++agent TASK-171 [01.06.2026 21:11:12]
+    // Полный набор Properties Task в порядке xs:sequence по грунт-труфу
+    // Tasks/ЗадачаИсполнителя.xml (43 элемента). ВНИМАНИЕ: для типа Task в репозитории
+    // нет _Демо-объекта (0); образцом взят единственный существующий Task-объект
+    // ЗадачаИсполнителя. Прежний writer выпускал ~10 элементов без StandardAttributes/
+    // форм/презентаций. Порядок: блок нумерации/адресации идёт ДО форм; адресные поля
+    // (Addressing/MainAddressingAttribute/CurrentPerformer) присутствуют всегда (пустыми).
     private void writeTaskProperties(StringBuilder sb, JsonNode root) {
+        String objectName = requireString(root, "name");
+
+        writeElement(sb, 3, "UseStandardCommands",
+                String.valueOf(getBool(root, "useStandardCommands", true)));
         writeElement(sb, 3, "NumberType", getString(root, "numberType", "String"));
         writeElement(sb, 3, "NumberLength", String.valueOf(getInt(root, "numberLength", 14)));
         writeElement(sb, 3, "NumberAllowedLength",
@@ -1081,21 +1793,55 @@ public class MetaWriter {
         writeElement(sb, 3, "DescriptionLength",
                 String.valueOf(getInt(root, "descriptionLength", 150)));
 
-        String addressing = getString(root, "addressing", "");
-        if (!addressing.isEmpty()) writeElement(sb, 3, "Addressing", addressing);
-        String mainAddr = getString(root, "mainAddressingAttribute", "");
-        if (!mainAddr.isEmpty()) writeElement(sb, 3, "MainAddressingAttribute", mainAddr);
-        String currentPerformer = getString(root, "currentPerformer", "");
-        if (!currentPerformer.isEmpty()) writeElement(sb, 3, "CurrentPerformer", currentPerformer);
+        writeOptionalRefBlock(sb, "Addressing", getString(root, "addressing", ""));
+        writeOptionalRefBlock(sb, "MainAddressingAttribute",
+                getString(root, "mainAddressingAttribute", ""));
+        writeOptionalRefBlock(sb, "CurrentPerformer", getString(root, "currentPerformer", ""));
+        writeEmptyElement(sb, 3, "BasedOn");
 
-        writeBehaviorProperties(sb, root);
+        writeStandardAttributes(sb, "Task");
+        writeEmptyElement(sb, 3, "Characteristics");
+        writeElement(sb, 3, "DefaultPresentation",
+                getString(root, "defaultPresentation", "AsDescription"));
+
+        writeElement(sb, 3, "EditType", getString(root, "editType", "InDialog"));
+        writeInputByString(sb, "Task", objectName, "Number", "Description");
+        writeElement(sb, 3, "SearchStringModeOnInputByString",
+                getString(root, "searchStringModeOnInputByString", "Begin"));
+        writeElement(sb, 3, "FullTextSearchOnInputByString",
+                getString(root, "fullTextSearchOnInputByString", "DontUse"));
+        writeElement(sb, 3, "ChoiceDataGetModeOnInputByString",
+                getString(root, "choiceDataGetModeOnInputByString", "Directly"));
+        writeElement(sb, 3, "CreateOnInput", getString(root, "createOnInput", "DontUse"));
+
+        writePresentationBlocks(sb, "DefaultObjectForm", "DefaultListForm",
+                "DefaultChoiceForm", "AuxiliaryObjectForm", "AuxiliaryListForm",
+                "AuxiliaryChoiceForm");
+        writeElement(sb, 3, "ChoiceHistoryOnInput",
+                getString(root, "choiceHistoryOnInput", "Auto"));
+
+        writeElement(sb, 3, "IncludeHelpInContents",
+                String.valueOf(getBool(root, "includeHelpInContents", false)));
+        writeEmptyElement(sb, 3, "DataLockFields");
+        writeBehaviorProperties(sb, root); // DataLockControlMode + FullTextSearch
+        writePresentationBlocks(sb, "ObjectPresentation", "ExtendedObjectPresentation",
+                "ListPresentation", "ExtendedListPresentation", "Explanation");
+        writeDataHistoryTail(sb, root);
     }
+    //++agent TASK-171
 
+    //++agent TASK-171 [01.06.2026 21:11:12]
+    // Полный набор Properties DocumentJournal по грунт-труфу
+    // DocumentJournals/_ДемоЖурналВсехДокументов.xml (11 элементов). Прежний writer
+    // выпускал только заданные формы + RegisteredDocuments; UseStandardCommands(после
+    // форм), IncludeHelpInContents, презентации отсутствовали. У журнала НЕТ
+    // StandardAttributes-блока в Properties (несмотря на запись в таблице) — грунт-труф
+    // его не содержит, поэтому не эмитим.
     private void writeDocumentJournalProperties(StringBuilder sb, JsonNode root) {
-        String defaultForm = getString(root, "defaultForm", "");
-        if (!defaultForm.isEmpty()) writeElement(sb, 3, "DefaultForm", defaultForm);
-        String auxForm = getString(root, "auxiliaryForm", "");
-        if (!auxForm.isEmpty()) writeElement(sb, 3, "AuxiliaryForm", auxForm);
+        writeOptionalRefBlock(sb, "DefaultForm", getString(root, "defaultForm", ""));
+        writeOptionalRefBlock(sb, "AuxiliaryForm", getString(root, "auxiliaryForm", ""));
+        writeElement(sb, 3, "UseStandardCommands",
+                String.valueOf(getBool(root, "useStandardCommands", true)));
 
         // RegisteredDocuments
         List<String> regDocs = getStringList(root, "registeredDocuments");
@@ -1109,6 +1855,27 @@ public class MetaWriter {
             }
             sb.append(indent(3)).append("</RegisteredDocuments>\n");
         }
+        //++agent TASK-171 [01.06.2026 21:11:12]
+        // Хвост Properties журнала по грунт-труфу _ДемоЖурналВсехДокументов: после
+        // RegisteredDocuments идут IncludeHelpInContents + 3 презентации списка.
+        writeElement(sb, 3, "IncludeHelpInContents",
+                String.valueOf(getBool(root, "includeHelpInContents", false)));
+        writePresentationBlocks(sb, "ListPresentation", "ExtendedListPresentation", "Explanation");
+        //++agent TASK-171
+    }
+
+    /**
+     * TASK-171 W1: эмитит ссылочный элемент Properties, который в грунт-труфе
+     * присутствует ВСЕГДА (пустым, если значение не задано). Используется для форм/
+     * хранилищ Report/DataProcessor/DocumentJournal и адресных полей Task — там, где
+     * раньше элемент молча пропускался при отсутствии значения (ломая набор Properties).
+     */
+    private void writeOptionalRefBlock(StringBuilder sb, String tag, String value) {
+        if (value == null || value.isEmpty()) {
+            writeEmptyElement(sb, 3, tag);
+        } else {
+            writeElement(sb, 3, tag, value);
+        }
     }
 
     private void writeHTTPServiceProperties(StringBuilder sb, JsonNode root, String objectName) {
@@ -1119,15 +1886,21 @@ public class MetaWriter {
                 String.valueOf(getInt(root, "sessionMaxAge", 20)));
     }
 
+    //++agent TASK-171 [01.06.2026 21:11:12]
+    // WebService: добавлен DescriptorFileName между XDTOPackages и ReuseSessions
+    // (грунт-труф WebServices/Exchange_2_0_1_6.xml). Namespace/XDTOPackages присутствуют
+    // всегда (пустыми). Прежний writer пропускал DescriptorFileName и XDTOPackages при
+    // отсутствии значения.
     private void writeWebServiceProperties(StringBuilder sb, JsonNode root) {
         writeElement(sb, 3, "Namespace", getString(root, "namespace", ""));
-        String xdto = getString(root, "xdtoPackages", "");
-        if (!xdto.isEmpty()) writeElement(sb, 3, "XDTOPackages", xdto);
+        writeOptionalRefBlock(sb, "XDTOPackages", getString(root, "xdtoPackages", ""));
+        writeOptionalRefBlock(sb, "DescriptorFileName", getString(root, "descriptorFileName", ""));
         writeElement(sb, 3, "ReuseSessions",
                 getString(root, "reuseSessions", "DontUse"));
         writeElement(sb, 3, "SessionMaxAge",
                 String.valueOf(getInt(root, "sessionMaxAge", 20)));
     }
+    //++agent TASK-171
 
     // ==================== ChildObjects ====================
 
