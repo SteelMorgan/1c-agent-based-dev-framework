@@ -166,10 +166,23 @@ public class EpfValidator implements XmlValidator {
         }
 
         // EPF-006: Файлы из ChildObjects существуют (если документ — файл на диске)
-        Path docDir = document.getFile() != null ? document.getFile().getParent() : null;
+        //++agent TASK-171 [01.06.2026 21:45:00]
+        // Канон Designer: дочерние Forms/Templates лежат под <docDir>/<имяОбъекта>/,
+        // а НЕ прямо в <docDir>. Имя объекта = имя корневого файла без .xml (Designer
+        // всегда именует <Имя>.xml рядом с каталогом <Имя>/). Прежний резолв от docDir
+        // давал ложное EPF-006 на ЛЮБОМ валидном EPF/ERF с макетами (включая вывод
+        // флага init --with-skd). Исправлено: база = docDir/<имяОбъекта>.
+        Path docFile = document.getFile();
+        Path docDir = docFile != null ? docFile.getParent() : null;
         if (docDir != null) {
-            validateChildFiles(childObjects, docDir, elementName, issues);
+            String fileName = docFile.getFileName().toString();
+            String objectName = fileName.endsWith(".xml")
+                    ? fileName.substring(0, fileName.length() - 4)
+                    : fileName;
+            Path childBase = docDir.resolve(objectName);
+            validateChildFiles(childObjects, childBase, elementName, issues);
         }
+        //++agent TASK-171
     }
 
     private String findClassId(XmlNode internalInfo) {

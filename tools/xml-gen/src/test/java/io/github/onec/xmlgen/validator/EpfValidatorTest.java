@@ -356,21 +356,19 @@ class EpfValidatorTest {
         assertThat(hasUtf8Bom(templateMeta)).as("BOM в метаданных макета").isTrue();
         assertThat(hasUtf8Bom(templateBody)).as("BOM в теле DataCompositionSchema").isTrue();
 
-        // Валидатор ERF: 0 ошибок по проверкам структуры/семантики самого корневого XML.
-        // EPF-006 здесь исключён намеренно: это ПРЕДСУЩЕСТВУЮЩИЙ дефект EpfValidator вне моего
-        // scope (validator/EpfValidator.java — файл агента-валидатора). Он резолвит каталоги
-        // Forms/Templates относительно каталога корневого XML (<outputDir>), тогда как канон
-        // Designer (xml-generation SKILL §4.6 + грунт-труф) кладёт их под <outputDir>/<name>/.
-        // Дефект стреляет на ЛЮБОЙ EPF/ERF с макетами (в т.ч. на уже отгруженном epf add-template),
-        // а не привнесён флагом --with-skd. Раскладка на диске у нас каноничная — проверено выше
-        // (assertThat(templateBody).exists()). Доложено как находка в fix-epf-withskd.md.
+        // Валидатор ERF: 0 ошибок по проверкам структуры/семантики корневого XML.
+        // TASK-171: EPF-006 теперь НЕ исключаем — резолв каталога макетов в EpfValidator
+        // исправлен (<outputDir>/<name>/Templates вместо <outputDir>/Templates), поэтому
+        // на каноничной раскладке ложного EPF-006 быть не должно. Раньше дефект стрелял
+        // на ЛЮБОМ EPF/ERF с макетами (в т.ч. epf add-template) — теперь закрыт.
         XmlDocument erfDoc = reader.parse(rootXml);
         List<ValidationIssue> erfIssues = validator.validate(erfDoc, ValidationLevel.SEMANTIC);
+        assertThat(erfIssues).as("EPF-006 не должен срабатывать на каноничной раскладке ERF")
+                .noneMatch(i -> "EPF-006".equals(i.getCode()));
         List<ValidationIssue> erfErrors = erfIssues.stream()
                 .filter(i -> i.getSeverity() == Severity.ERROR)
-                .filter(i -> !"EPF-006".equals(i.getCode()))
                 .toList();
-        assertThat(erfErrors).as("Ошибки валидатора ERF (кроме предсуществующего EPF-006): " + erfErrors).isEmpty();
+        assertThat(erfErrors).as("Ошибки валидатора ERF: " + erfErrors).isEmpty();
 
         // Валидатор СКД на теле макета: 0 ошибок.
         SkdValidator skdValidator = new SkdValidator();
