@@ -113,6 +113,14 @@ public class FormDsl {
          */
         Boolean savedData;
 
+        /**
+         * Поле для секции {@code <UseAlways><Field>…</Field></UseAlways>}.
+         * Для форм объектов с движениями (документы) платформа требует
+         * {@code Объект.RegisterRecords}, иначе наборы записей не подгружаются
+         * на форму. См. эталоны Documents/big_Order_OKX. Если null — секция не пишется.
+         */
+        String useAlwaysField;
+
         /** Полный конструктор (используется from-object генерацией и JSON DSL). */
         @JsonCreator
         public Attribute(
@@ -122,7 +130,8 @@ public class FormDsl {
                 @JsonProperty("main") Boolean main,
                 @JsonProperty("columns") List<Column> columns,
                 @JsonProperty("settings") Map<String, Object> settings,
-                @JsonProperty("savedData") Boolean savedData) {
+                @JsonProperty("savedData") Boolean savedData,
+                @JsonProperty("useAlwaysField") String useAlwaysField) {
             this.name = name;
             this.title = title;
             this.type = type;
@@ -130,11 +139,18 @@ public class FormDsl {
             this.columns = columns;
             this.settings = settings;
             this.savedData = savedData;
+            this.useAlwaysField = useAlwaysField;
+        }
+
+        /** Обратно-совместимый 7-аргументный конструктор (без useAlwaysField). */
+        public Attribute(String name, String title, String type, Boolean main,
+                         List<Column> columns, Map<String, Object> settings, Boolean savedData) {
+            this(name, title, type, main, columns, settings, savedData, null);
         }
 
         /** Обратно-совместимый 5-аргументный конструктор. */
         public Attribute(String name, String title, String type, Boolean main, List<Column> columns) {
-            this(name, title, type, main, columns, null, null);
+            this(name, title, type, main, columns, null, null, null);
         }
     }
     

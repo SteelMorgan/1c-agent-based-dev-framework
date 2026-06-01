@@ -137,6 +137,8 @@ public class MetaValidator {
         // === Check 10-13: File structure ===
         if (objectDir != null && name != null && !name.isEmpty()) {
             validateFileStructure(objectDir, name, detectedType, typeDesc);
+            // TASK-171, проверки 2-4: формы/шаблоны-фантомы + висячие Default*Form.
+            validatePhantomFormsTemplates(objectDir, name, co, props);
         }
 
         return messages;
@@ -485,11 +487,12 @@ public class MetaValidator {
         // Validate EnumValues
         validateEnumValues(co);
 
-        // Validate Forms
-        validateNamedChildren(co, "Form");
+        // Validate Forms — TASK-171: форма обязана быть текст-ссылкой <Form>Имя</Form>,
+        // а не inline-блоком <Form uuid><Properties>...</Form> (форма-фантом).
+        validateFormTemplateReferences(co, "Form");
 
-        // Validate Templates
-        validateNamedChildren(co, "Template");
+        // Validate Templates — аналогично формам.
+        validateFormTemplateReferences(co, "Template");
 
         // Validate Commands
         validateNamedChildren(co, "Command");
@@ -514,6 +517,36 @@ public class MetaValidator {
         // Validate Operations (WebService)
         for (XmlNode op : co.children("Operation")) {
             validateOperation(op);
+        }
+    }
+
+    /**
+     * TASK-171, проверка 1: Form/Template в ChildObjects обязаны быть текст-ссылкой
+     * ({@code <Form>Имя</Form>}), а не inline-блоком с {@code <Properties>}.
+     * Inline-сериализация = форма-фантом, ломающая загрузку конфигурации (runaway памяти).
+     */
+    private void validateFormTemplateReferences(XmlNode co, String childType) {
+        Set<String> names = new HashSet<>();
+        for (XmlNode child : co.children(childType)) {
+            boolean inline = child.attr("uuid") != null || child.hasChild("Properties");
+            if (inline) {
+                String nm = child.hasChild("Properties")
+                        ? child.child("Properties").childText("Name") : null;
+                error(childType + " '" + safe(nm) + "': сериализован inline в ChildObjects "
+                        + "(атрибут uuid + <Properties>); ожидается текст-ссылка <" + childType
+                        + ">Имя</" + childType + "> + внешний файл "
+                        + ("Form".equals(childType) ? "Forms/Имя.xml" : "Templates/Имя.xml")
+                        + ". Это " + ("Form".equals(childType) ? "форма-фантом" : "фантом-шаблон")
+                        + " — ломает загрузку конфигурации (runaway памяти).");
+                continue;
+            }
+            // Текст-ссылка: имя в тексте элемента.
+            String refName = child.getText() != null ? child.getText().trim() : "";
+            if (refName.isEmpty()) {
+                error(childType + ": пустая текст-ссылка <" + childType + "></" + childType + ">");
+            } else if (!names.add(refName)) {
+                error(childType + ": дубликат текст-ссылки '" + refName + "'");
+            }
         }
     }
 
@@ -843,6 +876,91 @@ public class MetaValidator {
             Path flowchart = extDir.resolve("Flowchart.xml");
             if (Files.isDirectory(extDir) && !Files.exists(flowchart)) {
                 warn("FileStructure: " + name + "/Ext/Flowchart.xml not found (BusinessProcess)");
+            }
+        }
+    }
+
+    /**
+     * TASK-171, проверки 2-4 (требуют ФС):
+     * <ol>
+     *   <li>форма-фантом: текст-ссылка {@code <Form>Имя</Form>} без
+     *       {@code Forms/Имя.xml} / {@code Forms/Имя/Ext/Form.xml};</li>
+     *   <li>фантом-шаблон: {@code <Template>Имя</Template>} без {@code Templates/Имя.xml};</li>
+     *   <li>висячий Default*Form: {@code <Default…Form>Type.Obj.Form.X</Default…Form>},
+     *       где форма X не объявлена/нет файлов.</li>
+     * </ol>
+     *
+     * @param objectDir каталог, содержащий XML объекта (например {@code Documents/})
+     * @param name      имя объекта
+     * @param co        узел ChildObjects (может быть null)
+     * @param props     узел Properties
+     */
+    private void validatePhantomFormsTemplates(Path objectDir, String name,
+                                               XmlNode co, XmlNode props) {
+        Path objDir = objectDir.resolve(name);
+        // Если нормальной структуры каталога нет — ФС-проверки пропускаем (не падаем).
+        if (!Files.isDirectory(objDir)) return;
+
+        Set<String> declaredForms = new HashSet<>();
+
+        if (co != null) {
+            // Проверка 2: форма-фантом (объявлена текст-ссылкой, но файлов нет).
+            for (XmlNode f : co.children("Form")) {
+                if (f.attr("uuid") != null || f.hasChild("Properties")) continue; // inline — это проверка 1
+                String formName = f.getText() != null ? f.getText().trim() : "";
+                if (formName.isEmpty()) continue;
+                declaredForms.add(formName);
+                Path wrapper = objDir.resolve("Forms").resolve(formName + ".xml");
+                Path extForm = objDir.resolve("Forms").resolve(formName)
+                        .resolve("Ext").resolve("Form.xml");
+                if (!Files.isRegularFile(wrapper) || !Files.isRegularFile(extForm)) {
+                    error("Form '" + formName + "': объявлена форма, но файлов определения нет "
+                            + "(Forms/" + formName + ".xml / Forms/" + formName
+                            + "/Ext/Form.xml) — форма-фантом.");
+                }
+            }
+            // Проверка 3: фантом-шаблон.
+            for (XmlNode t : co.children("Template")) {
+                if (t.attr("uuid") != null || t.hasChild("Properties")) continue;
+                String tplName = t.getText() != null ? t.getText().trim() : "";
+                if (tplName.isEmpty()) continue;
+                Path wrapper = objDir.resolve("Templates").resolve(tplName + ".xml");
+                if (!Files.isRegularFile(wrapper)) {
+                    error("Template '" + tplName + "': объявлен шаблон, но файла определения нет "
+                            + "(Templates/" + tplName + ".xml) — фантом-шаблон.");
+                }
+            }
+        }
+
+        // Проверка 4: висячий Default*Form в Properties.
+        if (props != null) {
+            String[] defaultFormProps = {
+                    "DefaultObjectForm", "DefaultListForm", "DefaultChoiceForm",
+                    "DefaultFolderForm", "DefaultFolderListForm", "DefaultRecordForm"
+            };
+            for (String propName : defaultFormProps) {
+                XmlNode dn = props.child(propName);
+                if (dn == null) continue;
+                String ref = dn.getText() != null ? dn.getText().trim() : "";
+                if (ref.isEmpty()) continue; // пустой <Default…Form/> — игнорируем
+                // Формат: <Тип>.<Объект>.Form.<ИмяФормы>
+                int formIdx = ref.lastIndexOf(".Form.");
+                String formName = formIdx >= 0 ? ref.substring(formIdx + ".Form.".length()) : null;
+                if (formName == null || formName.isEmpty()) {
+                    error("Properties: " + propName + " = '" + ref
+                            + "' — не удалось извлечь имя формы (ожидается Тип.Объект.Form.Имя).");
+                    continue;
+                }
+                Path wrapper = objDir.resolve("Forms").resolve(formName + ".xml");
+                Path extForm = objDir.resolve("Forms").resolve(formName)
+                        .resolve("Ext").resolve("Form.xml");
+                boolean declared = declaredForms.contains(formName);
+                boolean filesOk = Files.isRegularFile(wrapper) && Files.isRegularFile(extForm);
+                if (!declared || !filesOk) {
+                    error("Properties: " + propName + " ссылается на форму '" + formName
+                            + "', которая не объявлена текст-ссылкой / не имеет файлов "
+                            + "(Forms/" + formName + ".xml) — висячая ссылка на форму.");
+                }
             }
         }
     }

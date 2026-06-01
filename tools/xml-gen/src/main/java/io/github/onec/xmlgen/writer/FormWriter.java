@@ -3,11 +3,13 @@ package io.github.onec.xmlgen.writer;
 import com.github._1c_syntax.bsl.mdo.storage.form.FormElementType;
 import io.github.onec.xmlgen.dsl.FormDsl;
 import io.github.onec.xmlgen.format.OutputFormat;
+import io.github.onec.xmlgen.model.ConfigurationXmlReader;
 import io.github.onec.xmlgen.model.IdGenerator;
 import io.github.onec.xmlgen.model.TypeResolver;
 
 import javax.xml.stream.XMLStreamException;
 import java.io.IOException;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.HashMap;
 import java.util.List;
@@ -55,6 +57,59 @@ public class FormWriter extends XmlWriter {
     public FormWriter(OutputFormat format) {
         this.format = format;
     }
+
+    /**
+     * Детерминированно определить версию формата для Ext/Form.xml по контексту
+     * пути назначения (TASK-171 D-12/D-6). НЕ хардкод и НЕ параметр от агента:
+     * <ol>
+     *   <li>версия родительского объекта {@code <Type>/<ObjName>.xml} (форма обязана
+     *       совпадать с объектом, которому принадлежит);</li>
+     *   <li>иначе — версия из {@code Configuration.xml} вверх по дереву;</li>
+     *   <li>иначе (форма генерится вне конфигурации, совпадать не с чем) —
+     *       {@link ConfigurationXmlReader#DEFAULT_FORMAT_VERSION}.</li>
+     * </ol>
+     */
+    private String resolveFormatVersion(Path outputPath) {
+        if (outputPath == null) return ConfigurationXmlReader.DEFAULT_FORMAT_VERSION;
+        Path objXml = locateParentObjectXml(outputPath);
+        if (objXml != null && Files.isRegularFile(objXml)) {
+            return ConfigurationXmlReader.readFormatVersion(objXml);
+        }
+        Path cfg = locateConfigurationXml(outputPath);
+        if (cfg != null) {
+            return ConfigurationXmlReader.readFormatVersion(cfg);
+        }
+        return ConfigurationXmlReader.DEFAULT_FORMAT_VERSION;
+    }
+
+    /**
+     * По {@code .../<Type>/<ObjName>/Forms/<FormName>/Ext/Form.xml} вернуть
+     * {@code .../<Type>/<ObjName>.xml} (файл родительского объекта).
+     */
+    private Path locateParentObjectXml(Path outputPath) {
+        Path p = outputPath.toAbsolutePath().normalize();
+        for (int i = p.getNameCount() - 1; i >= 2; i--) {
+            if ("Forms".equalsIgnoreCase(p.getName(i).toString())) {
+                String objName = p.getName(i - 1).toString();      // <ObjName> (каталог)
+                Path typeDir = p.getRoot() != null
+                        ? p.getRoot().resolve(p.subpath(0, i - 1))  // .../<Type>
+                        : p.subpath(0, i - 1);
+                return typeDir.resolve(objName + ".xml");
+            }
+        }
+        return null;
+    }
+
+    /** Подняться вверх по дереву до первого {@code Configuration.xml}. */
+    private Path locateConfigurationXml(Path outputPath) {
+        Path dir = outputPath.toAbsolutePath().normalize().getParent();
+        while (dir != null) {
+            Path cfg = dir.resolve("Configuration.xml");
+            if (Files.isRegularFile(cfg)) return cfg;
+            dir = dir.getParent();
+        }
+        return null;
+    }
     
     /**
      * Создать Form.xml из DSL.
@@ -71,7 +126,11 @@ public class FormWriter extends XmlWriter {
     }
     
     private void createDesigner(FormDsl dsl, Path outputPath) throws IOException, XMLStreamException {
-        createWriter(outputPath, false, FORM_NAMESPACES); // БЕЗ BOM для Form.xml
+        // TASK-171: Designer-формат Ext/Form.xml ДОЛЖЕН начинаться с UTF-8 BOM, иначе
+        // платформа отвергает файл на байтовом уровне («Исключение XDTO при чтении файла»)
+        // ещё до разбора дерева. Эталон: 400/400 форм конфигурации с BOM; RoleWriter Designer
+        // тоже пишет с BOM. Прежняя посылка «БЕЗ BOM для Form.xml» была ошибочной.
+        createWriter(outputPath, true, FORM_NAMESPACES);
         writeXmlDeclaration();
         
         Map<String, String> allNamespaces = new HashMap<>(FORM_NAMESPACES);
@@ -80,12 +139,19 @@ public class FormWriter extends XmlWriter {
         allNamespaces.put("xr", "http://v8.1c.ru/8.3/xcf/readable");
         
         Map<String, String> rootAttrs = new HashMap<>();
-        rootAttrs.put("version", "2.17");
+        // TASK-171 D-12/D-6: версия формата Ext/Form.xml ДОЛЖНА совпадать с версией
+        // конфигурации, иначе платформа при full-load отвергает форму
+        // («Версия формата ... отличается»). Определяем детерминированно из контекста
+        // (родительский объект → иначе Configuration.xml), НЕ хардкодим.
+        rootAttrs.put("version", resolveFormatVersion(outputPath));
         writeRootElement("Form", allNamespaces, rootAttrs);
         
         // Title
+        // TASK-171: корневой <Title> формы — это v8:LocalStringType (мультиязычный),
+        // требует <v8:item><v8:lang>/<v8:content>, а НЕ плоский текст. Плоский текст
+        // вызывал XDTO-отказ платформы «при чтении файла». Эталон _Демо: всегда <v8:item>.
         if (dsl.getTitle() != null) {
-            writeElement("Title", dsl.getTitle());
+            writeMultilingualString("Title", dsl.getTitle());
         }
         
         // Properties
@@ -199,6 +265,15 @@ public class FormWriter extends XmlWriter {
         // SavedData
         if (attr.getSavedData() != null && attr.getSavedData()) {
             writeElement("SavedData", "true");
+        }
+
+        // UseAlways — секция <UseAlways><Field>…</Field></UseAlways>.
+        // Для форм документов с движениями платформа требует Объект.RegisterRecords,
+        // иначе наборы записей регистров не подгружаются на форму (эталон big_Order_OKX).
+        if (attr.getUseAlwaysField() != null && !attr.getUseAlwaysField().isEmpty()) {
+            startElement("UseAlways");
+            writeElement("Field", attr.getUseAlwaysField());
+            endElement(); // UseAlways
         }
 
         // Columns (для ValueTable/ValueTree)
@@ -471,22 +546,110 @@ public class FormWriter extends XmlWriter {
         if (element.containsKey("path")) {
             writeElement("DataPath", element.get("path").toString());
         }
-        
+
         // Title
         if (element.containsKey("title")) {
             writeMultilingualString("Title", element.get("title").toString());
         }
-        
-        // Свойства
-        writeElementProperties(element);
-        
+
+        // Порядок дочерних InputField строго по схеме logform (xs:sequence), как emit_input эталона:
+        // [common-flags] → TitleLocation(mapped) → MultiLine → PasswordMode → ChoiceButton → ClearButton →
+        // SpinButton → DropListButton → AutoMarkIncomplete → TextEdit → SkipOnInput → AutoMaxWidth → MaxWidth →
+        // ... → Width → Height → стретчи → InputHint. Раньше всё шло generic-дампом HashMap в произвольном
+        // порядке + сырое значение titleLocation — XDTO-отказ (TASK-171). Эмитим явно, из generic исключаем.
+        writeCommonFlags(element);
+        if (element.containsKey("titleLocation")) {
+            writeElement("TitleLocation", mapTitleLocation(element.get("titleLocation").toString()));
+        }
+        if (Boolean.TRUE.equals(element.get("multiLine"))) {
+            writeElement("MultiLine", "true");
+        }
+        if (Boolean.TRUE.equals(element.get("passwordMode"))) {
+            writeElement("PasswordMode", "true");
+        }
+        if (element.containsKey("choiceButton")) {
+            writeElement("ChoiceButton", element.get("choiceButton").toString().toLowerCase());
+        }
+        if (Boolean.TRUE.equals(element.get("clearButton"))) {
+            writeElement("ClearButton", "true");
+        }
+        if (Boolean.TRUE.equals(element.get("spinButton"))) {
+            writeElement("SpinButton", "true");
+        }
+        if (Boolean.TRUE.equals(element.get("dropListButton"))) {
+            writeElement("DropListButton", "true");
+        }
+        if (Boolean.TRUE.equals(element.get("markIncomplete"))) {
+            writeElement("AutoMarkIncomplete", "true");
+        }
+        if (Boolean.FALSE.equals(element.get("textEdit"))) {
+            writeElement("TextEdit", "false");
+        }
+        if (Boolean.TRUE.equals(element.get("skipOnInput"))) {
+            writeElement("SkipOnInput", "true");
+        }
+        if (element.containsKey("autoMaxWidth")) {
+            writeElement("AutoMaxWidth", element.get("autoMaxWidth").toString().toLowerCase());
+        }
+        if (element.containsKey("maxWidth")) {
+            writeElement("MaxWidth", element.get("maxWidth").toString());
+        }
+        if (Boolean.FALSE.equals(element.get("autoMaxHeight"))) {
+            writeElement("AutoMaxHeight", "false");
+        }
+        if (element.containsKey("maxHeight")) {
+            writeElement("MaxHeight", element.get("maxHeight").toString());
+        }
+        if (element.containsKey("width")) {
+            writeElement("Width", element.get("width").toString());
+        }
+        if (element.containsKey("height")) {
+            writeElement("Height", element.get("height").toString());
+        }
+        if (Boolean.TRUE.equals(element.get("horizontalStretch"))) {
+            writeElement("HorizontalStretch", "true");
+        }
+        if (Boolean.TRUE.equals(element.get("verticalStretch"))) {
+            writeElement("VerticalStretch", "true");
+        }
+
+        // Остаточные (НЕ порядок-критичные) свойства; всё порядок-значимое выведено выше и исключено
+        writeElementProperties(element, java.util.Set.of(
+            "visible", "userVisible", "enabled", "readOnly",
+            "titleLocation", "multiLine", "passwordMode", "choiceButton", "clearButton",
+            "spinButton", "dropListButton", "markIncomplete", "textEdit", "skipOnInput",
+            "autoMaxWidth", "maxWidth", "autoMaxHeight", "maxHeight",
+            "width", "height", "horizontalStretch", "verticalStretch"));
+
         // ContextMenu и ExtendedTooltip (автоматически)
         writeAutoElements(name, id, depth + 1);
-        
+
         indentLevel = oldIndent;
         writer.writeCharacters(indent);
         writer.writeEndElement(); // InputField
         writer.writeCharacters("\n");
+    }
+
+    /**
+     * Эмиссия общих флагов элемента формы в порядке схемы logform, как emit_common_flags эталона:
+     * Visible → UserVisible → Enabled → ReadOnly. Пишутся только при значениях, отличных от дефолта платформы
+     * (Visible/Enabled=true, ReadOnly=false), как в эталоне.
+     */
+    private void writeCommonFlags(Map<String, Object> element) throws XMLStreamException {
+        if (Boolean.FALSE.equals(element.get("visible")) || Boolean.TRUE.equals(element.get("hidden"))) {
+            writeElement("Visible", "false");
+        }
+        if (Boolean.FALSE.equals(element.get("userVisible"))) {
+            startElement("UserVisible");
+            writeElement("xr:Common", "false");
+            endElement(); // UserVisible
+        }
+        if (Boolean.FALSE.equals(element.get("enabled")) || Boolean.TRUE.equals(element.get("disabled"))) {
+            writeElement("Enabled", "false");
+        }
+        if (Boolean.TRUE.equals(element.get("readOnly"))) {
+            writeElement("ReadOnly", "true");
+        }
     }
     
     /**
@@ -512,10 +675,23 @@ public class FormWriter extends XmlWriter {
         // Group (ориентация)
         String groupType = element.get("group") != null ? element.get("group").toString() : "Vertical";
         writeElement("Group", toPascalCase(groupType));
-        
-        // Свойства
-        writeElementProperties(element);
-        
+
+        // Порядок-критичные свойства UsualGroup строго по схеме logform (xs:sequence), как emit_group эталона:
+        // Representation(mapped) → ShowTitle → United. Эмитим явно, из generic-прохода исключаем (skipKeys),
+        // иначе HashMap-итерация ставит ShowTitle перед Representation и пишет сырое none → XDTO-отказ (TASK-171).
+        if (element.containsKey("representation")) {
+            writeElement("Representation", mapRepresentation(element.get("representation").toString()));
+        }
+        if (Boolean.FALSE.equals(element.get("showTitle"))) {
+            writeElement("ShowTitle", "false");
+        }
+        if (Boolean.FALSE.equals(element.get("united"))) {
+            writeElement("United", "false");
+        }
+
+        // Остаточные (НЕ порядок-критичные) свойства; порядок-значимые уже выведены выше и исключены
+        writeElementProperties(element, java.util.Set.of("group", "representation", "showTitle", "united"));
+
         // ExtendedTooltip
         int tooltipId = elementIdGen.next();
         writer.writeCharacters("\t".repeat(depth + 1));
@@ -523,7 +699,7 @@ public class FormWriter extends XmlWriter {
         writer.writeAttribute("name", name + "РасширеннаяПодсказка");
         writer.writeAttribute("id", String.valueOf(tooltipId));
         writer.writeCharacters("\n");
-        
+
         // ChildItems
         if (element.containsKey("children")) {
             @SuppressWarnings("unchecked")
@@ -1075,25 +1251,85 @@ public class FormWriter extends XmlWriter {
      * Записать свойства элемента.
      */
     private void writeElementProperties(Map<String, Object> element) throws XMLStreamException {
+        writeElementProperties(element, java.util.Collections.emptySet());
+    }
+
+    /**
+     * Generic-дамп остаточных (НЕ порядок-критичных) свойств элемента.
+     *
+     * Порядок-значимые свойства (Representation, ShowTitle, United, TitleLocation и т.п.) схема logform
+     * объявляет как xs:sequence — их позиция строго фиксирована. Такие свойства эмитятся ЯВНО в
+     * writeUsualGroup/writeInputField/... в правильной позиции, а здесь ИСКЛЮЧАЮТСЯ через {@code skipKeys},
+     * чтобы generic-проход (итерация HashMap в произвольном порядке) не воткнул их не на своё место и не
+     * записал сырое enum-значение (none вместо None) — из-за чего платформа отвергала Ext/Form.xml на
+     * уровне XDTO-схемы (TASK-171).
+     */
+    private void writeElementProperties(Map<String, Object> element, java.util.Set<String> skipKeys) throws XMLStreamException {
         // Пропускаем служебные ключи
         for (Map.Entry<String, Object> entry : element.entrySet()) {
             String key = entry.getKey();
-            if (isElementType(key) || key.equals("name") || key.equals("title") || 
+            if (isElementType(key) || key.equals("name") || key.equals("title") ||
                 key.equals("path") || key.equals("children") || key.equals("columns") ||
                 key.equals("command") || key.equals("stdCommand") || key.equals("src")) {
                 continue;
             }
-            
+            if (skipKeys.contains(key)) {
+                continue;
+            }
+
             // Преобразуем ключ в PascalCase
             String xmlName = toPascalCase(key);
             Object value = entry.getValue();
-            
-            // Обработка boolean
-            if (value instanceof Boolean) {
+
+            // Маппинг enum-значений-страховка: даже если порядок-критичный ключ дошёл до generic-прохода
+            // (например, representation/titleLocation на Table/Page из DSL form compile), значение всё равно
+            // канонизируется в схему logform, а не пишется сырым (none → None) — TASK-171.
+            if (key.equals("representation")) {
+                writeElement(xmlName, mapRepresentation(value.toString()));
+            } else if (key.equals("titleLocation")) {
+                writeElement(xmlName, mapTitleLocation(value.toString()));
+            } else if (value instanceof Boolean) {
                 writeElement(xmlName, value.toString().toLowerCase());
             } else {
                 writeElement(xmlName, value.toString());
             }
+        }
+    }
+
+    /**
+     * Маппинг DSL-значения representation в каноническое значение схемы logform (LogFormFieldsRepresentation).
+     * Сырое none/normal/weak/strong схема отвергает (XDTO). Соответствует repr_map эталона form-compile.py
+     * (Н. Широков): none→None, normal→NormalSeparation, weak→WeakSeparation, strong→StrongSeparation.
+     * Уже каноническое значение (PascalCase) пропускаем как есть — обратная совместимость с form compile из DSL.
+     */
+    private static String mapRepresentation(String raw) {
+        if (raw == null) {
+            return null;
+        }
+        switch (raw) {
+            case "none":   return "None";
+            case "normal": return "NormalSeparation";
+            case "weak":   return "WeakSeparation";
+            case "strong": return "StrongSeparation";
+            default:       return raw;
+        }
+    }
+
+    /**
+     * Маппинг DSL-значения titleLocation в каноническое значение схемы (FormElementTitleLocation):
+     * none→None, left→Left, right→Right, top→Top, bottom→Bottom. Соответствует loc_map эталона emit_input.
+     */
+    private static String mapTitleLocation(String raw) {
+        if (raw == null) {
+            return null;
+        }
+        switch (raw) {
+            case "none":   return "None";
+            case "left":   return "Left";
+            case "right":  return "Right";
+            case "top":    return "Top";
+            case "bottom": return "Bottom";
+            default:       return raw;
         }
     }
     

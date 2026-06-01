@@ -239,7 +239,7 @@ public class DocumentFormGenerator {
 
         Map<String, Object> props = GenUtil.mergeProperties(p, "autoTitle", false);
         List<FormDsl.Attribute> attrs = Collections.singletonList(
-                GenUtil.objectAttr("Объект", "DocumentObject." + meta.name));
+                GenUtil.documentObjectAttr("Объект", "DocumentObject." + meta.name, meta.hasRegisterRecords));
 
         return new FormDsl(meta.synonym, props, null, null, rootElements, attrs, null, null);
     }

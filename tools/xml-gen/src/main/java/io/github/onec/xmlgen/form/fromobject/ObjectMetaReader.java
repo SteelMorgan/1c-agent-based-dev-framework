@@ -90,6 +90,12 @@ public class ObjectMetaReader {
         switch (meta.type) {
             case "Document":
                 meta.numberType = textOrDefault(props, "NumberType", "String");
+                // Документ имеет движения, если <RegisterRecords> содержит хотя бы один
+                // <xr:Item>. Тогда главный реквизит формы требует UseAlways=Объект.RegisterRecords.
+                XmlNode regRecords = props != null ? props.child("RegisterRecords") : null;
+                meta.hasRegisterRecords = regRecords != null
+                        && regRecords.getChildren() != null
+                        && !regRecords.getChildren().isEmpty();
                 break;
             case "Catalog":
                 meta.codeLength = intVal(props, "CodeLength");

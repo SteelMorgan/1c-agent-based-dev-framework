@@ -44,6 +44,8 @@ public class ObjectMeta {
 
     // Document
     public String numberType; // String / Number
+    /** true, если у документа есть движения по регистрам (непустой <RegisterRecords>). */
+    public boolean hasRegisterRecords;
 
     // Catalog / CharacteristicTypes / ExchangePlan / ChartOfAccounts
     public int codeLength;
