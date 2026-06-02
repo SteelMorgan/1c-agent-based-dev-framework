@@ -100,13 +100,11 @@ public class BslStubWriter {
         if (path.getParent() != null) {
             Files.createDirectories(path.getParent());
         }
-        // Пишем с BOM для совместимости с 1С
-        byte[] bom = new byte[]{(byte) 0xef, (byte) 0xbb, (byte) 0xbf};
-        byte[] body = content.getBytes(StandardCharsets.UTF_8);
-        byte[] out = new byte[bom.length + body.length];
-        System.arraycopy(bom, 0, out, 0, bom.length);
-        System.arraycopy(body, 0, out, bom.length, body.length);
-        Files.write(path, out);
+        //++agent TASK-172 [02.06.2026 07:19:00]
+        // Канон Designer (_Демо): .bsl-модули — BOM + CRLF. Stub дописывается к
+        // существующему модулю (литералы \n), нормализуем итог к CRLF идемпотентно.
+        Files.write(path, io.github.onec.xmlgen.io.Crlf.withBom(content));
+        //++agent TASK-172
     }
 
     /**

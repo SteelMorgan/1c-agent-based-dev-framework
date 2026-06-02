@@ -186,15 +186,20 @@ public class ObjectContainerEditor {
      * Сохранить изменения.
      */
     public void save() throws IOException {
+        //++agent TASK-172 [02.06.2026 07:21:00]
+        // Правка существующего объекта строковыми заменами вставляет \n-фрагменты в
+        // CRLF-канон. Нормализуем итог к CRLF идемпотентно (не дублирует \r\n), сохраняя
+        // решение о BOM из оригинала. Это приводит вывод к канону Designer (_Демо).
+        byte[] contentBytes = io.github.onec.xmlgen.io.Crlf.normalize(content).getBytes(StandardCharsets.UTF_8);
         if (hasBom) {
-            byte[] contentBytes = content.getBytes(StandardCharsets.UTF_8);
             byte[] result = new byte[BOM.length + contentBytes.length];
             System.arraycopy(BOM, 0, result, 0, BOM.length);
             System.arraycopy(contentBytes, 0, result, BOM.length, contentBytes.length);
             Files.write(objectXmlPath, result);
         } else {
-            Files.writeString(objectXmlPath, content, StandardCharsets.UTF_8);
+            Files.write(objectXmlPath, contentBytes);
         }
+        //++agent TASK-172
     }
 
     /**
@@ -267,14 +272,18 @@ public class ObjectContainerEditor {
         // 3. Module: Forms/<formName>/Ext/Form/Module.bsl
         Path moduleDir = formExtDir.resolve("Form");
         Files.createDirectories(moduleDir);
-        Files.writeString(moduleDir.resolve("Module.bsl"),
-                "\uFEFF#Область ОбработчикиСобытийФормы\n\n"
+        //**agent TASK-172 [02.06.2026 07:19:00]
+        // Канон Designer (_Демо): .bsl c BOM + CRLF. BOM добавляет Crlf.withBom (байтовый
+        // ef bb bf), поэтому inline U+FEFF убран (иначе двойной BOM); литералы \n → CRLF.
+        Files.write(moduleDir.resolve("Module.bsl"),
+                io.github.onec.xmlgen.io.Crlf.withBom(
+                "#Область ОбработчикиСобытийФормы\n\n"
                         + "&НаСервере\n"
                         + "Процедура ПриСозданииНаСервере(Отказ, СтандартнаяОбработка)\n"
                         + "\t\n"
                         + "КонецПроцедуры\n\n"
-                        + "#КонецОбласти\n",
-                StandardCharsets.UTF_8);
+                        + "#КонецОбласти\n"));
+        //**agent TASK-172
     }
 
     /**
@@ -359,7 +368,10 @@ public class ObjectContainerEditor {
                 + "\t<p>Описание</p>\n"
                 + "</body>\n"
                 + "</html>\n";
-        Files.writeString(helpDir.resolve(lang + ".html"), html, StandardCharsets.UTF_8);
+        //++agent TASK-172 [02.06.2026 07:28:00]
+        // Канон Designer (_Демо) — CRLF; нормализуем переводы строк html-справки.
+        Files.writeString(helpDir.resolve(lang + ".html"), io.github.onec.xmlgen.io.Crlf.normalize(html), StandardCharsets.UTF_8);
+        //++agent TASK-172
     }
 
     /**
@@ -432,11 +444,10 @@ public class ObjectContainerEditor {
     }
 
     private static void writeWithBom(Path path, String content) throws IOException {
-        byte[] contentBytes = content.getBytes(StandardCharsets.UTF_8);
-        byte[] result = new byte[BOM.length + contentBytes.length];
-        System.arraycopy(BOM, 0, result, 0, BOM.length);
-        System.arraycopy(contentBytes, 0, result, BOM.length, contentBytes.length);
-        Files.write(path, result);
+        //++agent TASK-172 [02.06.2026 07:15:00]
+        // Канон Designer (_Демо): новые scaffold-файлы объекта (форма/макет/Help) — BOM + CRLF.
+        Files.write(path, io.github.onec.xmlgen.io.Crlf.withBom(content));
+        //++agent TASK-172
     }
 
     /**

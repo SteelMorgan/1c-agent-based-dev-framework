@@ -236,11 +236,10 @@ public class ConfigWriter {
     }
 
     private static void writeWithBom(Path path, String content) throws IOException {
-        byte[] contentBytes = content.getBytes(StandardCharsets.UTF_8);
-        byte[] result = new byte[BOM.length + contentBytes.length];
-        System.arraycopy(BOM, 0, result, 0, BOM.length);
-        System.arraycopy(contentBytes, 0, result, BOM.length, contentBytes.length);
-        Files.write(path, result);
+        //++agent TASK-172 [02.06.2026 07:15:00]
+        // Канон Designer (_Демо): BOM + CRLF через единый чокпоинт нормализации.
+        Files.write(path, io.github.onec.xmlgen.io.Crlf.withBom(content));
+        //++agent TASK-172
     }
 
     private static String escapeXml(String s) {

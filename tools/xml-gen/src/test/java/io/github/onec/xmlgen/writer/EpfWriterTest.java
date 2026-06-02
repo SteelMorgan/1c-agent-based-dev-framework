@@ -174,10 +174,12 @@ class EpfWriterTest {
         assertThat(formMetadataBytes[1]).isEqualTo((byte) 0xBB);
         assertThat(formMetadataBytes[2]).isEqualTo((byte) 0xBF);
         
-        // Проверяем ОТСУТСТВИЕ BOM в Form.xml
+        // TASK-172: Form.xml тоже с BOM — канон _Демо (все Ext/Form.xml = ef bb bf),
+        // как и standalone FormWriter. Прежний ассерт закреплял баг (отсутствие BOM).
         byte[] formDefBytes = Files.readAllBytes(tempDir.resolve("ТестоваяОбработка/Forms/Форма/Ext/Form.xml"));
-        assertThat(formDefBytes[0]).isNotEqualTo((byte) 0xEF);
-        assertThat(formDefBytes[0]).isEqualTo((byte) '<'); // Начинается с '<'
+        assertThat(formDefBytes[0]).isEqualTo((byte) 0xEF);
+        assertThat(formDefBytes[1]).isEqualTo((byte) 0xBB);
+        assertThat(formDefBytes[2]).isEqualTo((byte) 0xBF);
     }
 
     // ==================== TASK-171 D7: BOM в телах макетов ====================

@@ -244,11 +244,10 @@ public class SubsystemWriter {
     }
 
     private static void writeWithBom(Path path, String content) throws IOException {
-        byte[] contentBytes = content.getBytes(StandardCharsets.UTF_8);
-        byte[] result = new byte[BOM.length + contentBytes.length];
-        System.arraycopy(BOM, 0, result, 0, BOM.length);
-        System.arraycopy(contentBytes, 0, result, BOM.length, contentBytes.length);
-        Files.write(path, result);
+        //++agent TASK-172 [02.06.2026 07:15:00]
+        // Канон Designer (_Демо): BOM + CRLF через единый чокпоинт нормализации.
+        Files.write(path, io.github.onec.xmlgen.io.Crlf.withBom(content));
+        //++agent TASK-172
     }
 
     private static String escapeXml(String s) {
@@ -443,7 +442,11 @@ public class SubsystemWriter {
             throw new IOException("Parent subsystem has no ChildObjects section: " + parentPath);
         }
 
-        byte[] bytes = content.getBytes(StandardCharsets.UTF_8);
+        //++agent TASK-172 [02.06.2026 07:16:00]
+        // Вставка ChildObjects в родительскую подсистему: entry содержит \n-литералы,
+        // которые в CRLF-каноне дали бы смешанную раскладку. Нормализуем итог к CRLF
+        // (идемпотентно — существующие \r\n не дублируются). hasBom-решение сохраняем.
+        byte[] bytes = io.github.onec.xmlgen.io.Crlf.normalize(content).getBytes(StandardCharsets.UTF_8);
         if (hasBom) {
             byte[] out = new byte[BOM.length + bytes.length];
             System.arraycopy(BOM, 0, out, 0, BOM.length);
@@ -452,5 +455,6 @@ public class SubsystemWriter {
         } else {
             Files.write(parentPath, bytes);
         }
+        //++agent TASK-172
     }
 }

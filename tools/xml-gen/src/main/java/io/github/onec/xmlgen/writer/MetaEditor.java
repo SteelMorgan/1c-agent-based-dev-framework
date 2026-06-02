@@ -522,9 +522,13 @@ public class MetaEditor {
         writeFileWithBom(wrapperXml, buildFormWrapper(formName, formType, version));
         out.println("[INFO] Создан: " + wrapperXml);
 
-        // 3) Минимальный модуль формы (без BOM, как FormWriter).
+        //**agent TASK-172 [02.06.2026 07:18:00]
+        // 3) Минимальный модуль формы. Канон Designer (_Демо): ВСЕ .bsl c BOM + CRLF
+        // (эталон CommonForms/.../Ext/Form/Module.bsl: ef bb bf + CRLF). Прежняя посылка
+        // «без BOM, как FormWriter» была ошибочной — FormWriter сам .bsl не пишет.
         Files.createDirectories(moduleBsl.getParent());
-        Files.write(moduleBsl, DEFAULT_FORM_MODULE.getBytes(StandardCharsets.UTF_8));
+        Files.write(moduleBsl, io.github.onec.xmlgen.io.Crlf.withBom(DEFAULT_FORM_MODULE));
+        //**agent TASK-172
         out.println("[INFO] Создан: " + moduleBsl);
         out.println("[INFO] Создан: " + formExtXml);
 
@@ -1846,11 +1850,10 @@ public class MetaEditor {
     }
 
     private void writeFileWithBom(Path path, String content) throws IOException {
-        byte[] contentBytes = content.getBytes(StandardCharsets.UTF_8);
-        byte[] result = new byte[BOM.length + contentBytes.length];
-        System.arraycopy(BOM, 0, result, 0, BOM.length);
-        System.arraycopy(contentBytes, 0, result, BOM.length, contentBytes.length);
-        Files.write(path, result);
+        //++agent TASK-172 [02.06.2026 07:17:00]
+        // Канон Designer (_Демо): метаданные/обёртки .xml — BOM + CRLF.
+        Files.write(path, io.github.onec.xmlgen.io.Crlf.withBom(content));
+        //++agent TASK-172
     }
 
     private void info(String msg) { out.println("[INFO] " + msg); }

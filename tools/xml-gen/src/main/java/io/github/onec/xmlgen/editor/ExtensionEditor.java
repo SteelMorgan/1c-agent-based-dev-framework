@@ -823,11 +823,10 @@ public class ExtensionEditor {
     }
 
     private void writeWithBom(Path path, String content) throws IOException {
-        byte[] bytes = content.getBytes(StandardCharsets.UTF_8);
-        byte[] result = new byte[BOM.length + bytes.length];
-        System.arraycopy(BOM, 0, result, 0, BOM.length);
-        System.arraycopy(bytes, 0, result, BOM.length, bytes.length);
-        Files.write(path, result);
+        //++agent TASK-172 [02.06.2026 07:15:00]
+        // Канон Designer (_Демо): новые scaffold-файлы расширения (xml/.bsl) — BOM + CRLF.
+        Files.write(path, io.github.onec.xmlgen.io.Crlf.withBom(content));
+        //++agent TASK-172
     }
 
     private static String esc(String s) {

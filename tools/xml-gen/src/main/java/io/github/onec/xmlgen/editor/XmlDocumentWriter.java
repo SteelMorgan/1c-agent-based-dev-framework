@@ -17,11 +17,18 @@ public class XmlDocumentWriter {
     private static final String INDENT = "\t"; // 1C style usually uses tabs
 
     public void write(XmlDocument document, Path path) throws IOException {
-        try (OutputStream os = Files.newOutputStream(path)) {
-            // Write BOM if needed
+        try (OutputStream rawOs = Files.newOutputStream(path)) {
+            // Write BOM if needed — ДО фильтра, BOM не нормализуется.
             if (document.isHasBom()) {
-                os.write(new byte[]{(byte) 0xEF, (byte) 0xBB, (byte) 0xBF});
+                rawOs.write(new byte[]{(byte) 0xEF, (byte) 0xBB, (byte) 0xBF});
             }
+
+            //++agent TASK-172 [02.06.2026 07:13:00]
+            // Канон Designer (_Демо) — CRLF. bw.newLine() даёт платформенный разделитель
+            // (LF на Linux), что ломало CRLF канон-файла при правке. Навешиваем CRLF единым
+            // байтовым фильтром, как в StAX-пути.
+            OutputStream os = io.github.onec.xmlgen.io.Crlf.wrapLfToCrlf(rawOs);
+            //++agent TASK-172
 
             // Используем BufferedWriter для эффективности
             try (Writer writer = new OutputStreamWriter(os, StandardCharsets.UTF_8);

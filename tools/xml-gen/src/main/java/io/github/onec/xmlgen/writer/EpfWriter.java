@@ -215,7 +215,11 @@ public class EpfWriter extends XmlWriter {
         String moduleComment = isReport
                 ? "// Модуль объекта отчёта " + name + "\n"
                 : "// Модуль объекта обработки " + name + "\n";
-        Files.writeString(objectModule, moduleComment);
+        //++agent TASK-172 [02.06.2026 07:25:00]
+        // Канон Designer (_Демо): ObjectModule.bsl — BOM + CRLF (эталон
+        // Documents/_Демо*/Ext/ObjectModule.bsl: ef bb bf + CRLF).
+        Files.write(objectModule, io.github.onec.xmlgen.io.Crlf.withBom(moduleComment));
+        //++agent TASK-172
 
         System.out.println("Created " + objectKind() + ": " + name);
         System.out.println("  Root XML: " + rootXml);
@@ -293,8 +297,11 @@ public class EpfWriter extends XmlWriter {
         Path moduleDir = formXmlPath.getParent().resolve("Form");
         Files.createDirectories(moduleDir);
         Path modulePath = moduleDir.resolve("Module.bsl");
-        Files.writeString(modulePath, "// Модуль формы " + formName + "\n");
-        
+        //++agent TASK-172 [02.06.2026 07:25:00]
+        // Канон Designer (_Демо): .bsl модуля формы — BOM + CRLF.
+        Files.write(modulePath, io.github.onec.xmlgen.io.Crlf.withBom("// Модуль формы " + formName + "\n"));
+        //++agent TASK-172
+
         // 5. Обновить корневой XML обработки (добавить <Form> в ChildObjects)
         updateEpfXmlAddForm(outputDir.resolve(epfName + ".xml"), epfName, formName, setAsDefault);
         
@@ -366,7 +373,13 @@ public class EpfWriter extends XmlWriter {
      * Создать описание формы (Form.xml).
      */
     private void createFormDefinition(Path outputPath, String epfName) throws IOException, XMLStreamException {
-        createWriter(outputPath, false, FORM_NAMESPACES); // БЕЗ BOM для Form.xml
+        //**agent TASK-172 [01.06.2026 22:05:00]
+        // BOM на Form.xml: канон _Демо — ВСЕ Ext/Form.xml идут с BOM (ef bb bf,
+        // проверено на CommonForms/Documents-формах), и standalone FormWriter:133
+        // (TASK-171) тоже пишет BOM. Прежний false расходился с каноном — исправлено.
+        //createWriter(outputPath, false, FORM_NAMESPACES); // BOM-долг
+        createWriter(outputPath, true, FORM_NAMESPACES);
+        //**agent TASK-172
         writeXmlDeclaration();
         
         Map<String, String> allNamespaces = new HashMap<>(FORM_NAMESPACES);
@@ -434,10 +447,14 @@ public class EpfWriter extends XmlWriter {
             content = content.replace("<DefaultForm></DefaultForm>", 
                                      "<DefaultForm>" + defaultFormValue + "</DefaultForm>");
         }
-        
-        Files.writeString(epfXmlPath, content);
+
+        //++agent TASK-172 [02.06.2026 07:26:00]
+        // Канон Designer (_Демо) — CRLF. Вставка <Form> добавляет \n-фрагмент; нормализуем
+        // итог к CRLF идемпотентно. BOM-символ из начала исходника сохраняется при записи.
+        Files.writeString(epfXmlPath, io.github.onec.xmlgen.io.Crlf.normalize(content));
+        //++agent TASK-172
     }
-    
+
     private void addTemplateDesigner(String epfName, String templateName, String templateSynonym, String templateType, Path outputDir) throws IOException, XMLStreamException {
         // TASK-171 D3: нормализуем тип через единый парсер (поддержка алиасов и DataCompositionSchema).
         // Раньше DCS падал "Unknown template type", и внешний отчёт со схемой собрать было нельзя.
@@ -551,12 +568,10 @@ public class EpfWriter extends XmlWriter {
 
     /** Записать текстовое тело макета с UTF-8 BOM (канон Designer-вывода, TASK-171). */
     private void writeBodyWithBom(Path path, String content) throws IOException {
-        byte[] bom = new byte[] {(byte) 0xEF, (byte) 0xBB, (byte) 0xBF};
-        byte[] bytes = content.getBytes(StandardCharsets.UTF_8);
-        byte[] result = new byte[bom.length + bytes.length];
-        System.arraycopy(bom, 0, result, 0, bom.length);
-        System.arraycopy(bytes, 0, result, bom.length, bytes.length);
-        Files.write(path, result);
+        //++agent TASK-172 [02.06.2026 07:26:00]
+        // Канон Designer (_Демо): тела макетов Template.xml — BOM + CRLF (TASK-172 добавил CRLF).
+        Files.write(path, io.github.onec.xmlgen.io.Crlf.withBom(content));
+        //++agent TASK-172
     }
     
     // TASK-171 D1/W5: getTemplateExtension (Designer) удалён — расширение теперь берётся из
