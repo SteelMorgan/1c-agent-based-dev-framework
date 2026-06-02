@@ -52,6 +52,39 @@ Both adapters support the same lifecycle:
 Status interpretation: a moving heartbeat means the process is alive; a stale heartbeat without stdout/stderr growth is
 practical evidence of a stuck state; `phase=timeout` means a single invocation exceeded the timeout.
 
+## 🔴 CRITICAL: mandatory sandbox cleanup (`close`)
+
+> **Level: CRITICAL / MUST.** Sandbox cleanup is tied EXCLUSIVELY to an explicit `close` call. The adapters have NO
+> automatic cleanup: no `atexit`, no signal handler, no TTL/age sweep, and no orphaned-sandbox collection at `start`.
+> If the agent never reaches `close` (crash, yield, error/FAIL branch, escalation, forgetfulness), the
+> `.review-sandboxes/<review_id>/` directory together with the full-context source mirror remains on disk **forever**.
+> In practice, this has already led to dozens of orphaned directories that had to be deleted manually.
+
+**MUST for every `start`:**
+
+| Requirement | Description |
+|-----------|----------|
+| Start↔close pairing | Every `start` MUST have a paired `close` in the same agent session. `start` without a guaranteed `close` is forbidden |
+| `close` on all branches | `close` is called on ANY termination path: PASS, FAIL, user escalation, review refusal, adapter error. Not just on the happy path |
+| `close` in finalization | Before writing `final-report.md`, the agent MUST ensure that all open reviews are closed (see checkpoint below) |
+| Cleanup report | The final report/context records the `cleanup status` of each `review_id`: `closed` or (rarely) `kept --keep-sandbox: <forensic reason>` |
+| `--keep-sandbox` only when justified | Use ONLY for forensic/debug with an explicit written reason. Default is a normal `close` with deletion |
+
+**✅ CHECKPOINT before task completion (MUST run):**
+
+```bash
+# 1. Show all OPEN sandboxes in the project:
+ls -1 .review-sandboxes/ 2>/dev/null
+# 2. For each remaining <review_id> - close it:
+<adapter-script> close <review_id>
+# 3. Confirm that the directory is empty (expected 0):
+ls -1 .review-sandboxes/ 2>/dev/null | wc -l
+```
+
+If step 3 returns anything other than 0, the task is NOT considered complete from the cleanup perspective: close the
+remaining reviews and only then close the task. A non-empty `.review-sandboxes/` at the time of the final report is a
+violation of this skill.
+
 ## Claude / Opus Adapter
 
 Start:

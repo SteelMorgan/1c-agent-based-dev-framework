@@ -52,6 +52,38 @@ agent, review trace и наблюдаемый lifecycle/cleanup.
 Status interpretation: движущийся heartbeat означает, что процесс жив; stale heartbeat без stdout/stderr growth является
 практическим сигналом stuck-состояния; `phase=timeout` означает, что один invocation превысил timeout.
 
+## 🔴 КРИТИЧНО: обязательная очистка sandbox (`close`)
+
+> **Уровень: CRITICAL / MUST.** Очистка sandbox привязана ИСКЛЮЧИТЕЛЬНО к явному вызову `close`. В адаптерах НЕТ
+> автоматической уборки: ни `atexit`, ни обработчика сигналов, ни TTL/age-sweep, ни сборки осиротевших sandbox при `start`.
+> Если агент не дошёл до `close` (краш, yield, ветка ошибки/FAIL, эскалация, забывчивость) — каталог
+> `.review-sandboxes/<review_id>/` вместе с full-context зеркалом источника остаётся на диске **навсегда**. На практике это
+> уже приводило к десяткам осиротевших каталогов, удалённых вручную.
+
+**MUST для каждого `start`:**
+
+| Требование | Описание |
+|-----------|----------|
+| Парность start↔close | Любой `start` ОБЯЗАН иметь парный `close` в том же сеансе работы агента. `start` без гарантированного `close` запрещён |
+| close во всех ветках | `close` вызывается на ЛЮБОМ пути завершения: PASS, FAIL, эскалация пользователю, отказ от ревью, ошибка адаптера. Не только на happy path |
+| close в финализации | Перед записью `final-report.md` агент ОБЯЗАН убедиться, что все открытые review закрыты (см. чекпоинт ниже) |
+| Отчёт о cleanup | В итоговый отчёт/контекст записывается `cleanup status` каждого review_id: `closed` или (редко) `kept --keep-sandbox: <причина forensic>` |
+| `--keep-sandbox` только обоснованно | Применять ТОЛЬКО для forensic/debug с явной письменной причиной. По умолчанию — обычный `close` с удалением |
+
+**✅ CHECKPOINT перед завершением задачи (выполнить ОБЯЗАТЕЛЬНО):**
+
+```bash
+# 1. Показать все НЕзакрытые sandbox в проекте:
+ls -1 .review-sandboxes/ 2>/dev/null
+# 2. Для каждого оставшегося <review_id> — закрыть:
+<adapter-script> close <review_id>
+# 3. Подтвердить, что каталог пуст (ожидается 0):
+ls -1 .review-sandboxes/ 2>/dev/null | wc -l
+```
+
+Если шаг 3 вернул не 0 — задача НЕ считается завершённой по части cleanup: закрыть оставшиеся review и только потом
+закрывать задачу. Непустой `.review-sandboxes/` на момент финального отчёта = нарушение этого навыка.
+
 ## Claude / Opus Adapter
 
 Start:
@@ -162,9 +194,9 @@ happy path. `close --keep-sandbox` используй только для ред
 7. Используй `ask` для follow-up/delta review и `debate` только для конкретных спорных finding IDs.
 8. Используй `log`, `stats` или `show`, когда нужны trace/debug evidence.
 9. Остановись на consensus, unchanged stalemate for two rounds или max round count.
-10. Закрой review, когда он больше не нужен.
+10. **🔴 MUST — `close` REVIEW_ID, как только review больше не нужен** (см. раздел «КРИТИЧНО: обязательная очистка sandbox»). Это не «когда удобно», а обязательный шаг закрытия: без него sandbox остаётся на диске навсегда. `close` вызывается даже если ревью завершилось отказом/ошибкой.
 11. Зафиксируй final report: unified findings, disagreements with both positions, iteration count, recommendation,
-    review id, cleanup status и relevant status/log evidence.
+    review id, **cleanup status (`closed` для каждого review_id)** и relevant status/log evidence. Перед закрытием задачи прогони CHECKPOINT из раздела «КРИТИЧНО»: `.review-sandboxes/` должен быть пуст.
 
 ## Finalization Gate Protocol (blocking)
 
@@ -180,10 +212,11 @@ happy path. `close --keep-sandbox` используй только для ред
 4. Если `verdict: PASS` — задача может закрываться. Зафиксируй review_id в `final-report.md` в блоке `cross_provider_review`.
 5. Если `verdict: FAIL` — обработай findings evidence-based правками (diff, новый stdout, уточнённый лог). Используй `ask` для следующего раунда.
 6. Если `iteration: 3` и приговор не `PASS` — reviewer выдаёт `escalate_to_user: true` с `dispute_summary`. Оркестратор обязан эскалировать пользователю, передав dispute_summary дословно. Решение пользователя — финальное.
-7. Закрой review (`close`) только после задокументированного приговора PASS или user override'а.
+7. **🔴 MUST — `close` review после задокументированного приговора PASS или user override'а** (см. раздел «КРИТИЧНО: обязательная очистка sandbox»). Закрытие gate-review обязательно ВО ВСЕХ исходах, включая эскалацию после 3 раундов: после фиксации приговора/override в `final-report.md` sandbox должен быть удалён через `close`. Затем прогони CHECKPOINT: `.review-sandboxes/` пуст.
 
 **Запрещено:**
 - Закрывать задачу (`final-report.md` + отчёт пользователю «готово») без `verdict: PASS` или пользовательского override'а.
+- Закрывать задачу с непустым `.review-sandboxes/` — каждый review_id ОБЯЗАН быть `close`-нут (см. CHECKPOINT в разделе «КРИТИЧНО»).
 - Деградировать findings раунд за раундом — reviewer не обязан смягчаться.
 - Запускать gate-режим в same-family (Claude→Claude или Codex→Codex) — это нарушает cross-family gate requirement.
 

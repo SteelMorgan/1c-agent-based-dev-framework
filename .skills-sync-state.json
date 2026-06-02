@@ -663,9 +663,9 @@
       "status": "synced"
     },
     "framework/skills/tool-usage/review/cross-provider-review/SKILL.md": {
-      "ru_hash": "sha256:01ffc1b5299adeb48ccdfbc91ddea074c9756a6405e9ddc1ff28ae485cdb3a48",
-      "en_hash": "sha256:03204e67d9d395912f605360021469024f5c2e3a782988143f795e5c3d5317e9",
-      "synced_at": "2026-04-23T18:29:15Z",
+      "ru_hash": "sha256:f20965995af876b121ab475fd9da1353655c6a4789d7cf262bf0685d45a770fc",
+      "en_hash": "sha256:574c13c5599afc9464df321f7c8fa15423a939fd6fccc5024fc13ef7a0f67702",
+      "synced_at": "2026-06-02T07:41:32Z",
       "status": "synced"
     },
     "framework/skills/tool-usage/review/cross-provider-review/references/review-prompt.md": {
