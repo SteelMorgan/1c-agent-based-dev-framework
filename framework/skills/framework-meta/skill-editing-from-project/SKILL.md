@@ -41,10 +41,10 @@ description: >
 
 ```json
 {
-  "skill/vanessa-run": {
+  "skill/vanessa-authoring": {
     "type": "skill",
-    "ru_path": "/path/to/fw/framework/skills/tool-usage/vanessa/vanessa-run/SKILL.md",
-    "en_path": "/path/to/fw/framework_eng/skills/tool-usage/vanessa/vanessa-run/SKILL.md"
+    "ru_path": "/path/to/fw/framework/skills/tool-usage/vanessa/vanessa-authoring/SKILL.md",
+    "en_path": "/path/to/fw/framework_eng/skills/tool-usage/vanessa/vanessa-authoring/SKILL.md"
   }
 }
 ```
