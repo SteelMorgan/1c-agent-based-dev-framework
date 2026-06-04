@@ -234,7 +234,7 @@ depends_on:
   - framework/rules/capability-resolution.mdc
   - framework/rules/no-direct-db-access.md
   - framework/rules/skill-learning-policy.md
-  - framework/workflows/source-of-truth-policy.md
+  - framework/rules/source-of-truth.md
   - framework/rules/tdd-policy.md
   - framework/rules/vanessa-scenario-policy.mdc
   - framework/rules/vanessa-test-isolation-policy.mdc

@@ -7,11 +7,17 @@ description: Full development cycle with mandatory cross-review at every phase.
 
 > A deterministic workflow with cross-review at every phase. For medium and high complexity tasks.
 
+> **Placement in retiering (Layer 3, read-on-choice).** This is detailed phase mechanics. The orchestration discipline
+> and phase shape are already durable in the **orchestrator profile** (`framework/subagents/orchestrator.md`,
+> Layer 2). The orchestrator does NOT "load this document as a rule" - it lifts the phase mechanics from here
+> **upon entering a phase**, from its own profile. Starting the full cycle is a Lead-layer decision
+> (classification "medium/complex"), not loading an external document into an arbitrary session.
+
 ## Phases
 
 ### Phase 0: Classification (Explorer → Economy)
 
-Explorer examines the codebase → modules, call graphs, dependencies. The orchestrator classifies: Simple → quick-fix; Medium/Complex → Phase 1.
+Explorer examines the codebase → modules, call graphs, dependencies. The orchestrator classifies (Lead-layer profile): Simple → short cycle (`quick-fix` skill); Medium/Complex → Phase 1.
 
 Explorer artifacts are passed to Phase 1 and Phase 2 as context.
 
@@ -75,7 +81,8 @@ Tester runs all tests, adds edge cases, integration tests, regression tests. Rev
 
 ---
 depends_on:
-  - framework/workflows/quick-fix.md
+  - framework/subagents/orchestrator.md
+  - framework/skills/framework-meta/quick-fix/SKILL.md
   - framework/subagents/explorer.md
   - framework/subagents/analyst.md
   - framework/subagents/architect.md
@@ -85,6 +92,6 @@ depends_on:
   - framework/subagents/developer-code.md
   - framework/subagents/tester.md
   - framework/subagents/reviewer.md
-  - framework/workflows/source-of-truth-policy.md
+  - framework/rules/source-of-truth.md
   - framework/rules/tdd-policy.md
 ---
