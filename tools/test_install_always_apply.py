@@ -214,8 +214,13 @@ def test_install_claude_code_always_in_rules_dir():
     print("  OK  test_install_claude_code_always_in_rules_dir")
 
 
-def test_install_codex_always_in_rules_dir():
-    """Аналогичная проверка для codex CLI."""
+def test_install_codex_rules_as_skills():
+    """Codex: правила разворачиваются как навыки в .codex/skills/<name>/SKILL.md.
+
+    В отличие от claude-code, фильтр alwaysApply НЕ применяется — берутся ВСЕ
+    правила (и always-on, и lazy), т.к. Codex читает их как навыки по требованию.
+    Каталог .codex/rules/ не используется.
+    """
     with tempfile.TemporaryDirectory() as tmp:
         fw, base = _make_fw(Path(tmp))
         project_dir = base / "project_codex"
@@ -223,19 +228,122 @@ def test_install_codex_always_in_rules_dir():
 
         _run_install(fw, "codex", project_dir)
 
+        skills_dir = project_dir / ".codex" / "skills"
         rules_dir = project_dir / ".codex" / "rules"
 
-        rule_always_file = rules_dir / "rule-always.md"
-        assert rule_always_file.exists(), (
-            f"rule-always.md ожидается в {rules_dir} (codex)"
+        # Все правила → навыки skills/<name>/SKILL.md (включая lazy и explicit-false)
+        for rule_name in ("rule-always", "rule-lazy", "rule-explicit-false"):
+            skill_file = skills_dir / rule_name / "SKILL.md"
+            assert skill_file.exists(), (
+                f"Правило {rule_name} ожидается как навык {skill_file} (codex)"
+            )
+
+        # Каталог .codex/rules/ не должен содержать .md-правил
+        assert not (rules_dir / "rule-always.md").exists(), (
+            "rule-always.md НЕ ожидается в .codex/rules/ (правила идут в skills/)"
         )
 
-        rule_lazy_file = rules_dir / "rule-lazy.md"
-        assert not rule_lazy_file.exists(), (
-            f"rule-lazy.md НЕ ожидается в {rules_dir} (codex, нет alwaysApply:true)"
+        # Обычный навык — на месте
+        assert (skills_dir / "my-skill" / "SKILL.md").exists(), (
+            "Навык my-skill ожидается в .codex/skills/"
         )
 
-    print("  OK  test_install_codex_always_in_rules_dir")
+    print("  OK  test_install_codex_rules_as_skills")
+
+
+def test_install_codex_rule_skill_name_collision():
+    """Codex: правило, одноимённое навыку, получает префикс rule_ (не пропускается).
+
+    coding-standards есть и как rule, и как skill → каталоги коллидируют. Правило
+    должно лечь в .codex/skills/rule_coding-standards/, навык — в coding-standards/.
+    """
+    with tempfile.TemporaryDirectory() as tmp:
+        fw = Path(tmp) / "framework"
+        (fw / "rules").mkdir(parents=True)
+        (fw / "rules" / "coding_standards.md").write_text(textwrap.dedent("""\
+            ---
+            name: coding-standards
+            description: Триггер-правило стандартов кодирования.
+            alwaysApply: true
+            ---
+            # Coding Standards (rule)
+            Тело правила-триггера.
+        """), encoding="utf-8")
+
+        skill_dir = fw / "skills" / "coding-standards"
+        skill_dir.mkdir(parents=True)
+        (skill_dir / "SKILL.md").write_text(textwrap.dedent("""\
+            ---
+            name: coding-standards
+            description: Навык стандартов кодирования.
+            ---
+            # Coding Standards (skill)
+            Тело навыка.
+        """), encoding="utf-8")
+
+        project_dir = Path(tmp) / "project"
+        project_dir.mkdir()
+        _run_install(fw, "codex", project_dir)
+
+        skills_dir = project_dir / ".codex" / "skills"
+
+        # Правило → с префиксом rule_ (не пропущено)
+        assert (skills_dir / "rule_coding-standards" / "SKILL.md").exists(), (
+            "Одноимённое правило ожидается как .codex/skills/rule_coding-standards/SKILL.md"
+        )
+        # Навык → без префикса
+        assert (skills_dir / "coding-standards" / "SKILL.md").exists(), (
+            "Навык coding-standards ожидается в .codex/skills/coding-standards/"
+        )
+
+    print("  OK  test_install_codex_rule_skill_name_collision")
+
+
+def test_install_codex_agent_to_toml():
+    """Codex: агенты конвертируются в .codex/agents/<name>.toml (name/description/body)."""
+    with tempfile.TemporaryDirectory() as tmp:
+        fw = Path(tmp) / "framework"
+        (fw / "subagents").mkdir(parents=True)
+        (fw / "subagents" / "frontend-builder.md").write_text(textwrap.dedent("""\
+            ---
+            name: frontend-builder
+            description: Builds approved frontend implementation for this project.
+              Use proactively after design approval.
+            ---
+            You are the frontend-builder for this repository.
+            Follow the project implementation rules and use the approved design.
+
+            ---
+            depends_on:
+              - framework/skills/some-skill/SKILL.md
+            ---
+        """), encoding="utf-8")
+
+        project_dir = Path(tmp) / "project"
+        project_dir.mkdir()
+        _run_install(fw, "codex", project_dir)
+
+        toml_path = project_dir / ".codex" / "agents" / "frontend-builder.toml"
+        assert toml_path.exists(), f"Ожидается TOML-профиль {toml_path}"
+
+        try:
+            import tomllib
+        except ModuleNotFoundError:  # py<3.11
+            print("  SKIP test_install_codex_agent_to_toml (нет tomllib)")
+            return
+        data = tomllib.loads(toml_path.read_text(encoding="utf-8"))
+
+        assert data["name"] == "frontend-builder", data.get("name")
+        # description folded на 2 строки — должно склеиться целиком
+        assert "Use proactively after design approval." in data["description"], (
+            f"description должен включать обе строки: {data['description']!r}"
+        )
+        instr = data["developer_instructions"]
+        assert "You are the frontend-builder" in instr, instr[:80]
+        # хвостовой backmatter (depends_on) не должен попасть в инструкции
+        assert "depends_on" not in instr, "backmatter не должен быть в developer_instructions"
+
+    print("  OK  test_install_codex_agent_to_toml")
 
 
 # ─── Тест 4: component_map в .install-session.json ───────────────────────────
@@ -457,7 +565,9 @@ def main():
         test_always_apply_parsed,
         test_is_always_on_rule,
         test_install_claude_code_always_in_rules_dir,
-        test_install_codex_always_in_rules_dir,
+        test_install_codex_rules_as_skills,
+        test_install_codex_rule_skill_name_collision,
+        test_install_codex_agent_to_toml,
         test_session_log_component_map,
         test_estimate_context_lazy_rule_is_on_demand,
         test_print_tree_rule_grouping,

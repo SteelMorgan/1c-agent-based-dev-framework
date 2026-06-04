@@ -165,17 +165,10 @@ IDE_CONFIGS = {
         "rules_dir": ".codex/rules",
         "skills_dir": ".codex/skills",
         "agents_dir": ".codex/agents",
-        "description": "Codex CLI (OpenAI) — AGENTS.md + .codex/rules/, агенты в .codex/agents/",
-        # Codex natively reads only AGENTS.md — .codex/rules/ is our convention, needs @ref
-        "rules_import_hint": {
-            "file": "AGENTS.md",
-            "format": "See .codex/rules/{name}.md for {name} rules",
-            "note": (
-                "Codex CLI читает только AGENTS.md (иерархически).\n"
-                "Файлы в .codex/rules/ НЕ загружаются автоматически.\n\n"
-                "Добавьте ссылки в AGENTS.md в корне проекта:"
-            ),
-        },
+        "description": "Codex CLI (OpenAI) — правила → навыки .codex/skills/<name>/SKILL.md, агенты → .codex/agents/<name>.toml",
+        # Codex-специфика (см. _codex_mode / _install_codex_component):
+        #   rule  → .codex/skills/<rule-name>/SKILL.md (симлинк на файл правила, имя правила = имя навыка)
+        #   agent → .codex/agents/<agent-name>.toml (конвертация: frontmatter name/description + тело → developer_instructions)
     },
     "antigravity": {
         "name": "Antigravity",
@@ -394,8 +387,28 @@ class FrameworkGraph:
         self.mirror_dir = mirror_dir if (mirror_dir and mirror_dir.is_dir()) else None
         self.components: Dict[str, Component] = {}
         self._reverse_deps: Dict[str, Set[str]] = {}  # Кэш обратных зависимостей
+        self._codex_prefixed_rules: Optional[Set[str]] = None  # Кэш правил с коллизией имён
         self._scan()
         self._build_reverse_deps()
+
+    def codex_prefixed_rule_names(self) -> Set[str]:
+        """short_name правил, имя которых совпадает с устанавливаемым навыком.
+
+        В Codex правила разворачиваются в общий .codex/skills/. Если правило
+        одноимённо навыку (coding-standards), каталоги коллидируют — такому
+        правилу даём префикс rule_ (→ .codex/skills/rule_coding-standards/).
+        """
+        if self._codex_prefixed_rules is None:
+            skill_names: Set[str] = set()
+            rule_names: Set[str] = set()
+            for c in self.get_installable_for_user():
+                _, _, sn = _component_source_paths(c)
+                if c.type == "skill":
+                    skill_names.add(sn)
+                elif c.type == "rule":
+                    rule_names.add(sn)
+            self._codex_prefixed_rules = rule_names & skill_names
+        return self._codex_prefixed_rules
 
     def _infer_type_from_path(self, md_file: Path) -> Optional[str]:
         """Определяет тип компонента по его расположению в framework/."""
@@ -1787,8 +1800,175 @@ def _component_source_paths(
     return source_file, source_path, short_name
 
 
+# ─── Codex-специфичная установка ─────────────────────────────────────────────
+# Codex CLI разворачивает компоненты иначе остальных IDE:
+#   rule  → навык:   .codex/skills/<rule-name>/SKILL.md  (симлинк на файл правила)
+#   agent → профиль: .codex/agents/<agent-name>.toml      (конвертация из *.md)
+
+def _codex_mode(comp: Component, ide_key: str) -> Optional[str]:
+    """Режим codex-специфичной установки для компонента или None.
+
+    'rule_skill' — правило разворачивается как навык (skills/<name>/SKILL.md);
+    'agent_toml' — агент конвертируется в TOML-профиль (agents/<name>.toml).
+    """
+    if ide_key != "codex":
+        return None
+    if comp.type == "rule":
+        return "rule_skill"
+    if comp.type in ("agent", "subagent"):
+        return "agent_toml"
+    return None
+
+
+def _read_body_after_frontmatter(path: Path) -> str:
+    """Возвращает прозу агента: тело без ведущего frontmatter и без хвостового
+    технического backmatter-блока (depends_on/skills) субагентов."""
+    try:
+        text = path.read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError):
+        return ""
+    m = FRONTMATTER_RE.match(text)
+    body = text[m.end():] if m else text
+    # Срезаем хвостовой технический ---блок--- (стиль subagent/*.md): он несёт
+    # depends_on/skills, а не инструкции агенту.
+    back = BACKMATTER_RE.search(body)
+    if back:
+        body = body[: back.start()]
+    return body.strip()
+
+
+def _frontmatter_scalar_folded(source_file: Path, key: str) -> str:
+    """Извлекает скалярное поле frontmatter, склеивая многострочные (folded) значения.
+
+    Общий `_parse_simple_yaml_block` берёт только первую строку folded-скаляра
+    (description у агентов часто занимает 2-3 строки). Здесь собираем всё значение
+    до следующего ключа того же уровня и склеиваем в одну строку.
+    """
+    try:
+        text = source_file.read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError):
+        return ""
+    m = FRONTMATTER_RE.match(text)
+    if not m:
+        return ""
+
+    collected: List[str] = []
+    capturing = False
+    base_indent = 0
+    for line in m.group(1).splitlines():
+        if not capturing:
+            stripped = line.strip()
+            if stripped.startswith(f"{key}:"):
+                val = stripped.split(":", 1)[1].strip()
+                if val not in (">", "|", ">-", "|-", ">+", "|+"):  # folding-индикаторы
+                    if val:
+                        collected.append(val)
+                base_indent = len(line) - len(line.lstrip())
+                capturing = True
+            continue
+        # сбор continuation-строк (с отступом больше ключа)
+        if not line.strip():
+            continue
+        if (len(line) - len(line.lstrip())) <= base_indent:
+            break  # следующий ключ того же уровня
+        collected.append(line.strip())
+
+    return " ".join(" ".join(collected).split())
+
+
+def _toml_basic_string(value: str) -> str:
+    """Однострочное TOML basic-значение с экранированием спецсимволов."""
+    escaped = (
+        value.replace("\\", "\\\\")
+        .replace('"', '\\"')
+        .replace("\n", " ")
+        .replace("\t", " ")
+    )
+    return f'"{escaped}"'
+
+
+def generate_codex_agent_toml(source_file: Path, fallback_name: str) -> str:
+    """Конвертирует агент-*.md в Codex TOML-профиль.
+
+    Шаблон Codex:
+        name = "frontend-builder"
+        description = "..."
+        developer_instructions = "..."
+
+    name/description берутся из frontmatter, тело файла → developer_instructions.
+    """
+    fm = parse_frontmatter(source_file) or {}
+    name = str(fm.get("name") or fallback_name).strip()
+    # description часто folded на 2-3 строки — берём полное значение, а не первую строку
+    description = _frontmatter_scalar_folded(source_file, "description")
+    if not description:
+        description = " ".join(str(fm.get("description") or "").split())
+    body = _read_body_after_frontmatter(source_file)
+
+    # developer_instructions — многострочное тело агента.
+    # Предпочитаем TOML-литерал ('''…'''), он не требует экранирования.
+    # Если тело содержит разделитель ''', падаем в экранированный basic-блок.
+    if "'''" not in body:
+        instr = "'''\n" + body + "\n'''"
+    else:
+        esc = body.replace("\\", "\\\\").replace('"""', '\\"\\"\\"')
+        instr = '"""\n' + esc + '\n"""'
+
+    return (
+        f"name = {_toml_basic_string(name)}\n"
+        f"description = {_toml_basic_string(description)}\n"
+        f"developer_instructions = {instr}\n"
+    )
+
+
+def _install_codex_component(
+    comp: Component,
+    mode: str,
+    source_file: Path,
+    target_file: Path,
+    dry_run: bool,
+) -> int:
+    """Размещает codex-компонент. Возвращает 1 (установлен).
+
+    rule_skill — симлинк SKILL.md → файл правила (имя правила = имя навыка);
+    agent_toml — генерирует .toml-профиль из тела агента.
+    """
+    if dry_run:
+        action = (
+            "→ (symlink as skill, SKILL.md)"
+            if mode == "rule_skill"
+            else "→ (convert → .toml)"
+        )
+        print(f"    {action} {target_file}")
+        return 1
+
+    # Удаляем прежний артефакт (симлинк или файл) до пересоздания
+    if target_file.is_symlink() or target_file.exists():
+        target_file.unlink()
+    target_file.parent.mkdir(parents=True, exist_ok=True)
+
+    if mode == "rule_skill":
+        try:
+            try:
+                rel_path = os.path.relpath(source_file, target_file.parent)
+                target_file.symlink_to(rel_path)
+            except ValueError:
+                target_file.symlink_to(source_file)
+        except OSError as e:
+            print(red(f"  ✗ Ошибка симлинка {comp.id}: {e}"))
+            shutil.copy2(source_file, target_file)
+            print(yellow(f"    → скопирован как fallback"))
+    else:  # agent_toml
+        fallback_name = comp.id.rpartition("/")[2] or comp.id
+        target_file.write_text(
+            generate_codex_agent_toml(source_file, fallback_name), encoding="utf-8"
+        )
+    return 1
+
+
 def _component_target_file(
-    comp: Component, ide_key: str, project_dir: Path, use_symlinks: bool = True
+    comp: Component, ide_key: str, project_dir: Path, use_symlinks: bool = True,
+    graph: "Optional[FrameworkGraph]" = None,
 ) -> Path:
     """Строит целевой путь компонента в каталоге проекта.
     Для навыков: симлинк и копия — short_name (как у исходной папки).
@@ -1799,6 +1979,16 @@ def _component_target_file(
     dir_key = _dir_key_for_component(comp.type, ide_cfg)
     target_base = project_dir / ide_cfg[dir_key]
     source_file, _, short_name = _component_source_paths(comp)
+    # Codex: правило → навык skills/<name>/SKILL.md, агент → agents/<name>.toml
+    codex_mode = _codex_mode(comp, ide_key)
+    if codex_mode == "rule_skill":
+        folder = short_name
+        # Коллизия с одноимённым навыком → префикс rule_ (см. codex_prefixed_rule_names)
+        if graph is not None and short_name in graph.codex_prefixed_rule_names():
+            folder = f"rule_{short_name}"
+        return project_dir / ide_cfg["skills_dir"] / folder / "SKILL.md"
+    if codex_mode == "agent_toml":
+        return project_dir / ide_cfg["agents_dir"] / f"{short_name}.toml"
     if comp.type == "skill":
         if use_symlinks:
             return target_base / short_name  # симлинк на каталог
@@ -1831,8 +2021,8 @@ def detect_existing_component_symlinks(
     for comp in graph.get_installable_for_user():
         # Навыки: проверяем оба варианта (short_name и short_name.md) для совместимости
         target_candidates = [
-            _component_target_file(comp, ide_key, project_dir, use_symlinks=True),
-            _component_target_file(comp, ide_key, project_dir, use_symlinks=False),
+            _component_target_file(comp, ide_key, project_dir, use_symlinks=True, graph=graph),
+            _component_target_file(comp, ide_key, project_dir, use_symlinks=False, graph=graph),
         ]
         target_file = next((t for t in target_candidates if t.is_symlink()), None)
         if not target_file:
@@ -1995,7 +2185,7 @@ def install_components(
             continue
 
         for use_sl in (True, False):
-            target_file = _component_target_file(comp, ide_key, project_dir, use_symlinks=use_sl)
+            target_file = _component_target_file(comp, ide_key, project_dir, use_symlinks=use_sl, graph=graph)
             if target_file.is_symlink():
                 if dry_run:
                     print(f"    ← remove symlink {target_file}")
@@ -2003,6 +2193,12 @@ def install_components(
                 else:
                     target_file.unlink()
                     removed += 1
+                    # Codex: правило-как-навык оставляет пустой каталог skills/<name>/ — чистим
+                    if _codex_mode(comp, ide_key) == "rule_skill":
+                        try:
+                            target_file.parent.rmdir()
+                        except OSError:
+                            pass
                 break
 
     for comp_id in sorted(all_ids):
@@ -2022,7 +2218,8 @@ def install_components(
         # Фильтр alwaysApply: правила без alwaysApply: true НЕ попадают в always-on каталог IDE.
         # Такие правила доступны через component_map (читаются агентом по требованию).
         # Навыки (skill) этот фильтр не затрагивает — они идут в skills_dir всегда.
-        if comp.type == "rule" and not comp.always_apply:
+        # Codex: правила разворачиваются как навыки → фильтр alwaysApply не применяется (берём все).
+        if comp.type == "rule" and not comp.always_apply and ide_key != "codex":
             # Правило не-always-on: пропускаем физическое размещение, но включаем в component_map.
             # Вывод только в dry-run для наглядности.
             if dry_run:
@@ -2031,7 +2228,17 @@ def install_components(
             continue
 
         source_file, source_path, _ = _component_source_paths(comp, graph.framework_dir, graph.mirror_dir)
-        target_file = _component_target_file(comp, ide_key, project_dir, use_symlinks=use_symlinks)
+        target_file = _component_target_file(comp, ide_key, project_dir, use_symlinks=use_symlinks, graph=graph)
+
+        # Codex: правило → навык (symlink SKILL.md), агент → TOML-профиль (конвертация).
+        # Одноимённые навыку правила автоматически получают префикс rule_ в target_file
+        # (см. _component_target_file + codex_prefixed_rule_names) — коллизии каталогов нет.
+        codex_mode = _codex_mode(comp, ide_key)
+        if codex_mode:
+            installed += _install_codex_component(
+                comp, codex_mode, source_file, target_file, dry_run
+            )
+            continue
 
         # IDE с кастомным именем файла навыка (skill.md вместо SKILL.md)
         # При симлинках: создаём каталог навыка и симлинк на файл.
