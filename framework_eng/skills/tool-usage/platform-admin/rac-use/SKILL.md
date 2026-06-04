@@ -146,8 +146,7 @@ Help for any mode: `rac help <mode>`.
 | `Infobase not found` | Incorrect database UUID | Check via `infobase summary list` |
 
 ---
-depends_on:
-  - framework/skills/tool-usage/vanessa/vanessa-run/SKILL.md
+depends_on: []
 requires:
   - tools
 ---

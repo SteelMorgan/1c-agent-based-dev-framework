@@ -1,6 +1,6 @@
 ---
 name: test-writing
-description: "Writing YaxUnit (BSL) tests. The skill teaches an agent to create test modules for the YaxUnit framework — test registration, assertions, mocking, test data."
+description: "Writing YaxUnit (BSL) tests. The skill teaches an agent to create test modules for the YaxUnit framework - test registration, assertions, mocking, test data."
 ---
 
 # Writing YaxUnit (BSL) Tests
@@ -22,7 +22,7 @@ Tests are stored in a **separate configuration extension**: `<project-root>/exts
 | EDT | `exts/TESTS/src/CommonModules/<ModuleName>/Module.bsl` | `.../<ModuleName>.mdo` |
 | DESIGNER | `exts/TESTS/src/CommonModules/<ModuleName>/Ext/Module.bsl` | `.../<ModuleName>.xml` |
 
-If the format is unclear — check `application-*.yml` / `yaxunit-*.yml` in the project root.
+If the format is unclear - check `application-*.yml` / `yaxunit-*.yml` in the project root.
 
 Do not mix structures: DESIGNER requires `Ext/`, EDT does not use it.
 
@@ -30,7 +30,7 @@ A new module must be registered in `Configuration.[mdo|xml]`, otherwise the runn
 
 **Strict prohibitions:**
 - Test sources are placed only in `exts/TESTS/**`, never in the main configuration
-- `exts/YAXUNIT/**` is never modified manually — it is runner infrastructure
+- `exts/YAXUNIT/**` is never modified manually - it is runner infrastructure
 
 ---
 
@@ -42,26 +42,26 @@ Pattern: `<Prefix>_<ObjectName>[_<Suffix>]`
 
 | Object type | Prefix | Example |
 |-------------|--------|---------|
-| Common module | `ОМ_` | `ОМ_ОбщегоНазначения` |
-| Document | `Док_` | `Док_ПоступлениеТоваров` |
-| Catalog | `Спр_` | `Спр_Контрагенты` |
-| Accumulation register | `РН_` | `РН_ОстаткиТоваров` |
-| Information register | `РС_` | `РС_КурсыВалют` |
-| Processing | `Обр_` | `Обр_ЗакрытиеМесяца` |
+| Общий модуль | `ОМ_` | `ОМ_ОбщегоНазначения` |
+| Документ | `Док_` | `Док_ПоступлениеТоваров` |
+| Справочник | `Спр_` | `Спр_Контрагенты` |
+| Регистр накопления | `РН_` | `РН_ОстаткиТоваров` |
+| Регистр сведений | `РС_` | `РС_КурсыВалют` |
+| Обработка | `Обр_` | `Обр_ЗакрытиеМесяца` |
 
 ### Suffixes by module type
 
 | Module type | Suffix | Example |
 |-------------|--------|---------|
-| Object module | `_МО` | `Спр_Контрагенты_МО` |
-| Manager module | `_ММ` | `РН_ОстаткиТоваров_ММ` |
-| Record set module | `_НЗ` | `РБ_Хозрасчетный_НЗ` |
+| Модуль объекта | `_МО` | `Спр_Контрагенты_МО` |
+| Модуль менеджера | `_ММ` | `РН_ОстаткиТоваров_ММ` |
+| Модуль набора записей | `_НЗ` | `РБ_Хозрасчетный_НЗ` |
 
 ---
 
 ## Test Module Structure
 
-Mandatory: exported procedure `ИсполняемыеСценарии`. Only test registration — no data, no logic.
+Mandatory: exported procedure `ИсполняемыеСценарии`. Only test registration - no data, no logic.
 
 ```bsl
 Процедура ИсполняемыеСценарии() Экспорт
@@ -202,7 +202,7 @@ Pattern: Train -> Run -> Verify.
 КонецПроцедуры
 ```
 
-### Context — passing data between methods
+### Context - passing data between methods
 
 ```bsl
 ЮТест.Контекст().УстановитьЗначение("МоёЗначение", Данные);
@@ -248,6 +248,47 @@ Pattern: Train -> Run -> Verify.
 | Hardcoding links to IB objects | Create through `ЮТест.Данные()` |
 | Testing private logic | Test through the public interface |
 | Mocking the tested module | Mock only *dependencies* |
+
+---
+
+## TDD Layers and Role Boundaries
+
+Tests and implementation are written by **different agents** in **different phases**. The test author does not know the implementation, and the code author does not modify the tests.
+
+```
+Phase 3a: Scenario-Author  → .feature (BDD)   ┐ параллельно
+Phase 3b: Developer-Tests  → unit-тесты (Red)  ┘
+Phase 3c: Developer-Code   → код (Green)
+Phase 4:  Tester           → edge cases, регрессия, BDD + unit
+```
+
+### Test Layers
+
+| Layer | Phase | Agent | Covers |
+|------|------|-------|-----------|
+| BDD (acceptance) | 3a | Scenario-Author | Behavior through UI |
+| TDD (unit) | 3b | Developer-Tests | Public methods, MUST scenarios, basic negatives |
+| TDD (green) | 3c | Developer-Code | Implementation that passes unit tests |
+| Coverage | 4 | Tester | Edge cases, integration, regression |
+
+Phases 3a and 3b are **parallel**. Phase 3c starts after both are complete.
+
+### Agent Boundaries
+
+- **Scenario-Author:** does NOT write unit tests, does NOT run scenarios, does NOT expand beyond the specification
+- **Developer-Tests:** MUST scenarios + basic negatives; does NOT cover combinatorial edge cases or integration
+- **Tester:** extends coverage; does NOT duplicate Developer tests; does NOT edit BSL code
+
+### Rule When a Tester Test Fails
+
+```
+Тест упал
+  ├── Ошибка в тесте → Tester исправляет (test_error)
+  └── Баг в коде → СТОП. Метка implementation_error + описание.
+                   Оркестратор возвращает задачу Developer.
+```
+
+**User/Role context in Test Plan:** if code uses `SetPrivilegedMode`, role checks (`AccessRight`, `RoleAvailable`), or the result depends on the current user, the specification MUST explicitly state for each test in the "Test Plan" section: user name/role set, required mode (privileged or not), expected result (success/failure). Without this, a test under a full-rights runner (for example `AgentAI`) will produce a false positive: it will pass "by coincidence" through the privileged branch without checking role-dependent behavior. If this is technically impossible for unit tests, it is recorded in the spec as a separate ADR with a move to integration scope (Phase 4).
 
 ---
 depends_on: []

@@ -6,6 +6,7 @@ uses_capabilities:
   - syntax_check_designer_modules
   - syntax_check_designer_config
   - syntax_check_edt
+alwaysApply: false
 ---
 
 # Проверка синтаксиса (Syntax Checking)

@@ -3,6 +3,7 @@ name: buddy-prompting
 description: "Формирование промптов к 1С Напарнику (ask_ai_assistant). Навык учит агента правильно обращаться к слабой LLM с хорошей базой знаний — через жёсткие шаблоны, совпадающие с внутренними инструкциями Напарника."
 uses_capabilities:
   - ask_ai_assistant
+alwaysApply: false
 ---
 
 # Промпты к 1С Напарнику (Buddy Prompting)

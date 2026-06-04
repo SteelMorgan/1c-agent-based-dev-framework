@@ -1,6 +1,7 @@
 ---
 name: form-visual-requirements
 description: "Чек-лист и критерии проверки компоновки и удобства форм 1С. Используй для анализа скриншотов из visual-check."
+alwaysApply: false
 ---
 
 # Визуальные требования к формам

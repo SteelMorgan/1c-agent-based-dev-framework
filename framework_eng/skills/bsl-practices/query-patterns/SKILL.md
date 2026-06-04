@@ -1,6 +1,7 @@
 ---
 name: query-patterns
-description: "1C query patterns. This skill teaches an agent how to correctly work with the 1C:Предприятие query language."
+description: "1C query patterns. This skill teaches an agent how to correctly work with the 1C:Enterprise query language."
+alwaysApply: false
 ---
 
 # 1C Query Patterns

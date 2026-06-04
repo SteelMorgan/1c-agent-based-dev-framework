@@ -8,6 +8,7 @@ uses_capabilities:
   - getMembers
   - getMember
   - getConstructors
+alwaysApply: false
 ---
 
 # Верификация кода (Code Verification)

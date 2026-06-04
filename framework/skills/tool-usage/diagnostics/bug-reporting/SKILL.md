@@ -1,6 +1,7 @@
 ---
 name: bug-reporting
 description: "Стандарт формы bug-report.json и критерии «это баг для дебаггера». Используй, когда сабагент исчерпал свой лимит самовосстановления и должен передать проблему оркестратору на расследование. Без этого навыка bug-report заводить нельзя."
+alwaysApply: false
 ---
 
 # Bug Reporting — стандарт формы и критерии
@@ -261,5 +262,5 @@ description: "Стандарт формы bug-report.json и критерии «
 ---
 
 depends_on:
-  - framework/workflows/source-of-truth-policy.md
+  - framework/rules/source-of-truth.md
 ---

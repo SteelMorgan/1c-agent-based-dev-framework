@@ -31,8 +31,8 @@ The orchestrator must provide:
    - `framework/workflows/orchestrator.md`
    - `framework/rules/agent-context-protocol.md`
    - `framework/workflows/full-cycle.md`
-   - `framework/workflows/quick-fix.md`
-   - `framework/workflows/source-of-truth-policy.md`
+   - `framework/skills/framework-meta/quick-fix/SKILL.md`
+   - `framework/rules/source-of-truth.md`
    - `.claude/CLAUDE.md` (project-level overrides, if any)
 
 If any item in the evidence pack is missing — immediately `verdict: FAIL` with the finding “missing evidence: <what exactly>”. Do not try to reconstruct the missing item — that is the orchestrator's responsibility.

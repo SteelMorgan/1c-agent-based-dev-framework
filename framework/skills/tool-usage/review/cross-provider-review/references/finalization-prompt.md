@@ -31,8 +31,8 @@
    - `framework/workflows/orchestrator.md`
    - `framework/rules/agent-context-protocol.md`
    - `framework/workflows/full-cycle.md`
-   - `framework/workflows/quick-fix.md`
-   - `framework/workflows/source-of-truth-policy.md`
+   - `framework/skills/framework-meta/quick-fix/SKILL.md`
+   - `framework/rules/source-of-truth.md`
    - `.claude/CLAUDE.md` (project-level overrides, если есть)
 
 Если какой-либо пункт evidence pack не предоставлен — немедленно `verdict: FAIL` с finding «missing evidence: <что именно>». Не пытайся восстановить недостающее — это задача оркестратора.

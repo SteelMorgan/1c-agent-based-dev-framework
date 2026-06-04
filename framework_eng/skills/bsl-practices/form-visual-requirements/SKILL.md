@@ -1,17 +1,18 @@
 ---
 name: form-visual-requirements
-description: "Checklist and criteria for checking the layout and usability of 1C forms. Use for analyzing screenshots from visual-check."
+description: "Checklist and criteria for reviewing the layout and usability of 1C forms. Use for analyzing screenshots from visual-check."
+alwaysApply: false
 ---
 
 # Visual requirements for forms
 
-Use this checklist to review 1C forms.
+Use this checklist to check 1C forms.
 
 ## 1. Layout and alignment
 
-- [ ] **Alignment**: elements are aligned to the grid, without a stair-step effect.
+- [ ] **Alignment**: elements are aligned to the grid, without a staircase effect.
 - [ ] **Grouping**: logically related fields are grouped together (frame, page).
-- [ ] **Empty spaces**: there are no large empty areas (>150px) unless intentional.
+- [ ] **Empty spaces**: there are no large empty areas (>150px) unless this is intentional.
 - [ ] **Field widths**:
   - `Code`, `Number`, `Date` — narrow.
   - `Description`, `Comment`, `Address` — wide (expanded).
@@ -20,15 +21,15 @@ Use this checklist to review 1C forms.
 ## 2. Elements and labels
 
 - [ ] **Labels**: all fields have labels (or `TitleLocation=None` is explicitly set).
-- [ ] **Truncation**: labels and values should not be truncated with an ellipsis ("...") when there is space available.
+- [ ] **Truncation**: labels and values should not be truncated with an ellipsis ("...") when there is available space.
 - [ ] **Checkbox labels**: the checkbox label should be clear (for example, "Active", not just a checkbox).
-- [ ] **Command bar**: the "More" menu should not hide the primary actions.
+- [ ] **Command bar**: the "More" menu should not hide the main actions.
 
 ## 3. Usability
 
-- [ ] **Tab order**: focus moves from left to right and top to bottom.
+- [ ] **Tab order**: focus moves from left to right and from top to bottom.
 - [ ] **Key fields**: important identifiers (Name, Code, Date) are in the upper-left corner.
-- [ ] **Table sections**: reasonable height (at least 5–10 visible rows).
+- [ ] **Table sections**: a reasonable height (at least 5–10 visible rows).
 - [ ] **Horizontal scrolling**: strictly forbidden for the main form area (vertical scrolling is allowed).
 
 ## 4. Object type specifics

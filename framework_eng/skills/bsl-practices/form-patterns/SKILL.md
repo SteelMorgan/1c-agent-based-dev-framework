@@ -1,6 +1,7 @@
 ---
 name: form-patterns
 description: "Form module patterns (client-server interaction). This skill teaches the agent to write 1C managed form modules correctly."
+alwaysApply: false
 ---
 
 # Form module patterns (client-server interaction)
@@ -106,10 +107,10 @@ Each server call takes ~100 ms (serialization + round-trip + deserialization). T
 On the server, form data is not a real object but `ДанныеФормы*`. You must convert it to call object module methods.
 
 | Scenario | Does conversion need to happen? |
-|----------|------------------------------|
-| Reading form attributes | No - `Объект.Реквизит` works directly |
+|----------|----------------------|
+| Reading form attributes | No — `Объект.Реквизит` works directly |
 | Calling object module methods | Yes |
-| Passing the object to a common module | Yes - common modules work with real objects |
+| Passing the object to a common module | Yes — common modules work with real objects |
 
 ```bsl
 &НаСервере
@@ -121,7 +122,7 @@ On the server, form data is not a real object but `ДанныеФормы*`. You
 КонецПроцедуры
 ```
 
-### Common mistake - forgetting ЗначениеВРеквизитФормы
+### Common mistake — forgetting ЗначениеВРеквизитФормы
 
 ```bsl
 // ПЛОХО: изменения потеряны!
@@ -228,7 +229,7 @@ A dynamic list automatically provides pagination, search, and sorting.
 |   Реализация.Дата >= &ДатаНачала}";
 ```
 
-Rules: do not load the entire dataset; apply filters via КомпоновкаДанных instead of WHERE; do not use УПОРЯДОЧИТЬ ПО in a custom query.
+Rules: do not load the entire dataset; apply filters via КомпоновкаДанных instead of WHERE; do not use ORDER BY in a custom query.
 
 ---
 
@@ -268,7 +269,7 @@ Rules: do not load the entire dataset; apply filters via КомпоновкаД�
 
 Modal calls (`Предупреждение()`, `Вопрос()`) are **forbidden** in the web client. Use `ОписаниеОповещения` instead.
 
-ITS standard: “Restrictions on the use of modal methods.”
+ITS standard: "Restrictions on the use of modal methods".
 
 ```bsl
 &НаКлиенте
@@ -416,10 +417,10 @@ Primitives (Строка, Число, Дата, Булево), References, Enume
 
 | Type | Alternative |
 |-----|-------------|
-| ТаблицаЗначений | ДанныеФормыКоллекция (через реквизиты формы) |
-| ДеревоЗначений | ДанныеФормыДерево (через реквизиты формы) |
-| ОбъектМетаданных | Передавать ИмяМетаданных (строку) |
-| Запрос, РезультатЗапроса | Передавать результат (структура/массив) |
+| ТаблицаЗначений | ДанныеФормыКоллекция (through form attributes) |
+| ДеревоЗначений | ДанныеФормыДерево (through form attributes) |
+| ОбъектМетаданных | Pass `ИмяМетаданных` (a string) |
+| Запрос, РезультатЗапроса | Pass the result (structure/array) |
 
 ---
 depends_on: []

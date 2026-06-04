@@ -8,6 +8,7 @@ uses_capabilities:
   - getMembers
   - getMember
   - getConstructors
+alwaysApply: false
 ---
 
 # Code Verification
@@ -35,7 +36,7 @@ Goal: immediate feedback on the modified file.
 
 ### Layer 2 — Buddy (VALIDATE_BSL)
 
-Goal: syntax check, standards check, search for analogs in BСП.
+Goal: syntax check, standards check, search for analogs in БСП.
 
 **What to pass:** entire procedures/functions that were changed.
 Not fragments, not individual lines — full method bodies.
@@ -48,7 +49,7 @@ Not fragments, not individual lines — full method bodies.
 |----------|----------|
 | Buddy found errors | Analyze each one. Filter out false "undeclared variable" reports for global methods. Fix the rest or justify them. |
 | Buddy found no errors | **DO NOT treat this as proof of correctness.** Buddy has limited context — it does not see the project. Proceed to layer 3. |
-| Buddy recommends a replacement from BСП | Verify through `search_ssl_functions` that the recommended function exists. |
+| Buddy recommends a replacement from БСП | Verify through `search_ssl_functions` that the recommended function exists. |
 
 ### Layer 3 — Platform API verification
 
@@ -79,10 +80,10 @@ Goal: confirm that every platform object, method, property, and constructor used
 ## Trust hierarchy
 
 ```
-v8-runner syntax …  (compiler)   ← formal check, final verdict
-  > get_diagnostics (LSP)          ← fast diagnostics
-    > bsl-platform-context         ← authoritative API reference
-      > ask_ai_assistant           ← advisory voice (do not trust absence of errors)
+v8-runner syntax …  (компилятор)   ← формальная проверка, финальный вердикт
+  > get_diagnostics (LSP)          ← быстрая диагностика
+    > bsl-platform-context         ← авторитетный справочник API
+      > ask_ai_assistant           ← совещательный голос (не доверять отсутствию ошибок)
 ```
 
 When results differ, the source higher in the hierarchy wins.
@@ -105,7 +106,7 @@ At the end of the check, provide a structured output:
 | `bsl-platform-context` does not know the type | Type from the project (not a platform type) — check through `navigate_symbol`. |
 | False "undeclared variable" from Buddy | Normal for global methods — filter it out. |
 | `search_syntax_reference` returns nothing | Clarify the type name (Russian/English spelling), check the version. |
-| Buddy recommends a non-existent BСП function | Verify through `search_ssl_functions`. |
+| Buddy recommends a non-existent БСП function | Verify through `search_ssl_functions`. |
 
 ## Capabilities
 
@@ -113,7 +114,7 @@ At the end of the check, provide a structured output:
 |------------|------|------------|
 | `get_diagnostics` | 1 | LSP diagnostics for the file |
 | `ask_ai_assistant` | 2 | VALIDATE_BSL through Buddy |
-| `search_ssl_functions` | 2 | Checking BСП recommendations |
+| `search_ssl_functions` | 2 | Checking БСП recommendations |
 | `search_syntax_reference` | 3 | Searching for a platform type |
 | `get_type_info` | 3 | Type information |
 | `getMembers` | 3 | List of type members |

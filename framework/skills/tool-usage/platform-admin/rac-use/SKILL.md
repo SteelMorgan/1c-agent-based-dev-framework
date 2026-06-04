@@ -146,8 +146,7 @@ description: "Администрирование кластера серверо
 | `Информационная база не найдена` | Неверный UUID базы | Проверить через `infobase summary list` |
 
 ---
-depends_on:
-  - framework/skills/tool-usage/vanessa/vanessa-run/SKILL.md
+depends_on: []
 requires:
   - tools
 ---

@@ -1,6 +1,7 @@
 ---
 name: search-before-write
 description: "Поиск перед записью (Search Before Write). Навык учит агента **всегда выполнять поиск перед написанием нового кода**."
+alwaysApply: false
 ---
 
 # Поиск перед записью (Search Before Write)

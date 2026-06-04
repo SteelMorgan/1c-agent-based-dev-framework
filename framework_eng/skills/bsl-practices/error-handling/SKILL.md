@@ -1,6 +1,7 @@
 ---
 name: error-handling
 description: "Error handling, transactions, and locks. This skill teaches the agent how to handle errors correctly and manage transactions and locks in 1C."
+alwaysApply: false
 ---
 
 # Error handling, transactions, and locks
@@ -388,7 +389,7 @@ Prevents lost update: the second user will get the error "Object locked by user 
 
 ---
 
-## Rule 8: Building error messages for the user
+## Rule 8: Generating error messages for the user
 
 For the user - **what happened** and **what to do**. In the registration log - technical information.
 
@@ -417,7 +418,7 @@ For the user - **what happened** and **what to do**. In the registration log - t
 
 ---
 
-## Rule 9: Correct rethrowing of exceptions - ВызватьИсключение
+## Rule 9: Proper exception propagation - ВызватьИсключение
 
 | Method | When | Why |
 |--------|-------|--------|

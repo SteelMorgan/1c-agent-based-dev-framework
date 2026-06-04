@@ -15,7 +15,7 @@ uses_capabilities:
 3. Find suitable steps: first in the Vanessa library, then in the project scenarios.
 4. Write one smoke scenario: open -> one action -> one observable outcome.
 5. If the step does not exist, mark `# unknown_step_candidate`; do not invent a BSL step.
-6. Pass the scenario to `vanessa-run` for execution.
+6. Pass the scenario to `v8-runner` (`v8-runner test va`).
 
 ---
 
@@ -100,12 +100,12 @@ Library: `/opt/onescript/2.0.0/lib/add/features/libraries/`
 | Conditions, variables | `Условие/Условие.feature` |
 | Pause | `Пауза/СделатьПаузу.feature` |
 
-Cheat sheet for common steps with syntax -> `references/steps-cheatsheet.md`.
+Cheat sheet for common steps with syntax → `references/steps-cheatsheet.md`.
 
 **Full library:** `references/steps.json` (1116 steps). **Do not read it in full** - use `grep` to search by keywords from the task. Structure of each record:
-- `ИмяШага` - example invocation with parameters
-- `ОписаниеШага` - what the step does
-- `ПолныйТипШага` - category (UI, Misc, Files, Variables, etc.)
+- `Step name` - example invocation with parameters
+- `Step description` - what the step does
+- `Full step type` - category (UI, Misc, Files, Variables, etc.)
 
 ---
 
@@ -140,7 +140,6 @@ depends_on:
   - framework/rules/vanessa-test-isolation-policy.mdc
   - framework/rules/vanessa-tests-location.mdc
   - framework/rules/vanessa-run-loop.mdc
-  - framework/skills/tool-usage/vanessa/vanessa-run/SKILL.md
   - framework/skills/tool-usage/vanessa/vanessa-diagnostics/SKILL.md
   - framework/skills/tool-usage/platform-data/xml-generation/SKILL.md
 requires:

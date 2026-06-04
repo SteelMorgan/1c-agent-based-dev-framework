@@ -22,8 +22,6 @@ Install: `python tools/install.py --install-xml-gen` (requires JDK 17+).
 
 `xml-gen` covers 4 types of operations — compile / edit / init / validate — details are in §2 and the sub-skills. Universal commands (validate, form/template/help add, edit replace-text) are described in §3.
 
-**Exit codes (updated in TASK-155, 2026-05-22):** `0` = success; `1` = business/domain error (`stderr` starts with `ERROR: <message>`); `2` = JVM/infrastructure failure. Set `XML_GEN_DEBUG=1` to print a full stack trace on exit=1. Full exit-code contract: `tools/xml-gen/SPEC-003-VALIDATOR.md` § "Exit codes".
-
 **Do not use** when: EDT format is needed (Designer only), DataSetUnion/CalculatedFields are needed in SKD (workaround: calculations in queries).
 
 ## §2 Index of sub-areas

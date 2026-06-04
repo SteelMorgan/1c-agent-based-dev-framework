@@ -1,11 +1,12 @@
 ---
 name: security
 description: "1C security: secrets, cryptography, authentication. Use when you need to design or review password/token storage, digital signatures, certificates, OpenID/OAuth, TLS, privileged mode, and log masking."
+alwaysApply: false
 ---
 
 # 1C Security: secrets, authentication, cryptography
 
-This skill is a map of topics on the security of 1C application code. Platform API specifics are moved into `references/`. This section covers trust boundaries, common mistakes, and stop rules that any agent (architect / developer-code / reviewer) must follow when working with sensitive data.
+This skill is a map of topics related to the security of 1C application code. Platform API specifics are moved into `references/`. Here are the trust boundaries, typical mistakes, and stop rules that any agent (architect / developer-code / reviewer) must follow when working with sensitive data.
 
 Security in 1C is not a separate subsystem, but an end-to-end property of the code:
 - Secrets live in `БезопасноеХранилище`, not in code/configuration/logs.
@@ -190,7 +191,7 @@ These rules are **hard**. Violation = blocking review comment and code rewrite.
 ## Typical mistakes
 
 | Mistake | Consequence | How to avoid |
-|---------|-------------|--------------|
+|--------|-------------|--------------|
 | Password/token in the parameter of an export server procedure | Leakage over the network, in dumps, in client logs | Pass only the secret owner (reference), read the secret on the server |
 | `УстановитьПривилегированныйРежим(Истина)` for the whole module/function | Bypassing RLS and role checks across the entire business logic | A targeted block only around `БезопасноеХранилище` access |
 | Storing `access_token` in a catalog attribute / constant / layout | Any user with read access to the catalog gets the token | `БезопасноеХранилище` + owner = reference to the catalog item |

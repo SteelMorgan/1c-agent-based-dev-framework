@@ -4,6 +4,7 @@ description: "Оптимизация запросов 1С и СКД. Испол�
 target_agents:
   - developer-code
   - architect
+alwaysApply: false
 ---
 
 # Query Optimize — оптимизация запросов и СКД

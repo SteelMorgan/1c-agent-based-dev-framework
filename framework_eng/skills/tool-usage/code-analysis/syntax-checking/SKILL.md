@@ -1,11 +1,12 @@
 ---
 name: syntax-checking
-description: "Syntax Checking. This skill teaches the agent to **use syntax checking capabilities correctly** for BSL code."
+description: "Syntax Checking. This skill teaches the agent to **correctly use syntax checking capabilities** for BSL code."
 uses_capabilities:
   - get_diagnostics
   - syntax_check_designer_modules
   - syntax_check_designer_config
   - syntax_check_edt
+alwaysApply: false
 ---
 
 # Syntax Checking

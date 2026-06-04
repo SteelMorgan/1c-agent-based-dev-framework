@@ -133,7 +133,20 @@ xml-gen role add-object --name Catalog.Номенклатура --rights view Ri
 xml-gen role add-object --name Catalog.Номенклатура --rights Read,View Rights.xml
 ```
 
-## §7 Workarounds
+## §7 Дополнительные слои защиты (для агентов без PreToolUse)
+
+Для агентов без PreToolUse-протокола (Codex, Cursor, Aider, Cline и др.) рекомендуется настроить дополнительные слои защиты:
+
+- **Git pre-commit hook** (`tools/hooks/pre-commit`) — расширить вызовом `--check` по всем staged `.xml`/`.mxl` файлам. Это поздняя сетка: не даёт пройти в репозиторий даже если агент проигнорировал правило:
+  ```bash
+  python3 tools/hooks/block-direct-xml-edit.py --check "<staged-file>" --tool Edit
+  ```
+  При exit code `2` — файл относится к 1С metadata, коммит прерывается.
+- **CI на PR** — тот же `--check` по diff отлавливает любые попытки прямой правки на входе в `main`.
+
+Тонкая настройка: списки `ONEC_ROOT_DIRS`, `EXCLUDE_SUBSTRINGS`, `EXCLUDE_BASENAMES` задаются константами в `tools/hooks/block-direct-xml-edit.py`. Дополняй их, если в проекте появляется новый паттерн 1С-конфигурации (например, нестандартное расположение) или новый ложноположительный случай (build XML с уникальным именем).
+
+## §8 Workarounds
 
 | Проблема | Решение |
 |----------|---------|
