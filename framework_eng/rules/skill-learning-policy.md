@@ -1,80 +1,24 @@
 ---
 name: skill-learning-policy
-description: Knowledge accumulation policy. After an iteration cycle the agent extracts vetted practices and anti-practices and writes them to references/learned-patterns.md of the target skill.
+description: Knowledge accumulation trigger — after a work cycle with ≥2 iterations (wrote → error → fixed → success), run a retrospective. Recording procedure and format → skill-learning skill.
 alwaysApply: true
 ---
-
 # Knowledge Accumulation Policy (Skill Learning)
 
-> The agent learns from its iterations: what works (practices) and what breaks (anti-practices).
-> Knowledge is recorded in `references/learned-patterns.md` of the owner skill.
+> **Trigger:** a work cycle with **≥2 iterations** has completed (wrote → error → fixed → success). When it triggers, apply the `skill-learning` skill (`framework/skills/framework-meta/skill-learning/SKILL.md`) and conduct a retrospective.
+>
+> If the task is solved on the first attempt, no retrospective is needed and the trigger does not fire.
 
-## Two Levels of Knowledge
+## MUST (invariant, always)
 
-| Level | File | What it stores |
-|-------|------|----------------|
-| Universal | `skill/references/learned-patterns.md` | Practices that work in any 1С configuration |
-| Project-level | `{project}/.context/learned-patterns.md` | Practices tied to a specific configuration/project |
+- Knowledge accumulation entries are written ONLY to `references/learned-patterns.md` of the owning skill (universal) or `{project}/.context/learned-patterns.md` (project-specific) — NOT into the body of `SKILL.md`.
+- Before recording, read existing practices — do not duplicate; promote `candidate` with the same scope to `confirmed` if it repeats.
+- First occurrence = `candidate`; repeated similar situation = `confirmed`.
+- A practice and an anti-practice are a single entry (two sides of one discovery).
 
-**Splitting criterion:** if an entry mentions a specific metadata object, form name, attribute, or configuration peculiarity → project-level. If it describes a common platform/framework pattern → universal.
-
-## Using Accumulated Knowledge
-
-Before starting work with the skill:
-1. Check `references/learned-patterns.md` in the skill directory — universal practices
-2. Check `{project}/.context/learned-patterns.md` — project practices
-
-Apply `confirmed` entries as additional rules, `candidate` entries as hints.
-
-## When to Run
-
-After completing a work cycle composed of **≥2 iterations** (wrote → error → fixed → success).
-If the task is solved on the first try — no retrospective is needed.
-
-## Procedure
-
-1. **Reconstruct the iteration chain** — what was done → what failed → how it was fixed → what succeeded
-
-2. **For each nontrivial fix** formulate an entry:
-
-```
-status: candidate | confirmed
-область: <свободная формулировка>
-приём: <что делать — проверено успехом>
-антиприём: <что НЕ делать — проверено падением>
-почему: <что происходит при нарушении>
-шаги: <конкретные шаги/код, если применимо>
-источник: <задача, итерация>
-```
-
-Practice and anti-practice are **one entry**, two sides of the same discovery. Do not duplicate.
-
-3. **Filter** — exclude:
-   - Typos and accidental syntax mistakes
-   - One-time environment failures
-
-4. **Determine the level and owner skill:**
-   - Mentions a specific metadata object or configuration → **project-level** → `{project}/.context/learned-patterns.md`
-   - General platform/framework pattern → **universal** → `references/learned-patterns.md` of the owner skill
-   - Owner skill: the skill whose content the practice relates to.
-     Path to the RU version: `.install-session.json` → `component_map` → `skill/{name}` → `ru_path`.
-
-5. **Read existing entries** from the target file:
-   - An identical practice already exists → do not duplicate
-   - There is a `candidate` with the same scope → promote it to `confirmed`
-
-6. **Append** the entry to the target file.
-   If the file is missing — create it. Do not overwrite existing entries.
-
-## MUST
-
-| Requirement | Description |
-|-------------|-------------|
-| Do not change the skill body | Entries belong only in `references/learned-patterns.md`, not in `SKILL.md` |
-| Do not duplicate | Read existing practices before writing |
-| First occurrence = candidate | A single instance gets `status: candidate` |
-| Repeat = confirmed | A recurring similar situation gets upgraded to `confirmed` |
+Retrospective procedure (reconstructing the iteration chain, recording format, filtering, choosing the level and owning skill) — in the `skill-learning` skill.
 
 ---
-depends_on: []
+depends_on:
+  - skill-learning
 ---

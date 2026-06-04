@@ -1,22 +1,26 @@
 ---
 name: vanessa-diagnostics-policy
-description: Diagnostic policy for Vanessa Automation issues. The main source is the event log, and the tech log is used only as a last fallback.
+description: Vanessa run failed -> diagnose in the order event log -> visual -> tech log. Apply the `vanessa-diagnostics` skill.
+alwaysApply: true
 ---
 
-# Vanessa Automation Diagnostics Policy
+# Vanessa Diagnostics Policy
 
-> Priorities of diagnostic sources after an unsuccessful scenario run.
+> **Trigger:** an unsuccessful or suspicious scenario run. When triggered, apply the `vanessa-diagnostics` skill (`framework/skills/tool-usage/vanessa/vanessa-diagnostics/SKILL.md`).
 
-## MUST
+## MUST (source priority)
 
-| Requirement | Description |
-|------------|-------------|
-| Event Log first | The primary source of errors is the registration log (`event-log`) |
-| Tech log last | Use the tech log only if `event-log` and visual diagnostics did not provide an answer |
-| Account for timezone drift | Do not rely blindly on local time windows: ClickHouse and local time can diverge |
+| Priority | Source | Condition |
+|-----------|--------|----------|
+| 1st | Registration log (`event-log`) | Main source of errors - check first |
+| 2nd | Visual diagnostics (noVNC / screenshot) | If a GUI blockage or `Security Warning` is suspected |
+| 3rd | Tech log | Only if `event-log` and visual diagnostics did not provide an answer |
+
+- Do not rely blindly on local time windows: ClickHouse and local time may diverge (timezone drift).
 
 ---
 depends_on:
+  - framework/skills/tool-usage/vanessa/vanessa-diagnostics/SKILL.md
   - framework/skills/tool-usage/diagnostics/event-log-analysis/SKILL.md
   - framework/skills/tool-usage/diagnostics/tech-log-analysis/SKILL.md
 ---

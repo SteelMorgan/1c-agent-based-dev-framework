@@ -1,22 +1,21 @@
 ---
 name: vanessa-security-warning
-description: Rule for handling security warnings when running Vanessa Automation external processing.
+description: An entry about `Security Warning` in the event log means mandatory visual verification. Apply the `gui-control` / `screenshot` skills.
+alwaysApply: true
 ---
 
-# Vanessa Security Warnings Handling Policy
+# Vanessa Security Warning Alerts
 
-> RULES — mandatory requirements for interpreting launch blockings through `Предупреждение безопасности`.
+> **Trigger:** an entry about `Security Warning` in the event log. When it occurs, apply the `gui-control` skills (`framework/skills/tool-usage/browser-ui/gui-control/SKILL.md`) and `screenshot` (`framework/skills/tool-usage/browser-ui/screenshot/SKILL.md`).
 
 ## MUST
 
 | Requirement | Description |
-|------------|-------------|
-| ЖР as a trigger | If there is an entry about `Предупреждение безопасности` in the ЖР, the agent MUST treat it as a trigger for visual verification |
-| Visual check is mandatory | After such a signal the agent MUST use a real display: noVNC or a screenshot |
-| Do not rely on X11 heuristics | You cannot draw conclusions solely from `wmctrl`/`xwininfo`/window titles |
-| Trust-flow only for the first run | The first run after changing the EPF is not considered a valid test execution |
-
-The detailed procedure is described in the diagnostics and GUI skills.
+|------------|----------|
+| Event log as a trigger | An entry about `Security Warning` in the event log -> mandatory visual verification |
+| Visual verification is mandatory | MUST use a real screen: noVNC or a screenshot |
+| Do not rely on X11 heuristics | You cannot draw conclusions based only on `wmctrl`/`xwininfo`/window titles |
+| Trust-flow only for the first run | The first run after changing the EPF does not count as a valid test run |
 
 ---
 depends_on:

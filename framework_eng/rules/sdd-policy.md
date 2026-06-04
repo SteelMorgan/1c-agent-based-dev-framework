@@ -1,53 +1,36 @@
 ---
 name: sdd-policy
-description: SDD Policy (Spec-Driven Development) — the specification is created before implementation and is a contract.
+description: New feature / architectural change / complex bug -> spec before code. Apply the spec-standard skill.
+alwaysApply: true
 ---
 
 # SDD Policy (Spec-Driven Development)
 
-> The specification is created before implementation and is a contract. Implementation MUST NOT deviate without updating and re-review.
+> **Trigger:** the task is classified as a new feature, an architectural change, or a complex bug. When triggered, apply the `spec-standard` skill (`framework/skills/spec-writing/spec-standard/SKILL.md`).
 
-## Classification: when a spec is needed
+## When a spec is needed (MUST / SHOULD / MAY)
 
 | Task type | Level |
 |------------|---------|
-| New functionality, architectural changes, complex bug | MUST |
+| New feature, architectural changes, complex bug | MUST |
 | Major refactoring | SHOULD |
 | Simple bug, formatting, typos | MAY (skip) |
 
-## SDD Workflow
+## MUST
 
-```
-1. Классифицировать задачу по сложности
-2. Создать спеку по стандарту (spec-standard) + Acceptance Scenarios (Gherkin) для MUST-требований
-3. Ревью спеки → итерации до снятия BLOCK
-4. Архитектура + Task Breakdown JSON → ревью → итерации до снятия BLOCK
-5. Одобрение пользователя (для средних/сложных)
-6. Реализация строго по спеке и JSON-декомпозиции
-7. Проверка соответствия реализации спеке
-```
-
-## MUST Requirements
-
-- A spec is created for new features, architectural changes, and complex bugs
-- Format — `spec-standard`; review before implementation
-- Task Breakdown JSON — separate `.json`, review before implementation
-- Any change to the approved spec/JSON requires a re-review
-
-## Deviation from the spec
-
-1. Stop implementation
-2. Update the spec + review + approval
-3. Continue according to the updated spec
+- The spec is created and reviewed **before** implementation.
+- Task Breakdown JSON is a separate `.json`, reviewed before implementation.
+- Any deviation from the approved spec -> stop implementation, update the spec, re-review.
+- Any change to the approved spec/JSON requires a re-review.
 
 ## Exceptions
 
-- Simple tasks — spec not required
-- Prototyping at the customer's request — without spec
-- Free mode (no full cycle) — advisory
+- Simple tasks - no spec needed.
+- Prototyping at the user's request - without a spec.
+- Free mode (without full cycle) - advisory.
 
 ---
 depends_on:
-  - framework/rules/tdd-policy.md
   - framework/skills/spec-writing/spec-standard/SKILL.md
+  - framework/rules/tdd-policy.md
 ---

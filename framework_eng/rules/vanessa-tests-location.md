@@ -1,49 +1,32 @@
 ---
 name: vanessa-tests-location
-description: Policy for the placement of project-specific Vanessa Automation feature files and references to them in task documentation.
+description: You create / update a Vanessa feature file → follow the location convention. Apply the `vanessa-authoring` skill for details.
+alwaysApply: true
 ---
 
-# Location of project-specific Vanessa scenarios
+# Location of Vanessa scenarios
 
-## MUST
+> **Trigger:** creating or modifying a `.feature` file in the project. When triggered, apply the `vanessa-authoring` skill (`framework/skills/tool-usage/vanessa/vanessa-authoring/SKILL.md`) for formatting details.
 
-| Requirement | Description |
-|------------|-------------|
-| Project feature files in `vanessa-tests/` | Project-specific scenarios MUST be stored in `<project_root>/vanessa-tests/features` |
-| Project support files nearby | Project-specific support/fixtures MUST be stored in `<project_root>/vanessa-tests/support` |
-| Links in task documentation | If a feature file is created or updated as part of a task, the task documentation MUST include a link to that file |
-| Do not mix with shared templates | Project-specific scenarios must not be stored in the framework shared runtime/template directory |
+## MUST (location convention)
 
-## Separation
+| Requirement | Rule |
+|------------|---------|
+| Project feature files | MUST be stored in `<project_root>/vanessa-tests/features` |
+| Project support files | MUST be stored in `<project_root>/vanessa-tests/support` |
+| Link in task documentation | If a feature file is created/modified, the task documentation MUST include a direct link or an explicit path |
+| Do not mix with shared | Project-specific scenarios cannot be stored in the framework shared runtime/template directory |
 
-### Shared / universal
+## MUST (step library)
 
-- `tools/runtime/vanessa/*.json`
-- Vanessa library steps in the tools directory
-
-### Project-local
-
-- `<project_root>/vanessa-tests/features`
-- `<project_root>/vanessa-tests/support`
-
-## Project step library
-
-In Vanessa, a step is an exported subscenario (`@exportscenarios`) in a regular `.feature` file. There is no separate "step processing"; the project's step library is the `.feature` files themselves in `vanessa-tests/features/`.
-
-| Requirement | Description |
-|------------|-------------|
-| Project `@exportscenarios` in `features/steps/` | New reusable steps MUST be placed in `<project_root>/vanessa-tests/features/steps/<feature>.feature`, unless the project already has a different arrangement (then follow the existing one) |
-| Group by feature | The file name and step body MUST reflect the business domain (for example, `customer-order.feature`), NOT the task ID |
-| Step name without task ID | You must not put `@task-<ID>` on `@exportscenarios` or mention the ID in the wording - the step is reused across tasks |
-| BSL steps are an escape hatch | Function steps in `vanessa-tests/support/` MUST be used only when composition of subscenarios cannot express the need (parsing, filesystem, non-trivial calculations); the rationale belongs in the step author's context |
-| Reuse first | Before creating a new step, MUST look for matches: the standard Vanessa library -> project `features/**` -> `support/`. A match of >= ~80% should be parameterized and reused, not duplicated |
-
-## What is considered a link in the task documentation
-
-A direct link or an explicit path to the created/updated `.feature` is enough for the next agent to quickly open the scenario without searching again.
+| Requirement | Rule |
+|------------|---------|
+| Reusable steps | MUST be placed in `vanessa-tests/features/steps/<feature>.feature` (file name - by business domain, not by task ID) |
+| Reuse-first | Before creating a step, MUST search: the standard Vanessa library → project `features/**` → `support/`. A match of ≥ 80% must be parameterized, not duplicated |
+| BSL steps | Function steps in `support/` MUST be used only when composition of subscenarios cannot express it; the justification is in the step author's context |
+| `@exportscenarios` without task ID | You cannot put `@task-<ID>` on reusable steps - the step lives across tasks |
 
 ---
-depends_on: []
-requires:
-  - tools
+depends_on:
+  - framework/skills/tool-usage/vanessa/vanessa-authoring/SKILL.md
 ---
