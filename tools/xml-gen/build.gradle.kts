@@ -45,6 +45,8 @@ tasks.shadowJar {
     archiveClassifier.set("")
     manifest {
         attributes["Main-Class"] = "io.github.onec.xmlgen.cli.Main"
+        // TASK-171 D-11a: версия читается Main.version() через getImplementationVersion().
+        attributes["Implementation-Version"] = project.version.toString()
     }
 }
 

@@ -1,9 +1,14 @@
 package io.github.onec.xmlgen.writer;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import io.github.onec.xmlgen.dsl.FormDsl;
 import io.github.onec.xmlgen.dsl.MetaBatchDsl;
 import io.github.onec.xmlgen.dsl.MetaBatchDsl.Operation;
+import io.github.onec.xmlgen.form.fromobject.FormFromObjectGenerator;
+import io.github.onec.xmlgen.form.fromobject.PurposeResolver;
+import io.github.onec.xmlgen.format.OutputFormat;
 import io.github.onec.xmlgen.model.CompositeType;
+import io.github.onec.xmlgen.model.ConfigurationXmlReader;
 import io.github.onec.xmlgen.model.MetadataTypeRegistry;
 import io.github.onec.xmlgen.model.MetadataTypeRegistry.TypeDescriptor;
 import io.github.onec.xmlgen.model.MlText;
@@ -100,6 +105,29 @@ public class MetaEditor {
         String objName = detectObjectName(content);
         out.println("[INFO] Object: " + objType + "." + objName);
 
+        // TASK-171 D-1: предопределённые элементы живут не в XML объекта, а в
+        // отдельном Ext/Predefined.xml — обрабатываем до общего content-конвейера.
+        if ("add-predefined".equals(operation)) {
+            addPredefinedItems(xmlPath, objType, value);
+            return;
+        }
+
+        // TASK-171: форма и шаблон НЕ сериализуются inline в ChildObjects — это
+        // приводило к форме-фантому (полный <Form uuid><Properties>...</Form> без
+        // внешних файлов), на которой платформа уходила в runaway памяти при
+        // LoadConfigFromFiles. Каноничная сериализация — текст-ссылка
+        // <Form>Имя</Form> + внешние файлы Forms/Имя.xml, Forms/Имя/Ext/Form.xml,
+        // Forms/Имя/Ext/Form/Module.bsl. Обрабатываем до общего content-конвейера,
+        // потому что нужен доступ к ФС (как у add-predefined).
+        if ("add-form".equals(operation)) {
+            addFormWithFiles(xmlPath, content, objType, objName, value);
+            return;
+        }
+        if ("add-template".equals(operation)) {
+            addTemplateWithFiles(xmlPath, content, objType, objName, value);
+            return;
+        }
+
         // Parse and execute operation
         String[] opParts = operation.split("-", 2);
         if (opParts.length != 2) {
@@ -162,8 +190,15 @@ public class MetaEditor {
             case "enumValue" -> addEnumValue(content, objName, value);
             case "column" -> addColumn(content, objName, value);
             case "ts" -> addTabularSection(content, objType, objName, value);
-            case "form" -> addSimpleChild(content, "Form", value);
-            case "template" -> addSimpleChild(content, "Template", value);
+            // TASK-171: add-form / add-template обрабатываются в edit() до этого
+            // диспетчера (нужен доступ к ФС для внешних файлов). Сюда они попасть
+            // не должны; inline-сериализация Form/Template запрещена (форма-фантом).
+            case "form" -> throw new IllegalStateException(
+                    "add-form должна обрабатываться через addFormWithFiles (внешние файлы), "
+                    + "inline-форма запрещена");
+            case "template" -> throw new IllegalStateException(
+                    "add-template должна обрабатываться через addTemplateWithFiles (внешние файлы), "
+                    + "inline-шаблон запрещён");
             case "command" -> addSimpleChild(content, "Command", value);
             case "ts-attribute" -> addTsAttribute(content, objType, value);
             case "property" -> addOrSetProperty(content, value);
@@ -291,6 +326,524 @@ public class MetaEditor {
         return content;
     }
 
+    /**
+     * Добавить предопределённые элементы в {@code <Объект>/Ext/Predefined.xml}
+     * (TASK-171 D-1). Файл создаётся, если его нет, иначе элементы дописываются.
+     *
+     * <p>Shorthand одного элемента (батч через {@code ;;}):
+     * {@code Имя[|Описание[|Код[|folder]]]}. Код по умолчанию — авто-нумерация
+     * (max существующего + 1), дополненная нулями до длины кода (по умолчанию 9).
+     * Версия формата файла берётся из {@code Configuration.xml} (D-6).
+     */
+    private void addPredefinedItems(Path xmlPath, String objType, String value) throws IOException {
+        String xsiType = PredefinedXmlWriter.xsiTypeFor(objType);
+        if (xsiType == null) {
+            throw new IllegalArgumentException("Тип " + objType
+                    + " не поддерживает предопределённые элементы. "
+                    + "Поддерживаются: Catalog, ChartOfCharacteristicTypes, "
+                    + "ChartOfAccounts, ChartOfCalculationTypes.");
+        }
+
+        // Ext-каталог объекта на диске называется как файл (без .xml).
+        String fileName = xmlPath.getFileName().toString();
+        String fileBase = fileName.endsWith(".xml")
+                ? fileName.substring(0, fileName.length() - 4) : fileName;
+        Path extDir = xmlPath.getParent().resolve(fileBase).resolve("Ext");
+        Path predefinedFile = extDir.resolve("Predefined.xml");
+
+        // Версия формата из Configuration.xml (на 2 уровня вверх: Catalogs/<N>.xml → xml/).
+        Path configRoot = xmlPath.getParent() != null ? xmlPath.getParent().getParent() : null;
+        Path configurationXml = configRoot != null
+                ? configRoot.resolve("Configuration.xml")
+                : Paths.get("Configuration.xml");
+        String formatVersion = ConfigurationXmlReader.readFormatVersion(configurationXml);
+
+        boolean exists = Files.isRegularFile(predefinedFile);
+        String content = exists ? readFileContent(predefinedFile) : null;
+
+        int codeWidth = exists
+                ? PredefinedXmlWriter.detectCodeWidth(content, PredefinedXmlWriter.DEFAULT_CODE_WIDTH)
+                : PredefinedXmlWriter.DEFAULT_CODE_WIDTH;
+        int nextCode = exists ? PredefinedXmlWriter.nextCodeNumber(content) : 1;
+
+        List<PredefinedXmlWriter.Item> newItems = new ArrayList<>();
+        for (String raw : value.split(";;")) {
+            String item = raw.trim();
+            if (item.isEmpty()) continue;
+            String[] parts = item.split("\\|", -1);
+            String name = parts[0].trim();
+            if (name.isEmpty()) continue;
+            if (exists && findPredefinedByName(content, name)) {
+                warn("Predefined '" + name + "' already exists, skipping");
+                continue;
+            }
+            String description = parts.length > 1 && !parts[1].trim().isEmpty()
+                    ? parts[1].trim() : name;
+            String code = parts.length > 2 && !parts[2].trim().isEmpty()
+                    ? parts[2].trim() : PredefinedXmlWriter.formatCode(nextCode++, codeWidth);
+            boolean isFolder = parts.length > 3 && "folder".equalsIgnoreCase(parts[3].trim());
+            newItems.add(new PredefinedXmlWriter.Item(name, code, description, isFolder));
+            addCount++;
+        }
+
+        if (newItems.isEmpty()) {
+            out.println("[INFO] No predefined items added (all duplicates or empty).");
+            return;
+        }
+
+        Files.createDirectories(extDir);
+        String result;
+        if (exists) {
+            result = content;
+            for (PredefinedXmlWriter.Item it : newItems) {
+                result = PredefinedXmlWriter.appendItem(result, it);
+            }
+        } else {
+            result = PredefinedXmlWriter.buildFile(xsiType, formatVersion, newItems);
+        }
+        writeFileWithBom(predefinedFile, result);
+        out.println("[INFO] Saved: " + predefinedFile);
+        out.println();
+        out.println("=== meta-edit summary ===");
+        out.println("  Predefined added: " + addCount);
+    }
+
+    /** Есть ли в Predefined.xml элемент с таким {@code <Name>}. */
+    private boolean findPredefinedByName(String content, String name) {
+        Matcher m = Pattern.compile("<Name>([^<]*)</Name>").matcher(content);
+        while (m.find()) {
+            if (m.group(1).trim().equals(name)) return true;
+        }
+        return false;
+    }
+
+    // ─── TASK-171: каноничное добавление формы (внешние файлы) ──────────────
+
+    /**
+     * Каноничный заголовок метаобъекта-обёртки формы (namespace-шапка как у
+     * типовых объектов конфигурации; {@code version} подставляется из родителя).
+     * Взят из эталона big_Order_OKX/Forms/ФормаДокумента.xml.
+     */
+    private static final String META_NS_HEADER =
+            "xmlns=\"http://v8.1c.ru/8.3/MDClasses\""
+            + " xmlns:app=\"http://v8.1c.ru/8.2/managed-application/core\""
+            + " xmlns:cfg=\"http://v8.1c.ru/8.1/data/enterprise/current-config\""
+            + " xmlns:cmi=\"http://v8.1c.ru/8.2/managed-application/cmi\""
+            + " xmlns:ent=\"http://v8.1c.ru/8.1/data/enterprise\""
+            + " xmlns:lf=\"http://v8.1c.ru/8.2/managed-application/logform\""
+            + " xmlns:style=\"http://v8.1c.ru/8.1/data/ui/style\""
+            + " xmlns:sys=\"http://v8.1c.ru/8.1/data/ui/fonts/system\""
+            + " xmlns:v8=\"http://v8.1c.ru/8.1/data/core\""
+            + " xmlns:v8ui=\"http://v8.1c.ru/8.1/data/ui\""
+            + " xmlns:web=\"http://v8.1c.ru/8.1/data/ui/colors/web\""
+            + " xmlns:win=\"http://v8.1c.ru/8.1/data/ui/colors/windows\""
+            + " xmlns:xen=\"http://v8.1c.ru/8.3/xcf/enums\""
+            + " xmlns:xpr=\"http://v8.1c.ru/8.3/xcf/predef\""
+            + " xmlns:xr=\"http://v8.1c.ru/8.3/xcf/readable\""
+            + " xmlns:xs=\"http://www.w3.org/2001/XMLSchema\""
+            + " xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\"";
+
+    /**
+     * Минимальный модуль формы — посадка на подсистему «Подключаемые команды»
+     * БСП (как у эталона big_Order_OKX/.../Module.bsl). Без BOM (как FormWriter).
+     */
+    private static final String DEFAULT_FORM_MODULE =
+            "\n\n\n"
+            + "&НаСервере\n"
+            + "Процедура ПриСозданииНаСервере(Отказ, СтандартнаяОбработка)\n"
+            + "\tПодключаемыеКоманды.ПриСозданииНаСервере(ЭтотОбъект);\n"
+            + "КонецПроцедуры\n";
+
+    /**
+     * Добавить форму каноничным образом (TASK-171): внешние файлы формы +
+     * текст-ссылка в ChildObjects родителя.
+     *
+     * <p>Создаёт:
+     * <ul>
+     *   <li>{@code Forms/<Имя>/Ext/Form.xml} — UI-описание (через FormFromObjectGenerator);</li>
+     *   <li>{@code Forms/<Имя>.xml} — обёртка-метаобъект {@code <Form>} с FormType=Managed;</li>
+     *   <li>{@code Forms/<Имя>/Ext/Form/Module.bsl} — минимальный модуль формы;</li>
+     * </ul>
+     * и вставляет {@code <Form>Имя</Form>} в {@code <ChildObjects>}.
+     *
+     * <p>Опционально: значение вида {@code "Имя|Ordinary"} задаёт FormType=Ordinary
+     * (по умолчанию Managed).
+     */
+    private void addFormWithFiles(Path xmlPath, String content, String objType,
+                                  String objName, String value) throws IOException {
+        // value может нести суффиксы через '|': FormType (Managed|Ordinary) и/или
+        // флаг default (принудительная установка формы умолчанием), в любом порядке.
+        // Примеры: "ФормаДокумента", "ФормаСписка|Ordinary", "ФормаДокумента|default",
+        //          "ФормаДокумента|Managed|default".
+        String[] parts = value.trim().split("\\|");
+        String formName = parts[0].trim();
+        String formType = "Managed";
+        boolean forceDefault = false;
+        for (int i = 1; i < parts.length; i++) {
+            String token = parts[i].trim();
+            if (token.isEmpty()) continue;
+            if (token.equalsIgnoreCase("Ordinary")) formType = "Ordinary";
+            else if (token.equalsIgnoreCase("Managed")) formType = "Managed";
+            else if (token.equalsIgnoreCase("default")) forceDefault = true;
+            else warn("Неизвестный суффикс формы '" + token + "', игнорирую");
+        }
+        if (formName.isEmpty()) { warn("Пустое имя формы"); return; }
+
+        // Дубликат — текст-ссылка <Form>Имя</Form> или inline-форма уже есть.
+        if (findFormReference(content, formName) || findChildByName(content, "Form", formName) >= 0) {
+            warn("Form '" + formName + "' already exists, skipping");
+            return;
+        }
+
+        // Каталог объекта = <parentDir>/<objName> (например Documents/биг_ВозвратАктивов).
+        String fileBase = baseName(xmlPath);
+        Path objectDir = xmlPath.getParent().resolve(fileBase);
+        Path formsDir = objectDir.resolve("Forms");
+        Path formExtXml = formsDir.resolve(formName).resolve("Ext").resolve("Form.xml");
+        Path wrapperXml = formsDir.resolve(formName + ".xml");
+        Path moduleBsl = formsDir.resolve(formName).resolve("Ext").resolve("Form").resolve("Module.bsl");
+
+        // 1) UI-описание Ext/Form.xml через существующую машинерию form --from-object.
+        //    Purpose выводится из имени папки формы (PurposeResolver).
+        try {
+            Files.createDirectories(formExtXml.getParent());
+            FormDsl dsl = new FormFromObjectGenerator()
+                    .generate(xmlPath, formExtXml, "erp-standard", null);
+            new FormWriter(OutputFormat.DESIGNER).create(dsl, formExtXml);
+        } catch (Exception e) {
+            // Не оставляем битых файлов: чистим то, что успели создать.
+            cleanupFormFiles(formsDir, formName);
+            throw new IOException("Не удалось сгенерировать Ext/Form.xml для формы '"
+                    + formName + "': " + e.getMessage(), e);
+        }
+
+        // 2) Обёртка-метаобъект Forms/<Имя>.xml (FormType=Managed по умолчанию).
+        String version = detectMetaVersion(content);
+        writeFileWithBom(wrapperXml, buildFormWrapper(formName, formType, version));
+        out.println("[INFO] Создан: " + wrapperXml);
+
+        //**agent TASK-172 [02.06.2026 07:18:00]
+        // 3) Минимальный модуль формы. Канон Designer (_Демо): ВСЕ .bsl c BOM + CRLF
+        // (эталон CommonForms/.../Ext/Form/Module.bsl: ef bb bf + CRLF). Прежняя посылка
+        // «без BOM, как FormWriter» была ошибочной — FormWriter сам .bsl не пишет.
+        Files.createDirectories(moduleBsl.getParent());
+        Files.write(moduleBsl, io.github.onec.xmlgen.io.Crlf.withBom(DEFAULT_FORM_MODULE));
+        //**agent TASK-172
+        out.println("[INFO] Создан: " + moduleBsl);
+        out.println("[INFO] Создан: " + formExtXml);
+
+        // 4) Текст-ссылка <Form>Имя</Form> в ChildObjects родителя.
+        String reference = "\t\t\t<Form>" + esc(formName) + "</Form>";
+        String result = insertIntoChildObjects(content, "Form", reference, null, null);
+        if (result == null) {
+            cleanupFormFiles(formsDir, formName);
+            Files.deleteIfExists(wrapperXml);
+            throw new IOException("Не найден <ChildObjects> в " + xmlPath
+                    + " — форма-ссылка не добавлена, файлы откатаны");
+        }
+        addCount++;
+        out.println("[INFO] Добавлена форма (текст-ссылка): " + formName);
+
+        // TASK-171: установка Default*Form. Семантика — РОВНО ОДНА форма-умолчание
+        // на purpose-тип. Первая форма данного типа → умолчание; последующие
+        // умолчание не перебивают (если нет флага |default).
+        result = setDefaultFormProperty(result, objType, objName, formName, forceDefault);
+
+        writeFileWithBom(xmlPath, result);
+        out.println("[INFO] Saved: " + xmlPath);
+        out.println();
+        out.println("=== meta-edit summary ===");
+        out.println("  Object:   " + objType + "." + objName);
+        out.println("  Form added: " + formName + " (FormType=" + formType + ")");
+    }
+
+    /** Purpose → имя тега Default*Form. */
+    private static final Map<String, String> DEFAULT_FORM_TAG = Map.of(
+            "item", "DefaultObjectForm",
+            "list", "DefaultListForm",
+            "choice", "DefaultChoiceForm",
+            "folder", "DefaultFolderForm",
+            "record", "DefaultRecordForm"
+    );
+
+    /**
+     * Канонический порядок блока Default-форм и Auxiliary-форм по типу объекта.
+     * Используется ТОЛЬКО когда блок целиком отсутствует (неполный Properties от
+     * meta compile) и нужно вставить его на схемно-правильную позицию.
+     * Порядок схемно значим (xs:sequence): вне позиции = ошибка загрузки 1С.
+     */
+    private static final Map<String, List<String>> DEFAULT_FORM_BLOCK = Map.of(
+            "Document", List.of(
+                    "DefaultObjectForm", "DefaultListForm", "DefaultChoiceForm",
+                    "AuxiliaryObjectForm", "AuxiliaryListForm", "AuxiliaryChoiceForm"),
+            "Catalog", List.of(
+                    "DefaultObjectForm", "DefaultFolderForm", "DefaultListForm",
+                    "DefaultChoiceForm", "DefaultFolderChoiceForm",
+                    "AuxiliaryObjectForm", "AuxiliaryFolderForm", "AuxiliaryListForm",
+                    "AuxiliaryChoiceForm", "AuxiliaryFolderChoiceForm"),
+            "InformationRegister", List.of(
+                    "DefaultRecordForm", "DefaultListForm",
+                    "AuxiliaryRecordForm", "AuxiliaryListForm")
+    );
+
+    /**
+     * Якорь — свойство, ПЕРЕД которым вставляется блок Default*Form, если его нет.
+     * Эталоны позиций: Document — перед {@code <Posting>}
+     * (биг_ПринятиеАктивовПодУправление.xml); Catalog — перед {@code <BasedOn>}
+     * (запасной {@code <DataLockControlMode>}); InformationRegister — перед
+     * {@code <StandardAttributes>} (_ДемоЗагружаемыеПоступленияОтЮридическихЛиц.xml).
+     */
+    private static final Map<String, List<String>> DEFAULT_FORM_ANCHOR = Map.of(
+            "Document", List.of("Posting"),
+            "Catalog", List.of("BasedOn", "DataLockControlMode"),
+            // В эталоне _Демо… блок Default*Form стоит ПЕРЕД <StandardAttributes>.
+            // У неполного meta-compile StandardAttributes может отсутствовать —
+            // тогда схемно-следующий якорь это <InformationRegisterPeriodicity>
+            // (идёт сразу после блока StandardAttributes в xs:sequence).
+            "InformationRegister", List.of("StandardAttributes", "InformationRegisterPeriodicity")
+    );
+
+    /**
+     * Установить нужный {@code Default*Form} для только что добавленной формы
+     * (TASK-171). Возвращает изменённый XML (или исходный, если установка
+     * пропущена).
+     *
+     * <p>Алгоритм:
+     * <ol>
+     *   <li>purpose формы определяется по имени через {@link PurposeResolver#matchPurpose};
+     *       не распознан → пропуск (INFO);</li>
+     *   <li>тег умолчания подбирается по purpose ({@link #DEFAULT_FORM_TAG});</li>
+     *   <li>значение ссылки — {@code <objType>.<objName>.Form.<formName>};</li>
+     *   <li>если тег ПРИСУТСТВУЕТ и ПУСТ — заполняется in-place (первая форма типа);</li>
+     *   <li>если ПРИСУТСТВУЕТ и НЕПУСТ — без {@code forceDefault} пропуск (INFO),
+     *       с {@code forceDefault} перезапись in-place;</li>
+     *   <li>если ОТСУТСТВУЕТ — вставка канонического блока перед якорем
+     *       ({@link #DEFAULT_FORM_ANCHOR}); якорь не найден / тип не поддержан →
+     *       пропуск (INFO, безопасность важнее полноты).</li>
+     * </ol>
+     */
+    private String setDefaultFormProperty(String content, String objType, String objName,
+                                          String formName, boolean forceDefault) {
+        String purpose = PurposeResolver.matchPurpose(formName);
+        if (purpose == null) {
+            info("Default*Form не установлен: purpose формы '" + formName
+                    + "' не распознан по имени. Задайте умолчание вручную при необходимости.");
+            return content;
+        }
+        String tag = DEFAULT_FORM_TAG.get(purpose);
+        if (tag == null) {
+            info("Default*Form не установлен: нет тега умолчания для purpose '" + purpose + "'.");
+            return content;
+        }
+        String reference = objType + "." + objName + ".Form." + formName;
+
+        // Случай 1: тег присутствует и пуст (<Tag/> или <Tag></Tag>).
+        Pattern emptyTag = Pattern.compile("<" + Pattern.quote(tag) + "\\s*/>|<"
+                + Pattern.quote(tag) + ">\\s*</" + Pattern.quote(tag) + ">");
+        Matcher mEmpty = emptyTag.matcher(content);
+        if (mEmpty.find()) {
+            String replaced = content.substring(0, mEmpty.start())
+                    + "<" + tag + ">" + esc(reference) + "</" + tag + ">"
+                    + content.substring(mEmpty.end());
+            info(tag + " установлен: " + reference);
+            return replaced;
+        }
+
+        // Случай 2: тег присутствует и непуст.
+        Pattern filledTag = Pattern.compile(
+                "<" + Pattern.quote(tag) + ">([^<]+)</" + Pattern.quote(tag) + ">");
+        Matcher mFilled = filledTag.matcher(content);
+        if (mFilled.find()) {
+            String existing = mFilled.group(1);
+            if (forceDefault) {
+                String replaced = content.substring(0, mFilled.start())
+                        + "<" + tag + ">" + esc(reference) + "</" + tag + ">"
+                        + content.substring(mFilled.end());
+                info(tag + " перезаписан (флаг |default): " + existing + " -> " + reference);
+                return replaced;
+            }
+            info(tag + " уже задан (" + existing
+                    + "); новая форма добавлена как не-умолчание.");
+            return content;
+        }
+
+        // Случай 3: тег (и весь блок Default*Form) отсутствует — вставка по якорю.
+        List<String> block = DEFAULT_FORM_BLOCK.get(objType);
+        List<String> anchors = DEFAULT_FORM_ANCHOR.get(objType);
+        if (block == null || anchors == null) {
+            info("Default*Form не установлен (нет безопасной позиции для типа "
+                    + objType + "); задайте умолчание вручную.");
+            return content;
+        }
+        // Найти первый существующий якорь.
+        int anchorPos = -1;
+        for (String anchor : anchors) {
+            int p = indexOfRootProperty(content, anchor);
+            if (p >= 0) { anchorPos = p; break; }
+        }
+        if (anchorPos < 0) {
+            info("Default*Form не установлен (якорь не найден среди " + anchors
+                    + "); задайте умолчание вручную.");
+            return content;
+        }
+        // Отступ строки якоря (для совпадения с форматированием).
+        int lineStart = content.lastIndexOf('\n', anchorPos - 1) + 1;
+        String indent = content.substring(lineStart, anchorPos);
+
+        StringBuilder sb = new StringBuilder();
+        for (String t : block) {
+            sb.append(indent);
+            if (t.equals(tag)) {
+                sb.append("<").append(t).append(">").append(esc(reference)).append("</").append(t).append(">");
+            } else {
+                sb.append("<").append(t).append("/>");
+            }
+            sb.append("\n");
+        }
+        String replaced = content.substring(0, lineStart) + sb + content.substring(lineStart);
+        info(tag + " установлен (вставлен блок Default*Form перед <"
+                + content.substring(anchorPos).split("[ >]", 2)[0].replace("<", "") + ">): " + reference);
+        return replaced;
+    }
+
+    /**
+     * Позиция открывающего тега корневого свойства объекта (не вложенного в
+     * ChildObjects / StandardAttributes-реквизиты). Возвращает индекс {@code '<'}
+     * первого вхождения {@code <Name>} или {@code <Name ...>} на верхнем уровне
+     * Properties объекта, или -1.
+     *
+     * <p>Якоря (Posting/BasedOn/DataLockControlMode/StandardAttributes) уникальны
+     * в корневом Properties и не встречаются раньше него, поэтому достаточно
+     * первого вхождения.
+     */
+    private int indexOfRootProperty(String content, String name) {
+        Matcher m = Pattern.compile("<" + Pattern.quote(name) + "(?:\\s[^>]*)?(?:/>|>)").matcher(content);
+        if (m.find()) return m.start();
+        return -1;
+    }
+
+    /**
+     * Добавить шаблон каноничным образом (TASK-171): текст-ссылка
+     * {@code <Template>Имя</Template>} + минимальный внешний {@code Templates/Имя.xml}.
+     *
+     * <p>Контент-шаблон (Ext/Template.*) НЕ генерируется — создаётся только
+     * валидная обёртка макета SpreadsheetDocument. Об этом сообщается в выводе.
+     */
+    private void addTemplateWithFiles(Path xmlPath, String content, String objType,
+                                      String objName, String value) throws IOException {
+        String tplName = value.trim();
+        if (tplName.isEmpty()) { warn("Пустое имя шаблона"); return; }
+
+        if (findTemplateReference(content, tplName) || findChildByName(content, "Template", tplName) >= 0) {
+            warn("Template '" + tplName + "' already exists, skipping");
+            return;
+        }
+
+        String fileBase = baseName(xmlPath);
+        Path objectDir = xmlPath.getParent().resolve(fileBase);
+        Path templatesDir = objectDir.resolve("Templates");
+        Path wrapperXml = templatesDir.resolve(tplName + ".xml");
+
+        String version = detectMetaVersion(content);
+        Files.createDirectories(templatesDir);
+        writeFileWithBom(wrapperXml, buildTemplateWrapper(tplName, version));
+        out.println("[INFO] Создан: " + wrapperXml);
+
+        String reference = "\t\t\t<Template>" + esc(tplName) + "</Template>";
+        String result = insertIntoChildObjects(content, "Template", reference, null, null);
+        if (result == null) {
+            Files.deleteIfExists(wrapperXml);
+            throw new IOException("Не найден <ChildObjects> в " + xmlPath
+                    + " — шаблон-ссылка не добавлена, файл откатан");
+        }
+        writeFileWithBom(xmlPath, result);
+        addCount++;
+        out.println("[INFO] Добавлен шаблон (текст-ссылка): " + tplName);
+        out.println("[WARN] Контент-шаблон НЕ сгенерирован — создана только обёртка "
+                + "макета. При необходимости заполните Ext/Template.* вручную.");
+        out.println("[INFO] Saved: " + xmlPath);
+        out.println();
+        out.println("=== meta-edit summary ===");
+        out.println("  Object:   " + objType + "." + objName);
+        out.println("  Template added: " + tplName);
+    }
+
+    /** Каноничная обёртка-метаобъект для формы. BOM добавляется при записи. */
+    private String buildFormWrapper(String formName, String formType, String version) {
+        StringBuilder sb = new StringBuilder();
+        sb.append("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n");
+        sb.append("<MetaDataObject ").append(META_NS_HEADER)
+                .append(" version=\"").append(version).append("\">\n");
+        sb.append("\t<Form uuid=\"").append(uuid()).append("\">\n");
+        sb.append("\t\t<Properties>\n");
+        sb.append("\t\t\t<Name>").append(esc(formName)).append("</Name>\n");
+        writeSynonym(sb, "\t\t\t", splitCamelCase(formName));
+        sb.append("\t\t\t<Comment/>\n");
+        sb.append("\t\t\t<FormType>").append(formType).append("</FormType>\n");
+        sb.append("\t\t\t<IncludeHelpInContents>false</IncludeHelpInContents>\n");
+        sb.append("\t\t\t<UsePurposes>\n");
+        sb.append("\t\t\t\t<v8:Value xsi:type=\"app:ApplicationUsePurpose\">PlatformApplication</v8:Value>\n");
+        sb.append("\t\t\t\t<v8:Value xsi:type=\"app:ApplicationUsePurpose\">MobilePlatformApplication</v8:Value>\n");
+        sb.append("\t\t\t</UsePurposes>\n");
+        sb.append("\t\t</Properties>\n");
+        sb.append("\t</Form>\n");
+        sb.append("</MetaDataObject>");
+        return sb.toString();
+    }
+
+    /** Минимальная валидная обёртка макета (SpreadsheetDocument). */
+    private String buildTemplateWrapper(String tplName, String version) {
+        StringBuilder sb = new StringBuilder();
+        sb.append("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n");
+        sb.append("<MetaDataObject ").append(META_NS_HEADER)
+                .append(" version=\"").append(version).append("\">\n");
+        sb.append("\t<Template uuid=\"").append(uuid()).append("\">\n");
+        sb.append("\t\t<Properties>\n");
+        sb.append("\t\t\t<Name>").append(esc(tplName)).append("</Name>\n");
+        writeSynonym(sb, "\t\t\t", splitCamelCase(tplName));
+        sb.append("\t\t\t<Comment/>\n");
+        sb.append("\t\t\t<TemplateType>SpreadsheetDocument</TemplateType>\n");
+        sb.append("\t\t</Properties>\n");
+        sb.append("\t</Template>\n");
+        sb.append("</MetaDataObject>");
+        return sb.toString();
+    }
+
+    /** Прочитать {@code version="X.XX"} из родительского {@code <MetaDataObject>}. */
+    private String detectMetaVersion(String content) {
+        Matcher m = Pattern.compile("<MetaDataObject[^>]*\\bversion=\"([^\"]+)\"").matcher(content);
+        if (m.find()) return m.group(1);
+        return ConfigurationXmlReader.DEFAULT_FORMAT_VERSION; // 2.17 — разумный дефолт
+    }
+
+    /** Есть ли текст-ссылка {@code <Form>Имя</Form>} (не inline-блок). */
+    private boolean findFormReference(String content, String name) {
+        return content.contains("<Form>" + esc(name) + "</Form>");
+    }
+
+    /** Есть ли текст-ссылка {@code <Template>Имя</Template>}. */
+    private boolean findTemplateReference(String content, String name) {
+        return content.contains("<Template>" + esc(name) + "</Template>");
+    }
+
+    /** Имя файла без расширения {@code .xml}. */
+    private static String baseName(Path xmlPath) {
+        String fileName = xmlPath.getFileName().toString();
+        return fileName.endsWith(".xml") ? fileName.substring(0, fileName.length() - 4) : fileName;
+    }
+
+    /** Откат частично созданных файлов формы при ошибке. */
+    private void cleanupFormFiles(Path formsDir, String formName) {
+        try {
+            Path formDir = formsDir.resolve(formName);
+            if (Files.exists(formDir)) {
+                Files.walk(formDir)
+                        .sorted(Comparator.reverseOrder())
+                        .forEach(p -> { try { Files.deleteIfExists(p); } catch (IOException ignored) {} });
+            }
+        } catch (IOException ignored) {}
+    }
+
     private String addEnumValue(String content, String objName, String value) {
         String name = value.trim();
         if (findChildByName(content, "EnumValue", name) >= 0) {
@@ -360,13 +913,7 @@ public class MetaEditor {
         writeSynonym(sb, indent + "\t\t", splitCamelCase(name));
         sb.append(indent).append("\t\t<Comment/>\n");
 
-        if ("Form".equals(xmlTag)) {
-            sb.append(indent).append("\t\t<FormType>Ordinary</FormType>\n");
-            sb.append(indent).append("\t\t<IncludeHelpInContents>false</IncludeHelpInContents>\n");
-            sb.append(indent).append("\t\t<UsePurposes/>\n");
-        } else if ("Template".equals(xmlTag)) {
-            sb.append(indent).append("\t\t<TemplateType>SpreadsheetDocument</TemplateType>\n");
-        } else if ("Command".equals(xmlTag)) {
+        if ("Command".equals(xmlTag)) {
             sb.append(indent).append("\t\t<Group>FormNavigationPanelGoTo</Group>\n");
             sb.append(indent).append("\t\t<Representation>Auto</Representation>\n");
             sb.append(indent).append("\t\t<ToolTip/>\n");
@@ -1303,11 +1850,10 @@ public class MetaEditor {
     }
 
     private void writeFileWithBom(Path path, String content) throws IOException {
-        byte[] contentBytes = content.getBytes(StandardCharsets.UTF_8);
-        byte[] result = new byte[BOM.length + contentBytes.length];
-        System.arraycopy(BOM, 0, result, 0, BOM.length);
-        System.arraycopy(contentBytes, 0, result, BOM.length, contentBytes.length);
-        Files.write(path, result);
+        //++agent TASK-172 [02.06.2026 07:17:00]
+        // Канон Designer (_Демо): метаданные/обёртки .xml — BOM + CRLF.
+        Files.write(path, io.github.onec.xmlgen.io.Crlf.withBom(content));
+        //++agent TASK-172
     }
 
     private void info(String msg) { out.println("[INFO] " + msg); }

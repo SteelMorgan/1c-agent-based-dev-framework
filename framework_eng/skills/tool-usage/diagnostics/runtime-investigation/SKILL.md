@@ -1,15 +1,15 @@
 ---
 name: runtime-investigation
-description: "Runtime investigation algorithm for bugs in 1C BSL: call graph + key variables → probes → trace → hypothesis loop. Use when there is a bug-report and you need to establish what actually happens in the code and compare it with what should happen. The debugger is the primary consumer of this skill."
+description: "Runtime investigation algorithm for bugs in 1C BSL: call graph + key variables → probes → trace → hypothesis loop. Use when there is a bug-report and you need to determine what actually happens in the code and compare it with what should happen. The debugger is the primary consumer of this skill."
 ---
 
 # Runtime Investigation — investigating bugs at runtime
 
 ## 1. When to use
 
-The goal of the skill is to answer three questions in strict order:
+The purpose of the skill is to answer three questions in strict order:
 
-1. **What actually happens?** Is the procedure called? With what arguments? What are the variable values? Which if/else path is taken? What did the query return?
+1. **What actually happens?** Is the procedure called? With what arguments? What are the variable values? Which if/else branch is taken? What did the query return?
 2. **Does this match the expectation?** (from the spec/design/test assert — `bug-report.expectation`)
 3. **Where is the source of the discrepancy?**
    - **The code is wrong** — the behavior does not match the requirement
@@ -28,10 +28,10 @@ Without step 1, steps 2-3 are impossible.
 | Level | Tool | When |
 |---|---|---|
 | **L0** | Reading source code + specs/design (`code-navigation`) | Always first |
-| **L1** | `event-log-analysis` — event log via ClickHouse | A completed run already exists, there is Error/Warning |
+| **L1** | `event-log-analysis` — event log via ClickHouse | A run has already completed, and there is an Error/Warning |
 | **L2** | `platform-data-core` § Query Execution — database queries | Check the data state independently of the code |
 | **L3** | `agent-debug` points in code | L0-L2 did not answer: call fact, if/else path, variable value/type |
-| **L4** | Re-running the scenario/test after insertions | After L3 — collect observations |
+| **L4** | Rerunning the scenario/test after insertions | After L3 — collect observations |
 | **L5** | `gui-control` + `screenshot` | The symptom is in the UI; it is unclear what is on the form |
 | **L6** | `syntax-checking` (`get_diagnostics` / `v8-runner syntax …`) | After any code change |
 | **L7** | `tech-log-analysis` — technical log | **ONLY with the user's explicit consent.** Heavy, slow. When L0-L6 did not answer: locks, deadlock, hidden platform exceptions, slow SQL |
@@ -179,7 +179,7 @@ In `agent-debug` probes, record variable values. **DO NOT dump them in full:**
 | Соответствие | Serialization | `Количество()`, key-target if looking for a specific one |
 | Form object | In full | Specific form attributes one by one |
 | Query | Full text | Name, key parameters |
-| Metadata | `Метаданные.X.<everything>` | Only the type name: `Метаданные(Ссылка).Имя` |
+| Метаданные | `Метаданные.X.<everything>` | Only the type name: `Метаданные(Ссылка).Имя` |
 | Binary data | Content | `Размер()` |
 | Passwords, tokens, PII | Never | Mask or skip |
 
@@ -237,62 +237,62 @@ Saved in `task_dir/.context/debug/<bug-id>/debug-report.md`.
 ```markdown
 # Debug Report — <bug-id>
 
-## Источник
-- Bug-report: <ссылка на bug-report.json>
-- Симптом: <symptom.what_ran> упал на <fail_location>
-- Ожидание: <expectation.quote> (источник: <expectation.source>)
+## Source
+- Bug-report: <link to bug-report.json>
+- Symptom: <symptom.what_ran> failed at <fail_location>
+- Expectation: <expectation.quote> (source: <expectation.source>)
 
-## Воспроизведение
-- Команда: <symptom.command>
-- Детерминизм: <yes/no>
+## Reproduction
+- Command: <symptom.command>
+- Determinism: <yes/no>
 
-## Граф вызовов
-<ссылка на call-graph.md>
+## Call Graph
+<link to call-graph.md>
 
-## Ключевые переменные
-<ссылка на instrumentation-plan.md>
+## Key Variables
+<link to instrumentation-plan.md>
 
-## Первая проходка (H0)
-- Прогон: <ссылка на trace-run-1.md>
-- Локализация расхождения: <узел графа + что не сошлось>
+## First Pass (H0)
+- Run: <link to trace-run-1.md>
+- Discrepancy localization: <graph node + what did not match>
 
-## Гипотезы
+## Hypotheses
 
 ### H1: <формулировка>
-- Evidence_from_trace: <на каком факте из трассы основана>
-- Способ проверки: <фикс / доп.пробы>
-- Прогон: <ссылка на trace-run-N.md>
-- Результат: ПОДТВЕРЖДЕНА / ОПРОВЕРГНУТА
-- Если опровергнута — почему: <...>
+- Evidence_from_trace: <which fact from the trace it is based on>
+- Verification method: <fix / additional probes>
+- Run: <link to trace-run-N.md>
+- Result: CONFIRMED / DISPROVED
+- If disproved — why: <...>
 
 ### H2: ...
 ...
 
-## Вердикт
-- Класс причины: код / данные / спека / тест/сценарий
-- Корневая причина: <...>
-- Затронутый слой источников правды (L1-L6): <см. source-of-truth-policy>
+## Verdict
+- Cause class: code / data / spec / test-scenario
+- Root cause: <...>
+- Affected source-of-truth layer (L1-L6): <see source-of-truth-policy>
 
-## Действие
-- ВАРИАНТ A — Локальный фикс:
-  - Файл(ы): <...>
-  - Дифф: ≤ 30 строк
-  - Верификация: упавший тест зелёный, смежные тесты зелёные
-  - Подлежит ревью: scope=debug
-- ВАРИАНТ B — Возврат оркестратору:
-  - Кому передать: <agent>
-  - Почему масштаб большой: <...>
-  - Рекомендация по фиксу: <...>
-- ВАРИАНТ C — Эскалация:
-  - 5/8 гипотез не подтверждены
-  - Что точно установлено: <...>
-  - Что хотелось бы проверить, но не получилось: <...>
-  - Рекомендация: к кому идти (Architect / Analyst / пользователь)
+## Action
+- OPTION A — Local fix:
+  - File(s): <...>
+  - Diff: ≤ 30 lines
+  - Verification: failed test is green, related tests are green
+  - Requires review: scope=debug
+- OPTION B — Return to orchestrator:
+  - Who to hand off to: <agent>
+  - Why the scope is large: <...>
+  - Fix recommendation: <...>
+- OPTION C — Escalation:
+  - 5/8 hypotheses not confirmed
+  - What was established for sure: <...>
+  - What we would like to check but could not: <...>
+  - Recommendation: who to go to (Architect / Analyst / user)
 
-## Очистка
-- [x] grep `//[AGENTDEBUG-` → 0 вхождений
-- [x] техжурнал восстановлен (если поднимался)
-- [x] syntax-checking пройден
+## Cleanup
+- [x] grep `//[AGENTDEBUG-` → 0 matches
+- [x] technical log restored (if enabled)
+- [x] syntax-checking passed
 ```
 
 ---
@@ -320,5 +320,5 @@ depends_on:
   - framework/skills/tool-usage/platform-data/platform-data-core/SKILL.md
   - framework/skills/tool-usage/code-analysis/code-navigation/SKILL.md
   - framework/skills/tool-usage/code-analysis/syntax-checking/SKILL.md
-  - framework/workflows/source-of-truth-policy.md
+  - framework/rules/source-of-truth.md
 ---

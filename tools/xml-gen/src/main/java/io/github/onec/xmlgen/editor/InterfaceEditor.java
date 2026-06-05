@@ -161,15 +161,19 @@ public class InterfaceEditor {
     }
 
     public void save() throws IOException {
+        //++agent TASK-172 [02.06.2026 07:22:00]
+        // Канон Designer (_Демо) — CRLF. Правка CommandInterface.xml строковыми заменами
+        // вставляет \n-фрагменты; нормализуем итог к CRLF идемпотентно, BOM-решение сохраняем.
+        byte[] contentBytes = io.github.onec.xmlgen.io.Crlf.normalize(content).getBytes(StandardCharsets.UTF_8);
         if (hasBom) {
-            byte[] contentBytes = content.getBytes(StandardCharsets.UTF_8);
             byte[] result = new byte[BOM.length + contentBytes.length];
             System.arraycopy(BOM, 0, result, 0, BOM.length);
             System.arraycopy(contentBytes, 0, result, BOM.length, contentBytes.length);
             Files.write(filePath, result);
         } else {
-            Files.writeString(filePath, content, StandardCharsets.UTF_8);
+            Files.write(filePath, contentBytes);
         }
+        //++agent TASK-172
     }
 
     // --- Internal ---
@@ -231,7 +235,11 @@ public class InterfaceEditor {
             }
         }
 
-        String block = "<" + sectionName + ">\n</" + sectionName + ">\n";
+        // TASK-171: ведущий отступ родителя — секции CommandInterface идут с одним табом,
+        // как в типовом стиле Конфигуратора (эталон Николая сохраняет отступ окружения).
+        // Без этого новый блок появлялся с колонки 0 и давал «грязный» diff.
+        String indent = detectSectionIndent();
+        String block = indent + "<" + sectionName + ">\n" + indent + "</" + sectionName + ">\n";
         if (insertBefore != null) {
             int idx = content.indexOf("<" + insertBefore);
             int lineStart = content.lastIndexOf('\n', idx);
@@ -242,6 +250,23 @@ public class InterfaceEditor {
             // Insert before </CommandInterface>
             content = content.replace("</CommandInterface>", block + "</CommandInterface>");
         }
+    }
+
+    /**
+     * TASK-171: определить ведущий отступ секций по существующим секциям файла.
+     * Если ни одной секции ещё нет — используем один таб (типовой стиль Конфигуратора).
+     */
+    private String detectSectionIndent() {
+        for (String s : SECTION_ORDER) {
+            int idx = content.indexOf("<" + s);
+            if (idx < 0) continue;
+            int lineStart = content.lastIndexOf('\n', idx);
+            String lead = content.substring(lineStart + 1, idx);
+            if (lead.trim().isEmpty()) {
+                return lead;
+            }
+        }
+        return "\t";
     }
 
     private void ensureSectionWithContent(String sectionName, String fullContent) {
@@ -265,17 +290,33 @@ public class InterfaceEditor {
             }
         }
 
+        // TASK-171: ведущий отступ родителя для вставляемого блока секции (см. ensureSection).
+        String indent = detectSectionIndent();
+        String indented = indentBlock(fullContent, indent);
         if (insertBefore != null) {
             int idx = content.indexOf("<" + insertBefore);
             int lineStart = content.lastIndexOf('\n', idx);
             if (lineStart >= 0) {
-                content = content.substring(0, lineStart + 1) + fullContent + "\n" + content.substring(lineStart + 1);
+                content = content.substring(0, lineStart + 1) + indented + "\n" + content.substring(lineStart + 1);
                 return;
             }
         }
 
         // Insert before </CommandInterface>
-        content = content.replace("</CommandInterface>", fullContent + "\n</CommandInterface>");
+        content = content.replace("</CommandInterface>", indented + "\n</CommandInterface>");
+    }
+
+    /** TASK-171: добавить ведущий отступ к каждой непустой строке блока. */
+    private static String indentBlock(String block, String indent) {
+        if (indent.isEmpty()) return block;
+        String[] lines = block.split("\n", -1);
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < lines.length; i++) {
+            if (i > 0) sb.append('\n');
+            if (!lines[i].isEmpty()) sb.append(indent);
+            sb.append(lines[i]);
+        }
+        return sb.toString();
     }
 
     private void expandSelfClosingRoot() {

@@ -244,11 +244,10 @@ public class SubsystemWriter {
     }
 
     private static void writeWithBom(Path path, String content) throws IOException {
-        byte[] contentBytes = content.getBytes(StandardCharsets.UTF_8);
-        byte[] result = new byte[BOM.length + contentBytes.length];
-        System.arraycopy(BOM, 0, result, 0, BOM.length);
-        System.arraycopy(contentBytes, 0, result, BOM.length, contentBytes.length);
-        Files.write(path, result);
+        //++agent TASK-172 [02.06.2026 07:15:00]
+        // Канон Designer (_Демо): BOM + CRLF через единый чокпоинт нормализации.
+        Files.write(path, io.github.onec.xmlgen.io.Crlf.withBom(content));
+        //++agent TASK-172
     }
 
     private static String escapeXml(String s) {
@@ -276,13 +275,27 @@ public class SubsystemWriter {
         String type = contentItem.substring(0, dot);
         String name = contentItem.substring(dot + 1);
         String dir = resolveDirectoryForType(type);
-        Path objFile = configRoot.resolve(dir).resolve(name + ".xml");
 
-        // TASK-155 A3: defensive boundary guard — путь файла должен быть внутри configRoot.
-        // Нарушение = outputDir задан неверно (не Subsystems/, а сам каталог расширения).
-        Path canonicalRoot = configRoot.toAbsolutePath().normalize();
+        // TASK-171: для config-layout реальный корень = walk-up до Configuration.xml,
+        // а не переданный configRoot (= outputDir = .../Subsystems). Объекты Content
+        // (Catalogs/, Documents/...) лежат соседями в корне конфигурации (src/xml/),
+        // а не внутри Subsystems/. Прежний резолв + boundary-guard ложно падали на
+        // config-layout. Fallback на переданный configRoot — для extension-layout
+        // (outputDir = exts/XMLGEN_TEST/Subsystems без Configuration.xml).
+        Path resolveRoot = locateConfigRoot(configRoot);
+        boolean configLayout = (resolveRoot != null);
+        if (resolveRoot == null) {
+            resolveRoot = configRoot;
+        }
+        Path objFile = resolveRoot.resolve(dir).resolve(name + ".xml");
+        Path objDir = resolveRoot.resolve(dir).resolve(name);
+
+        // TASK-155 A3: defensive boundary guard — путь файла должен быть внутри корня.
+        // TASK-171: для config-layout проверяем против найденного корня конфигурации
+        // (объекты-соседи легитимно вне Subsystems/); guard остаётся для extension-layout.
+        Path canonicalRoot = resolveRoot.toAbsolutePath().normalize();
         Path canonicalFile = objFile.toAbsolutePath().normalize();
-        if (!canonicalFile.startsWith(canonicalRoot)) {
+        if (!configLayout && !canonicalFile.startsWith(canonicalRoot)) {
             throw new IllegalStateException(
                     "Output path escapes extension boundary: " + canonicalFile
                     + " is not under configRoot " + canonicalRoot
@@ -291,12 +304,34 @@ public class SubsystemWriter {
 
         // TASK-155 A3: fail-fast on missing target object — не создавать заглушку молча.
         // Пользователь должен сначала создать объект (xml-gen meta compile ...), затем ссылаться на него.
-        if (!Files.exists(objFile)) {
+        // TASK-171: объект может быть файлом <dir>/<Name>.xml или распакованным каталогом <dir>/<Name>/.
+        if (!Files.exists(objFile) && !Files.isDirectory(objDir)) {
             throw new IllegalArgumentException(
                     "ERROR: target object " + contentItem + " does not exist"
                     + " (expected file: " + objFile + ")."
                     + " Create the object first or use --no-stubs to skip this check.");
         }
+    }
+
+    /**
+     * TASK-171: подъём по дереву каталогов до первого Configuration.xml — надёжное
+     * определение корня конфигурации для config-layout. Возвращает null, если корень
+     * не найден (extension-layout / изолированный outputDir) — тогда используется
+     * прежний fallback на переданный configRoot.
+     */
+    private static Path locateConfigRoot(Path start) {
+        if (start == null) return null;
+        Path dir = start.toAbsolutePath().normalize();
+        if (Files.isRegularFile(dir)) {
+            dir = dir.getParent();
+        }
+        while (dir != null) {
+            if (Files.isRegularFile(dir.resolve("Configuration.xml"))) {
+                return dir;
+            }
+            dir = dir.getParent();
+        }
+        return null;
     }
 
     private static String resolveDirectoryForType(String type) {
@@ -407,7 +442,11 @@ public class SubsystemWriter {
             throw new IOException("Parent subsystem has no ChildObjects section: " + parentPath);
         }
 
-        byte[] bytes = content.getBytes(StandardCharsets.UTF_8);
+        //++agent TASK-172 [02.06.2026 07:16:00]
+        // Вставка ChildObjects в родительскую подсистему: entry содержит \n-литералы,
+        // которые в CRLF-каноне дали бы смешанную раскладку. Нормализуем итог к CRLF
+        // (идемпотентно — существующие \r\n не дублируются). hasBom-решение сохраняем.
+        byte[] bytes = io.github.onec.xmlgen.io.Crlf.normalize(content).getBytes(StandardCharsets.UTF_8);
         if (hasBom) {
             byte[] out = new byte[BOM.length + bytes.length];
             System.arraycopy(BOM, 0, out, 0, BOM.length);
@@ -416,5 +455,6 @@ public class SubsystemWriter {
         } else {
             Files.write(parentPath, bytes);
         }
+        //++agent TASK-172
     }
 }

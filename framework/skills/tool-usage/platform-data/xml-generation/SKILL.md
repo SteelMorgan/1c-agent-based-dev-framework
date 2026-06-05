@@ -1,6 +1,6 @@
 ---
 name: xml-generation
-description: "Единый toolkit для генерации, редактирования и валидации XML метаданных 1С через CLI xml-gen. Покрывает 11 доменов (EPF, Form, MXL, SKD, Role, Config, Subsystem, Interface, Meta 23 типа, Extension/CFE) + универсальные операции (validate, edit replace-text, form/template/help add). ~45 CLI-операций в формате Designer. Применяй при создании конфигураций и внешних обработок, добавлении объектов метаданных, форм, ролей, отчётов, печатных форм, расширений; а также при валидации и точечной модификации существующих XML."
+description: "MUST use WHEN нужно создать, изменить или валидировать любой XML метаданных 1С (формы, роли, объекты, MXL, СКД, EPF, расширения, конфигурация). Provides безопасную генерацию и точечную модификацию через CLI xml-gen, соблюдая правило no-manual-xml-edit."
 argument-hint: <domain> <operation> [<args>]
 allowed-tools:
   - Bash
@@ -133,7 +133,20 @@ xml-gen role add-object --name Catalog.Номенклатура --rights view Ri
 xml-gen role add-object --name Catalog.Номенклатура --rights Read,View Rights.xml
 ```
 
-## §7 Workarounds
+## §7 Дополнительные слои защиты (для агентов без PreToolUse)
+
+Для агентов без PreToolUse-протокола (Codex, Cursor, Aider, Cline и др.) рекомендуется настроить дополнительные слои защиты:
+
+- **Git pre-commit hook** (`tools/hooks/pre-commit`) — расширить вызовом `--check` по всем staged `.xml`/`.mxl` файлам. Это поздняя сетка: не даёт пройти в репозиторий даже если агент проигнорировал правило:
+  ```bash
+  python3 tools/hooks/block-direct-xml-edit.py --check "<staged-file>" --tool Edit
+  ```
+  При exit code `2` — файл относится к 1С metadata, коммит прерывается.
+- **CI на PR** — тот же `--check` по diff отлавливает любые попытки прямой правки на входе в `main`.
+
+Тонкая настройка: списки `ONEC_ROOT_DIRS`, `EXCLUDE_SUBSTRINGS`, `EXCLUDE_BASENAMES` задаются константами в `tools/hooks/block-direct-xml-edit.py`. Дополняй их, если в проекте появляется новый паттерн 1С-конфигурации (например, нестандартное расположение) или новый ложноположительный случай (build XML с уникальным именем).
+
+## §8 Workarounds
 
 | Проблема | Решение |
 |----------|---------|

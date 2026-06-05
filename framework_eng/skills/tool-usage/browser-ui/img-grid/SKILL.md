@@ -1,18 +1,18 @@
 ---
 name: "img-grid"
-description: "Overlay a numbered grid on a screenshot. Use when analyzing a printed form screenshot (MXL) - measure column proportions and spans before generating a tabular document."
+description: "Use for measuring column proportions and spans in a screenshot of a printed form (MXL). Helps precisely determine cell boundaries before generating a table document layout."
 argument-hint: "<ImagePath> [--cell-size 50] [--cols N] [-o OUTPUT]"
 allowed-tools:
   - Bash
   - Read
 ---
 
-# img-grid — Grid for layout analysis
+# img-grid — Grid for Layout Analysis
 
 Overlays a numbered grid on an image of a printed form.
-Allows you to precisely determine column boundaries, their proportions, and spans for generating an MXL document layout.
+Allows you to accurately determine column boundaries, their proportions, and spans for generating an MXL document layout.
 
-The numbers are drawn in separate margins outside the image (top and left margins), so they never cover the form contents.
+The numbers are drawn in separate margins outside the image (top and left margins), so they never overlap the form content.
 
 ## Usage
 
@@ -36,31 +36,31 @@ python3 tools/img-grid/grid.py <ImagePath> [--cell-size 50] [--cols N] [--rows N
 pip install Pillow
 ```
 
-## What the script does
+## What the Script Does
 
-1. Adds margins (20 px top, 24 px left) for labels - contents are not covered.
+1. Adds margins (20 px top, 24 px left) for labels so the content is not overlapped.
 2. Draws vertical lines (red) and horizontal lines (blue) on the grid.
-3. Every 5th line is brighter, every 10th line is maximally bright (easy to count).
-4. Numbers the lines in the margins (top = column numbers, left = row numbers).
+3. Every 5th line is brighter, every 10th line is the brightest (easy to count).
+4. Numbers the lines in the margins (top for column numbers, left for row numbers).
 5. Saves the result as an RGB PNG.
 
-## How to use the result
+## How to Use the Result
 
-### 1. Determine column boundaries
+### 1. Determine Column Boundaries
 
-Look at the image with the grid and write down the numbers of the vertical lines at the boundaries of each table column.
+Look at the image with the grid and note the numbers of the vertical lines at the boundaries of each table column.
 
-### 2. Find the base grid
+### 2. Find the Base Grid
 
-If the form has several tables with different layouts (header + main table), combine all boundary points. Each segment between adjacent boundaries is one base MXL column.
+If the form contains multiple tables with different layouts (header + main table), combine all boundary points. Each segment between adjacent boundaries is one base MXL column.
 
-Example for the M-11 form (`--cols 48`):
+Example for form M-11 (`--cols 48`):
 - Header: boundaries `0, 2, 4, 9, 14, 21, 28, 34, 40, 48`
 - Table: boundaries `0, 2, 4, 11, 16, 19, 23, 28, 32, 36, 42, 48`
 - Union: `0, 2, 4, 9, 11, 14, 16, 19, 21, 23, 28, 32, 34, 36, 40, 42, 48`
 - Result: **16 base columns** with proportions `2, 2, 5, 2, 3, 2, 3, 2, 2, 5, 4, 2, 2, 4, 2, 6`
 
-### 3. Record the proportions
+### 3. Record the Proportions
 
 ```json
 {
@@ -74,20 +74,20 @@ Example for the M-11 form (`--cols 48`):
 }
 ```
 
-## Typical workflow (reverse-engineering MXL)
+## Typical Workflow (reverse-engineering MXL)
 
 ```bash
-# 1. Take a screenshot of the form
-# 2. Overlay a grid with a step of ~50px
+# 1. Сделать скриншот формы
+# 2. Наложить сетку с шагом ~50px
 python3 tools/img-grid/grid.py form-screenshot.png --cell-size 50 -o form-grid.png
 
-# 3. Study the form, experiment with the number of divisions
+# 3. Изучить форму, поэкспериментировать с количеством делений
 python3 tools/img-grid/grid.py form-screenshot.png --cols 48 -o form-grid-48.png
 
-# 4. Pass it to the agent for analysis: name the column boundaries by number
+# 4. Передать агенту на анализ: назвать границы колонок по номерам
 ```
 
-## Target agents
+## Target Agents
 
 - **developer-code** — when working with an MXL form from a screenshot
 - **explorer / debugger** — when reverse-engineering unknown printed forms

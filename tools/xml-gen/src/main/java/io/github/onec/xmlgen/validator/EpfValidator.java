@@ -118,14 +118,18 @@ public class EpfValidator implements XmlValidator {
             }
 
             // EPF-003: ClassId
-            XmlNode internalInfo = properties.child("InternalInfo");
+            // TASK-171: InternalInfo — СОСЕД Properties (прямой ребёнок epfNode), а НЕ ребёнок
+            // Properties. Раньше навигация properties.child("InternalInfo") всегда возвращала null,
+            // из-за чего проверка соответствия ClassId была мёртвым кодом и не ловила подмену вида
+            // EPF↔ERF. Берём InternalInfo от epfNode.
+            XmlNode internalInfo = epfNode.child("InternalInfo");
             if (internalInfo != null) {
                 String classId = findClassId(internalInfo);
                 if (classId != null && !classId.isEmpty()) {
                     if (!expectedClassId.equals(classId)) {
                         issues.add(ValidationIssue.error("EPF-003",
                                 "Expected ClassId '" + expectedClassId + "', found '" + classId + "'",
-                                internalInfo.getLine(), "/" + elementName + "/Properties/InternalInfo/ClassId"));
+                                internalInfo.getLine(), "/" + elementName + "/InternalInfo/ClassId"));
                     }
                 }
             }
@@ -162,17 +166,36 @@ public class EpfValidator implements XmlValidator {
         }
 
         // EPF-006: Файлы из ChildObjects существуют (если документ — файл на диске)
-        Path docDir = document.getFile() != null ? document.getFile().getParent() : null;
+        //++agent TASK-171 [01.06.2026 21:45:00]
+        // Канон Designer: дочерние Forms/Templates лежат под <docDir>/<имяОбъекта>/,
+        // а НЕ прямо в <docDir>. Имя объекта = имя корневого файла без .xml (Designer
+        // всегда именует <Имя>.xml рядом с каталогом <Имя>/). Прежний резолв от docDir
+        // давал ложное EPF-006 на ЛЮБОМ валидном EPF/ERF с макетами (включая вывод
+        // флага init --with-skd). Исправлено: база = docDir/<имяОбъекта>.
+        Path docFile = document.getFile();
+        Path docDir = docFile != null ? docFile.getParent() : null;
         if (docDir != null) {
-            validateChildFiles(childObjects, docDir, elementName, issues);
+            String fileName = docFile.getFileName().toString();
+            String objectName = fileName.endsWith(".xml")
+                    ? fileName.substring(0, fileName.length() - 4)
+                    : fileName;
+            Path childBase = docDir.resolve(objectName);
+            validateChildFiles(childObjects, childBase, elementName, issues);
         }
+        //++agent TASK-171
     }
 
     private String findClassId(XmlNode internalInfo) {
-        // Ищем xr:ClassId или ClassId
+        // TASK-171: ищем (xr:)ClassId рекурсивно — в реальной структуре он лежит на уровень
+        // глубже: InternalInfo > xr:ContainedObject > xr:ClassId (см. EpfWriter.writeInternalInfo).
+        // Прежний обход только прямых детей не находил вложенный xr:ClassId.
         for (XmlNode child : internalInfo.getChildren()) {
             if (child.getName().equals("ClassId") || child.getName().endsWith(":ClassId")) {
                 return child.getText();
+            }
+            String nested = findClassId(child);
+            if (nested != null) {
+                return nested;
             }
         }
         return null;
@@ -235,17 +258,16 @@ public class EpfValidator implements XmlValidator {
         }
 
         // EPF-010: ClassId — тоже GUID
-        XmlNode props = epfNode.child("Properties");
-        if (props != null) {
-            XmlNode internalInfo = props.child("InternalInfo");
-            if (internalInfo != null) {
-                String classId = findClassId(internalInfo);
-                if (classId != null && !classId.isEmpty() && !GUID_RE.matcher(classId).matches()) {
-                    issues.add(ValidationIssue.error("EPF-010",
-                            "ClassId '" + classId + "' is not a valid GUID",
-                            internalInfo.getLine(),
-                            "/" + elementName + "/Properties/InternalInfo/ClassId"));
-                }
+        // TASK-171: InternalInfo — сосед Properties (прямой ребёнок epfNode), а не его ребёнок.
+        // Раньше props.child("InternalInfo") давал null → GUID-проверка ClassId не срабатывала.
+        XmlNode internalInfo = epfNode.child("InternalInfo");
+        if (internalInfo != null) {
+            String classId = findClassId(internalInfo);
+            if (classId != null && !classId.isEmpty() && !GUID_RE.matcher(classId).matches()) {
+                issues.add(ValidationIssue.error("EPF-010",
+                        "ClassId '" + classId + "' is not a valid GUID",
+                        internalInfo.getLine(),
+                        "/" + elementName + "/InternalInfo/ClassId"));
             }
         }
 
@@ -278,6 +300,7 @@ public class EpfValidator implements XmlValidator {
         }
 
         // EPF-008: Name (Properties) — тоже identifier
+        XmlNode props = epfNode.child("Properties");
         if (props != null) {
             String name = props.childText("Name");
             if (name != null && !name.isEmpty() && !IDENT_RE.matcher(name).matches()) {

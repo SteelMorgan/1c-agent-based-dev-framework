@@ -324,6 +324,43 @@ class TemplateWriterTest {
     }
 
     // ============================================================
+    // TASK-171: тела макетов через template add (единый источник, D1/D7)
+    // ============================================================
+
+    @Test
+    void task171_d1_spreadsheetBodyRootIsDocumentWithBom() throws IOException {
+        // TASK-171 D1/D7: тело SpreadsheetDocument — корень <document> и с UTF-8 BOM
+        // (как реальный демо-макет; единый источник истины ObjectContainerEditor.getTemplateBody).
+        createDocumentObject(tempDir, "ЗаказКлиента");
+        MdoPath object = MdoPath.parse("Document.ЗаказКлиента");
+        writer.addTemplate(tempDir, object, "ПФ_Счёт", "SpreadsheetDocument", null, false, "src");
+
+        Path body = tempDir.resolve("src/Documents/ЗаказКлиента/Templates/ПФ_Счёт/Ext/Template.xml");
+        byte[] raw = Files.readAllBytes(body);
+        assertThat(raw[0]).isEqualTo((byte) 0xEF);
+        assertThat(raw[1]).isEqualTo((byte) 0xBB);
+        assertThat(raw[2]).isEqualTo((byte) 0xBF);
+        String content = readFileContent(body);
+        assertThat(content).contains("<document xmlns=\"http://v8.1c.ru/8.2/data/spreadsheet\">");
+        assertThat(content).doesNotContain("<SpreadsheetDocument");
+    }
+
+    @Test
+    void task171_d3_dcsBodyRootForReport() throws IOException {
+        // TASK-171 D3: тело DataCompositionSchema — корень <DataCompositionSchema>.
+        createReportObject(tempDir, "Продажи2");
+        MdoPath object = MdoPath.parse("Report.Продажи2");
+        writer.addTemplate(tempDir, object, "ОсновнаяСхема", "DataCompositionSchema", null, true, "src");
+
+        Path body = tempDir.resolve("src/Reports/Продажи2/Templates/ОсновнаяСхема/Ext/Template.xml");
+        String content = readFileContent(body);
+        assertThat(content).contains("<DataCompositionSchema xmlns=\"http://v8.1c.ru/8.1/data-composition-system/schema\">");
+        // D6: для конфиг-Report префикс остаётся Report.
+        String root = readFileContent(tempDir.resolve("src/Reports/Продажи2.xml"));
+        assertThat(root).contains("<MainDataCompositionSchema>Report.Продажи2.Template.ОсновнаяСхема</MainDataCompositionSchema>");
+    }
+
+    // ============================================================
     // Helper
     // ============================================================
 

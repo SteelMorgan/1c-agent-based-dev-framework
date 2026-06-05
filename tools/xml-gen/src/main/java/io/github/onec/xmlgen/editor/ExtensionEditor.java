@@ -823,11 +823,10 @@ public class ExtensionEditor {
     }
 
     private void writeWithBom(Path path, String content) throws IOException {
-        byte[] bytes = content.getBytes(StandardCharsets.UTF_8);
-        byte[] result = new byte[BOM.length + bytes.length];
-        System.arraycopy(BOM, 0, result, 0, BOM.length);
-        System.arraycopy(bytes, 0, result, BOM.length, bytes.length);
-        Files.write(path, result);
+        //++agent TASK-172 [02.06.2026 07:15:00]
+        // Канон Designer (_Демо): новые scaffold-файлы расширения (xml/.bsl) — BOM + CRLF.
+        Files.write(path, io.github.onec.xmlgen.io.Crlf.withBom(content));
+        //++agent TASK-172
     }
 
     private static String esc(String s) {
@@ -1113,7 +1112,12 @@ public class ExtensionEditor {
             throw new IllegalArgumentException("NamePrefix not found in extension Configuration.xml: "
                     + extCfgFile);
         }
-        String procName = namePrefix + "_" + methodName;
+        // TASK-171: NamePrefix уже включает разделитель (mcp_, тк_, OPI_), поэтому
+        // конкатенируем без добавочного "_" — иначе получалось двойное подчёркивание
+        // (mcp__Метод). Конвенция 1С: <Префикс><ИмяМетода>. Эталон Николая (cfe-patch-method.py:169):
+        // proc_name = f"{name_prefix}{method_name}". Если префикс почему-то БЕЗ разделителя —
+        // добавляем один "_", чтобы не склеить prefixИмя.
+        String procName = namePrefix.endsWith("_") ? namePrefix + methodName : namePrefix + "_" + methodName;
 
         // 3. Разрешить путь к BSL-файлу в расширении
         MdoPathResolver.ParsedModule parsed = MdoPathResolver.parseModule(modulePath);

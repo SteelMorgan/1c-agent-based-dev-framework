@@ -114,6 +114,13 @@ public class MetadataTypeRegistry {
         reg("WebService", "WebServices", "WebService",
                 cats(),
                 children("Operation"));
+
+        // TASK-171 D-5: тип платформы 8.3.27. Без регистрации валидаторы/реестр давали ложный
+        // WARN «unknown type 'WebSocketClient'» на реальной Configuration.xml
+        // (<WebSocketClient>биг_ВебСокет_ОКХ</WebSocketClient>). Простой тип без ChildObjects.
+        reg("WebSocketClient", "WebSocketClients", "WebSocketClient",
+                cats(),
+                children());
     }
 
     private static List<String> cats(String... items) {

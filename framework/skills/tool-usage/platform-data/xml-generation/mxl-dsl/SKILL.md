@@ -1,6 +1,6 @@
 ---
 name: mxl-dsl
-description: "JSON DSL для генерации табличных документов 1С (MXL) — печатные формы. Богатый канон: page/columns/rowStyle/rowspan/empty/detail/template/format. Используй при xml-gen mxl compile/decompile/info и xml-gen validate --type mxl для печатных форм."
+description: "Use for генерации и доработки печатных форм 1С (MXL) через JSON DSL. Helps описать области, ячейки и статические стили для xml-gen mxl compile/decompile/info/validate."
 ---
 
 # MXL DSL
@@ -18,6 +18,10 @@ description: "JSON DSL для генерации табличных докуме
 | Понять структуру чужого макета (области, параметры, расшифровки) | `mxl info` → `references/info-modes.md` |
 | Проверить корректность собранного Template.xml | `xml-gen validate --type mxl` → `references/validate-classes.md` |
 | Реверс-инжиниринг печати по образцу (скрин/скан) | `mxl decompile` или собрать с нуля по сетке — задать `page` + `"Nx"` ширины |
+
+## Намеренно вне DSL — делать кодом
+
+DSL покрывает **статическое** оформление ячеек — `font/align/valign/border/wrap/format` через карту `styles`. Намеренно НЕ генерирует **рантайм-условное** оформление: раскраску/стилизацию ячейки в зависимости от выводимого значения. Это делается программно при заполнении таб. документа — `Область.ТекстЦвет = …`, `Область.ЦветФона = …` на заполненной области. Отсутствие — **дизайн**, а не дефект инструмента, см. правило `no-manual-xml-edit.md` § «Что делается кодом, а НЕ через xml-gen».
 
 ## Команды
 

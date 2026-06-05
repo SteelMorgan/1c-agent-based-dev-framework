@@ -15,7 +15,7 @@ uses_capabilities:
 3. Find suitable steps: first in the Vanessa library, then in the project scenarios.
 4. Write one smoke scenario: open -> one action -> one observable outcome.
 5. If the step does not exist, mark `# unknown_step_candidate`; do not invent a BSL step.
-6. Pass the scenario to `vanessa-run` for execution.
+6. Pass the scenario to `v8-runner` (`v8-runner test va`).
 
 ---
 
@@ -84,12 +84,38 @@ The only exception is when the function being checked is available exclusively t
 
 ---
 
+## Two-Session Split (MUST)
+
+`.feature` file is logically divided into two parts:
+
+1. **Setup / infrastructure** - runs under a technical user (`AgentAI` in this project): preparing test data (creating documents, catalog items, register records), `VAExtension (Расширение)` steps, BSL fixtures from `vanessa-tests/support/`, everything that requires technical roles outside the business user's normal access.
+2. **Business flow (verification)** - runs under a specific business user (for example `Gavrilova Natalia` for OC-23400): only steps that verify user behavior under test. The business user **MUST NOT receive** technical roles (for example roles from `VAExtension.cfe`) just to make the step pass.
+
+Session switching:
+```gherkin
+И я закрываю сеанс TESTCLIENT
+```
+or
+```gherkin
+И я закрываю TestClient "<имя>"
+```
+after which a new session opens:
+```gherkin
+Дано я подключаю TestClient "<роль>" логин "<пользователь>" пароль "<пароль>"
+```
+
+**Rationale** (Infostart id=249957, id=249958): if the business flow runs with full rights, the test stops checking real role restrictions and creates a false sense of correctness. Granting the business user technical roles just to satisfy an infrastructure step is the same anti-pattern in another form.
+
+**Anti-pattern:** putting `(Расширение)` / fixture steps into the business user's session, then "fixing" the failure by granting technical roles. Instead, move the step into the setup block under the technical user.
+
+---
+
 ## Step Search
 
 Library: `/opt/onescript/2.0.0/lib/add/features/libraries/`
 
 | Category | Library file |
-|-----------|--------------|
+|-----------|-----------------|
 | Interface, fields, buttons, tabs | `UITestRunner/РаботаСИнтерфейсом.feature` |
 | Tables (tabular sections) | `UITestRunner/РаботаСТаблицами.feature` |
 | Form element state | `UITestRunner/СостояниеЭлементаФормы.feature` |
@@ -100,12 +126,12 @@ Library: `/opt/onescript/2.0.0/lib/add/features/libraries/`
 | Conditions, variables | `Условие/Условие.feature` |
 | Pause | `Пауза/СделатьПаузу.feature` |
 
-Cheat sheet for common steps with syntax -> `references/steps-cheatsheet.md`.
+Cheat sheet for common steps with syntax → `references/steps-cheatsheet.md`.
 
 **Full library:** `references/steps.json` (1116 steps). **Do not read it in full** - use `grep` to search by keywords from the task. Structure of each record:
-- `ИмяШага` - example invocation with parameters
-- `ОписаниеШага` - what the step does
-- `ПолныйТипШага` - category (UI, Misc, Files, Variables, etc.)
+- `Step name` - example invocation with parameters
+- `Step description` - what the step does
+- `Full step type` - category (UI, Misc, Files, Variables, etc.)
 
 ---
 
@@ -140,7 +166,6 @@ depends_on:
   - framework/rules/vanessa-test-isolation-policy.mdc
   - framework/rules/vanessa-tests-location.mdc
   - framework/rules/vanessa-run-loop.mdc
-  - framework/skills/tool-usage/vanessa/vanessa-run/SKILL.md
   - framework/skills/tool-usage/vanessa/vanessa-diagnostics/SKILL.md
   - framework/skills/tool-usage/platform-data/xml-generation/SKILL.md
 requires:

@@ -1,6 +1,7 @@
 ---
 name: search-before-write
-description: "Search Before Write. The skill teaches the agent **to always perform a search before writing new code**."
+description: "MUST use BEFORE writing new BSL code or a function. Defines the search cascade (LSP → metadata → platform → БСП) as proof that no ready-made equivalent exists."
+alwaysApply: false
 ---
 
 # Search Before Write
@@ -17,23 +18,23 @@ Each next step is only taken if the previous one produced no result:
 | 2 | `list_metadata_objects`, `get_metadata_structure` | Configuration objects (catalogs, registers, documents) |
 | 3 | `search_syntax_reference`, `get_type_info` | Built-in platform types/methods |
 | 4 | `search_ssl_functions` | БСП functions (if the configuration contains БСП) |
-| 5a | `ask_ai_assistant` (SEARCH_DOCS template) | Platform documentation - if the question is about API, methods, types |
-| 5b | `ask_ai_assistant` (SEARCH_ITS → FETCH_ITS template) | Standards, methodology, ИТС examples - if the question is about development rules |
-| 5c | `ask_ai_assistant` (generic) | Other questions - only if 5a/5b do not fit |
+| 5a | `ask_ai_assistant` (SEARCH_DOCS template) | Platform documentation — if the question is about API, methods, types |
+| 5b | `ask_ai_assistant` (SEARCH_ITS → FETCH_ITS template) | Standards, methodology, ИТС examples — if the question is about development rules |
+| 5c | `ask_ai_assistant` (generic) | Other questions — only if 5a/5b do not fit |
 
-> Prompt templates for steps 5a-5c - see the `buddy-prompting` skill.
+> Prompt templates for steps 5a–5c — see the `buddy-prompting` skill.
 
 ## Triggers
 
 | Task | Initial cascade step |
 |--------|-----------------------|
-| New function/procedure | 1 - search for analogs by name |
-| Business logic | 2 - search for metadata objects |
-| Using the platform API | 3 - syntax reference; fallback 5a (documentation) |
+| New function/procedure | 1 — search for analogs by name |
+| Business logic | 2 — search for metadata objects |
+| Using the platform API | 3 — syntax reference; fallback 5a (documentation) |
 | Print form | 2 → 4 (metadata + БСП API) |
-| Development standards and rules | 5b - search in ИТС |
+| Development standards and rules | 5b — search in ИТС |
 | Migration between versions | 5a (DIFF_VERSIONS template) |
-| Query | 1 - existing queries in the project |
+| Query | 1 — existing queries in the project |
 
 ## Capabilities
 

@@ -14,15 +14,19 @@ public class ConfigWriter {
 
     private static final byte[] BOM = {(byte) 0xEF, (byte) 0xBB, (byte) 0xBF};
 
-    // ClassId констант для InternalInfo (из спецификации)
+    // 7 канонических ClassId для InternalInfo конфигурации.
+    // TASK-171 (D-1): позиции 2,5,6,7 раньше были неверны → config init генерил битый InternalInfo
+    // (cf-validate ловил 4 Unknown ClassId). Канон сверен с грунт-труф (grep ClassId
+    // src/xml/Configuration.xml даёт ровно эти 7 GUID), с эталоном Николая (cf-init.py / cf-validate.py
+    // VALID_CLASS_IDS) и с ExtensionWriter.CLASS_IDS (там те же 7 GUID были уже правильными).
     private static final String[] INTERNAL_CLASS_IDS = {
             "9cd510cd-abfc-11d4-9434-004095e12fc7",
-            "9fcd25a0-4541-11d5-adf1-83caef21083c",
+            "9fcd25a0-4822-11d4-9414-008048da11f9",
             "e3687481-0a87-462c-a166-9f34594f9bba",
             "9de14907-ec23-4a07-96f0-85521cb6b53b",
-            "51f2d5d8-ea4d-4064-8892-82571f1df657",
-            "a3b46c5a-029f-41fa-921c-9cdddbb6f9c5",
-            "24c43748-c112-44b3-8f6a-efb4c9e07576"
+            "51f2d5d8-ea4d-4064-8892-82951750031e",
+            "e68182ea-4237-4383-967f-90c1e3370bc7",
+            "fb282519-d103-4dd3-bc12-cb271d631dfc"
     };
 
     /**
@@ -38,6 +42,20 @@ public class ConfigWriter {
      */
     public void create(Path outputDir, String name, String synonym, String version,
                        String vendor, String langName, String langCode) throws IOException {
+        create(outputDir, name, synonym, version, vendor, langName, langCode, null, null);
+    }
+
+    /**
+     * Создать scaffold конфигурации с указанием версии формата и режима совместимости
+     * (TASK-171 D-10).
+     *
+     * @param compatibilityMode значение {@code CompatibilityMode}/{@code ConfigurationExtensionCompatibilityMode}
+     *                          (например {@code Version8_3_27}); null = {@code Version8_3_24}
+     * @param formatVersion     версия формата сериализации (атрибут {@code version} корня); null = {@code 2.17}
+     */
+    public void create(Path outputDir, String name, String synonym, String version,
+                       String vendor, String langName, String langCode,
+                       String compatibilityMode, String formatVersion) throws IOException {
         Files.createDirectories(outputDir);
 
         String syn = synonym != null ? synonym : name;
@@ -45,12 +63,14 @@ public class ConfigWriter {
         String vnd = vendor != null ? vendor : "";
         String lName = langName != null ? langName : "Русский";
         String lCode = langCode != null ? langCode : "ru";
+        String compat = compatibilityMode != null ? compatibilityMode : "Version8_3_24";
+        String fmtVer = formatVersion != null ? formatVersion : "2.17";
 
         String configUuid = UuidGenerator.generate();
         String langUuid = UuidGenerator.generate();
 
         // 1. Configuration.xml
-        writeConfigurationXml(outputDir, name, syn, ver, vnd, lName, lCode, configUuid);
+        writeConfigurationXml(outputDir, name, syn, ver, vnd, lName, lCode, configUuid, compat, fmtVer);
 
         // 2. ConfigDumpInfo.xml
         writeConfigDumpInfo(outputDir, name, configUuid, lName, langUuid);
@@ -67,7 +87,8 @@ public class ConfigWriter {
 
     private void writeConfigurationXml(Path outputDir, String name, String synonym,
                                        String version, String vendor, String langName,
-                                       String langCode, String configUuid) throws IOException {
+                                       String langCode, String configUuid,
+                                       String compatibilityMode, String formatVersion) throws IOException {
         StringBuilder sb = new StringBuilder();
         sb.append("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n");
         sb.append("<MetaDataObject xmlns=\"http://v8.1c.ru/8.3/MDClasses\"\n");
@@ -76,7 +97,8 @@ public class ConfigWriter {
         sb.append("\txmlns:xs=\"http://www.w3.org/2001/XMLSchema\"\n");
         sb.append("\txmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\"\n");
         sb.append("\txmlns:app=\"http://v8.1c.ru/8.2/managed-application/core\"\n");
-        sb.append("\tversion=\"2.17\">\n");
+        // TASK-171 D-10: версия формата конфигурируема (раньше хардкод 2.17).
+        sb.append("\tversion=\"").append(escapeXml(formatVersion)).append("\">\n");
         sb.append("\t<Configuration uuid=\"").append(configUuid).append("\">\n");
 
         // InternalInfo
@@ -108,10 +130,12 @@ public class ConfigWriter {
         sb.append("\t\t\t<Copyright/>\n");
         sb.append("\t\t\t<VendorInformationAddress/>\n");
         sb.append("\t\t\t<ConfigurationInformationAddress/>\n");
-        sb.append("\t\t\t<ConfigurationExtensionCompatibilityMode>Version8_3_24</ConfigurationExtensionCompatibilityMode>\n");
+        // TASK-171 D-10: режим совместимости конфигурируем (раньше хардкод Version8_3_24).
+        sb.append("\t\t\t<ConfigurationExtensionCompatibilityMode>").append(escapeXml(compatibilityMode))
+                .append("</ConfigurationExtensionCompatibilityMode>\n");
         sb.append("\t\t\t<DefaultRunMode>ManagedApplication</DefaultRunMode>\n");
         sb.append("\t\t\t<ScriptVariant>Russian</ScriptVariant>\n");
-        sb.append("\t\t\t<CompatibilityMode>Version8_3_24</CompatibilityMode>\n");
+        sb.append("\t\t\t<CompatibilityMode>").append(escapeXml(compatibilityMode)).append("</CompatibilityMode>\n");
         sb.append("\t\t\t<DataLockControlMode>Managed</DataLockControlMode>\n");
         sb.append("\t\t\t<ObjectAutonumerationMode>NotAutoFree</ObjectAutonumerationMode>\n");
         sb.append("\t\t\t<ModalityUseMode>DontUse</ModalityUseMode>\n");
@@ -212,11 +236,10 @@ public class ConfigWriter {
     }
 
     private static void writeWithBom(Path path, String content) throws IOException {
-        byte[] contentBytes = content.getBytes(StandardCharsets.UTF_8);
-        byte[] result = new byte[BOM.length + contentBytes.length];
-        System.arraycopy(BOM, 0, result, 0, BOM.length);
-        System.arraycopy(contentBytes, 0, result, BOM.length, contentBytes.length);
-        Files.write(path, result);
+        //++agent TASK-172 [02.06.2026 07:15:00]
+        // Канон Designer (_Демо): BOM + CRLF через единый чокпоинт нормализации.
+        Files.write(path, io.github.onec.xmlgen.io.Crlf.withBom(content));
+        //++agent TASK-172
     }
 
     private static String escapeXml(String s) {

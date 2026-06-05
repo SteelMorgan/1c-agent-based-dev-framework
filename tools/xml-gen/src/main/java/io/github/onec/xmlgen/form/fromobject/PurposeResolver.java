@@ -59,7 +59,12 @@ public final class PurposeResolver {
         return null;
     }
 
-    private static String matchPurpose(String formName) {
+    /**
+     * Определяет purpose формы по её имени (item/list/choice/folder/record) или
+     * {@code null}, если имя не распознано. Публичный — используется MetaEditor
+     * для установки соответствующего Default*Form (TASK-171).
+     */
+    public static String matchPurpose(String formName) {
         String n = formName.toLowerCase(Locale.ROOT);
         if (n.contains("формасписка") || n.contains("listform") || n.equals("list")) return "list";
         if (n.contains("формавыбора") || n.contains("choiceform") || n.equals("choice")) return "choice";

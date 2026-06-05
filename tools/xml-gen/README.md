@@ -28,18 +28,60 @@ Fat JAR будет создан в `build/libs/xml-gen-0.1.0-SNAPSHOT.jar` (~5.6
 ## Использование
 
 ```bash
-# Справка
-java -jar build/libs/xml-gen-0.1.0-SNAPSHOT.jar
+# Справка / версия
+xml-gen --help
+xml-gen --version
 
 # Создать EPF
-java -jar build/libs/xml-gen-0.1.0-SNAPSHOT.jar epf init --format designer --name МояОбработка output/
+xml-gen epf init --format designer --name МояОбработка output/
 
 # Скомпилировать форму
-java -jar build/libs/xml-gen-0.1.0-SNAPSHOT.jar form compile --format designer form.json output/
+xml-gen form compile --format designer form.json output/
 
 # Скомпилировать роль
-java -jar build/libs/xml-gen-0.1.0-SNAPSHOT.jar role compile --format designer role.json output/
+xml-gen role compile --format designer role.json output/
 ```
+
+### meta compile / meta edit — объекты метаданных (TASK-171)
+
+`meta compile <json> <configRoot>` создаёт объект метаданных и:
+
+- генерирует объект в каноничном формате (namespace `http://v8.1c.ru/8.3/xcf/...`);
+- берёт **версию формата** (`version=...`) из `<configRoot>/Configuration.xml` (а не хардкодит) —
+  и для объекта, и для `Ext/Predefined.xml`;
+- **регистрирует** объект в `<ChildObjects>` `Configuration.xml` (если конфиг найден рядом);
+- для `CommonModule`/`ScheduledJob`/`EventSubscription` НЕ пишет лишние `InternalInfo`/`ChildObjects`.
+
+Поддерживаемые ключи DSL (примеры):
+
+```jsonc
+// Справочник с предопределёнными элементами (Ext/Predefined.xml):
+{ "type": "Catalog", "name": "бигДоговоры", "codeLength": 9,
+  "predefinedItems": [
+    { "name": "Аренда", "description": "Договор аренды" },   // code авто: 000000001
+    { "name": "Поставка", "code": "000000010" },
+    "Прочее"                                                  // строка = только имя
+  ] }
+
+// Перечисление со значениями (ключ values ИЛИ алиас enumValues):
+{ "type": "Enum", "name": "бигСтатусы", "enumValues": [ {"name":"Новый"}, {"name":"Закрыт"} ] }
+```
+
+```bash
+# Скомпилировать объект и зарегистрировать его в Configuration.xml
+xml-gen meta compile catalog.json src/xml/
+
+# Добавить предопределённые элементы в существующий справочник (Ext/Predefined.xml):
+#   shorthand элемента: Имя[|Описание[|Код[|folder]]]; батч через ;;
+xml-gen meta edit src/xml/Catalogs/бигДоговоры.xml --op add-predefined \
+    --value "Лизинг|Договор лизинга;;Субаренда"
+```
+
+Поддерживают предопределённые: `Catalog`, `ChartOfCharacteristicTypes`,
+`ChartOfAccounts`, `ChartOfCalculationTypes`.
+
+`config init` принимает `--compat <Version8_3_NN>` и `--format-version <2.NN>`
+для соответствия целевой платформе.
 
 ## Архитектура
 

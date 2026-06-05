@@ -1,9 +1,9 @@
 ---
 name: rac-use
-description: "1C server cluster administration through the RAC utility — viewing/terminating sessions, managing locks, connections, infobases, and other cluster objects."
+description: "1С server cluster administration through the RAC utility — viewing/terminating sessions, managing locks, connections, infobases, and other cluster objects."
 ---
 
-# RAC — 1C cluster administration utility
+# RAC — 1С cluster administration utility
 
 ## When to use
 
@@ -146,8 +146,7 @@ Help for any mode: `rac help <mode>`.
 | `Infobase not found` | Incorrect database UUID | Check via `infobase summary list` |
 
 ---
-depends_on:
-  - framework/skills/tool-usage/vanessa/vanessa-run/SKILL.md
+depends_on: []
 requires:
   - tools
 ---

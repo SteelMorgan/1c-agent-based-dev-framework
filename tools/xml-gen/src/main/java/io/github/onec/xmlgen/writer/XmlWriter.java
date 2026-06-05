@@ -79,13 +79,20 @@ public abstract class XmlWriter {
             Files.createDirectories(parent);
         }
         
-        OutputStream os = Files.newOutputStream(outputPath);
-        
-        // Записать BOM если нужно
+        OutputStream rawOs = Files.newOutputStream(outputPath);
+
+        // Записать BOM если нужно — ДО обёртки фильтра, чтобы сам BOM не трогался.
         if (withBom) {
-            os.write(UTF8_BOM);
+            rawOs.write(UTF8_BOM);
         }
-        
+
+        //++agent TASK-172 [02.06.2026 07:12:00]
+        // Канон Designer (_Демо) — CRLF. StAX эмитит переводы строк как writeCharacters("\n")
+        // (одиночный LF); навешиваем CRLF на байтовой границе единым фильтром, а не правкой
+        // каждого литерала "\n" в XmlWriter/подклассах.
+        OutputStream os = io.github.onec.xmlgen.io.Crlf.wrapLfToCrlf(rawOs);
+        //++agent TASK-172
+
         XMLOutputFactory factory = XMLOutputFactory.newInstance();
         writer = factory.createXMLStreamWriter(os, "UTF-8");
     }

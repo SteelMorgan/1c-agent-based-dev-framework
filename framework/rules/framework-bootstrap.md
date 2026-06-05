@@ -1,39 +1,75 @@
 ---
 name: framework-bootstrap
-description: 1C BSL Agent Development Framework — bootstrap-контекст для всех задач
+description: 1C BSL Agent Development Framework — портативный само-промотирующий стаб главного потока
 alwaysApply: true
 ---
 # 1C BSL Agent Development Framework
 
-Фреймворк агентной разработки для 1С BSL. Это минимальный контекст — детали загружай по требованию.
+Это фреймворк агентной разработки для 1С BSL. Минимальный always-on ориентир + портативный
+кросс-харнес мост, поднимающий роль Lead/оркестратора в главном потоке. Детальный роутинг и манинг
+оркестрации живут в **профиле оркестратора** (`framework/subagents/orchestrator.md`), а не здесь.
 
-## Когда загружать что
+## Само-промотирующий стаб (главный поток)
 
-| Ситуация | Что загрузить |
-|----------|---------------|
-| Обсуждение / планирование задачи | Ничего дополнительно — этого bootstrap достаточно |
-| **Простая задача** (баг в одном файле, < 20 строк, без новых фич, без новых объектов метаданных) | `/<ide-cli-dot-catalog>/rules/quick-fix.md` |
-| **Сложная задача** (новые фичи, несколько файлов, архитектурные решения, новые объекты метаданных) | `/<ide-cli-dot-catalog>/rules/orchestrator.md` |
-| Написание / редактирование BSL-кода | `/<ide-cli-dot-catalog>/rules/mandatory-tools.md` + `/<ide-cli-dot-catalog>/skills/bsl-practices/*` по необходимости |
-| Написание спецификации | `/<ide-cli-dot-catalog>/skills/spec-writing/spec-standard.md` |
-| Ревью кода / артефактов | `/<ide-cli-dot-catalog>/rules/cross-review-policy.md` + чек-лист |
-| Работа с git (коммиты, ветки, merge задачи) | `/<ide-cli-dot-catalog>/rules/git-workflow.md` |
+> Цель — гарантировать, что у главного потока ЕСТЬ манинг оркестрации, на любом харнесе и после
+> любой потери контекста. Условие ключуется на **фактическом наличии тела манинга оркестратора в
+> текущем контексте**, а НЕ на убеждении «я оркестратор»: после компакта состояние задачи («верю,
+> что я оркестратор») выживает в сводке, а тело манинга — вытесняется. Ключевание на убеждении дало
+> бы ложный пропуск чтения.
 
-> **Если сомневаешься** — трактуй как сложную, загружай `orchestrator.md`.
+```
+- Если ты САБАГЕНТ (системный промпт явно называет роль: analyst / architect / developer-code /
+  developer-tests / scenario-author / scenario-coder / tester / reviewer / explorer / debugger) →
+  это правило НЕ для тебя. Маршрутизация и манинг оркестрации тебе не нужны — ты исполняешь
+  делегированную фазу. ВЫХОД.
 
-> **КРИТИЧНО** - сообщи пользователю в чат как ты классифицировал задачу и какой путь дальше будет загружен: `orchestrator.md` или `quick-fix.md`.
+- Если тело манинга оркестратора СЕЙЧАС в контексте (профиль orchestrator загружен на старте
+  ИЛИ ты прочитал framework/subagents/orchestrator.md в этой сессии после последнего компакта) →
+  ты — Lead. Действуй по нему: классифицируй задачу → выбери цикл (short/full) → дальше по профилю.
+
+- Иначе (ты главный поток, тела манинга оркестратора в контексте НЕТ — старт без профиля ИЛИ
+  потеряли после компакта) → ПРОЧИТАЙ СЕЙЧАС framework/subagents/orchestrator.md, затем действуй
+  как Lead. Это и есть портативная эмуляция профиля на харнесах без --agent/--append.
+```
+
+**Точки ре-срабатывания:** старт сессии · **после компакта** · возобновление из
+`task_dir/.context/orchestrator-context.md`. В каждой из них перепроверь среднюю/третью ветку: если
+тела манинга в контексте нет — перечитай профиль до первого управленческого действия.
+
+## Доставка на разных харнесах (один портативный носитель)
+
+- **Харнес С профилем** (Claude CLI, запуск под `--append-system-prompt` или `--agent orchestrator`,
+  см. `framework/subagents/orchestrator.md` § «Способ запуска» и манифест §6.1) → манинг
+  пред-загружен в системный промпт → вторая ветка стаба истинна → стаб **no-op**.
+- **Харнес БЕЗ профиля** (Codex / Cursor и т.п.) → срабатывает третья ветка: главный поток сам
+  читает профиль. Durability — через ре-триггер (этот стаб always-on, переживает компакт; тело
+  профиля перечитывается при потере).
+
+## Куда идти (короткая карта)
+
+- Простая задача (баг в одном файле, < 20 строк, без новых фич, без новых объектов метаданных) →
+  short-цикл: навык **`quick-fix`** (через Skill-тул).
+- Средняя / сложная (новые фичи, несколько файлов, архитектура, новые объекты метаданных) →
+  full-цикл: работа оркестратора по профилю + фазовая механика **`full-cycle`**.
+- **Если сомневаешься** — трактуй как сложную (full).
+
+Детали классификации, выбора цикла и self-vs-delegate под guard quick-fix — в профиле оркестратора
+(Слой 1). Это правило их НЕ дублирует, чтобы не раздувать always-on канал, который наследуют сабагенты.
 
 ## Инструменты
 
-- Агент обнаруживает доступные инструменты динамически через MCP (`tools/list`) — не hardcode имена tool-ов
+- Агент обнаруживает доступные инструменты динамически через MCP (`tools/list`) — не hardcode имена
+  tool-ов
 - Навыки использования: `/<ide-cli-dot-catalog>/skills/tool-usage/`
-- Маппинг capability → MCP: `/<ide-cli-dot-catalog>/capabilities/registry.yaml`, правило: `/<ide-cli-dot-catalog>/rules/capability-resolution.mdc`
+- Маппинг capability → MCP: `/<ide-cli-dot-catalog>/capabilities/registry.yaml`, правило:
+  `/<ide-cli-dot-catalog>/rules/capability-resolution.mdc`
 
 ---
 depends_on:
-- framework/workflows/quick-fix.md
-- framework/workflows/orchestrator.md
-- framework/workflows/source-of-truth-policy.md
+- framework/subagents/orchestrator.md
+- framework/skills/framework-meta/quick-fix/SKILL.md
+- framework/workflows/full-cycle.md
+- framework/rules/source-of-truth.md
 - framework/rules/protected-paths.mdc
 - framework/rules/skill-learning-policy.mdc
 - framework/rules/git-workflow.md

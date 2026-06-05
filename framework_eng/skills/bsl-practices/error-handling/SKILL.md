@@ -1,6 +1,7 @@
 ---
 name: error-handling
-description: "Error handling, transactions, and locks. This skill teaches the agent how to handle errors correctly and manage transactions and locks in 1C."
+description: "MUST be used WHEN handling exceptions or controlling transactions in BSL. Provides the canonical Try/Except pattern, transaction rollback rules, and data locking management."
+alwaysApply: false
 ---
 
 # Error handling, transactions, and locks
@@ -178,7 +179,7 @@ In 1C, a nested `НачатьТранзакцию()` does not create a new trans
 КонецПроцедуры
 ```
 
-### Rule: DO NOT use ТранзакцияАктивна() as a substitute for the correct pattern
+### Rule: DO NOT use `ТранзакцияАктивна()` as a substitute for the correct pattern
 
 ```bsl
 // ПЛОХО: ТранзакцияАктивна() маскирует ошибку в структуре кода
@@ -233,7 +234,7 @@ External HTTP calls inside a transaction are a disaster: HTTP timeout = 30 sec =
 
 ---
 
-## Rule 5: Managed locks - БлокировкаДанных
+## Rule 5: Managed locks - `БлокировкаДанных`
 
 Without granular locking before read-modify, a race condition occurs: two sessions read the same value, both modify it - one update is lost.
 
@@ -305,7 +306,7 @@ ITS standard: "Managed locks".
 
 ---
 
-## Rule 6: ЗаблокироватьДанныеДляРедактирования - pessimistic object locking
+## Rule 6: `ЗаблокироватьДанныеДляРедактирования` - pessimistic object locking
 
 Prevents lost update: the second user will get the error "Object locked by user X".
 
@@ -342,7 +343,7 @@ Prevents lost update: the second user will get the error "Object locked by user 
 
 ---
 
-## Rule 7: ЗаписьЖурналаРегистрации - correct logging
+## Rule 7: `ЗаписьЖурналаРегистрации` - proper logging
 
 ### Full entry format
 
@@ -388,7 +389,7 @@ Prevents lost update: the second user will get the error "Object locked by user 
 
 ---
 
-## Rule 8: Building error messages for the user
+## Rule 8: Generating error messages for the user
 
 For the user - **what happened** and **what to do**. In the registration log - technical information.
 
@@ -417,7 +418,7 @@ For the user - **what happened** and **what to do**. In the registration log - t
 
 ---
 
-## Rule 9: Correct rethrowing of exceptions - ВызватьИсключение
+## Rule 9: Proper exception propagation - `ВызватьИсключение`
 
 | Method | When | Why |
 |--------|-------|--------|

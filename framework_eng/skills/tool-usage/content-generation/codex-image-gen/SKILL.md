@@ -1,6 +1,6 @@
 ---
 name: codex-image-gen
-description: "Use when you need to generate or edit a raster image (UI mockup, wireframe, illustration for a document/spec, diagram, icon, test fixture). Claude/Opus do not draw images themselves, so this skill delegates the work to Codex/GPT through `codex exec` with the `image_generation` tool, placing the result in `tasks/<id>/assets/`. TRIGGERS: the user asks to \"make an image / draw / generate an image / need a mockup / need a screenshot sketch / illustration / mockup / wireframe / diagram / fix this image / edit PNG\"."
+description: "Use for generating and editing raster images (UI mockup, wireframe, illustration, diagram, icon, test fixture). Helps delegate image creation to Codex/GPT through `codex exec image_generation`, placing the result in `tasks/<id>/assets/`."
 capabilities: content-generation,image-generation,cross-provider,delegation
 ---
 
@@ -28,7 +28,7 @@ A thin wrapper around the Codex CLI for generating and editing raster images. Cl
 ## Anti-patterns
 
 - **"Describe the image in words instead of generating it"** - if the user explicitly asked for an image, a description does not replace it.
-- **Trying to generate through cross-provider-review / `codex_review.py`** - there `--sandbox read-only` is hard-coded, so no file will appear on disk. Use `codex_image_gen.py` specifically.
+- **Trying to generate through cross-provider-review / `codex_review.py`** - `--sandbox read-only` is hard-coded there, so no file will appear on disk. Use `codex_image_gen.py` specifically.
 - **Passing an unstructured prompt** ("make it beautiful") - image_gen will return junk. Take a template from references/prompt-guide.md and fill in the axes.
 - **Putting the output in an arbitrary path** - the wrapper always writes to `tasks/<id>/assets/`, so the artifact lives next to the task. If there is no task, discuss with the user whether one needs to be created.
 
@@ -89,7 +89,7 @@ Hard prompt requirements specific to this wrapper, not to the general image_gen:
 
 ## How to accept the result
 
-1. The wrapper returned `status: ok` plus a list of files -> check `ls tasks/<id>/assets/<filename>` (`stat` is enough). If the file is missing, it is `status: error` regardless of what Codex said.
+1. Wrapper returned `status: ok` plus a list of files -> check `ls tasks/<id>/assets/<filename>` (`stat` is enough). If the file is missing, it is `status: error` regardless of what Codex said.
 2. Open the image (or ask the user), compare it with the prompt across the axes: story/composition/style/light/background/constraints. If there is a mismatch on 1-2 axes, make an iterative correction with a short prompt: "Keep everything else unchanged. <delta>". If there are many mismatches, rebuild the prompt from scratch.
 3. If the result is good, mention the file path in the response to the user. If the file is intended for a task document (spec, ADR, README), add a markdown link and leave the image inline.
 

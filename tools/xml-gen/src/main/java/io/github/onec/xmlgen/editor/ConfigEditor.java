@@ -150,15 +150,19 @@ public class ConfigEditor {
     }
 
     public void save() throws IOException {
+        //++agent TASK-172 [02.06.2026 07:22:00]
+        // Канон Designer (_Демо) — CRLF. Правка Configuration.xml строковыми заменами
+        // вставляет \n-фрагменты; нормализуем итог к CRLF идемпотентно, BOM-решение сохраняем.
+        byte[] contentBytes = io.github.onec.xmlgen.io.Crlf.normalize(content).getBytes(StandardCharsets.UTF_8);
         if (hasBom) {
-            byte[] contentBytes = content.getBytes(StandardCharsets.UTF_8);
             byte[] result = new byte[BOM.length + contentBytes.length];
             System.arraycopy(BOM, 0, result, 0, BOM.length);
             System.arraycopy(contentBytes, 0, result, BOM.length, contentBytes.length);
             Files.write(configXmlPath, result);
         } else {
-            Files.writeString(configXmlPath, content, StandardCharsets.UTF_8);
+            Files.write(configXmlPath, contentBytes);
         }
+        //++agent TASK-172
     }
 
     // --- Internal ---

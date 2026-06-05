@@ -1,6 +1,6 @@
 ---
 name: skd-dsl
-description: "JSON DSL for generating and analyzing 1C data composition schemas (SKD). Use with xml-gen skd compile/info and xml-gen validate --type skd - data sets (Query/Object/Union), calculated fields, output templates, settings variants, conditional appearance."
+description: "Use for generating 1C data composition schemas (SKD) from scratch via JSON DSL: datasets, calculated fields, output templates, variants, conditional formatting. Helps build Schema.xml through xml-gen skd compile/info/validate."
 ---
 
 # SKD DSL
@@ -8,34 +8,34 @@ description: "JSON DSL for generating and analyzing 1C data composition schemas 
 ## When to Use
 
 | Trigger | Action |
-|---------|----------|
+|---------|--------|
 | Create a report (SKD) from scratch | `xml-gen skd compile` with JSON DSL |
-| External data set (without a query) | `dataSets[].objectName` (DataSetObject) |
-| Combine data sets | `dataSets[].items` (DataSetUnion) |
+| External dataset (without a query) | `dataSets[].objectName` (DataSetObject) |
+| Merge datasets | `dataSets[].items` (DataSetUnion) |
 | Calculated fields | `calculatedFields` (shorthand or object) |
-| Output templates | `templates` + `groupTemplates` — see [references/templates-dsl.md](references/templates-dsl.md) |
+| Output templates | `templates` + `groupTemplates` - see [references/templates-dsl.md](references/templates-dsl.md) |
 | Cell drilldown | `parameters[].drilldown` in the template |
-| Links between data sets | `dataSetLinks` |
+| Links between datasets | `dataSetLinks` |
 | Understand someone else's SKD | `xml-gen skd info --mode overview` → then `trace`/`query`/`variant` |
-| Check correctness | `xml-gen validate --type skd` |
+| Check validity | `xml-gen validate --type skd` |
 | Targeted editing | `skd add-parameter` / `skd add-field` → [xml-generation](../SKILL.md) §3 |
 
 ## CLI Commands
 
 ```bash
-# Компиляция: JSON DSL → Template.xml
+# Compilation: JSON DSL → Template.xml
 xml-gen skd compile [--format designer|edt] <input.json> <output.xml>
 
-# Анализ: Template.xml → компактная сводка (11 режимов)
+# Analysis: Template.xml → compact summary (11 modes)
 xml-gen skd info <Template.xml> [--mode <mode>] [--name <name>] [--batch <N>]
 
-# Валидация структуры
+# Structure validation
 xml-gen validate --type skd <Template.xml> [--detailed] [--max-errors 20]
 ```
 
-`output.xml` is the path to the Template.xml layout: `.../Templates/<Name>/Ext/Template.xml`.
+`output.xml` - path to Template.xml layout: `.../Templates/<Name>/Ext/Template.xml`.
 
-## DSL Root Structure
+## Root DSL Structure
 
 ```json
 {
@@ -50,19 +50,19 @@ xml-gen validate --type skd <Template.xml> [--detailed] [--max-errors 20]
 }
 ```
 
-Defaults: `dataSources` → auto `ИсточникДанных1/Local`; `settingsVariants` → auto "Main" with detailed records.
+Defaults: `dataSources` → auto `ИсточникДанных1/Local`; `settingsVariants` → auto "Main" with detail records.
 
-## Data Sets
+## Datasets
 
-The type is determined by the key: `query` → DataSetQuery, `objectName` → DataSetObject, `items` → DataSetUnion.
+Type is determined by key: `query` → DataSetQuery, `objectName` → DataSetObject, `items` → DataSetUnion.
 
-**DataSetQuery:** `{ "name": "...", "query": "ВЫБРАТЬ ...", "fields": [...] }`. The query is an inline string or a file `"query": "@queries/sales.sql"` (path relative to the JSON file, then CWD).
-**DataSetObject:** external data set without a query. Data is passed through `ПроцессорКомпоновкиДанных.Инициализировать(Макет, Новый Структура("<objectName>", ТЗ), …)`. Fields are described explicitly in `fields[]`. `name` is the data set name, `objectName` is the key in the data transfer structure.
-**DataSetUnion:** `{ "name": "...", "items": [...], "fields": [...] }` — combining data sets with common fields.
+**DataSetQuery:** `{ "name": "...", "query": "ВЫБРАТЬ ...", "fields": [...] }`. The query can be an inline string or a file `"query": "@queries/sales.sql"` (path relative to the JSON, then CWD).
+**DataSetObject:** external dataset without a query. Data is passed through `ПроцессорКомпоновкиДанных.Инициализировать(Макет, Новый Структура("<objectName>", ТЗ), …)`. Fields are described explicitly in `fields[]`. `name` is the dataset name, `objectName` is the key in the data-passing structure.
+**DataSetUnion:** `{ "name": "...", "items": [...], "fields": [...] }` - merge of datasets with common fields.
 
 ## Fields - object form only
 
-> **WARNING:** in the current CLI implementation, shorthand strings (`"Name [Title]: type @role #restriction"`) for the `fields`, `calculatedFields`, `totalFields`, and `parameters` collections are **NOT supported** — the Jackson deserializer for `SkdDsl$Field`, `SkdDsl$CalculatedField`, `SkdDsl$Parameter`, and `SkdDsl$TotalField` does not have a String constructor and rejects strings with the error `Cannot construct instance ... no String-argument constructor`. Use **only object form** in all examples below, regardless of what is shown in the shorthand fragments of the documentation. The shorthand forms are kept in the file as a reference description of the target semantics.
+> **WARNING:** in the current CLI implementation, shorthand strings (`"Name [Title]: type @role #constraint"`) for the collections `fields`, `calculatedFields`, `totalFields`, `parameters` are **NOT supported** - the Jackson deserializer in `SkdDsl$Field`, `SkdDsl$CalculatedField`, `SkdDsl$Parameter`, `SkdDsl$TotalField` does not have a String constructor and rejects strings with the error `Cannot construct instance ... no String-argument constructor`. Use **only the object form** in all examples below, regardless of what is shown in the shorthand fragments of the documentation. The shorthand forms are left in the file as a reference description of the target semantics.
 
 Object form of a field:
 ```json
@@ -71,7 +71,7 @@ Object form of a field:
 ```
 `dataPath` is taken from `field` if not specified explicitly.
 
-If roles/restrictions are needed, use object equivalents of shorthand flags:
+If role/constraints are needed, use object equivalents of shorthand flags:
 ```json
 { "field": "Организация", "type": "CatalogRef.Организации", "role": "@dimension" }
 { "field": "Служебное", "type": "string", "restrict": ["noFilter", "noOrder"] }
@@ -79,21 +79,21 @@ If roles/restrictions are needed, use object equivalents of shorthand flags:
 
 **Title:** multilingual `"title": { "ru": "...", "en": "..." }`. Supported everywhere that accepts title/presentation.
 
-**Types:** `string`, `string(N)`, `decimal`, `decimal(D,F)`, `boolean`, `date`, `dateTime`. `decimal` without parentheses = `decimal(10,2)`. `decimal(N)` = `decimal(N,0)`. Suffix `,nonneg` → `AllowedSign=Nonnegative`. Aliases `number`/the Russian word for number ≡ `decimal`.
+**Types:** `string`, `string(N)`, `decimal`, `decimal(D,F)`, `boolean`, `date`, `dateTime`. `decimal` without parentheses = `decimal(10,2)`. `decimal(N)` = `decimal(N,0)`. Suffix `,nonneg` → `AllowedSign=Nonnegative`. Aliases `number`/`numeric` ≡ `decimal`.
 
-Reference types: `CatalogRef.X`, `DocumentRef.X`, `EnumRef.X`, `ChartOfAccountsRef.X`, `StandardPeriod`. Emitted with inline namespace `d5p1:`. Building EPF with reference types requires a database with a matching configuration.
+Reference types: `CatalogRef.X`, `DocumentRef.X`, `EnumRef.X`, `ChartOfAccountsRef.X`, `StandardPeriod`. They are emitted with the inline namespace `d5p1:`. Building an EPF with reference types requires a base with a suitable configuration.
 
-Composite type is an array in object form: `"type": ["CatalogRef.А", "CatalogRef.Б"]`. Qualifiers apply to each element.
+Composite type - an array in object form: `"type": ["CatalogRef.А", "CatalogRef.Б"]`. Qualifiers apply to each element.
 
 **Roles:** `@dimension`, `@account`, `@balance`, `@period`.
 
-**Restrictions:** shorthand flags `#noField`, `#noFilter`, `#noGroup`, `#noOrder`; object form: `"restrict": ["noField", "noFilter"]`.
+**Constraints:** shorthand flags `#noField`, `#noFilter`, `#noGroup`, `#noOrder`; object form: `"restrict": ["noField", "noFilter"]`.
 
-**Additional:** `presentationExpression` — expression for presentation (the value remains for drilldown). `appearance` — default column formatting (platform parameter keys).
+**Additional:** `presentationExpression` - presentation expression (the value remains available for drilldown). `appearance` - default column formatting (platform parameter keys).
 
 ## Calculated Fields (calculatedFields)
 
-Shorthand: `"Name [Title]: type = Expression #flags"` — everything except the name is optional.
+Shorthand: `"Name [Title]: type = Expression #flags"` - everything except the name is optional.
 ```json
 "calculatedFields": [
   "Маржа = Цена - Закупка",
@@ -101,13 +101,13 @@ Shorthand: `"Name [Title]: type = Expression #flags"` — everything except the 
   "Служебное: string = \"\" #noField #noFilter #noGroup #noOrder"
 ]
 ```
-Object form — when `appearance` or composite settings are needed: `{ "name", "title", "expression", "type", "useRestriction" }`.
+Object form is used when `appearance` or composite settings are needed: `{ "name", "title", "expression", "type", "useRestriction" }`.
 
 ## Totals (totalFields)
 
-Shorthand: `"totalFields": ["Количество: Сумма", "Стоимость: Сумма(Кол * Цена)"]`.
+Shorthand: `"totalFields": ["Quantity: Sum", "Cost: Sum(Qty * Price)"]`.
 
-Bound to groupings — object form:
+With linkage to groupings - object form:
 ```json
 { "dataPath": "Кол", "expression": "Сумма(Кол)", "group": ["Группа1", "Группа1 Иерархия", "ОбщийИтог"] }
 ```
@@ -118,14 +118,14 @@ Shorthand: `"Name [Title]: type = value @flags"`.
 
 | Flag | Effect |
 |------|--------|
-| `@autoDates` | For `StandardPeriod` — adds derived `НачалоПериода`/`КонецПериода`. Use `&НачалоПериода`/`&КонецПериода` in the query. The parameter gets `use=Always`, `denyIncompleteValues=true`. |
-| `@valueList` | `valueListAllowed=true` — allows a list of values. |
-| `@hidden` | `availableAsField=false` + excluded from `"dataParameters": "auto"`. |
+| `@autoDates` | For `StandardPeriod` - adds derived `НачалоПериода`/`КонецПериода`. Use `&НачалоПериода`/`&КонецПериода` in the query. The parameter gets `use=Always`, `denyIncompleteValues=true`. |
+| `@valueList` | `valueListAllowed=true` - allows a list of values. |
+| `@hidden` | `availableAsField=false` + exclusion from `"dataParameters": "auto"`. |
 | `@always` | `use=Always`. |
 
 Object form: `title`, `hidden`, `valueListAllowed`, `availableAsField`, `denyIncompleteValues`, `use: "Always"`, `availableValues[]`.
 
-`"dataParameters": "auto"` in a settings variant outputs all non-hidden parameters with `userSettingID`. Parameters without a default value are disabled (the user will enable them manually).
+`"dataParameters": "auto"` in a settings variant - outputs all non-hidden parameters with `userSettingID`. Parameters without a default value are disabled (the user will enable them manually).
 
 ## Filters
 
@@ -146,9 +146,9 @@ Groups:
 ]}
 ```
 
-Filter value types: `Перечисление.*` / `Справочник.*` / `ПланСчетов.*` / `Документ.*` → DesignTimeValue (auto-detected).
+Value types: `Перечисление.*` / `Справочник.*` / `ПланСчетов.*` / `Документ.*` → DesignTimeValue (auto-detected).
 
-## Data Set Links (dataSetLinks)
+## Dataset Links (dataSetLinks)
 
 ```json
 "dataSetLinks": [{ "source": "...", "target": "...",
@@ -158,12 +158,12 @@ Filter value types: `Перечисление.*` / `Справочник.*` / `�
 
 ## Variant Structure (structure)
 
-String shorthand: `"structure": "Организация > Номенклатура > details"` (`>` separates levels, `details` = detail records).
+String shorthand: `"structure": "Organization > Nomenclature > details"` (`>` separates levels, `details` = detail records).
 
 Object form:
 ```json
-"structure": [{ "name": "...", "groupFields": ["Организация"],
-  "selection": ["Организация", "Сумма", "Auto"], "children": [{ "groupFields": [] }] }]
+"structure": [{ "name": "...", "groupFields": ["Organization"],
+  "selection": ["Organization", "Amount", "Auto"], "children": [{ "groupFields": [] }] }]
 ```
 `type` defaults to `"group"`. Supported: `name`, `selection`, `order`, `filter`, `outputParameters`, recursive `children`, `type: "table"`, `type: "chart"`.
 
@@ -185,7 +185,7 @@ Object form:
 
 `selection`: `"Auto"` = all available fields; `{ "folder": "...", "items": [...] }` → `SelectedItemFolder`.
 
-## Conditional Appearance (conditionalAppearance)
+## Conditional Formatting (conditionalAppearance)
 
 ```json
 { "selection": ["Поле1"], "filter": ["Поле1 notFilled"],
@@ -193,37 +193,37 @@ Object form:
   "presentation": "...", "viewMode": "Normal", "userSettingID": "auto" }
 ```
 
-Values of `appearance`: `style:XXX`/`web:XXX`/`win:XXX` → Color; `true`/`false` → Boolean; `Формат`/`Текст`/`Заголовок` → LocalStringType; everything else → String.
+Values in `appearance`: `style:XXX`/`web:XXX`/`win:XXX` → Color; `true`/`false` → Boolean; `Формат`/`Текст`/`Заголовок` → LocalStringType; the rest → String.
 
-In `settingsVariants.settings`, add it under the key `"conditionalAppearance": [...]`.
+In `settingsVariants.settings`, it is added under the key `"conditionalAppearance": [...]`.
 
-## Output Templates and Groupings
+## Output and Group Templates
 
-The full specification (cell syntax, styles, drilldown, groupTemplates) — [references/templates-dsl.md](references/templates-dsl.md).
+Full specification (cell syntax, styles, drilldown, groupTemplates) - [references/templates-dsl.md](references/templates-dsl.md).
 
-## Analysis — `xml-gen skd info`
+## Analysis - `xml-gen skd info`
 
-11 modes. Detailed output examples — [references/info-modes.md](references/info-modes.md).
+11 modes. Detailed examples of output - [references/info-modes.md](references/info-modes.md).
 
 | Mode | Without `--name` | With `--name` |
-|-------|--------------|-------------|
+|------|------------------|---------------|
 | `overview` (default) | Schema map + hints for next steps | — |
-| `query` | — | Data set query text (with batch table of contents) |
-| `fields` | Field map by data set | Field details: dataset, type, role, format |
-| `links` | All data set links | — |
-| `calculated` | Calculated field map | Expression + title + restrictions |
-| `resources` | Resource map (`*` = has group formulas) | Aggregation formulas by groupings |
+| `query` | — | Dataset query text (with batch table of contents) |
+| `fields` | Field map by datasets | Field detail: dataset, type, role, format |
+| `links` | All dataset links | — |
+| `calculated` | Map of calculated fields | Expression + title + constraints |
+| `resources` | Map of resources (`*` = has group formulas) | Aggregation formulas by groupings |
 | `params` | Parameter table (type, value, visibility) | — |
 | `variant` | List of variants | Grouping structure + filters + output |
-| `templates` | Template binding map | Template content: rows, cells, expressions |
-| `trace` | — | Full chain: data set → calculation → resource |
+| `templates` | Map of template bindings | Template contents: rows, cells, expressions |
+| `trace` | — | Full chain: dataset → calculation → resource |
 | `full` | overview + query + fields + resources + params + variant | — |
 
 Workflow: `overview` → `trace --name <field>` → `query --name <dataset>` → `variant --name <N>`. Parameters: `--mode`, `--name`, `--batch` (`0` = all batches), `--limit`/`--offset` (default 150), `--out-file`.
 
-## Example — with external query, resources, @autoDates
+## Example - with external query, resources, @autoDates
 
-> All collections are in object form (the CLI rejects shorthand strings, see the warning above).
+> All collections are in object form (the CLI rejects shorthand strings; see warning above).
 
 ```json
 {
@@ -257,7 +257,7 @@ Workflow: `overview` → `trace --name <field>` → `query --name <dataset>` →
 
 ## Anti-patterns
 
-`"filter": ["Amount greater than 0"]` — **incorrect**: the parser accepts operators only from the fixed set (`=`, `<>`, `>`, `>=`, `<`, `<=`, `in`, `notIn`, `contains`, `filled`, `notFilled`, `InHierarchy`). `greater` is not recognized.
+`"filter": ["Amount greater than 0"]` - **incorrect**: the parser accepts operators strictly from the fixed set (`=`, `<>`, `>`, `>=`, `<`, `<=`, `in`, `notIn`, `contains`, `filled`, `notFilled`, `InHierarchy`). `greater` is not recognized.
 
 ---
 depends_on: []

@@ -36,13 +36,29 @@ public class FormValidator implements XmlValidator {
     private static final Set<String> COLUMN_UI_FIELD_TYPES =
             Set.of("InputField", "CheckBoxField", "LabelField");
 
-    /** Известные имена UI-элементов (из FormElementType enum). */
+    /**
+     * Дополнительные валидные типы полей формы, отсутствующие в enum
+     * {@code FormElementType} библиотеки 1c_syntax (TASK-171 V-2).
+     * <p>Белый список enum неполон: например {@code SpreadSheetDocumentField} —
+     * стандартное валидное поле табличного документа, встречается в реальной выгрузке БСП
+     * ({@code _ДемоГенерацияШтрихкода/Forms/Форма}) и давало ложный ERROR FORM-101.
+     * Перечень полей платформы, которые enum может не знать, добавляем хардкодом поверх enum.
+     */
+    private static final Set<String> EXTRA_KNOWN_ELEMENT_TYPES = Set.of(
+            "SpreadSheetDocumentField", "HTMLDocumentField", "GanttChartField",
+            "PlannerField", "FormattedDocumentField", "ChartField",
+            "GraphicalSchemaField", "GeographicalSchemaField", "DendrogramField",
+            "TextDocumentField", "TrackBarField", "ProgressBarField"
+    );
+
+    /** Известные имена UI-элементов (из FormElementType enum + платформенные поля сверх enum). */
     private static final Set<String> KNOWN_ELEMENT_TYPES;
     static {
         Set<String> types = new HashSet<>();
         for (FormElementType t : FormElementType.values()) {
             types.add(t.fullName().getEn());
         }
+        types.addAll(EXTRA_KNOWN_ELEMENT_TYPES); // TASK-171 V-2
         KNOWN_ELEMENT_TYPES = Collections.unmodifiableSet(types);
     }
 
@@ -85,13 +101,12 @@ public class FormValidator implements XmlValidator {
                     "Missing required <AutoCommandBar> element",
                     root.getLine(), "/Form"));
         } else {
-            String cmdName = autoCmd.attr("name");
+            // TASK-171 V-1: имя главной AutoCommandBar НЕ фиксировано платформой.
+            // Реальные выгрузки Конфигуратора используют и 'ФормаКоманднаяПанель', и
+            // 'Форма_КоманднаяПанель' (11 из 145 _Демо-форм) — проверка имени давала ложный
+            // ERROR на валидных формах. Николай имя не проверяет вовсе, только id == -1.
+            // Проверяем ТОЛЬКО id (это инвариант главной панели формы).
             String cmdId = autoCmd.attr("id");
-            if (!"ФормаКоманднаяПанель".equals(cmdName)) {
-                issues.add(ValidationIssue.error("FORM-001",
-                        "AutoCommandBar name must be 'ФормаКоманднаяПанель', found '" + cmdName + "'",
-                        autoCmd.getLine(), "/Form/AutoCommandBar/@name"));
-            }
             if (!"-1".equals(cmdId)) {
                 issues.add(ValidationIssue.error("FORM-001",
                         "AutoCommandBar id must be '-1', found '" + cmdId + "'",
@@ -132,13 +147,13 @@ public class FormValidator implements XmlValidator {
             }
         }
 
-        // FORM-006: ChildItems
+        // FORM-006: ChildItems.
+        // TASK-171 V-5: отсутствие <ChildItems> — НЕ ошибка. Валидные служебные формы обработок
+        // без UI-дерева (работают через код/параметры) штатно не имеют <ChildItems> (5 из 145
+        // _Демо-форм). Прежний WARN был ложным; у Николая такой проверки нет вовсе. WARNING убран,
+        // при наличии <ChildItems> по-прежнему проверяем name/id вложенных элементов (FORM-007).
         XmlNode childItems = root.child("ChildItems");
-        if (childItems == null) {
-            issues.add(ValidationIssue.warning("FORM-006",
-                    "Missing <ChildItems> element",
-                    root.getLine(), "/Form"));
-        } else {
+        if (childItems != null) {
             // FORM-007: UI elements имеют name и id
             collectElementIds(childItems, "/Form/ChildItems", elemIds, duplicateIds, issues);
         }
@@ -455,16 +470,17 @@ public class FormValidator implements XmlValidator {
                 }
             }
 
-            // FORM-103: Button.CommandName → существующая Command
+            // FORM-103: Button.CommandName → существующая Command формы.
+            // TASK-171 V-3: проверяем ТОЛЬКО ссылки вида "Form.Command.<name>" (команды самой формы).
+            // Всё остальное (Form.StandardCommand.*, DataProcessor.X.StandardCommand.*, CommonCommand.*,
+            // Catalog.*, Document.*, ExternalDataProcessor.*, Item.* и т.п.) — silent skip, как у Николая:
+            // это команды менеджера объекта / общие команды, резолвящиеся вне Form.xml, и из формы их
+            // проверить невозможно. Прежний хрупкий isStandardCommand давал ложный WARN на 3 _Демо-формах.
             if ("Button".equals(elemName)) {
                 String commandName = elem.childText("CommandName");
-                if (commandName != null && !commandName.isEmpty()) {
-                    // Формат: "Form.Command.<name>" — извлекаем имя
-                    String cmdRef = commandName;
-                    if (commandName.startsWith("Form.Command.")) {
-                        cmdRef = commandName.substring("Form.Command.".length());
-                    }
-                    if (!cmdNames.contains(cmdRef) && !isStandardCommand(commandName)) {
+                if (commandName != null && commandName.startsWith("Form.Command.")) {
+                    String cmdRef = commandName.substring("Form.Command.".length());
+                    if (!cmdNames.contains(cmdRef)) {
                         issues.add(ValidationIssue.warning("FORM-103",
                                 "Button CommandName '" + commandName + "' references unknown command",
                                 elem.getLine(), elemPath + "/CommandName"));
@@ -883,14 +899,9 @@ public class FormValidator implements XmlValidator {
         return null;
     }
 
-    private boolean isStandardCommand(String commandName) {
-        // Стандартные команды формы: Form.StandardCommand.*
-        return commandName.startsWith("Form.StandardCommand.")
-                || commandName.startsWith("Item.")
-                || commandName.startsWith("Reread")
-                || commandName.startsWith("Write")
-                || commandName.startsWith("Close");
-    }
+    // TASK-171 V-3: метод isStandardCommand удалён — FORM-103 больше не пытается распознавать
+    // «стандартные» команды по хрупкому белому списку. Теперь проверяются только ссылки
+    // Form.Command.* (команды самой формы), остальные префиксы пропускаются (см. validateElements).
 
     /**
      * Системные элементы внутри <Attributes>, которые не являются пользовательскими атрибутами.

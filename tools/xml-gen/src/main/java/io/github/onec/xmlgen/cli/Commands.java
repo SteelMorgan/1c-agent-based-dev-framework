@@ -125,7 +125,7 @@ public class Commands {
 
     private static void executeEpf(String[] args) {
         if (args.length == 0) {
-            throw new IllegalArgumentException("EPF subcommand required: init [--type report], add-form, add-template, add-attribute, add-tabular-section, bsp-init, bsp-add-command");
+            throw new IllegalArgumentException("EPF subcommand required: init [--type report] [--with-skd], add-form, add-template, add-attribute, add-tabular-section, bsp-init, bsp-add-command");
         }
 
         String subcommand = args[0];
@@ -270,6 +270,7 @@ public class Commands {
         String name = null;
         String synonym = null;
         boolean isReport = false;
+        boolean withSkd = false; //++agent TASK-171 [01.06.2026 12:00:00] флаг основной СКД для ERF //++agent TASK-171
         Path outputDir = null;
 
         for (int i = 1; i < args.length; i++) {
@@ -286,6 +287,12 @@ public class Commands {
                 } else if (!"processor".equals(typeArg)) {
                     throw new IllegalArgumentException("--type must be 'processor' or 'report'");
                 }
+            //++agent TASK-171 [01.06.2026 12:00:00]
+            // --with-skd: за один шаг создать ERF с основной схемой компоновки данных.
+            // Это булев флаг без значения, поэтому отдельная ветка (не "--opt <value>").
+            } else if ("--with-skd".equals(args[i])) {
+                withSkd = true;
+            //++agent TASK-171
             } else if (outputDir == null) {
                 outputDir = Paths.get(args[i]);
             }
@@ -297,6 +304,16 @@ public class Commands {
         if (outputDir == null) {
             throw new IllegalArgumentException("output directory is required");
         }
+
+        //++agent TASK-171 [01.06.2026 12:00:00]
+        // Ранняя валидация: --with-skd осмыслен только для отчёта. Проверяем до создания
+        // файлов, чтобы не оставить на диске половину артефакта (init без схемы).
+        if (withSkd && !isReport) {
+            throw new IllegalArgumentException(
+                "--with-skd is only valid with --type report "
+                + "(external data processors have no MainDataCompositionSchema).");
+        }
+        //++agent TASK-171
 
         //++agent TASK-155 [22.05.2026 00:00:00]
         // TASK-155 A2 iter-3: name validation for EPF init (bug-T-154-epf-002).
@@ -312,7 +329,16 @@ public class Commands {
 
         try {
             EpfWriter writer = new EpfWriter(format, isReport);
-            writer.init(name, synonym, outputDir);
+            //++agent TASK-171 [01.06.2026 12:00:00]
+            // С флагом --with-skd создаём ERF сразу с основной схемой компоновки данных
+            // (init + add-template DataCompositionSchema + MainDataCompositionSchema) — единый
+            // путь через initWithSkd, переиспользующий проверенную связку add-template (D3/D6).
+            if (withSkd) {
+                writer.initWithSkd(name, synonym, outputDir);
+            } else {
+                writer.init(name, synonym, outputDir);
+            }
+            //++agent TASK-171
         } catch (Exception e) {
             String kind = isReport ? "ERF" : "EPF";
             throw new RuntimeException("Failed to create " + kind + ": " + e.getMessage(), e);
@@ -2028,7 +2054,38 @@ public class Commands {
     }
 
     private static boolean isMetadataFile(String type) {
-        return "role".equals(type) || "form".equals(type) || "epf".equals(type);
+        // TASK-171: добавлены skd и mxl. Все платформенные Template.xml для СКД и MXL
+        // Конфигуратор пишет С UTF-8 BOM (грунт-труф: все 7 _Демо СКД и ПФ_MXL — ef bb bf).
+        // Раньше skd/mxl не входили в metadata-файлы → GEN-003 их не проверял на BOM,
+        // и одновременно ложно ворнил «Unexpected UTF-8 BOM» на каноничных файлах.
+        return "role".equals(type) || "form".equals(type) || "epf".equals(type)
+                || "skd".equals(type) || "mxl".equals(type);
+    }
+
+    /**
+     * TASK-171: надёжное определение корня конфигурации — подъём по дереву каталогов
+     * до первого {@code Configuration.xml}. Заменяет хрупкое фиксированное число
+     * {@code .getParent()}, которое промахивалось мимо корня из-за каталога
+     * {@code Subsystems/} и вложенных подсистем ({@code Parent/Subsystems/Child.xml}).
+     *
+     * <p>Возвращает {@code null}, если {@code Configuration.xml} не найден (например,
+     * подсистема в плоском extension-layout либо изолированный тестовый файл) — тогда
+     * вызывающий код использует прежний fallback, сохраняя совместимость.
+     */
+    private static Path locateConfigRoot(Path start) {
+        if (start == null) return null;
+        Path dir = start.toAbsolutePath().normalize();
+        // start обычно файл (Subsystem.xml / CommandInterface.xml) — поднимаемся от родителя.
+        if (Files.isRegularFile(dir)) {
+            dir = dir.getParent();
+        }
+        while (dir != null) {
+            if (Files.isRegularFile(dir.resolve("Configuration.xml"))) {
+                return dir;
+            }
+            dir = dir.getParent();
+        }
+        return null;
     }
     
     private static String getArg(String[] args, String key, boolean required) {
@@ -2188,6 +2245,8 @@ public class Commands {
         String vendor = null;
         String langName = null;
         String langCode = null;
+        String compat = null;          // TASK-171 D-10: CompatibilityMode
+        String formatVersion = null;   // TASK-171 D-10: версия формата (атрибут version)
 
         for (int i = 1; i < args.length; i++) {
             if ("--synonym".equals(args[i]) && i + 1 < args.length) {
@@ -2200,6 +2259,10 @@ public class Commands {
                 langName = args[++i];
             } else if ("--lang-code".equals(args[i]) && i + 1 < args.length) {
                 langCode = args[++i];
+            } else if ("--compat".equals(args[i]) && i + 1 < args.length) {
+                compat = args[++i];
+            } else if ("--format-version".equals(args[i]) && i + 1 < args.length) {
+                formatVersion = args[++i];
             } else if (outputDir == null) {
                 outputDir = Paths.get(args[i]);
             } else if (name == null) {
@@ -2209,7 +2272,8 @@ public class Commands {
 
         if (outputDir == null || name == null) {
             throw new IllegalArgumentException(
-                    "Usage: xml-gen config init <outputDir> <name> [--synonym <syn>] [--version <ver>] [--vendor <vendor>]");
+                    "Usage: xml-gen config init <outputDir> <name> [--synonym <syn>] [--version <ver>] "
+                    + "[--vendor <vendor>] [--compat <Version8_3_NN>] [--format-version <2.NN>]");
         }
 
         //++agent TASK-155 [22.05.2026 00:00:00]
@@ -2232,7 +2296,8 @@ public class Commands {
         //++agent TASK-155
 
         try {
-            new ConfigWriter().create(outputDir, name, synonym, version, vendor, langName, langCode);
+            new ConfigWriter().create(outputDir, name, synonym, version, vendor, langName, langCode,
+                    compat, formatVersion);
             System.out.println("Created configuration: " + name);
             System.out.println("  Configuration.xml: " + outputDir.resolve("Configuration.xml"));
             System.out.println("  ConfigDumpInfo.xml: " + outputDir.resolve("ConfigDumpInfo.xml"));
@@ -2604,7 +2669,15 @@ public class Commands {
         }
 
         Path subsystemXml = target;
-        Path subsystemDir = target.getParent();
+        // TASK-171: корень конфигурации = walk-up до Configuration.xml, а НЕ target.getParent().
+        // Прежний getParent() давал .../Subsystems (а для вложенных подсистем — ещё глубже),
+        // из-за чего existence-чек Content искал объекты в Subsystems/Catalogs/... и ложно
+        // ругался ERROR на существующих объектах (9/10 _Демо валились, exit=1).
+        // Fallback на getParent() — для extension-layout без Configuration.xml.
+        Path subsystemDir = locateConfigRoot(target);
+        if (subsystemDir == null) {
+            subsystemDir = target.getParent();
+        }
 
         if (!Files.exists(subsystemXml)) {
             throw new IllegalArgumentException("Subsystem XML not found: " + subsystemXml);
@@ -2802,12 +2875,17 @@ public class Commands {
         try {
             XmlDocument doc = new XmlStructureReader().parse(target);
             // TASK-155 A2 iter-2: pass configRoot so validator can check object existence.
-            // CommandInterface.xml lives at <configRoot>/<SubsystemName>/Ext/CommandInterface.xml
-            // → configRoot = target.getParent().getParent().getParent()
-            Path configRoot = null;
-            Path p2 = target.getParent();   // Ext/
-            Path p3 = (p2 != null) ? p2.getParent() : null;  // SubsystemName/
-            if (p3 != null) configRoot = p3.getParent();      // configRoot
+            // TASK-171: корень конфигурации = walk-up до Configuration.xml.
+            // Прежние 3× .getParent() (Ext → SubsystemName → Subsystems) давали .../Subsystems
+            // вместо корня; для вложенных подсистем промах ещё больше. Итог — ложные ERROR
+            // на существующих объектах команд (6/8 _Демо CI валились, exit=1).
+            // Fallback на 3×getParent() — для extension-layout без Configuration.xml.
+            Path configRoot = locateConfigRoot(target);
+            if (configRoot == null) {
+                Path p2 = target.getParent();   // Ext/
+                Path p3 = (p2 != null) ? p2.getParent() : null;  // SubsystemName/
+                if (p3 != null) configRoot = p3.getParent();      // configRoot
+            }
             InterfaceValidator validator = new InterfaceValidator();
             List<InterfaceValidator.ValidationMessage> messages = validator.validate(doc, configRoot);
 
@@ -2998,6 +3076,7 @@ public class Commands {
                     "Usage: xml-gen meta edit <objectPath> --op <operation> --value <value>\n"
                     + "       xml-gen meta edit <objectPath> --batch <file.json>\n"
                     + "Operations: add-attribute, add-ts, add-dimension, add-resource, add-enumValue,\n"
+                    + "  add-predefined (--value \"Имя[|Описание[|Код[|folder]]]\", батч через ;;),\n"
                     + "  add-column, add-form, add-template, add-command, add-ts-attribute,\n"
                     + "  remove-attribute, remove-ts, remove-dimension, ..., remove-ts-attribute,\n"
                     + "  modify-attribute, modify-dimension, modify-resource, modify-enumValue, modify-column");
@@ -3452,13 +3531,14 @@ public class Commands {
 
         for (int i = 1; i < args.length; i++) {
             switch (args[i]) {
-                case "--old" -> {
+                // TASK-171 D-7: --search/--replace — алиасы к --old/--new (эргономика).
+                case "--old", "--search" -> {
                     if (i + 1 < args.length) oldTexts.add(args[++i]);
-                    else throw new IllegalArgumentException("--old requires a value");
+                    else throw new IllegalArgumentException(args[i] + " requires a value");
                 }
-                case "--new" -> {
+                case "--new", "--replace" -> {
                     if (i + 1 < args.length) newTexts.add(args[++i]);
-                    else throw new IllegalArgumentException("--new requires a value");
+                    else throw new IllegalArgumentException(args[i] + " requires a value");
                 }
                 case "--all" -> replaceAll = true;
                 case "--dry-run" -> dryRun = true;

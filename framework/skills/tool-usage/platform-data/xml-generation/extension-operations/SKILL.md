@@ -1,6 +1,6 @@
 ---
 name: extension-operations
-description: "Операции с расширениями конфигурации 1С (CFE) — init, borrow, diff, validate. Используй при создании расширений, заимствовании объектов, анализе состава и перехватчиков."
+description: "Use for создания расширений конфигурации (CFE), заимствования объектов, генерации перехватчиков методов и анализа состава расширения. Helps управлять CFE через xml-gen extension init/borrow/diff/validate."
 ---
 
 # Extension Operations (CFE)

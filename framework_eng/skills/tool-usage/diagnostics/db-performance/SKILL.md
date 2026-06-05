@@ -135,23 +135,23 @@ One cause per iteration. If there are multiple causes, start with the most likel
 ## Output (response format)
 
 ```
-## Сценарий и evidence
-<Сценарий: ...>
-<СУБД-evidence: план / ТЖ / отсутствует (причина)>
+## Scenario and evidence
+<Scenario: ...>
+<DBMS evidence: plan / tech log / absent (reason)>
 
-## Корневая причина (по убыванию вероятности)
-1. <Категория> — <факт из evidence>
+## Root cause (in descending order of likelihood)
+1. <Category> — <fact from evidence>
 2. ...
 
-## Изменение
-<Одно конкретное изменение: текст / индекс / параметр>
-<Ожидаемый измеримый эффект>
+## Change
+<One specific change: text / index / parameter>
+<Expected measurable effect>
 
-## Верификация
-<Как измерить: команда / сценарий / сравнение ТЖ>
+## Verification
+<How to measure: command / scenario / tech log comparison>
 
-## Остаточные риски
-<Объём данных / блокировки / СУБД-специфика>
+## Residual risks
+<Data volume / locks / DBMS-specific details>
 ```
 
 ---

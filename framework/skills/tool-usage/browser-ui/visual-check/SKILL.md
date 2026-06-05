@@ -1,6 +1,7 @@
 ---
 name: visual-check
-description: "Визуальная проверка формы 1С через веб-клиент и браузерную автоматизацию. Делает скриншот, проверяет JS-ошибки в консоли, анализирует по чеклисту form-visual-requirements."
+description: "MUST use WHEN форма 1С создана или изменена и требует приёмки по UI-чеклисту. Provides скриншот через веб-клиент, проверку JS-ошибок в консоли и анализ по form-visual-requirements."
+alwaysApply: false
 ---
 
 # Визуальная проверка форм (Visual Check)

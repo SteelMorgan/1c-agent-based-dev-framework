@@ -1,8 +1,9 @@
 ---
 name: buddy-prompting
-description: "Creating prompts for 1С Buddy (ask_ai_assistant). This skill teaches the agent how to correctly address a weak LLM with a strong knowledge base through strict templates that match Buddy's internal instructions."
+description: "MUST use WHEN you need to query 1С Buddy (ask_ai_assistant) for platform API, ITS standards, version diffs, or BSL validation. Provides strict templates (SEARCH_DOCS / SEARCH_ITS / FETCH_ITS / DIFF_VERSIONS / VALIDATE_BSL) that match Buddy's internal instructions."
 uses_capabilities:
   - ask_ai_assistant
+alwaysApply: false
 ---
 
 # Prompts for 1С Buddy (Buddy Prompting)

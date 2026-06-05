@@ -20,6 +20,8 @@ public class SkdValidator implements XmlValidator {
             "Equal", "NotEqual", "Greater", "GreaterOrEqual",
             "Less", "LessOrEqual", "InList", "NotInList",
             "Contains", "NotContains", "BeginsWith",
+            // TASK-171 (Р-6): отрицание BeginsWith — платформенный comparisonType, был пропущен.
+            "NotBeginsWith",
             "Filled", "NotFilled", "InHierarchy", "NotInHierarchy",
             "InListByHierarchy", "NotInListByHierarchy"
     );
@@ -208,7 +210,10 @@ public class SkdValidator implements XmlValidator {
             XmlNode link = links.get(i);
             String linkPath = "/DataCompositionSchema/dataSetLink[" + (i + 1) + "]";
             String src = link.childText("sourceDataSet");
-            String dst = link.childText("destDataSet");
+            // TASK-171 (Р-5): платформенный элемент назначения — 'destinationDataSet', а не 'destDataSet'.
+            // Грунт-труф: destinationDataSet встречается 48 раз, destDataSet — 0. С опечаткой проверка
+            // целостности назначения молча не срабатывала (false negative).
+            String dst = link.childText("destinationDataSet");
             if (src != null && !src.isEmpty() && !dataSetNames.contains(src)) {
                 issues.add(ValidationIssue.error("SKD-109",
                         "dataSetLink references unknown source dataSet '" + src + "'",
@@ -217,7 +222,7 @@ public class SkdValidator implements XmlValidator {
             if (dst != null && !dst.isEmpty() && !dataSetNames.contains(dst)) {
                 issues.add(ValidationIssue.error("SKD-109",
                         "dataSetLink references unknown dest dataSet '" + dst + "'",
-                        link.getLine(), linkPath + "/destDataSet"));
+                        link.getLine(), linkPath + "/destinationDataSet"));
             }
         }
 
@@ -257,12 +262,16 @@ public class SkdValidator implements XmlValidator {
                             item.getLine(), itemPath + "/orderType"));
                 }
 
-                // SKD-106: Поле непустое
-                String field = item.childText("field");
-                if (field == null || field.isEmpty()) {
-                    issues.add(ValidationIssue.error("SKD-106",
-                            "Order item has empty <field>",
-                            item.getLine(), itemPath + "/field"));
+                // SKD-106: поле непустое — ТОЛЬКО для OrderItemField.
+                // TASK-171 (Р-3): OrderItemAuto не имеет <field> по определению — пропускаем,
+                // иначе ложный фейл на легитимной авто-сортировке (DCS-spec §11.4).
+                if (isItemType(item, "OrderItemField")) {
+                    String field = item.childText("field");
+                    if (field == null || field.isEmpty()) {
+                        issues.add(ValidationIssue.error("SKD-106",
+                                "Order item has empty <field>",
+                                item.getLine(), itemPath + "/field"));
+                    }
                 }
             }
         }
@@ -275,14 +284,42 @@ public class SkdValidator implements XmlValidator {
                 XmlNode item = selItems.get(i);
                 String itemPath = path + "/selection/item[" + (i + 1) + "]";
 
-                String field = item.childText("field");
-                if (field == null || field.isEmpty()) {
-                    issues.add(ValidationIssue.error("SKD-106",
-                            "Selection item has empty <field>",
-                            item.getLine(), itemPath + "/field"));
+                // SKD-106: поле непустое — ТОЛЬКО для SelectedItemField.
+                // TASK-171 (Р-2): SelectedItemAuto (поля нет) и SelectedItemFolder (контейнер, поля
+                // во вложенных item) платформа пишет без верхнеуровневого <field> — флагать нельзя.
+                // Элемент без xsi:type трактуем как полевой (минимальный вывод нашего writer / legacy).
+                if (isItemType(item, "SelectedItemField") || !hasItemType(item)) {
+                    String field = item.childText("field");
+                    if (field == null || field.isEmpty()) {
+                        issues.add(ValidationIssue.error("SKD-106",
+                                "Selection item has empty <field>",
+                                item.getLine(), itemPath + "/field"));
+                    }
                 }
             }
         }
+    }
+
+    /**
+     * Есть ли у элемента настройки атрибут xsi:type.
+     * TASK-171: платформа всегда проставляет xsi:type у item в selection/order/filter;
+     * отсутствие — признак минимального/legacy-вывода.
+     */
+    private static boolean hasItemType(XmlNode item) {
+        String t = item.attr("xsi:type");
+        return t != null && !t.isEmpty();
+    }
+
+    /**
+     * Совпадает ли локальное имя xsi:type элемента с ожидаемым (без учёта префикса).
+     * TASK-171: платформа пишет тип с префиксом — {@code dcsset:SelectedItemField};
+     * сравниваем по локальной части, чтобы не зависеть от префикса.
+     */
+    private static boolean isItemType(XmlNode item, String localType) {
+        String t = item.attr("xsi:type");
+        if (t == null || t.isEmpty()) return false;
+        String local = t.contains(":") ? t.substring(t.indexOf(':') + 1) : t;
+        return local.equals(localType);
     }
 
     private void validateFilterItems(XmlNode filter, String filterPath, List<ValidationIssue> issues) {
@@ -291,7 +328,14 @@ public class SkdValidator implements XmlValidator {
             XmlNode item = items.get(i);
             String itemPath = filterPath + "/item[" + (i + 1) + "]";
 
-            // SKD-102: comparisonType
+            // TASK-171 (Р-1): ветвимся по xsi:type, как валидатор Николая.
+            // FilterItemGroup — контейнер: рекурсивно ныряем во вложенные item.
+            if (isItemType(item, "FilterItemGroup")) {
+                validateFilterItems(item, itemPath, issues);
+                continue;
+            }
+
+            // SKD-102: comparisonType (для FilterItemComparison).
             String comparisonType = item.childText("comparisonType");
             if (comparisonType != null && !comparisonType.isEmpty()
                     && !KNOWN_COMPARISON_TYPES.contains(comparisonType)) {
@@ -300,17 +344,10 @@ public class SkdValidator implements XmlValidator {
                         item.getLine(), itemPath + "/comparisonType"));
             }
 
-            // SKD-106: Поле непустое
-            String leftValue = item.childText("leftValue");
-            if (leftValue == null || leftValue.isEmpty()) {
-                // Проверяем альтернативный элемент <field>
-                String field = item.childText("field");
-                if (field == null || field.isEmpty()) {
-                    issues.add(ValidationIssue.error("SKD-106",
-                            "Filter item has no <leftValue> or <field>",
-                            item.getLine(), itemPath));
-                }
-            }
+            // TASK-171 (Р-1): левый операнд платформа пишет как <dcsset:left xsi:type="dcscor:Field">
+            // (локальное имя 'left'), а НЕ <leftValue>/<field>. При <use>false</use> (слот
+            // пользовательского отбора) left легитимно отсутствует — это валидно, флагать нельзя.
+            // Поэтому требование непустого левого операнда снято; SKD-106 здесь больше не выдаём.
         }
     }
 

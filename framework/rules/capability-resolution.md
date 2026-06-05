@@ -30,16 +30,7 @@ alwaysApply: true
 
 Часть tools v8-session-manager (`session_list`) — встроенные и доступны всегда, пока менеджер поднят. Остальные tools проксируются от подключённых 1С-клиентов и появляются на витрине только когда клиент с нужным расширением подключён к менеджеру через WS. Если capability с `server: v8-session-manager` не доступна в `tools/list` — это означает, что соответствующий клиент не подключён. Подъём клиента — задача `v8-runner` (см. SKILL.md в `framework/skills/tool-usage/v8-runner/`).
 
-## Замена реализации
-
-Через CLI:
-
-```bash
-python tools/capability-registry.py set <capability> --server <server> --tool <tool>
-python tools/capability-registry.py set <capability> --runner <runner> --command "<cmd>"
-```
-
-Прямое редактирование `registry.yaml` тоже допускается; CLI сохраняет порядок и форматирование.
+> Замена реализации capability (через `tools/capability-registry.py` или прямым редактированием `registry.yaml`) — процедурный how-to; см. документацию инструмента `tools/capability-registry.py`.
 
 ---
 depends_on:

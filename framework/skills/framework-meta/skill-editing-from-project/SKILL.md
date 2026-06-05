@@ -1,11 +1,7 @@
 ---
 name: skill-editing-from-project
 installable: true
-description: >
-  Как редактировать навыки фреймворка, работая из каталога проекта 1С.
-  Используй когда пользователь просит изменить, дополнить или исправить
-  навык/правило фреймворка, находясь не в репозитории фреймворка,
-  а в проекте, где фреймворк установлен через симлинки.
+description: Use for редактирования навыков фреймворка, находясь в каталоге проекта 1С (не в репозитории фреймворка). Helps найти RU-источник через симлинки и .install-session.json без переключения репозитория.
 ---
 
 # Редактирование навыков фреймворка из проекта
@@ -41,10 +37,10 @@ description: >
 
 ```json
 {
-  "skill/vanessa-run": {
+  "skill/vanessa-authoring": {
     "type": "skill",
-    "ru_path": "/path/to/fw/framework/skills/tool-usage/vanessa/vanessa-run/SKILL.md",
-    "en_path": "/path/to/fw/framework_eng/skills/tool-usage/vanessa/vanessa-run/SKILL.md"
+    "ru_path": "/path/to/fw/framework/skills/tool-usage/vanessa/vanessa-authoring/SKILL.md",
+    "en_path": "/path/to/fw/framework_eng/skills/tool-usage/vanessa/vanessa-authoring/SKILL.md"
   }
 }
 ```

@@ -314,6 +314,66 @@ class RoleValidatorTest {
                 i.getCode().equals("ROLE-105"));
     }
 
+    @Test
+    void testNestedObjectNamesNoRole105() throws Exception {
+        // TASK-171 регресс (ROLE-105): вложенные имена объектов с 2-4 точками валидны и
+        // встречаются в реальной выгрузке БСП. Прежняя проверка «ровно 1 точка» валила
+        // 15/36 _Демо-ролей ложным ERROR. Ни одно из этих имён не должно давать ROLE-105.
+        Path file = writeXml("Rights.xml",
+                "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n" +
+                "<Rights xmlns=\"http://v8.1c.ru/8.2/roles\">\n" +
+                "\t<setForNewObjects>false</setForNewObjects>\n" +
+                "\t<setForAttributesByDefault>true</setForAttributesByDefault>\n" +
+                "\t<independentRightsOfChildObjects>false</independentRightsOfChildObjects>\n" +
+                "\t<object>\n" +
+                "\t\t<name>Catalog._ДемоБанковскиеСчета.Command._ДемоБанковскиеСчета</name>\n" +
+                "\t\t<right><name>View</name><value>true</value></right>\n" +
+                "\t</object>\n" +
+                "\t<object>\n" +
+                "\t\t<name>Task.ЗадачаИсполнителя.Command.Выполнено</name>\n" +
+                "\t\t<right><name>View</name><value>true</value></right>\n" +
+                "\t</object>\n" +
+                "\t<object>\n" +
+                "\t\t<name>CalculationRegister._ДемоОсновныеНачисления.Recalculation.ПерерасчетОсновныхНачислений</name>\n" +
+                "\t\t<right><name>View</name><value>true</value></right>\n" +
+                "\t</object>\n" +
+                "\t<object>\n" +
+                "\t\t<name>InformationRegister.ИсполнителиЗадач.Command.РолиИИсполнителиЗадач</name>\n" +
+                "\t\t<right><name>View</name><value>true</value></right>\n" +
+                "\t</object>\n" +
+                "\t<object>\n" +
+                "\t\t<name>Document.Реализация.TabularSection.Товары.Attribute.Номенклатура</name>\n" +
+                "\t\t<right><name>View</name><value>true</value></right>\n" +
+                "\t</object>\n" +
+                "</Rights>\n");
+
+        XmlDocument doc = reader.parse(file);
+        List<ValidationIssue> issues = validator.validate(doc, ValidationLevel.SEMANTIC);
+
+        assertThat(issues).noneMatch(i -> i.getCode().equals("ROLE-105"));
+    }
+
+    @Test
+    void testSimpleTwoSegmentNameNoRole105() throws Exception {
+        // Простое имя <Тип>.<Имя> (ровно 1 точка) тоже остаётся валидным.
+        Path file = writeXml("Rights.xml",
+                "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n" +
+                "<Rights xmlns=\"http://v8.1c.ru/8.2/roles\">\n" +
+                "\t<setForNewObjects>false</setForNewObjects>\n" +
+                "\t<setForAttributesByDefault>true</setForAttributesByDefault>\n" +
+                "\t<independentRightsOfChildObjects>false</independentRightsOfChildObjects>\n" +
+                "\t<object>\n" +
+                "\t\t<name>Catalog.Контрагенты</name>\n" +
+                "\t\t<right><name>Read</name><value>true</value></right>\n" +
+                "\t</object>\n" +
+                "</Rights>\n");
+
+        XmlDocument doc = reader.parse(file);
+        List<ValidationIssue> issues = validator.validate(doc, ValidationLevel.SEMANTIC);
+
+        assertThat(issues).noneMatch(i -> i.getCode().equals("ROLE-105"));
+    }
+
     // ==================== ROLE-107: Restriction template ====================
 
     @Test

@@ -153,7 +153,9 @@ public class MxlValidator implements XmlValidator {
                 // MXL-102: verticalAlignment
                 checkAlignment(cell, "verticalAlignment", KNOWN_V_ALIGNMENTS, "MXL-102", cellPath, issues);
 
-                // MXL-103: merge >= 0
+                // MXL-103 (legacy): in-cell merge >= 0. TASK-171: канон использует
+                // document-level <merge>, который валидируется отдельно ниже. Эта проверка
+                // оставлена для совместимости со старыми макетами в нашем диалекте.
                 String mergeStr = cell.childText("merge");
                 if (mergeStr != null && !mergeStr.isEmpty()) {
                     try {
@@ -170,6 +172,24 @@ public class MxlValidator implements XmlValidator {
                     }
                 }
             }
+        }
+
+        // MXL-103 (канон): document-level <merge> — r/c обязательны и >= -1, w/h >= 0.
+        // TASK-171: это основной механизм объединений в формате платформы.
+        List<XmlNode> mergeNodes = root.children("merge");
+        for (int i = 0; i < mergeNodes.size(); i++) {
+            XmlNode merge = mergeNodes.get(i);
+            String mergePath = "/document/merge[" + (i + 1) + "]";
+            String rStr = merge.childText("r");
+            String cStr = merge.childText("c");
+            if (rStr == null || cStr == null) {
+                issues.add(ValidationIssue.error("MXL-103",
+                        "Document-level merge must define both <r> and <c>",
+                        merge.getLine(), mergePath));
+                continue;
+            }
+            checkMergeComponent(merge, "w", mergePath, issues);
+            checkMergeComponent(merge, "h", mergePath, issues);
         }
 
         // MXL-106: Font height > 0
@@ -203,6 +223,25 @@ public class MxlValidator implements XmlValidator {
         }
     }
 
+    /** TASK-171: w/h в document-level merge должны быть неотрицательными целыми (если заданы). */
+    private void checkMergeComponent(XmlNode merge, String name, String mergePath,
+                                     List<ValidationIssue> issues) {
+        String v = merge.childText(name);
+        if (v == null || v.isEmpty()) return;
+        try {
+            int n = Integer.parseInt(v.trim());
+            if (n < 0) {
+                issues.add(ValidationIssue.error("MXL-103",
+                        "Merge <" + name + "> must be >= 0, found " + n,
+                        merge.getLine(), mergePath + "/" + name));
+            }
+        } catch (NumberFormatException e) {
+            issues.add(ValidationIssue.error("MXL-103",
+                    "Invalid merge <" + name + "> value: '" + v + "'",
+                    merge.getLine(), mergePath + "/" + name));
+        }
+    }
+
     // ==================== Canon-borrowed (MXL-201..207) ====================
 
     /**
@@ -232,6 +271,18 @@ public class MxlValidator implements XmlValidator {
         // (we don't enforce numeric vs string; collect for cross-check anyway)
         // Add "0" as the default format reference (XML uses <f>0</f> as default)
         definedFormatIds.add("0");
+
+        // TASK-171: document-level <merge> карта (r,c) -> [w,h]. Спаны теперь живут
+        // на уровне документа, а не в ячейке. Читаем их для MXL-201/202/203.
+        Map<String, int[]> docMerges = new HashMap<>(); // "r,c" -> [w,h]
+        for (XmlNode m : root.children("merge")) {
+            Integer r = parseIntOrNull(m.childText("r"));
+            Integer c = parseIntOrNull(m.childText("c"));
+            if (r == null || c == null) continue;
+            int w = parseNonNegInt(m.childText("w"));
+            int h = parseNonNegInt(m.childText("h"));
+            docMerges.put(r + "," + c, new int[]{w, h});
+        }
 
         // Build per-cell positions: rowIndex -> set of column indices and overlaps
         List<XmlNode> rowsItems = root.children("rowsItem");
@@ -273,9 +324,15 @@ public class MxlValidator implements XmlValidator {
                             cInner.getLine(), cellPath));
                 }
 
-                // Span / Rowspan
+                // Span / Rowspan. TASK-171: предпочитаем document-level merge (канон),
+                // с откатом на in-cell merge/rowMerge (старый диалект).
                 int span = parseNonNegInt(cInner.childText("merge"));     // 0 means span=1
                 int rowSpan = parseNonNegInt(cInner.childText("rowMerge"));
+                int[] dm = docMerges.get(rowIdx + "," + colIdx);
+                if (dm != null) {
+                    span = dm[0];
+                    rowSpan = dm[1];
+                }
 
                 // MXL-201 (extended): span past columns
                 if (columnsSize > 0 && colIdx + span >= columnsSize) {
@@ -336,24 +393,49 @@ public class MxlValidator implements XmlValidator {
         }
 
         // MXL-206: page size impossible (sum of widths > page)
+        // TASK-171 (канон): ширины колонок берём из форматов, на которые ссылаются
+        // <columnsItem>/<column>/<formatIndex> (числовой 1-based индекс палитры).
+        // Legacy-фоллбэк: форматы с id="__cw_*".
         XmlNode pageSetup = root.child("pageSetup");
         if (pageSetup != null) {
             String pageWidthStr = pageSetup.childText("pageWidth");
             if (pageWidthStr != null) {
                 try {
-                    int pageWidth = Integer.parseInt(pageWidthStr);
+                    int pageWidth = Integer.parseInt(pageWidthStr.trim());
+
+                    // Соберём палитру форматов (1-based).
+                    List<XmlNode> formats = root.children("format");
+
                     int sumWidths = 0;
                     boolean anyWidth = false;
-                    for (XmlNode fmt : root.children("format")) {
-                        String id = fmt.childText("id");
-                        String widthStr = fmt.childText("width");
-                        if (id != null && id.startsWith("__cw_") && widthStr != null) {
-                            try {
-                                sumWidths += Integer.parseInt(widthStr);
-                                anyWidth = true;
-                            } catch (NumberFormatException ignored) {}
+
+                    // Канон: суммируем ширины колонок основного набора.
+                    XmlNode columnsForWidth = root.child("columns");
+                    if (columnsForWidth != null) {
+                        for (XmlNode ci : columnsForWidth.children("columnsItem")) {
+                            XmlNode column = ci.child("column");
+                            String fiStr = column != null ? column.childText("formatIndex") : null;
+                            Integer fi = parseIntOrNull(fiStr);
+                            if (fi != null && fi >= 1 && fi <= formats.size()) {
+                                String w = formats.get(fi - 1).childText("width");
+                                Integer wv = parseIntOrNull(w);
+                                if (wv != null) { sumWidths += wv; anyWidth = true; }
+                            }
                         }
                     }
+
+                    // Legacy-фоллбэк по __cw_*.
+                    if (!anyWidth) {
+                        for (XmlNode fmt : formats) {
+                            String id = fmt.childText("id");
+                            Integer wv = parseIntOrNull(fmt.childText("width"));
+                            if (id != null && id.startsWith("__cw_") && wv != null) {
+                                sumWidths += wv;
+                                anyWidth = true;
+                            }
+                        }
+                    }
+
                     if (anyWidth && sumWidths > pageWidth) {
                         issues.add(ValidationIssue.error("MXL-206",
                                 "Sum of column widths " + sumWidths + " exceeds page width " + pageWidth,
@@ -393,11 +475,17 @@ public class MxlValidator implements XmlValidator {
     private static int parseNonNegInt(String s) {
         if (s == null) return 0;
         try {
-            int v = Integer.parseInt(s);
+            int v = Integer.parseInt(s.trim());
             return v < 0 ? 0 : v;
         } catch (NumberFormatException e) {
             return 0;
         }
+    }
+
+    /** TASK-171: парсинг целого либо null (для document-level merge r/c). */
+    private static Integer parseIntOrNull(String s) {
+        if (s == null || s.isEmpty()) return null;
+        try { return Integer.parseInt(s.trim()); } catch (NumberFormatException e) { return null; }
     }
 
     private static boolean looksLikeNumericIndex(String s) {

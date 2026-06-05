@@ -1,6 +1,6 @@
 ---
 name: agent-development
-description: "Create custom subagents for specialized AI tasks. Use when the user wants to create a new type of subagent, set up task-specific agents, configure code reviewers, debuggers, or domain-specific assistants with custom prompts."
+description: "Create or configure custom subagents with specialized prompts (reviewers, debuggers, domain-specific assistants). Helps determine the location, structure, and system context of a new agent."
 ---
 
 # Creating Custom Subagents

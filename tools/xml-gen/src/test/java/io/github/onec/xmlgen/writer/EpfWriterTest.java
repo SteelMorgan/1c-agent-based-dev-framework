@@ -102,10 +102,13 @@ class EpfWriterTest {
         assertThat(metadata).contains("<TemplateType>SpreadsheetDocument</TemplateType>");
         
         // Проверяем тело макета
-        String body = Files.readString(templateBody);
+        // TASK-171 D1: корень тела SpreadsheetDocument — <document> (как в реальном демо-макете
+        // и как требует наш же validate --type mxl), а НЕ <SpreadsheetDocument>.
+        String body = readStrippingBom(templateBody);
         assertThat(body).contains("<?xml version=\"1.0\" encoding=\"UTF-8\"?>");
-        assertThat(body).contains("<SpreadsheetDocument xmlns=\"http://v8.1c.ru/8.2/data/spreadsheet\">");
-        
+        assertThat(body).contains("<document xmlns=\"http://v8.1c.ru/8.2/data/spreadsheet\">");
+        assertThat(body).doesNotContain("<SpreadsheetDocument");
+
         // Проверяем обновление корневого XML
         String rootContent = Files.readString(tempDir.resolve("ТестоваяОбработка.xml"));
         assertThat(rootContent).contains("<Template>Макет</Template>");
@@ -119,11 +122,13 @@ class EpfWriterTest {
         
         Path templateBody = tempDir.resolve("ТестоваяОбработка/Templates/Справка/Ext/Template.html");
         assertThat(templateBody).exists();
-        
-        String body = Files.readString(templateBody);
+
+        // TASK-171 D1/W5: тело HTML теперь из единого источника ObjectContainerEditor.getTemplateBody
+        // (минимальный валидный каркас; персональный <title> в каноне не предусмотрен).
+        String body = readStrippingBom(templateBody);
         assertThat(body).contains("<!DOCTYPE html>");
         assertThat(body).contains("<meta charset=\"UTF-8\">");
-        assertThat(body).contains("<title>Справка</title>");
+        assertThat(body).contains("<html>");
     }
     
     @Test
@@ -169,9 +174,145 @@ class EpfWriterTest {
         assertThat(formMetadataBytes[1]).isEqualTo((byte) 0xBB);
         assertThat(formMetadataBytes[2]).isEqualTo((byte) 0xBF);
         
-        // Проверяем ОТСУТСТВИЕ BOM в Form.xml
+        // TASK-172: Form.xml тоже с BOM — канон _Демо (все Ext/Form.xml = ef bb bf),
+        // как и standalone FormWriter. Прежний ассерт закреплял баг (отсутствие BOM).
         byte[] formDefBytes = Files.readAllBytes(tempDir.resolve("ТестоваяОбработка/Forms/Форма/Ext/Form.xml"));
-        assertThat(formDefBytes[0]).isNotEqualTo((byte) 0xEF);
-        assertThat(formDefBytes[0]).isEqualTo((byte) '<'); // Начинается с '<'
+        assertThat(formDefBytes[0]).isEqualTo((byte) 0xEF);
+        assertThat(formDefBytes[1]).isEqualTo((byte) 0xBB);
+        assertThat(formDefBytes[2]).isEqualTo((byte) 0xBF);
+    }
+
+    // ==================== TASK-171 D7: BOM в телах макетов ====================
+
+    @Test
+    void task171_templateBodiesHaveBom() throws Exception {
+        // TASK-171: тела макетов (Template.xml/.html/.txt) должны писаться с UTF-8 BOM,
+        // как реальные демо-макеты Designer. Раньше Files.writeString писал без BOM.
+        EpfWriter writer = new EpfWriter(OutputFormat.DESIGNER);
+        writer.init("ТестоваяОбработка", "Тестовая обработка", tempDir);
+        writer.addTemplate("ТестоваяОбработка", "Макет", "Табличный документ", "SpreadsheetDocument", tempDir);
+        writer.addTemplate("ТестоваяОбработка", "Справка", "Справка", "HTMLDocument", tempDir);
+        writer.addTemplate("ТестоваяОбработка", "Текст", "Текст", "TextDocument", tempDir);
+
+        byte[] mxlBody = Files.readAllBytes(tempDir.resolve("ТестоваяОбработка/Templates/Макет/Ext/Template.xml"));
+        assertBom(mxlBody);
+        byte[] htmlBody = Files.readAllBytes(tempDir.resolve("ТестоваяОбработка/Templates/Справка/Ext/Template.html"));
+        assertBom(htmlBody);
+        byte[] txtBody = Files.readAllBytes(tempDir.resolve("ТестоваяОбработка/Templates/Текст/Ext/Template.txt"));
+        assertBom(txtBody);
+    }
+
+    @Test
+    void task171_textTemplateBodyIsEmpty() throws Exception {
+        // TASK-171: текстовый макет — пустой (после BOM), а не псевдо-BSL-комментарий.
+        EpfWriter writer = new EpfWriter(OutputFormat.DESIGNER);
+        writer.init("ТестоваяОбработка", "Тестовая обработка", tempDir);
+        writer.addTemplate("ТестоваяОбработка", "Текст", "Текст", "TextDocument", tempDir);
+
+        byte[] txtBody = Files.readAllBytes(tempDir.resolve("ТестоваяОбработка/Templates/Текст/Ext/Template.txt"));
+        // только 3 байта BOM, без содержимого
+        assertThat(txtBody.length).isEqualTo(3);
+        assertBom(txtBody);
+        String text = new String(txtBody, java.nio.charset.StandardCharsets.UTF_8);
+        assertThat(text).doesNotContain("Текстовый документ");
+    }
+
+    private static void assertBom(byte[] bytes) {
+        assertThat(bytes.length).isGreaterThanOrEqualTo(3);
+        assertThat(bytes[0]).isEqualTo((byte) 0xEF);
+        assertThat(bytes[1]).isEqualTo((byte) 0xBB);
+        assertThat(bytes[2]).isEqualTo((byte) 0xBF);
+    }
+
+    private static String readStrippingBom(Path path) throws IOException {
+        byte[] raw = Files.readAllBytes(path);
+        if (raw.length >= 3 && raw[0] == (byte) 0xEF && raw[1] == (byte) 0xBB && raw[2] == (byte) 0xBF) {
+            return new String(raw, 3, raw.length - 3, java.nio.charset.StandardCharsets.UTF_8);
+        }
+        return new String(raw, java.nio.charset.StandardCharsets.UTF_8);
+    }
+
+    // ==================== TASK-171 D1: корректный корень тела SpreadsheetDocument ====================
+
+    @Test
+    void task171_d1_epfSpreadsheetBodyRootIsDocument() throws Exception {
+        // TASK-171 D1: epf add-template SpreadsheetDocument должен писать корень <document>
+        // (NS http://v8.1c.ru/8.2/data/spreadsheet), как реальный демо-макет и как требует
+        // наш собственный validate --type mxl (MXL-001: Expected root 'document').
+        EpfWriter writer = new EpfWriter(OutputFormat.DESIGNER);
+        writer.init("ТестоваяОбработка", "Тест", tempDir);
+        writer.addTemplate("ТестоваяОбработка", "ПФ_Макет", "Печатная форма", "SpreadsheetDocument", tempDir);
+
+        Path body = tempDir.resolve("ТестоваяОбработка/Templates/ПФ_Макет/Ext/Template.xml");
+        String content = readStrippingBom(body);
+        assertThat(content).contains("<document xmlns=\"http://v8.1c.ru/8.2/data/spreadsheet\">");
+        assertThat(content).doesNotContain("<SpreadsheetDocument");
+    }
+
+    @Test
+    void task171_d1_epfSpreadsheetViaMxlAlias() throws Exception {
+        // Алиас "mxl" должен нормализоваться и тоже давать корень <document>.
+        EpfWriter writer = new EpfWriter(OutputFormat.DESIGNER);
+        writer.init("ТестоваяОбработка", "Тест", tempDir);
+        writer.addTemplate("ТестоваяОбработка", "ПФ_Макет", "ПФ", "mxl", tempDir);
+
+        Path body = tempDir.resolve("ТестоваяОбработка/Templates/ПФ_Макет/Ext/Template.xml");
+        String content = readStrippingBom(body);
+        assertThat(content).contains("<document xmlns=\"http://v8.1c.ru/8.2/data/spreadsheet\">");
+        // Метаданные макета должны нести канонический тип, а не алиас.
+        String meta = Files.readString(tempDir.resolve("ТестоваяОбработка/Templates/ПФ_Макет.xml"));
+        assertThat(meta).contains("<TemplateType>SpreadsheetDocument</TemplateType>");
+    }
+
+    // ==================== TASK-171 D3: DataCompositionSchema в EPF/ERF-ветке ====================
+
+    @Test
+    void task171_d3_epfDataCompositionSchemaDoesNotThrow() throws Exception {
+        // TASK-171 D3: раньше epf add-template --type DataCompositionSchema падал
+        // "Unknown template type". Теперь должен создаваться макет со схемой компоновки.
+        EpfWriter writer = new EpfWriter(OutputFormat.DESIGNER);
+        writer.init("ТестоваяОбработка", "Тест", tempDir);
+
+        writer.addTemplate("ТестоваяОбработка", "Схема", "Схема компоновки", "DataCompositionSchema", tempDir);
+
+        Path body = tempDir.resolve("ТестоваяОбработка/Templates/Схема/Ext/Template.xml");
+        assertThat(body).exists();
+        String content = readStrippingBom(body);
+        assertThat(content).contains("<DataCompositionSchema xmlns=\"http://v8.1c.ru/8.1/data-composition-system/schema\">");
+
+        String meta = Files.readString(tempDir.resolve("ТестоваяОбработка/Templates/Схема.xml"));
+        assertThat(meta).contains("<TemplateType>DataCompositionSchema</TemplateType>");
+    }
+
+    // ==================== TASK-171 D3/D6: MainDataCompositionSchema для ERF — префикс ExternalReport. ====================
+
+    @Test
+    void task171_d6_erfMainDcsPrefixIsExternalReport() throws Exception {
+        // TASK-171 D6: для внешнего отчёта (ERF) при добавлении DCS-макета MainDataCompositionSchema
+        // должна начинаться с ExternalReport. (а НЕ Report.), т.к. это EPF/ERF-раскладка.
+        EpfWriter writer = new EpfWriter(OutputFormat.DESIGNER, true); // isReport = true → ERF
+        writer.init("ТестовыйОтчет", "Тестовый отчёт", tempDir);
+
+        writer.addTemplate("ТестовыйОтчет", "ОсновнаяСхемаКомпоновкиДанных", "Схема",
+                "DataCompositionSchema", tempDir);
+
+        String root = Files.readString(tempDir.resolve("ТестовыйОтчет.xml"));
+        assertThat(root).contains(
+                "<MainDataCompositionSchema>ExternalReport.ТестовыйОтчет.Template.ОсновнаяСхемаКомпоновкиДанных</MainDataCompositionSchema>");
+        assertThat(root).doesNotContain("<MainDataCompositionSchema>Report.");
+        assertThat(root).contains("<Template>ОсновнаяСхемаКомпоновкиДанных</Template>");
+    }
+
+    @Test
+    void task171_d3_epfNonReportSpreadsheetDoesNotTouchMainDcs() throws Exception {
+        // Для обычной EPF (не отчёт) MainDataCompositionSchema нет вообще — проверяем, что
+        // добавление DCS-макета не ломает корневой XML (элемент просто отсутствует).
+        EpfWriter writer = new EpfWriter(OutputFormat.DESIGNER, false); // обычная обработка
+        writer.init("ОбычнаяОбработка", "Обработка", tempDir);
+        writer.addTemplate("ОбычнаяОбработка", "Схема", "Схема", "DataCompositionSchema", tempDir);
+
+        String root = Files.readString(tempDir.resolve("ОбычнаяОбработка.xml"));
+        assertThat(root).doesNotContain("MainDataCompositionSchema");
+        assertThat(root).contains("<Template>Схема</Template>");
     }
 }

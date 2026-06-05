@@ -1,6 +1,6 @@
 ---
 name: runtime-investigation
-description: "Алгоритм рантайм-расследования багов в 1С BSL: граф вызовов + ключевые переменные → пробы → трасса → цикл гипотез. Используй, когда есть bug-report и нужно установить, что фактически происходит в коде, и сравнить с тем, как должно быть. Дебаггер — основной потребитель этого навыка."
+description: "Use for расследования багов по bug-report: граф вызовов + ключевые переменные → пробы → трасса → цикл гипотез."
 ---
 
 # Runtime Investigation — расследование багов в рантайме
@@ -321,5 +321,5 @@ depends_on:
   - framework/skills/tool-usage/platform-data/platform-data-core/SKILL.md
   - framework/skills/tool-usage/code-analysis/code-navigation/SKILL.md
   - framework/skills/tool-usage/code-analysis/syntax-checking/SKILL.md
-  - framework/workflows/source-of-truth-policy.md
+  - framework/rules/source-of-truth.md
 ---

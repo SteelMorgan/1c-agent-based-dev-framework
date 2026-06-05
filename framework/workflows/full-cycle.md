@@ -7,11 +7,17 @@ description: Полный цикл разработки с обязательн�
 
 > Детерминированный воркфлоу с кросс-ревью на каждой фазе. Для задач средней и высокой сложности.
 
+> **Место в ретиринге (Слой 3, read-on-choice).** Это детальная фазовая механика. Дисциплина
+> оркестрации и форма фаз уже durable в **профиле оркестратора** (`framework/subagents/orchestrator.md`,
+> Слой 2). Оркестратор НЕ «загружает этот документ как правило» — он поднимает фазовую механику
+> отсюда **по входу в фазу**, из своего профиля. Запуск full-цикла — решение Lead-слоя
+> (классификация «средняя/сложная»), а не загрузка внешнего документа в произвольную сессию.
+
 ## Фазы
 
 ### Phase 0: Классификация (Explorer → Economy)
 
-Explorer исследует кодовую базу → модули, графы вызовов, зависимости. Оркестратор классифицирует: Простая → quick-fix; Средняя/Сложная → Phase 1.
+Explorer исследует кодовую базу → модули, графы вызовов, зависимости. Оркестратор классифицирует (Lead-слой профиля): Простая → short-цикл (навык `quick-fix`); Средняя/Сложная → Phase 1.
 
 Артефакты Explorer передаются в Phase 1 и Phase 2 как контекст.
 
@@ -75,7 +81,8 @@ Tester запускает все тесты, дописывает edge-cases, и
 
 ---
 depends_on:
-  - framework/workflows/quick-fix.md
+  - framework/subagents/orchestrator.md
+  - framework/skills/framework-meta/quick-fix/SKILL.md
   - framework/subagents/explorer.md
   - framework/subagents/analyst.md
   - framework/subagents/architect.md
@@ -85,6 +92,6 @@ depends_on:
   - framework/subagents/developer-code.md
   - framework/subagents/tester.md
   - framework/subagents/reviewer.md
-  - framework/workflows/source-of-truth-policy.md
+  - framework/rules/source-of-truth.md
   - framework/rules/tdd-policy.md
 ---

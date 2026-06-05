@@ -1,6 +1,6 @@
 ---
 name: subsystem-interface
-description: "Операции с подсистемами и командным интерфейсом 1С — compile, info, edit, validate для подсистем и CommandInterface.xml. Используй при создании подсистем, управлении составом, настройке и проверке CommandInterface."
+description: "Use for создания подсистем, управления их составом и настройки CommandInterface.xml (видимость, порядок команд, размещение в группах). Helps поддерживать навигацию конфигурации через xml-gen subsystem/interface compile/edit/validate."
 ---
 
 # Subsystem + Interface Operations

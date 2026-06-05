@@ -1,6 +1,6 @@
 ---
 name: event-log-analysis
-description: "Анализ журнала регистрации 1С (Event Log). Навык учит агента искать ошибки, события и действия пользователей в журнале регистрации (ЖР) через ClickHouse."
+description: "Use for поиска ошибок, событий и действий пользователей в журнале регистрации (ЖР) через ClickHouse. Helps локализовать время и контекст сбоя по event-log до обращения к техжурналу."
 uses_capabilities:
   - search_event_log
   - logc_get_actual_log_timestamp

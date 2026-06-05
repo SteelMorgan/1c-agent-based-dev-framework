@@ -26,12 +26,28 @@ final class GenUtil {
         return props;
     }
 
+    /**
+     * Главный реквизит формы объекта (Catalog/CCT/ExchangePlan и т.п.).
+     * SavedData=true обязателен: управляемая форма хранит данные основного
+     * реквизита между серверными вызовами (эталон Catalog ФормаЭлемента).
+     */
     static FormDsl.Attribute objectAttr(String attrName, String type) {
-        return new FormDsl.Attribute(attrName, null, type, true, null, null, null);
+        return new FormDsl.Attribute(attrName, null, type, true, null, null, true);
     }
 
     static FormDsl.Attribute objectAttrSaved(String attrName, String type) {
         return new FormDsl.Attribute(attrName, null, type, true, null, null, true);
+    }
+
+    /**
+     * Главный реквизит формы документа с движениями: помимо MainAttribute/SavedData
+     * требует {@code <UseAlways><Field>Объект.RegisterRecords</Field></UseAlways>},
+     * иначе наборы записей регистров не подгружаются на форму при проведении
+     * (эталон Documents/big_Order_OKX, биг_ПринятиеАктивовПодУправление).
+     */
+    static FormDsl.Attribute documentObjectAttr(String attrName, String type, boolean hasRegisterRecords) {
+        String useAlways = hasRegisterRecords ? attrName + ".RegisterRecords" : null;
+        return new FormDsl.Attribute(attrName, null, type, true, null, null, true, useAlways);
     }
 
     static FormDsl.Attribute dynamicList(String attrName, String mainTable) {

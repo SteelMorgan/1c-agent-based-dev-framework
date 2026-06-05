@@ -1,6 +1,6 @@
 ---
 name: meta-operations
-description: "Operations on 1С metadata objects (23 types) - compile, info, edit, validate, remove. Use when creating catalogs, documents, registers, enumerations, and other configuration objects."
+description: "Use for creating and editing 1С metadata objects (23 types: catalogs, documents, registers, enumerations, etc.) via xml-gen meta. Helps add attributes, tabular sections, dimensions, and validate configuration objects."
 ---
 
 # Meta Operations
@@ -52,7 +52,7 @@ xml-gen meta compile <meta.json> <output_dir>
 }
 ```
 
-**Full Catalog properties:** `hierarchical`, `hierarchyType` (HierarchyFoldersAndItems|HierarchyItemsOnly), `limitLevelCount`, `levelCount`, `foldersOnTop`, `codeLength`, `codeType` (String|Number), `codeAllowedLength` (Variable|Fixed), `codeSeries` (WholeCatalog|WithinOwnerSubordination|WithinSubordination), `descriptionLength`, `autonumbering`, `checkUnique`, `defaultPresentation` (AsDescription|AsCode), `subordinationUse` (ToItems|ToFolders|ToFoldersAndItems), `quickChoice`, `choiceMode` (BothWays|FromChoiceForm|QuickChoice), `editType` (InDialog|InList|BothWays), `owners` (array of strings, e.g. `["Catalog.Counterparties"]`).
+**Full Catalog properties:** `hierarchical`, `hierarchyType` (HierarchyFoldersAndItems|HierarchyItemsOnly), `limitLevelCount`, `levelCount`, `foldersOnTop`, `codeLength`, `codeType` (String|Number), `codeAllowedLength` (Variable|Fixed), `codeSeries` (WholeCatalog|WithinOwnerSubordination|WithinSubordination), `descriptionLength`, `autonumbering`, `checkUnique`, `defaultPresentation` (AsDescription|AsCode), `subordinationUse` (ToItems|ToFolders|ToFoldersAndItems), `quickChoice`, `choiceMode` (BothWays|FromChoiceForm|QuickChoice), `editType` (InDialog|InList|BothWays), `owners` (array of strings, e.g. `["Catalog.Контрагенты"]`).
 
 **The `multiLine` attribute flag** makes a string field multiline (`<MultiLine>true</MultiLine>`). In shorthand: `"Description: String(500) | multiline"`.
 
@@ -75,11 +75,11 @@ Operations: `add-attribute` / `add-dimension` / `add-resource` / `add-ts` / `add
 ИмяРеквизита: ТипДанных | флаги >> after/before Якорь
 ```
 
-Examples: `"Article: String(50)"`, `"Amount: Number(15,2) | nonneg"`, `"Counterparty: CatalogRef.Counterparties | indexing"`
+Examples: `"Артикул: String(50)"`, `"Сумма: Number(15,2) | nonneg"`, `"Контрагент: CatalogRef.Контрагенты | indexing"`
 
 ### meta validate
 
-About 40 checks: XML structure, UUID, Properties, boolean properties, type-specific rules (22 types), strict enum validation (HierarchyType, SubordinationUse, ChoiceMode, EditType, CodeAllowedLength, CodeSeries, NumberAllowedLength, RegisterRecordsDeletion, RegisterRecordsWritingOnPost, Periodicity, RequireCalculationTypes and others), file structure.
+~40 checks: XML structure, UUID, Properties, boolean properties, type-specific rules (22 types), strict enum validation (HierarchyType, SubordinationUse, ChoiceMode, EditType, CodeAllowedLength, CodeSeries, NumberAllowedLength, RegisterRecordsDeletion, RegisterRecordsWritingOnPost, Periodicity, RequireCalculationTypes and others), file structure.
 
 ```bash
 xml-gen meta validate <objectPath>

@@ -1,6 +1,7 @@
 ---
 name: search-before-write
-description: "Поиск перед записью (Search Before Write). Навык учит агента **всегда выполнять поиск перед написанием нового кода**."
+description: "MUST use BEFORE написанием нового BSL-кода или функции. Defines каскад поиска (LSP → метаданные → платформа → БСП) как доказательство того, что готовый аналог отсутствует."
+alwaysApply: false
 ---
 
 # Поиск перед записью (Search Before Write)

@@ -1,46 +1,46 @@
 ---
 name: vanessa-diagnostics
-description: "Diagnostics for Vanessa Automation runs. Use when a feature scenario failed, artifacts were not created, or you need to classify a failure after launch."
+description: "MUST use WHEN a feature scenario has failed, artifacts were not created, or you need to classify a failure after execution. Provides an algorithm for analyzing run artifacts and classifying the error type."
 ---
 
 # Vanessa Automation Diagnostics
 
-Running Vanessa is done through `v8-runner test va` (see the `v8-runner` skill → `references/testing.md`). This skill is about how to analyze a failed run.
+Vanessa is run through `v8-runner test va` (see the `v8-runner` skill → `references/testing.md`). This skill is about how to analyze a failed run.
 
 ## Run Artifacts
 
-There are two layers - do not mix them up:
+There are two layers - do not confuse them:
 
-| Layer | What it writes | Where it lives |
+| Layer | What writes it | Where it is located |
 |------|-----------|-----------|
-| Vanessa artifacts | the VA player itself (`va-status.json`, `vanessa-execution.log`, reports `junit/junit.xml`, `cucumber/CucumberJson.json`) | at paths from the active `tests.va` / `va-params` profile, usually project-local (`<project_root>/vanessa-tests/reports/…`, `.../logs/…`) |
-| v8-runner run artifacts | `v8-runner` itself (internal launch logs, 1cv8c stdout/stderr, run-id metadata) | `workPath/temp/<runner-id>/runs/<run-id>/` (`workPath` is taken from `v8project.yaml`) |
+| Vanessa artifacts | the VA player itself (`va-status.json`, `vanessa-execution.log`, reports `junit/junit.xml`, `cucumber/CucumberJson.json`) | at the paths from the active `tests.va` / `va-params` profile, usually project-local (`<project_root>/vanessa-tests/reports/…`, `.../logs/…`) |
+| v8-runner run artifacts | `v8-runner` itself (internal run logs, 1cv8c stdout/stderr, run-id metadata) | `workPath/temp/<runner-id>/runs/<run-id>/` (`workPath` is taken from `v8project.yaml`) |
 
-If a run fails, do not clean up **both** locations until diagnostics are complete. Read the exact Vanessa report paths from the active profile.
+When a run fails, do not clean up **both** locations before diagnostics are complete. Read the exact Vanessa report paths from the active profile.
 
-## Progress Monitoring During a Run
+## Monitoring Progress During a Run
 
-For long-running `v8-runner test va` operations (typically minutes), use the Monitor tool instead of blind file polling:
+For long `v8-runner test va` operations (usually several minutes), use the Monitor tool instead of blindly polling files:
 
-1. Start v8-runner in the background: `Bash run_in_background: true`, redirect stdout to a log file (e.g. `v8-runner test va 2>&1 | tee /tmp/va-stdout.log`).
-2. Subscribe to that log file via the Monitor tool with a filter pattern: `ERROR:|\\[artifact\\]|passed|Failed:` - each matching line arrives as a notification.
-3. Terminate the wait when **any** of the following is true:
-   - `va-status.log` appears in the run directory (created on both success AND failure - unlike `va-status.json`);
-   - the `1cv8c.*vanessa-automation` process exits;
-   - an `ERROR:` line appears in stdout (e.g. `ERROR: runtime error: test run reported failures`).
-4. **Do not use `va-status.json` alone as the only exit condition.** It is created only on a graceful scenario completion; on early failures (step error, client crash) it is absent and a file-existence wait hangs forever.
+1. Start `v8-runner` in the background: `Bash run_in_background: true`, redirect stdout to a log file (for example `v8-runner test va 2>&1 | tee /tmp/va-stdout.log`).
+2. Subscribe to this file through the Monitor tool with the filter: `ERROR:|\\[artifact\\]|passed|Failed:` - each matched line will arrive as a notification.
+3. Stop waiting when **any** of the following conditions is met:
+   - `va-status.log` appears in the run directory (it is created on success AND on error - unlike `va-status.json`);
+   - the `1cv8c.*vanessa-automation` process finishes;
+   - a line `ERROR:` appears in stdout (for example `ERROR: runtime error: test run reported failures`).
+4. **Do not use `va-status.json` as the sole exit condition.** It is created only upon normal scenario completion; in the case of an early failure (step error, client crash), the file is absent and waiting for it will hang forever.
 
-After the run exits, proceed to the diagnostic order below.
+After the run completes, proceed to the diagnostic sequence below.
 
-## When to Use
+## When to Apply
 
 | Trigger | Action |
-|---------|--------|
-| `va-status.json` not created | Treat the run as failed, go to diagnostics |
+|---------|----------|
+| `va-status.json` not created | Treat the run as catastrophic, go to diagnostics |
 | `va-status.json != 0` | Read artifacts and classify the failure |
 | `vanessa-execution.log` contains an error | Determine the error class |
 | Suspected GUI lockup | Visual diagnostics |
-| The run is "green", but 0 steps were executed / steps are `undefined`/`skipped` | False success - classify as `step_resolution_error`/`scenario_error` |
+| The run is "green", but 0 steps executed / steps `undefined`/`skipped` | False success - classify as `step_resolution_error`/`scenario_error` |
 
 ---
 
@@ -48,30 +48,30 @@ After the run exits, proceed to the diagnostic order below.
 
 1. Check `va-status.json`.
 2. Check `vanessa-execution.log`.
-3. Check `event-log`: first recent `Error`; if empty, then without a level filter.
-4. If there is a signal for a modal window / security warning - `gui-control` / `screenshot`.
-5. Only if that is not enough - `tech-log-analysis`.
+3. Check `event-log`: first the last `Error`; if empty - without the level filter.
+4. If there is a signal of a modal window / security warning - `gui-control` / `screenshot`.
+5. Only if that is insufficient - `tech-log-analysis`.
 
 ### Special-case: `Security Warning`
 
-If `event-log` has an entry about `Security Warning` for `bddRunner.epf` or plugins:
-1. Treat it as a trigger for visual verification.
-2. Open the real screen through noVNC or take a screenshot (do not rely on X11 window titles).
-3. Only after visual confirmation interpret a rerun.
+If `event-log` contains an entry about `Security Warning` for `bddRunner.epf` or plugins:
+1. Treat it as a trigger for visual inspection.
+2. Open the real screen via noVNC or take a screenshot (do not rely on X11 window titles).
+3. Only after visual confirmation, interpret a rerun.
 
 ---
 
 ## Error Classes
 
-| Class | When to Assign |
-|-------|----------------|
-| `scenario_error` | The scenario is formulated incorrectly or uses an inappropriate flow |
-| `step_resolution_error` | The required step was not found or cannot be resolved |
+| Class | When to set |
+|-------|---------------|
+| `scenario_error` | The scenario is formulated incorrectly or uses the wrong flow |
+| `step_resolution_error` | The required step was not found or could not be resolved |
 | `assertion_error` | The steps ran, but the result check did not match |
 | `test_data_error` | Depends on missing / unsuitable data |
-| `environment_error` | Problem in X11, environment, runner, client startup |
-| `product_ui_error` | Error in the visible behavior of a form or UI flow |
-| `product_logic_error` | Business logic returns an incorrect result for a correct scenario |
+| `environment_error` | Problem in X11, environment, runner, or client startup |
+| `product_ui_error` | Error in visible form behavior or UI flow |
+| `product_logic_error` | Business logic returns the wrong result for a correct scenario |
 
 ### Quick Heuristic
 
@@ -79,15 +79,15 @@ If `event-log` has an entry about `Security Warning` for `bddRunner.epf` or plug
 |--------|-------|
 | No `va-status.json`, GTK/X11 error | `environment_error` |
 | Step not found | `step_resolution_error` |
-| Form opened, expectation did not match | `assertion_error` / `product_ui_error` |
-| Error from a business module in the event log | `product_logic_error` |
+| The form opened, expectation mismatch | `assertion_error` / `product_ui_error` |
+| Error from the business module in the registration log | `product_logic_error` |
 | Document/object not found | `test_data_error` |
 
 ---
 
 ## Diagnostic Result
 
-The agent should report: the error class, the main signal source, the next action path.
+The agent must report: error class, main signal source, next action loop.
 
 ```text
 failure_type = test_data_error

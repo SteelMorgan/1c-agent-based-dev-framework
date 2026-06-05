@@ -1,61 +1,62 @@
 ---
 name: visual-check
-description: "Visual check of 1С form via web client and browser automation. Takes a screenshot, checks for JS errors in the console, and analyzes according to the form-visual-requirements checklist."
+description: "MUST use WHEN a 1C form is created or modified and requires acceptance by the UI checklist. Provides a screenshot via the web client, checks JS errors in the console, and analyzes against form-visual-requirements."
+alwaysApply: false
 ---
 
-# Visual check of forms (Visual Check)
+# Visual Check of Forms (Visual Check)
 
-Required: URL of the 1С web client (published base), credentials.
+A 1C web client URL (published infobase) and credentials are required.
 
-## Verification process
+## Verification Process
 
-### 1. Navigating to the form
+### 1. Navigate to the Form
 
-Prefer Deep Linking — faster than navigation through the interface.
+Prefer Deep Linking - it is faster than navigating through the interface.
 
-- List: `<base_url>/e1cib/list/<ТипМетаданных>.<Имя>`
-- New object: `<base_url>/e1cib/data/<ТипМетаданных>.<Имя>?ref=00000000-0000-0000-0000-000000000000`
-- Existing object: `<base_url>/e1cib/data/<ТипМетаданных>.<Имя>?ref=<UUID>`
+- List: `<base_url>/e1cib/list/<MetadataType>.<Name>`
+- New object: `<base_url>/e1cib/data/<MetadataType>.<Name>?ref=00000000-0000-0000-0000-000000000000`
+- Existing object: `<base_url>/e1cib/data/<MetadataType>.<Name>?ref=<UUID>`
 
-### 2. Authorization (if redirected to login)
+### 2. Authentication (if redirected to sign-in)
 
-`browser_snapshot` → `browser_fill` (login/password by ref) → `browser_click` (Log in).
+`browser_snapshot` → `browser_fill` (login/password from ref) → `browser_click` (Log in).
 
-### 3. Screenshot and console
+### 3. Screenshot and Console
 
 After loading (wait for the indicator to disappear):
 1. `browser_take_screenshot`
-2. `browser_console_messages` — look for “Error”, “Exception”, “Uncaught”
+2. `browser_console_messages` — look for "Error", "Exception", "Uncaught"
 
-### 4. Analysis against the `form-visual-requirements` checklist
+### 4. Analysis against `form-visual-requirements`
 
-- Layout and alignment (grouping, spacing, width)
-- Controls and labels (captions, clipping, titles, command panel)
+- Layout and alignment (grouping, padding, width)
+- Controls and labels (labels, truncation, headings, command bar)
 - Usability (tab order, key fields, tables, horizontal scrolling)
-- Object-specific characteristics (Справочники, Документы, Обработки)
+- Object-type specifics (directories, documents, data processors)
 
-**Report:** result of the screenshot analysis + presence/absence of JS errors.
+**Report:** screenshot analysis result + presence/absence of JS errors.
 
 ## Capabilities
 
 | Capability | Purpose |
 |------------|---------|
-| `browser_navigate` | Opening the form URL |
+| `browser_navigate` | Open the form URL |
 | `browser_snapshot` | Page structure and element refs |
-| `browser_fill` | Filling fields |
-| `browser_click` | Clicking elements |
-| `browser_take_screenshot` | Capturing the form |
-| `browser_console_messages` | Checking for JS errors |
-| `browser_wait_for` | Waiting for loading |
+| `browser_fill` | Fill in fields |
+| `browser_click` | Click elements |
+| `browser_take_screenshot` | Capture the form |
+| `browser_console_messages` | Check for JS errors |
+| `browser_wait_for` | Wait for loading |
 
-## Typical errors
+## Typical Issues
 
 | Error | Workaround |
 |--------|------------|
-| Screenshot is blank | `browser_wait_for` before the screenshot |
-| Deep Link does not work for a new object | List → “Create” via `browser_click` |
+| Blank screenshot | `browser_wait_for` before the screenshot |
+| Deep Link does not work for a new object | List → "Create" via `browser_click` |
 | `browser_fill` cannot find the field | `browser_snapshot` for current refs |
-| JS errors on a normal form | Record them — they surface on save |
+| JS errors on a normal form | Record it - they will surface on save |
 
 ---
 depends_on:

@@ -1,39 +1,26 @@
 ---
 name: quick-fix
-description: Quick fix in one file without cross-review.
+description: >
+  Redirect. quick-fix has been moved to a skill - use the Skill tool or read it directly:
+  framework/skills/framework-meta/quick-fix/SKILL.md
+alwaysApply: false
 ---
 
-# Workflow: Quick Fix
+# quick-fix → skill
 
-> Three steps without cross-review. One file, < 20 lines, no architectural decisions, no new features.
+> This file is a fallback redirect. The current quick-fix skill body (steps, guard, escalation)
+> lives in `framework/skills/framework-meta/quick-fix/SKILL.md`.
 
-## Steps
+Use the **Skill tool** (`quick-fix`) or read directly:
 
-### 1. Find (Explorer → Economy)
-
-`navigate_symbol` + `get_call_graph` → path to the module, its dependencies, make sure the change is localized.
-
-### 2. Fix (Developer → Mid)
-
-The minimally required change according to `coding-standards`. No “improvements” beyond the task scope.
-
-### 3. Verify (Developer → Mid)
-
-1. `get_diagnostics` — quick check of the changed file
-2. `run_tests` — if there are tests for the module
-3. `check_syntax` — final check before commit
-
-## Escalation to Full-cycle
-
-| Situation | Action |
-|----------|--------|
-| Tests fail after the change | Fix or escalate |
-| Multiple modules / architecture / review / > 20 lines | Full-cycle |
-
-**Protocol:** record the state → hand off to the orchestrator → full-cycle with Phase 1 (or Phase 3 if there is a spec).
+```
+framework/skills/framework-meta/quick-fix/SKILL.md
+```
 
 ---
 depends_on:
+  - framework/skills/framework-meta/quick-fix/SKILL.md
+  - framework/subagents/orchestrator.md
   - framework/workflows/full-cycle.md
   - framework/subagents/explorer.md
   - framework/subagents/developer-code.md

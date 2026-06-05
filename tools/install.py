@@ -165,17 +165,10 @@ IDE_CONFIGS = {
         "rules_dir": ".codex/rules",
         "skills_dir": ".codex/skills",
         "agents_dir": ".codex/agents",
-        "description": "Codex CLI (OpenAI) — AGENTS.md + .codex/rules/, агенты в .codex/agents/",
-        # Codex natively reads only AGENTS.md — .codex/rules/ is our convention, needs @ref
-        "rules_import_hint": {
-            "file": "AGENTS.md",
-            "format": "See .codex/rules/{name}.md for {name} rules",
-            "note": (
-                "Codex CLI читает только AGENTS.md (иерархически).\n"
-                "Файлы в .codex/rules/ НЕ загружаются автоматически.\n\n"
-                "Добавьте ссылки в AGENTS.md в корне проекта:"
-            ),
-        },
+        "description": "Codex CLI (OpenAI) — правила → навыки .codex/skills/<name>/SKILL.md, агенты → .codex/agents/<name>.toml",
+        # Codex-специфика (см. _codex_mode / _install_codex_component):
+        #   rule  → .codex/skills/<rule-name>/SKILL.md (симлинк на файл правила, имя правила = имя навыка)
+        #   agent → .codex/agents/<agent-name>.toml (конвертация: frontmatter name/description + тело → developer_instructions)
     },
     "antigravity": {
         "name": "Antigravity",
@@ -337,12 +330,16 @@ class Component:
     """Один компонент фреймворка (файл .md с frontmatter)."""
 
     def __init__(self, id: str, type: str, depends_on: List[str], filepath: Path,
-                 requires: Optional[List[str]] = None):
+                 requires: Optional[List[str]] = None,
+                 always_apply: bool = False):
         self.id = id
         self.type = type
         self.depends_on = depends_on
         self.requires = requires or []
         self.filepath = filepath
+        # alwaysApply: true в frontmatter → правило помещается в always-on каталог IDE.
+        # Правила без флага остаются только в component_map (читаются по требованию).
+        self.always_apply = always_apply
 
     @property
     def display_name(self) -> str:
@@ -390,8 +387,28 @@ class FrameworkGraph:
         self.mirror_dir = mirror_dir if (mirror_dir and mirror_dir.is_dir()) else None
         self.components: Dict[str, Component] = {}
         self._reverse_deps: Dict[str, Set[str]] = {}  # Кэш обратных зависимостей
+        self._codex_prefixed_rules: Optional[Set[str]] = None  # Кэш правил с коллизией имён
         self._scan()
         self._build_reverse_deps()
+
+    def codex_prefixed_rule_names(self) -> Set[str]:
+        """short_name правил, имя которых совпадает с устанавливаемым навыком.
+
+        В Codex правила разворачиваются в общий .codex/skills/. Если правило
+        одноимённо навыку (coding-standards), каталоги коллидируют — такому
+        правилу даём префикс rule_ (→ .codex/skills/rule_coding-standards/).
+        """
+        if self._codex_prefixed_rules is None:
+            skill_names: Set[str] = set()
+            rule_names: Set[str] = set()
+            for c in self.get_installable_for_user():
+                _, _, sn = _component_source_paths(c)
+                if c.type == "skill":
+                    skill_names.add(sn)
+                elif c.type == "rule":
+                    rule_names.add(sn)
+            self._codex_prefixed_rules = rule_names & skill_names
+        return self._codex_prefixed_rules
 
     def _infer_type_from_path(self, md_file: Path) -> Optional[str]:
         """Определяет тип компонента по его расположению в framework/."""
@@ -453,6 +470,11 @@ class FrameworkGraph:
             if isinstance(requires, str):
                 requires = [requires] if requires else []
 
+            # alwaysApply: true → правило-guardrail/триггер, попадает в always-on каталог IDE.
+            # Без флага → правило читается только по требованию (component_map).
+            # Навыки (skill) флаг не используют — они всегда в skills_dir, не в rules_dir.
+            always_apply = str(fm.get("alwaysApply", "")).strip().lower() == "true"
+
             if comp_type == "template":
                 continue
 
@@ -462,6 +484,7 @@ class FrameworkGraph:
                 depends_on=depends,
                 filepath=md_file,
                 requires=requires,
+                always_apply=always_apply,
             )
     
     def _find_skill_path(self, skill_name: str) -> str:
@@ -522,6 +545,18 @@ class FrameworkGraph:
     def get_installable_for_user(self) -> List[Component]:
         """Компоненты для установки в проект (исключая framework-meta)."""
         return [c for c in self.get_installable() if not self.is_framework_meta_skill(c.id)]
+
+    def is_always_on_rule(self, comp_id: str) -> bool:
+        """Возвращает True, если правило помечено alwaysApply: true.
+
+        Только правила (type=rule) из always-on каталога IDE становятся guardrail/триггерами.
+        Workflow-файлы и всё без флага — только component_map (on-demand).
+        Навыки (skill) этот метод не касается — они всегда в skills_dir.
+        """
+        comp = self.components.get(comp_id)
+        if not comp:
+            return False
+        return comp.always_apply
     
     def is_framework_meta_skill(self, comp_id: str) -> bool:
         """Проверяет, является ли навык служебным (framework-meta).
@@ -656,7 +691,15 @@ SKILL_CATEGORY_LABELS = {
 
 
 def print_tree(graph: FrameworkGraph, selected: Optional[Set[str]] = None):
-    """Выводит дерево компонентов, сгруппированное по типу и папкам навыков."""
+    """Выводит дерево компонентов, сгруппированное по типу и папкам навыков.
+
+    Для секции «Правила»:
+    - always-on правила (alwaysApply: true) выводятся со связанным навыком-парой
+      (→ имя навыка), если такая пара существует по _build_trigger_skill_pairs.
+    - on-demand правила (без alwaysApply или alwaysApply: false) выводятся в
+      отдельной подгруппе «on-demand (component_map)» с явной пометкой — чтобы
+      пользователь видел, что они НЕ попадут в always-on канал IDE.
+    """
     installable = graph.get_installable_for_user()
     fw_dir = graph.framework_dir
 
@@ -672,7 +715,45 @@ def print_tree(graph: FrameworkGraph, selected: Optional[Set[str]] = None):
         icon = TYPE_ICONS.get(comp_type, "📄")
         print(f"\n  {icon} {bold(label)}")
 
-        if comp_type == "skill":
+        if comp_type == "rule":
+            # Строим пары «правило-триггер ↔ навык» для always-on правил
+            all_rule_ids = {c.id for c in comps}
+            # Для пар нужны и навыки из installable — передаём все installable ids
+            all_installable_ids = {c.id for c in installable}
+            pairs_map: Dict[str, Optional[str]] = {
+                r: s for r, s in _build_trigger_skill_pairs(graph, all_installable_ids)
+            }
+
+            always_on = [c for c in comps if c.always_apply]
+            on_demand = [c for c in comps if not c.always_apply]
+
+            # Подгруппа: always-on правила (попадают в rules_dir IDE)
+            if always_on:
+                print(f"\n    {dim('always-on (в rules-каталог IDE)')}")
+                for c in sorted(always_on, key=lambda x: x.id):
+                    marker = green(" ✓") if selected and c.id in selected else ""
+                    linked = graph.get_linked_components(c.id)
+                    link_str = cyan(f" ↔ {', '.join(lid.split('/')[-1] for lid in linked)}") if linked else ""
+                    # Показываем связанный навык из пар (если есть)
+                    paired_skill = pairs_map.get(c.id)
+                    pair_str = dim(f" → {paired_skill.split('/')[-1]}") if paired_skill else ""
+                    print(f"    {cyan(str(idx).rjust(3))}  {c.id:<40} {c.display_name}{pair_str}{link_str}{marker}")
+                    idx_map[idx] = c.id
+                    idx += 1
+
+            # Подгруппа: on-demand правила (только component_map, НЕ в always-on канал)
+            if on_demand:
+                print(f"\n    {dim('on-demand (только component_map, НЕ в always-on канал IDE)')}")
+                for c in sorted(on_demand, key=lambda x: x.id):
+                    marker = green(" ✓") if selected and c.id in selected else ""
+                    linked = graph.get_linked_components(c.id)
+                    link_str = cyan(f" ↔ {', '.join(lid.split('/')[-1] for lid in linked)}") if linked else ""
+                    demand_note = yellow(" (on-demand)")
+                    print(f"    {cyan(str(idx).rjust(3))}  {c.id:<40} {c.display_name}{demand_note}{link_str}{marker}")
+                    idx_map[idx] = c.id
+                    idx += 1
+
+        elif comp_type == "skill":
             by_category: Dict[str, List] = {}
             for c in comps:
                 cat = _skill_category(c, fw_dir)
@@ -805,7 +886,14 @@ def _skill_category(comp: "Component", framework_dir: Path) -> str:
 
 
 def _build_checklist_items(graph: FrameworkGraph) -> List:
-    """Строит список элементов для TUI-чеклиста с группировкой по типам и папкам навыков."""
+    """Строит список элементов для TUI-чеклиста с группировкой по типам и папкам навыков.
+
+    Для секции «Правила»:
+    - always-on правила выводятся в подгруппе «always-on», со связанным навыком в описании
+      (переиспользует _build_trigger_skill_pairs, не дублирует логику).
+    - on-demand правила выводятся в подгруппе «on-demand (component_map)» с явной пометкой
+      в описании — чтобы пользователь видел, что в always-on канал IDE они не попадут.
+    """
     items = []  # (id, label, description, is_header)
     installable = graph.get_installable_for_user()
     fw_dir = graph.framework_dir
@@ -820,7 +908,34 @@ def _build_checklist_items(graph: FrameworkGraph) -> List:
         icon = TYPE_ICONS.get(comp_type, "📄")
         items.append(("", f"{icon} {label}", "", True))
 
-        if comp_type == "skill":
+        if comp_type == "rule":
+            # Строим пары «правило ↔ навык» для обогащения описания
+            all_installable_ids = {c.id for c in installable}
+            pairs_map: Dict[str, Optional[str]] = {
+                r: s for r, s in _build_trigger_skill_pairs(graph, all_installable_ids)
+            }
+
+            always_on = [c for c in comps if c.always_apply]
+            on_demand = [c for c in comps if not c.always_apply]
+
+            # Подгруппа: always-on (попадают в rules_dir IDE)
+            if always_on:
+                items.append(("", "    always-on (в rules-каталог IDE)", "", True))
+                for c in sorted(always_on, key=lambda x: x.id):
+                    paired_skill = pairs_map.get(c.id)
+                    desc = c.short_description()
+                    if paired_skill:
+                        desc = f"{desc} → навык: {paired_skill.split('/')[-1]}"
+                    items.append((c.id, c.id, desc, False))
+
+            # Подгруппа: on-demand (только component_map, НЕ в always-on канал)
+            if on_demand:
+                items.append(("", "    on-demand (component_map, не в always-on канал IDE)", "", True))
+                for c in sorted(on_demand, key=lambda x: x.id):
+                    desc = f"[on-demand] {c.short_description()}"
+                    items.append((c.id, c.id, desc, False))
+
+        elif comp_type == "skill":
             # Группируем навыки по папкам (framework/skills/<category>/)
             by_category: Dict[str, List] = {}
             for c in comps:
@@ -1210,6 +1325,18 @@ def _collect_component_text(comp: "Component", mirror_dir: Optional[Path] = None
     return ""
 
 
+def _is_always_on_component(comp: "Component") -> bool:
+    """Определяет, попадает ли компонент в always-on канал IDE.
+
+    Правила: только если alwaysApply: true.
+    Агенты/сабагенты/воркфлоу: always-on по типу.
+    Навыки: всегда on-demand (skills_dir, не rules_dir).
+    """
+    if comp.type == "rule":
+        return comp.always_apply
+    return comp.type in {"agent", "subagent", "workflow"}
+
+
 def estimate_context_usage(
     graph: "FrameworkGraph",
     selected_ids: Set[str],
@@ -1218,9 +1345,11 @@ def estimate_context_usage(
 
     Подсчёт ведётся только по EN-зеркалу (framework_eng). Если EN-файл
     отсутствует — вклад компонента считается 0.
+
+    Правила без alwaysApply: true идут в on-demand (не в always-on канал),
+    даже если они типа rule.
     """
     resolved = graph.resolve_dependencies(selected_ids)
-    always_types = {"rule", "agent", "subagent", "workflow"}
     always_en, on_demand_en = [], []
 
     for cid in sorted(resolved):
@@ -1228,7 +1357,7 @@ def estimate_context_usage(
         if not comp:
             continue
         en_text = _collect_component_text_en(comp, graph.mirror_dir)
-        if comp.type in always_types:
+        if _is_always_on_component(comp):
             always_en.append(en_text)
         else:
             on_demand_en.append(en_text)
@@ -1524,6 +1653,9 @@ def write_session_log(
                 continue
             ru_path = str(comp.filepath.resolve())
             entry: dict = {"type": comp.type, "ru_path": ru_path}
+            # alwaysApply: true → правило в always-on каталоге IDE; False → только component_map
+            if comp.type == "rule":
+                entry["always_apply"] = comp.always_apply
             # Строим EN-путь: framework/x/y → framework_eng/x/y
             if mirror_dir:
                 try:
@@ -1668,8 +1800,175 @@ def _component_source_paths(
     return source_file, source_path, short_name
 
 
+# ─── Codex-специфичная установка ─────────────────────────────────────────────
+# Codex CLI разворачивает компоненты иначе остальных IDE:
+#   rule  → навык:   .codex/skills/<rule-name>/SKILL.md  (симлинк на файл правила)
+#   agent → профиль: .codex/agents/<agent-name>.toml      (конвертация из *.md)
+
+def _codex_mode(comp: Component, ide_key: str) -> Optional[str]:
+    """Режим codex-специфичной установки для компонента или None.
+
+    'rule_skill' — правило разворачивается как навык (skills/<name>/SKILL.md);
+    'agent_toml' — агент конвертируется в TOML-профиль (agents/<name>.toml).
+    """
+    if ide_key != "codex":
+        return None
+    if comp.type == "rule":
+        return "rule_skill"
+    if comp.type in ("agent", "subagent"):
+        return "agent_toml"
+    return None
+
+
+def _read_body_after_frontmatter(path: Path) -> str:
+    """Возвращает прозу агента: тело без ведущего frontmatter и без хвостового
+    технического backmatter-блока (depends_on/skills) субагентов."""
+    try:
+        text = path.read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError):
+        return ""
+    m = FRONTMATTER_RE.match(text)
+    body = text[m.end():] if m else text
+    # Срезаем хвостовой технический ---блок--- (стиль subagent/*.md): он несёт
+    # depends_on/skills, а не инструкции агенту.
+    back = BACKMATTER_RE.search(body)
+    if back:
+        body = body[: back.start()]
+    return body.strip()
+
+
+def _frontmatter_scalar_folded(source_file: Path, key: str) -> str:
+    """Извлекает скалярное поле frontmatter, склеивая многострочные (folded) значения.
+
+    Общий `_parse_simple_yaml_block` берёт только первую строку folded-скаляра
+    (description у агентов часто занимает 2-3 строки). Здесь собираем всё значение
+    до следующего ключа того же уровня и склеиваем в одну строку.
+    """
+    try:
+        text = source_file.read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError):
+        return ""
+    m = FRONTMATTER_RE.match(text)
+    if not m:
+        return ""
+
+    collected: List[str] = []
+    capturing = False
+    base_indent = 0
+    for line in m.group(1).splitlines():
+        if not capturing:
+            stripped = line.strip()
+            if stripped.startswith(f"{key}:"):
+                val = stripped.split(":", 1)[1].strip()
+                if val not in (">", "|", ">-", "|-", ">+", "|+"):  # folding-индикаторы
+                    if val:
+                        collected.append(val)
+                base_indent = len(line) - len(line.lstrip())
+                capturing = True
+            continue
+        # сбор continuation-строк (с отступом больше ключа)
+        if not line.strip():
+            continue
+        if (len(line) - len(line.lstrip())) <= base_indent:
+            break  # следующий ключ того же уровня
+        collected.append(line.strip())
+
+    return " ".join(" ".join(collected).split())
+
+
+def _toml_basic_string(value: str) -> str:
+    """Однострочное TOML basic-значение с экранированием спецсимволов."""
+    escaped = (
+        value.replace("\\", "\\\\")
+        .replace('"', '\\"')
+        .replace("\n", " ")
+        .replace("\t", " ")
+    )
+    return f'"{escaped}"'
+
+
+def generate_codex_agent_toml(source_file: Path, fallback_name: str) -> str:
+    """Конвертирует агент-*.md в Codex TOML-профиль.
+
+    Шаблон Codex:
+        name = "frontend-builder"
+        description = "..."
+        developer_instructions = "..."
+
+    name/description берутся из frontmatter, тело файла → developer_instructions.
+    """
+    fm = parse_frontmatter(source_file) or {}
+    name = str(fm.get("name") or fallback_name).strip()
+    # description часто folded на 2-3 строки — берём полное значение, а не первую строку
+    description = _frontmatter_scalar_folded(source_file, "description")
+    if not description:
+        description = " ".join(str(fm.get("description") or "").split())
+    body = _read_body_after_frontmatter(source_file)
+
+    # developer_instructions — многострочное тело агента.
+    # Предпочитаем TOML-литерал ('''…'''), он не требует экранирования.
+    # Если тело содержит разделитель ''', падаем в экранированный basic-блок.
+    if "'''" not in body:
+        instr = "'''\n" + body + "\n'''"
+    else:
+        esc = body.replace("\\", "\\\\").replace('"""', '\\"\\"\\"')
+        instr = '"""\n' + esc + '\n"""'
+
+    return (
+        f"name = {_toml_basic_string(name)}\n"
+        f"description = {_toml_basic_string(description)}\n"
+        f"developer_instructions = {instr}\n"
+    )
+
+
+def _install_codex_component(
+    comp: Component,
+    mode: str,
+    source_file: Path,
+    target_file: Path,
+    dry_run: bool,
+) -> int:
+    """Размещает codex-компонент. Возвращает 1 (установлен).
+
+    rule_skill — симлинк SKILL.md → файл правила (имя правила = имя навыка);
+    agent_toml — генерирует .toml-профиль из тела агента.
+    """
+    if dry_run:
+        action = (
+            "→ (symlink as skill, SKILL.md)"
+            if mode == "rule_skill"
+            else "→ (convert → .toml)"
+        )
+        print(f"    {action} {target_file}")
+        return 1
+
+    # Удаляем прежний артефакт (симлинк или файл) до пересоздания
+    if target_file.is_symlink() or target_file.exists():
+        target_file.unlink()
+    target_file.parent.mkdir(parents=True, exist_ok=True)
+
+    if mode == "rule_skill":
+        try:
+            try:
+                rel_path = os.path.relpath(source_file, target_file.parent)
+                target_file.symlink_to(rel_path)
+            except ValueError:
+                target_file.symlink_to(source_file)
+        except OSError as e:
+            print(red(f"  ✗ Ошибка симлинка {comp.id}: {e}"))
+            shutil.copy2(source_file, target_file)
+            print(yellow(f"    → скопирован как fallback"))
+    else:  # agent_toml
+        fallback_name = comp.id.rpartition("/")[2] or comp.id
+        target_file.write_text(
+            generate_codex_agent_toml(source_file, fallback_name), encoding="utf-8"
+        )
+    return 1
+
+
 def _component_target_file(
-    comp: Component, ide_key: str, project_dir: Path, use_symlinks: bool = True
+    comp: Component, ide_key: str, project_dir: Path, use_symlinks: bool = True,
+    graph: "Optional[FrameworkGraph]" = None,
 ) -> Path:
     """Строит целевой путь компонента в каталоге проекта.
     Для навыков: симлинк и копия — short_name (как у исходной папки).
@@ -1680,6 +1979,16 @@ def _component_target_file(
     dir_key = _dir_key_for_component(comp.type, ide_cfg)
     target_base = project_dir / ide_cfg[dir_key]
     source_file, _, short_name = _component_source_paths(comp)
+    # Codex: правило → навык skills/<name>/SKILL.md, агент → agents/<name>.toml
+    codex_mode = _codex_mode(comp, ide_key)
+    if codex_mode == "rule_skill":
+        folder = short_name
+        # Коллизия с одноимённым навыком → префикс rule_ (см. codex_prefixed_rule_names)
+        if graph is not None and short_name in graph.codex_prefixed_rule_names():
+            folder = f"rule_{short_name}"
+        return project_dir / ide_cfg["skills_dir"] / folder / "SKILL.md"
+    if codex_mode == "agent_toml":
+        return project_dir / ide_cfg["agents_dir"] / f"{short_name}.toml"
     if comp.type == "skill":
         if use_symlinks:
             return target_base / short_name  # симлинк на каталог
@@ -1712,8 +2021,8 @@ def detect_existing_component_symlinks(
     for comp in graph.get_installable_for_user():
         # Навыки: проверяем оба варианта (short_name и short_name.md) для совместимости
         target_candidates = [
-            _component_target_file(comp, ide_key, project_dir, use_symlinks=True),
-            _component_target_file(comp, ide_key, project_dir, use_symlinks=False),
+            _component_target_file(comp, ide_key, project_dir, use_symlinks=True, graph=graph),
+            _component_target_file(comp, ide_key, project_dir, use_symlinks=False, graph=graph),
         ]
         target_file = next((t for t in target_candidates if t.is_symlink()), None)
         if not target_file:
@@ -1733,6 +2042,74 @@ def detect_existing_component_symlinks(
             detected.add(comp.id)
 
     return detected
+
+
+def _build_trigger_skill_pairs(
+    graph: "FrameworkGraph",
+    comp_ids: Set[str],
+) -> List[Tuple[str, Optional[str]]]:
+    """Строит пары (правило-триггер, навык) для человекочитаемого вывода установки.
+
+    Пара создаётся когда правило типа rule с alwaysApply: true зависит от навыка
+    (skill), или навык имеет совпадающее имя с правилом (через depends_on).
+    Возвращает список пар: (rule_id, skill_id_or_None), отсортированных по rule_id.
+    """
+    pairs: List[Tuple[str, Optional[str]]] = []
+
+    rules = [cid for cid in comp_ids if graph.components.get(cid) and graph.components[cid].type == "rule"]
+    skill_ids = {cid for cid in comp_ids if graph.components.get(cid) and graph.components[cid].type == "skill"}
+
+    for rule_id in sorted(rules):
+        comp = graph.components[rule_id]
+        # Ищем связанный навык: прямая зависимость (depends_on) или совпадение имени
+        paired_skill: Optional[str] = None
+
+        # Способ 1: зависимость указывает на навык
+        for dep in comp.depends_on:
+            dep_cid = graph._path_to_comp_id(dep)
+            if dep_cid and dep_cid in skill_ids:
+                paired_skill = dep_cid
+                break
+
+        # Способ 2: совпадение имени правила с именем навыка (одно слово)
+        if paired_skill is None:
+            rule_short = rule_id.split("/")[-1]  # напр. "xml-generation" из "rule/xml-generation"
+            for sk_id in sorted(skill_ids):
+                sk_short = sk_id.split("/")[-1]
+                if sk_short == rule_short:
+                    paired_skill = sk_id
+                    break
+
+        pairs.append((rule_id, paired_skill))
+
+    return pairs
+
+
+def print_trigger_skill_pairs(
+    graph: "FrameworkGraph",
+    comp_ids: Set[str],
+) -> None:
+    """Выводит пары «правило-триггер + навык» одной строкой.
+
+    Показывает только правила с alwaysApply: true, у которых есть связанный навык.
+    Остальные правила и навыки выводятся отдельно ниже.
+    """
+    pairs = _build_trigger_skill_pairs(graph, comp_ids)
+    paired_skills: Set[str] = set()
+    paired_rules: Set[str] = set()
+
+    shown_pairs = [(r, s) for r, s in pairs if s is not None and graph.is_always_on_rule(r)]
+    if not shown_pairs:
+        return
+
+    print(f"\n  {bold('Пары «триггер + навык»')} (правило → читается по требованию):")
+    for rule_id, skill_id in shown_pairs:
+        rule_short = rule_id.split("/")[-1]
+        skill_short = skill_id.split("/")[-1] if skill_id else ""
+        print(f"    {cyan(rule_short):<35} → {dim(skill_short)}")
+        paired_rules.add(rule_id)
+        if skill_id:
+            paired_skills.add(skill_id)
 
 
 def install_components(
@@ -1769,6 +2146,20 @@ def install_components(
             name = comp.display_name if comp else comp_id
             print(f"    - {comp_id:<40} {dim(name)}")
 
+    # Показываем пары «триггер + навык» для наглядности
+    print_trigger_skill_pairs(graph, all_ids)
+
+    # Подсчёт правил: сколько always-on, сколько only component_map
+    always_on_rules = [cid for cid in all_ids
+                       if graph.components.get(cid) and graph.components[cid].type == "rule"
+                       and graph.components[cid].always_apply]
+    lazy_rules = [cid for cid in all_ids
+                  if graph.components.get(cid) and graph.components[cid].type == "rule"
+                  and not graph.components[cid].always_apply]
+    if always_on_rules or lazy_rules:
+        print(f"\n  {bold('Правила')}: {green(str(len(always_on_rules)))} always-on"
+              f" + {dim(str(len(lazy_rules)) + ' component_map-only (alwaysApply отсутствует)')}")
+
     print(f"\n  Итого к установке: {bold(str(len(all_ids)))} компонентов")
     print(f"  Метод: {bold('симлинки' if use_symlinks else 'копирование файлов')}")
     print(f"  IDE: {bold(ide_cfg['name'])}")
@@ -1794,7 +2185,7 @@ def install_components(
             continue
 
         for use_sl in (True, False):
-            target_file = _component_target_file(comp, ide_key, project_dir, use_symlinks=use_sl)
+            target_file = _component_target_file(comp, ide_key, project_dir, use_symlinks=use_sl, graph=graph)
             if target_file.is_symlink():
                 if dry_run:
                     print(f"    ← remove symlink {target_file}")
@@ -1802,6 +2193,12 @@ def install_components(
                 else:
                     target_file.unlink()
                     removed += 1
+                    # Codex: правило-как-навык оставляет пустой каталог skills/<name>/ — чистим
+                    if _codex_mode(comp, ide_key) == "rule_skill":
+                        try:
+                            target_file.parent.rmdir()
+                        except OSError:
+                            pass
                 break
 
     for comp_id in sorted(all_ids):
@@ -1818,8 +2215,30 @@ def install_components(
             skipped += 1
             continue
 
+        # Фильтр alwaysApply: правила без alwaysApply: true НЕ попадают в always-on каталог IDE.
+        # Такие правила доступны через component_map (читаются агентом по требованию).
+        # Навыки (skill) этот фильтр не затрагивает — они идут в skills_dir всегда.
+        # Codex: правила разворачиваются как навыки → фильтр alwaysApply не применяется (берём все).
+        if comp.type == "rule" and not comp.always_apply and ide_key != "codex":
+            # Правило не-always-on: пропускаем физическое размещение, но включаем в component_map.
+            # Вывод только в dry-run для наглядности.
+            if dry_run:
+                print(f"    → (component_map only, alwaysApply missing) {comp_id}")
+            skipped += 1
+            continue
+
         source_file, source_path, _ = _component_source_paths(comp, graph.framework_dir, graph.mirror_dir)
-        target_file = _component_target_file(comp, ide_key, project_dir, use_symlinks=use_symlinks)
+        target_file = _component_target_file(comp, ide_key, project_dir, use_symlinks=use_symlinks, graph=graph)
+
+        # Codex: правило → навык (symlink SKILL.md), агент → TOML-профиль (конвертация).
+        # Одноимённые навыку правила автоматически получают префикс rule_ в target_file
+        # (см. _component_target_file + codex_prefixed_rule_names) — коллизии каталогов нет.
+        codex_mode = _codex_mode(comp, ide_key)
+        if codex_mode:
+            installed += _install_codex_component(
+                comp, codex_mode, source_file, target_file, dry_run
+            )
+            continue
 
         # IDE с кастомным именем файла навыка (skill.md вместо SKILL.md)
         # При симлинках: создаём каталог навыка и симлинк на файл.

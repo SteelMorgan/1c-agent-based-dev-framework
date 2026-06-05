@@ -61,9 +61,9 @@ class MxlWriterTest {
         assertThat(content).contains("<templateMode>true</templateMode>");
         assertThat(content).contains("<height>1</height>");
         
-        // БЕЗ BOM
+        // TASK-171: MXL Template.xml (Designer) — с UTF-8 BOM (как реальные _Демо макеты)
         byte[] bytes = Files.readAllBytes(outputXml);
-        assertThat(bytes[0]).isNotEqualTo((byte) 0xEF);
+        assertThat(bytes[0]).isEqualTo((byte) 0xEF);
     }
     
     /**
@@ -92,10 +92,9 @@ class MxlWriterTest {
         
         String content = Files.readString(outputXml);
         
-        // Проверки параметров
-        assertThat(content).contains("<parameter>");
-        assertThat(content).contains("<v8:content>Заголовок</v8:content>");
-        assertThat(content).contains("<v8:content>Значение</v8:content>");
+        // TASK-171: канон — <parameter>Имя</parameter> (текст узла), без вложенного v8:content.
+        assertThat(content).contains("<parameter>Заголовок</parameter>");
+        assertThat(content).contains("<parameter>Значение</parameter>");
         assertThat(content).contains("<size>2</size>");
     }
     
@@ -123,9 +122,13 @@ class MxlWriterTest {
         writer.create(dsl, outputXml);
         
         String content = Files.readString(outputXml);
-        
-        // Проверки span
-        assertThat(content).contains("<merge>2</merge>"); // span=3 → merge=2
+
+        // TASK-171: канон — document-level <merge> с <r>/<c>/<w>, а НЕ in-cell <merge>N.
+        // span=3 → w=2, на строке 0, колонке 0.
+        assertThat(content).contains("<merge>");
+        assertThat(content).contains("<r>0</r>");
+        assertThat(content).contains("<c>0</c>");
+        assertThat(content).contains("<w>2</w>");
         assertThat(content).contains("Заголовок на 3 колонки");
     }
     
@@ -255,30 +258,32 @@ class MxlWriterTest {
         assertThat(outputXml).exists();
         String content = Files.readString(outputXml);
         
-        // Проверка шрифтов
-        assertThat(content).contains("<font>");
-        assertThat(content).contains("<id>header</id>");
-        assertThat(content).contains("<face>Arial</face>");
-        assertThat(content).contains("<height>12</height>");
-        assertThat(content).contains("<bold>true</bold>");
-        assertThat(content).contains("<id>normal</id>");
-        assertThat(content).contains("<height>10</height>");
-        
-        // Проверка стилей
-        assertThat(content).contains("<format>");
-        assertThat(content).contains("<id>headerStyle</id>");
-        assertThat(content).contains("<font>header</font>");
+        // TASK-171: канон — числовая палитра шрифтов (атрибуты faceName/height/bold),
+        // НЕ именованные <id>/<face>.
+        assertThat(content).contains("faceName=\"Arial\"");
+        assertThat(content).contains("height=\"12\"");
+        assertThat(content).contains("bold=\"true\"");
+        assertThat(content).contains("height=\"10\"");
+
+        // TASK-171: канон — палитра линий + скалярные border-индексы в формате.
+        assertThat(content).contains("<line width=\"2\" gap=\"false\">"); // thick для headerStyle
+        assertThat(content).contains("SpreadsheetDocumentCellLineType");
+        // headerStyle (all+thick) → все 4 border-индекса.
+        assertThat(content).contains("<leftBorder>");
+        assertThat(content).contains("<topBorder>");
+        assertThat(content).contains("<rightBorder>");
+        assertThat(content).contains("<bottomBorder>");
         assertThat(content).contains("<horizontalAlignment>Center</horizontalAlignment>");
         assertThat(content).contains("<verticalAlignment>Center</verticalAlignment>");
-        assertThat(content).contains("<border>");
-        assertThat(content).contains("<id>dataStyle</id>");
-        assertThat(content).contains("<font>normal</font>");
         assertThat(content).contains("<horizontalAlignment>Left</horizontalAlignment>");
         assertThat(content).contains("<textPlacement>Wrap</textPlacement>");
-        
-        // Проверка применения стилей к ячейкам
-        assertThat(content).contains("<f>headerStyle</f>");
-        assertThat(content).contains("<f>dataStyle</f>");
+
+        // TASK-171: ссылка на стиль из ячейки — числовой индекс <f>N>, не имя.
+        // Не должно быть именованных id в формате/шрифте.
+        assertThat(content).doesNotContain("<id>headerStyle</id>");
+        assertThat(content).doesNotContain("<id>header</id>");
+        // Ячейки ссылаются на формат числовым индексом >= 1.
+        assertThat(content).containsPattern("<f>\\d+</f>");
     }
     
     // ─── Регрессионные тесты для silent-loss багов (см. mxl-parser-provenance.md §7.1) ───
@@ -363,59 +368,76 @@ class MxlWriterTest {
 
     /**
      * Баг #2 — rowStyle: ячейка БЕЗ собственного style наследует стиль строки.
+     * TASK-171: после перехода на канон стили — числовые индексы; проверяем
+     * через round-trip декомпиляцию, что rowStyle действительно применился
+     * (граница "bordered" восстанавливается у ячеек строки).
      */
     @Test
     void testRowStyleInheritedByCellWithoutStyle() throws Exception {
-        List<MxlDsl.Cell> cells = Arrays.asList(
-                // Cell без style — должна унаследовать "bordered"
-                new MxlDsl.Cell(1, null, null, null, "А", null, null, null),
-                // Cell без style — должна унаследовать "bordered"
-                new MxlDsl.Cell(2, null, null, null, "Б", null, null, null)
-        );
-        List<MxlDsl.Row> rows = Arrays.asList(
-                new MxlDsl.Row(null, "bordered", cells, null)
-        );
-        List<MxlDsl.Area> areas = Arrays.asList(
-                new MxlDsl.Area("Строка", rows)
-        );
-        MxlDsl dsl = new MxlDsl(2, 50, null, null, null, areas);
-
+        String json = """
+                {
+                  "columns": 2,
+                  "defaultWidth": 50,
+                  "styles": {"bordered": {"border": "all"}},
+                  "areas": [{"name": "Строка", "rows": [
+                    {"rowStyle": "bordered", "cells": [
+                      {"col": 1, "text": "А"}, {"col": 2, "text": "Б"}
+                    ]}
+                  ]}]
+                }
+                """;
+        MxlDsl dsl = new ObjectMapper().readValue(json, MxlDsl.class);
         Path outputXml = tempDir.resolve("Template.xml");
         new MxlWriter(OutputFormat.DESIGNER).create(dsl, outputXml);
 
         String content = Files.readString(outputXml);
-        // Не должно быть дефолтного <f>0</f> — обе ячейки должны указать на rowStyle
-        assertThat(content).contains("<f>bordered</f>");
-        assertThat(content).doesNotContain("<f>0</f>");
+        // Канон: рамка "all" → палитра <line> + скалярные border-индексы у формата ячеек.
+        assertThat(content).contains("<line width=\"1\"");
+        assertThat(content).contains("<leftBorder>");
+        // Round-trip: декомпиляция должна вернуть рамку у обеих ячеек строки.
+        io.github.onec.xmlgen.validator.XmlDocument doc =
+                new io.github.onec.xmlgen.validator.XmlStructureReader().parse(outputXml);
+        Path json2 = tempDir.resolve("rt.json");
+        new io.github.onec.xmlgen.info.MxlDecompiler().decompile(doc, json2);
+        String rt = Files.readString(json2);
+        assertThat(rt).contains("\"border\"");
     }
 
     /**
      * Баг #2 — rowStyle: явный style ячейки перебивает rowStyle строки.
+     * TASK-171: проверяем, что у двух ячеек разные форматы (money vs bordered)
+     * через наличие разных числовых индексов <f> и присутствие обоих стилей в палитре.
      */
     @Test
     void testCellStyleOverridesRowStyle() throws Exception {
-        List<MxlDsl.Cell> cells = Arrays.asList(
-                // Ячейка с явным style — должна сохранить свой
-                new MxlDsl.Cell(1, null, null, "money", "Сумма", null, null, null),
-                // Ячейка без style — наследует rowStyle
-                new MxlDsl.Cell(2, null, null, null, "Прочее", null, null, null)
-        );
-        List<MxlDsl.Row> rows = Arrays.asList(
-                new MxlDsl.Row(null, "bordered", cells, null)
-        );
-        List<MxlDsl.Area> areas = Arrays.asList(
-                new MxlDsl.Area("Строка", rows)
-        );
-        MxlDsl dsl = new MxlDsl(2, 50, null, null, null, areas);
-
+        String json = """
+                {
+                  "columns": 2,
+                  "defaultWidth": 50,
+                  "styles": {
+                    "bordered": {"border": "all"},
+                    "money": {"align": "right", "format": "ЧДЦ=2"}
+                  },
+                  "areas": [{"name": "Строка", "rows": [
+                    {"rowStyle": "bordered", "cells": [
+                      {"col": 1, "param": "Сумма", "style": "money"},
+                      {"col": 2, "text": "Прочее"}
+                    ]}
+                  ]}]
+                }
+                """;
+        MxlDsl dsl = new ObjectMapper().readValue(json, MxlDsl.class);
         Path outputXml = tempDir.resolve("Template.xml");
         new MxlWriter(OutputFormat.DESIGNER).create(dsl, outputXml);
 
         String content = Files.readString(outputXml);
-        // Ячейка 1 — money (явный)
-        assertThat(content).contains("<f>money</f>");
-        // Ячейка 2 — bordered (унаследован)
-        assertThat(content).contains("<f>bordered</f>");
+        // money: выравнивание Right + строка формата.
+        assertThat(content).contains("<horizontalAlignment>Right</horizontalAlignment>");
+        assertThat(content).contains("ЧДЦ=2");
+        // bordered: рамка.
+        assertThat(content).contains("<leftBorder>");
+        // Две ячейки строки ссылаются на разные форматы.
+        assertThat(content).containsPattern("<f>\\d+</f>");
     }
 
     /**
@@ -445,17 +467,22 @@ class MxlWriterTest {
         // Должны быть отдельные <format> блоки с шириной 15 и 30
         assertThat(content).contains("<width>15</width>");
         assertThat(content).contains("<width>30</width>");
-        // Должны быть <columnsItem> с индексами 0, 1, 2 (0-based в XML)
+        // TASK-171: канон — <columnsItem> с числовым <formatIndex>, индексы 0-based.
         assertThat(content).contains("<columnsItem>");
         assertThat(content).contains("<index>0</index>");
         assertThat(content).contains("<index>1</index>");
         assertThat(content).contains("<index>2</index>");
-        assertThat(content).contains("<formatIndex>__cw_15</formatIndex>");
-        assertThat(content).contains("<formatIndex>__cw_30</formatIndex>");
+        // formatIndex теперь числовой (ссылка в палитру), не "__cw_15".
+        assertThat(content).doesNotContain("__cw_");
+        assertThat(content).containsPattern("<formatIndex>\\d+</formatIndex>");
     }
 
     /**
-     * Баг #3 — columnWidths + defaultWidth: неуказанные колонки получают defaultWidth.
+     * Баг #3 — columnWidths + defaultWidth.
+     * TASK-171 (канон): ширина по умолчанию задаётся через <defaultFormatIndex>
+     * (формат с width=defaultWidth), а не через <columnsItem> на каждую колонку.
+     * Явно перечисляется только колонка 1 (нестандартная ширина 15);
+     * колонки 2,3 наследуют defaultWidth=20 через defaultFormatIndex.
      */
     @Test
     void testColumnWidthsWithDefaultWidth() throws Exception {
@@ -471,22 +498,20 @@ class MxlWriterTest {
         List<MxlDsl.Area> areas = Arrays.asList(
                 new MxlDsl.Area("Область1", rows)
         );
-        // columns=3, defaultWidth=20, columnWidths={"1": 15} → колонка 1 = 15, 2 и 3 = 20.
         MxlDsl dsl = new MxlDsl(3, 20, cw, null, null, areas);
 
         Path outputXml = tempDir.resolve("Template.xml");
         new MxlWriter(OutputFormat.DESIGNER).create(dsl, outputXml);
 
         String content = Files.readString(outputXml);
-        // Должны быть форматы для обеих ширин
+        // Формат default-width=20 (для defaultFormatIndex) и формат width=15 (колонка 1).
         assertThat(content).contains("<width>15</width>");
         assertThat(content).contains("<width>20</width>");
-        assertThat(content).contains("<formatIndex>__cw_15</formatIndex>");
-        assertThat(content).contains("<formatIndex>__cw_20</formatIndex>");
-        // Все 3 колонки должны быть прописаны
+        assertThat(content).contains("<defaultFormatIndex>");
+        assertThat(content).doesNotContain("__cw_");
+        // Перечислена только нестандартная колонка 1 (index 0).
+        assertThat(content).contains("<columnsItem>");
         assertThat(content).contains("<index>0</index>");
-        assertThat(content).contains("<index>1</index>");
-        assertThat(content).contains("<index>2</index>");
     }
 
     // ─── Канон Широкова: новые опциональные поля ───
@@ -511,7 +536,8 @@ class MxlWriterTest {
         Path out = tempDir.resolve("Template.xml");
         new MxlWriter(OutputFormat.DESIGNER).create(dsl, out);
         String content = Files.readString(out);
-        assertThat(content).contains("<format>ЧЦ=15; ЧДЦ=2</format>");
+        // TASK-171: канон — строка формата как <format><v8:item><v8:content>..
+        assertThat(content).contains("<v8:content>ЧЦ=15; ЧДЦ=2</v8:content>");
     }
 
     @Test
@@ -531,7 +557,7 @@ class MxlWriterTest {
         Path out = tempDir.resolve("Template.xml");
         new MxlWriter(OutputFormat.DESIGNER).create(dsl, out);
         String content = Files.readString(out);
-        assertThat(content).contains("<format>ДФ=dd.MM.yyyy</format>");
+        assertThat(content).contains("<v8:content>ДФ=dd.MM.yyyy</v8:content>");
     }
 
     @Test
@@ -551,7 +577,7 @@ class MxlWriterTest {
         Path out = tempDir.resolve("Template.xml");
         new MxlWriter(OutputFormat.DESIGNER).create(dsl, out);
         String content = Files.readString(out);
-        assertThat(content).contains("<format>ЧО=1; ЧРГ=,</format>");
+        assertThat(content).contains("<v8:content>ЧО=1; ЧРГ=,</v8:content>");
     }
 
     /**
@@ -576,7 +602,8 @@ class MxlWriterTest {
         Path out = tempDir.resolve("Template.xml");
         new MxlWriter(OutputFormat.DESIGNER).create(dsl, out);
         String content = Files.readString(out);
-        assertThat(content).contains("<rowMerge>2</rowMerge>");
+        // TASK-171: канон — rowspan=3 → document-level <merge><h>2</h>.
+        assertThat(content).contains("<h>2</h>");
     }
 
     @Test
@@ -593,7 +620,10 @@ class MxlWriterTest {
         Path out = tempDir.resolve("Template.xml");
         new MxlWriter(OutputFormat.DESIGNER).create(dsl, out);
         String content = Files.readString(out);
+        // rowspan=1 (default) → нет вертикального объединения, нет <h> в merge,
+        // и вообще нет <merge> (span тоже 1).
         assertThat(content).doesNotContain("<rowMerge>");
+        assertThat(content).doesNotContain("<merge>");
     }
 
     @Test
@@ -613,8 +643,9 @@ class MxlWriterTest {
         Path out = tempDir.resolve("Template.xml");
         new MxlWriter(OutputFormat.DESIGNER).create(dsl, out);
         String content = Files.readString(out);
-        assertThat(content).contains("<merge>1</merge>");
-        assertThat(content).contains("<rowMerge>1</rowMerge>");
+        // TASK-171: канон — span=2 + rowspan=2 → document-level <merge> с <w>1 и <h>1.
+        assertThat(content).contains("<w>1</w>");
+        assertThat(content).contains("<h>1</h>");
     }
 
     /**
@@ -833,9 +864,163 @@ class MxlWriterTest {
         
         assertThat(content).contains("<size>2</size>");
         assertThat(content).contains("Тестовый документ");
-        assertThat(content).contains("<merge>1</merge>");
+        // TASK-171: канон — span=2 → document-level <merge><w>1</w>.
+        assertThat(content).contains("<merge>");
+        assertThat(content).contains("<w>1</w>");
         assertThat(content).contains("<parameter>");
-        assertThat(content).contains("<v8:content>Параметр1</v8:content>");
-        assertThat(content).contains("<v8:content>Параметр2</v8:content>");
+        // TASK-171: канон — <parameter> хранит имя как текст узла, без вложенного v8:content.
+        assertThat(content).contains("<parameter>Параметр1</parameter>");
+        assertThat(content).contains("<parameter>Параметр2</parameter>");
+    }
+
+    // ─── TASK-171 (остаточный долг W2): цвета / Nx / рисунки / verticalUnmerge / columnMerge ───
+
+    /**
+     * R5 — цвета: textColor/backColor/borderColor пишутся дословно (hex и style-ref),
+     * в каноническом порядке (borderColor у границ; textColor/backColor до textPlacement).
+     */
+    @Test
+    void testColorsWrittenLiterally() throws Exception {
+        String json = """
+                {
+                  "columns": 1,
+                  "styles": {
+                    "c": {"border": "all", "borderColor": "style:FormTextColor",
+                          "textColor": "#000080", "backColor": "#BBEEC7"}
+                  },
+                  "areas": [{"name": "X", "rows": [{"cells": [
+                    {"col": 1, "text": "Цвет", "style": "c"}
+                  ]}]}]
+                }
+                """;
+        MxlDsl dsl = new ObjectMapper().readValue(json, MxlDsl.class);
+        Path out = tempDir.resolve("Template.xml");
+        new MxlWriter(OutputFormat.DESIGNER).create(dsl, out);
+        String content = Files.readString(out);
+        assertThat(content).contains("<textColor>#000080</textColor>");
+        assertThat(content).contains("<backColor>#BBEEC7</backColor>");
+        assertThat(content).contains("<borderColor>style:FormTextColor</borderColor>");
+        // Канон-порядок: borderColor перед width/выравниванием; textColor перед backColor,
+        // оба до textPlacement (тут textPlacement нет, проверяем взаимный порядок цветов).
+        assertThat(content.indexOf("<textColor>")).isLessThan(content.indexOf("<backColor>"));
+    }
+
+    /**
+     * R8 — "Nx" пропорции ширин: при заданном page авто-расчёт defaultWidth и ширин колонок.
+     * page=600, 3 колонки: col1=2x, остальные по 1 unit. units=2+1+1=4 → defaultWidth=150,
+     * col1 width = 2*150 = 300.
+     */
+    @Test
+    void testNxProportionalWidths() throws Exception {
+        String json = """
+                {
+                  "columns": 3,
+                  "page": "600",
+                  "columnWidths": {"1": "2x"},
+                  "areas": [{"name": "X", "rows": [{"cells": [
+                    {"col": 1, "text": "A"}
+                  ]}]}]
+                }
+                """;
+        MxlDsl dsl = new ObjectMapper().readValue(json, MxlDsl.class);
+        Path out = tempDir.resolve("Template.xml");
+        new MxlWriter(OutputFormat.DESIGNER).create(dsl, out);
+        String content = Files.readString(out);
+        // defaultWidth=150 (default format), col1 width=300 — обе ширины должны присутствовать.
+        assertThat(content).contains("<width>150</width>");
+        assertThat(content).contains("<width>300</width>");
+        // Колонка 1 (index 0) перечислена как нестандартная.
+        assertThat(content).contains("<columnsItem>");
+    }
+
+    /**
+     * R9 — рисунки: drawing пишется document-level со всеми заданными полями + picture-палитра.
+     */
+    @Test
+    void testDrawingAndPictureWritten() throws Exception {
+        String json = """
+                {
+                  "columns": 4,
+                  "areas": [{"name": "X", "rows": [{"cells": [
+                    {"col": 1, "text": "A"}
+                  ]}]}],
+                  "drawings": [
+                    {"drawingType": "Picture", "id": 1, "formatIndex": 0,
+                     "beginRow": 0, "beginColumn": 1, "endRow": 0, "endColumn": 2,
+                     "pictureSize": "Proportionally", "zOrder": 1, "pictureIndex": 1}
+                  ],
+                  "pictures": [
+                    {"index": 0},
+                    {"index": 1, "data": "iVBORw0KGgo="}
+                  ]
+                }
+                """;
+        MxlDsl dsl = new ObjectMapper().readValue(json, MxlDsl.class);
+        Path out = tempDir.resolve("Template.xml");
+        new MxlWriter(OutputFormat.DESIGNER).create(dsl, out);
+        String content = Files.readString(out);
+        assertThat(content).contains("<drawing>");
+        assertThat(content).contains("<drawingType>Picture</drawingType>");
+        assertThat(content).contains("<pictureIndex>1</pictureIndex>");
+        assertThat(content).contains("<picture>");
+        assertThat(content).contains("iVBORw0KGgo=");
+        // drawing должен идти ДО templateMode (порядок канона), picture — ПОСЛЕ format.
+        assertThat(content.indexOf("<drawing>")).isLessThan(content.indexOf("<templateMode>"));
+    }
+
+    /**
+     * verticalUnmerge + columnMerge (r=-1): пишутся document-level в правильном порядке.
+     */
+    @Test
+    void testVerticalUnmergeAndColumnMerge() throws Exception {
+        String json = """
+                {
+                  "columns": 20,
+                  "areas": [{"name": "X", "rows": [{"cells": [
+                    {"col": 1, "text": "A"}
+                  ]}]}],
+                  "columnMerges": [{"c": 14, "w": 1}],
+                  "verticalUnmerges": [{"r": 7, "c": 14, "w": 1}]
+                }
+                """;
+        MxlDsl dsl = new ObjectMapper().readValue(json, MxlDsl.class);
+        Path out = tempDir.resolve("Template.xml");
+        new MxlWriter(OutputFormat.DESIGNER).create(dsl, out);
+        String content = Files.readString(out);
+        // columnMerge: <merge> с <r>-1</r>.
+        assertThat(content).contains("<r>-1</r>");
+        // verticalUnmerge присутствует.
+        assertThat(content).contains("<verticalUnmerge>");
+        assertThat(content).contains("<r>7</r>");
+        // verticalUnmerge идёт после merge (порядок канона).
+        assertThat(content.indexOf("<r>-1</r>")).isLessThan(content.indexOf("<verticalUnmerge>"));
+    }
+
+    /**
+     * Регресс: одиночная пустая строка ({}) теперь эмитит явный &lt;empty&gt;true&lt;/empty&gt;
+     * (а не молча пропускается) — иначе rowsItem-count расходится с height (ложные MXL-203).
+     */
+    @Test
+    void testSingleEmptyRowEmitsExplicitRowsItem() throws Exception {
+        List<MxlDsl.Row> rows = Arrays.asList(
+                new MxlDsl.Row(null, null, Arrays.asList(
+                        new MxlDsl.Cell(1, null, null, null, null, null, "A", null)
+                ), null),
+                new MxlDsl.Row(null, null, null, null),  // одиночная пустая {}
+                new MxlDsl.Row(null, null, Arrays.asList(
+                        new MxlDsl.Cell(1, null, null, null, null, null, "B", null)
+                ), null)
+        );
+        MxlDsl dsl = new MxlDsl(1, 40, null, null, null, Arrays.asList(new MxlDsl.Area("X", rows)));
+        Path out = tempDir.resolve("Template.xml");
+        new MxlWriter(OutputFormat.DESIGNER).create(dsl, out);
+        String content = Files.readString(out);
+        // 3 rowsItem (включая пустую), height=3, и есть <empty>true.
+        assertThat(content).contains("<empty>true</empty>");
+        assertThat(content).contains("<height>3</height>");
+        assertThat(content).contains("<index>1</index>");
+        // Число rowsItem == height.
+        int rowsItemCount = content.split("<rowsItem>", -1).length - 1;
+        assertThat(rowsItemCount).isEqualTo(3);
     }
 }

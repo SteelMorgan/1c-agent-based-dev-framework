@@ -2,6 +2,7 @@ package io.github.onec.xmlgen.writer;
 
 import com.github._1c_syntax.bsl.mdo.support.TemplateType;
 import io.github.onec.xmlgen.dsl.EpfDsl;
+import io.github.onec.xmlgen.editor.ObjectContainerEditor;
 import io.github.onec.xmlgen.format.DesignerLayout;
 import io.github.onec.xmlgen.format.EdtLayout;
 import io.github.onec.xmlgen.format.OutputFormat;
@@ -10,6 +11,7 @@ import io.github.onec.xmlgen.model.UuidGenerator;
 
 import javax.xml.stream.XMLStreamException;
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.HashMap;
@@ -22,6 +24,15 @@ public class EpfWriter extends XmlWriter {
 
     private static final String EPF_CLASS_ID = "c3831ec8-d8d5-4f93-8a22-f9bfae07327f";
     private static final String ERF_CLASS_ID = "e41aff26-25cf-4bb6-b6c1-3f478a75f374";
+
+    //++agent TASK-171 [01.06.2026 12:00:00]
+    // Каноническое имя основной схемы компоновки данных внешнего отчёта.
+    // Совпадает с тем, как Конфигуратор именует основной макет отчёта в грунт-труф
+    // (src/xml/Reports/_Демо*/Templates/ОсновнаяСхемаКомпоновкиДанных): главный макет
+    // отчёта называется именно так, и на него ссылается MainDataCompositionSchema.
+    public static final String MAIN_DCS_TEMPLATE_NAME = "ОсновнаяСхемаКомпоновкиДанных";
+    public static final String MAIN_DCS_TEMPLATE_SYNONYM = "Основная схема компоновки данных";
+    //++agent TASK-171
 
     private final OutputFormat format;
     private final boolean isReport;
@@ -69,7 +80,40 @@ public class EpfWriter extends XmlWriter {
             initEdt(name, synonym, outputDir);
         }
     }
-    
+
+    //++agent TASK-171 [01.06.2026 12:00:00]
+    /**
+     * Создать внешний отчёт (ERF) "из коробки" вместе с основной схемой компоновки данных.
+     *
+     * <p>Зачем: каноничный внешний отчёт почти всегда строится на СКД. Раньше основной кейс
+     * закрывался только ручной связкой {@code init --type report} + {@code add-template --type
+     * DataCompositionSchema}; флаг {@code --with-skd} делает это за один шаг, воспроизводя
+     * связку из грунт-труф (src/xml/Reports/_ДемоФайлыВспомогательный): макет
+     * {@code ОсновнаяСхемаКомпоновкиДанных} типа DataCompositionSchema + регистрация в
+     * ChildObjects + проставленный {@code MainDataCompositionSchema}.
+     *
+     * <p>Связка целиком переиспользует уже проверенный путь {@link #addTemplate} (D3/D6):
+     * тело DCS из единого источника {@link ObjectContainerEditor#getTemplateBody} (BOM+CRLF),
+     * аккуратная вставка {@code <Template>} в ChildObjects, а для ERF — выставление
+     * {@code MainDataCompositionSchema} с префиксом {@code ExternalReport.}.
+     *
+     * @throws IllegalStateException если writer создан не для отчёта (DCS-макет вне отчёта
+     *                               не имеет MainDataCompositionSchema, поэтому флаг бессмысленен)
+     */
+    public void initWithSkd(String name, String synonym, Path outputDir) throws IOException, XMLStreamException {
+        if (!isReport) {
+            // Флаг --with-skd применим только к внешнему отчёту: у обычной обработки нет свойства
+            // MainDataCompositionSchema, привязывать схему не к чему. Внятная ошибка вместо тихого no-op.
+            throw new IllegalStateException(
+                    "--with-skd is only valid for external reports (--type report); "
+                    + "external data processors have no MainDataCompositionSchema to bind a schema to.");
+        }
+        init(name, synonym, outputDir);
+        // Синоним макета не зависит от синонима самого отчёта — у макета своё каноничное имя.
+        addTemplate(name, MAIN_DCS_TEMPLATE_NAME, MAIN_DCS_TEMPLATE_SYNONYM, "DataCompositionSchema", outputDir);
+    }
+    //++agent TASK-171
+
     /**
      * Добавить форму в обработку.
      * 
@@ -171,7 +215,11 @@ public class EpfWriter extends XmlWriter {
         String moduleComment = isReport
                 ? "// Модуль объекта отчёта " + name + "\n"
                 : "// Модуль объекта обработки " + name + "\n";
-        Files.writeString(objectModule, moduleComment);
+        //++agent TASK-172 [02.06.2026 07:25:00]
+        // Канон Designer (_Демо): ObjectModule.bsl — BOM + CRLF (эталон
+        // Documents/_Демо*/Ext/ObjectModule.bsl: ef bb bf + CRLF).
+        Files.write(objectModule, io.github.onec.xmlgen.io.Crlf.withBom(moduleComment));
+        //++agent TASK-172
 
         System.out.println("Created " + objectKind() + ": " + name);
         System.out.println("  Root XML: " + rootXml);
@@ -249,8 +297,11 @@ public class EpfWriter extends XmlWriter {
         Path moduleDir = formXmlPath.getParent().resolve("Form");
         Files.createDirectories(moduleDir);
         Path modulePath = moduleDir.resolve("Module.bsl");
-        Files.writeString(modulePath, "// Модуль формы " + formName + "\n");
-        
+        //++agent TASK-172 [02.06.2026 07:25:00]
+        // Канон Designer (_Демо): .bsl модуля формы — BOM + CRLF.
+        Files.write(modulePath, io.github.onec.xmlgen.io.Crlf.withBom("// Модуль формы " + formName + "\n"));
+        //++agent TASK-172
+
         // 5. Обновить корневой XML обработки (добавить <Form> в ChildObjects)
         updateEpfXmlAddForm(outputDir.resolve(epfName + ".xml"), epfName, formName, setAsDefault);
         
@@ -322,7 +373,13 @@ public class EpfWriter extends XmlWriter {
      * Создать описание формы (Form.xml).
      */
     private void createFormDefinition(Path outputPath, String epfName) throws IOException, XMLStreamException {
-        createWriter(outputPath, false, FORM_NAMESPACES); // БЕЗ BOM для Form.xml
+        //**agent TASK-172 [01.06.2026 22:05:00]
+        // BOM на Form.xml: канон _Демо — ВСЕ Ext/Form.xml идут с BOM (ef bb bf,
+        // проверено на CommonForms/Documents-формах), и standalone FormWriter:133
+        // (TASK-171) тоже пишет BOM. Прежний false расходился с каноном — исправлено.
+        //createWriter(outputPath, false, FORM_NAMESPACES); // BOM-долг
+        createWriter(outputPath, true, FORM_NAMESPACES);
+        //**agent TASK-172
         writeXmlDeclaration();
         
         Map<String, String> allNamespaces = new HashMap<>(FORM_NAMESPACES);
@@ -390,29 +447,52 @@ public class EpfWriter extends XmlWriter {
             content = content.replace("<DefaultForm></DefaultForm>", 
                                      "<DefaultForm>" + defaultFormValue + "</DefaultForm>");
         }
-        
-        Files.writeString(epfXmlPath, content);
+
+        //++agent TASK-172 [02.06.2026 07:26:00]
+        // Канон Designer (_Демо) — CRLF. Вставка <Form> добавляет \n-фрагмент; нормализуем
+        // итог к CRLF идемпотентно. BOM-символ из начала исходника сохраняется при записи.
+        Files.writeString(epfXmlPath, io.github.onec.xmlgen.io.Crlf.normalize(content));
+        //++agent TASK-172
     }
-    
+
     private void addTemplateDesigner(String epfName, String templateName, String templateSynonym, String templateType, Path outputDir) throws IOException, XMLStreamException {
+        // TASK-171 D3: нормализуем тип через единый парсер (поддержка алиасов и DataCompositionSchema).
+        // Раньше DCS падал "Unknown template type", и внешний отчёт со схемой собрать было нельзя.
+        String canonicalType = TemplateWriter.canonicalTemplateTypeName(templateType);
+
         // 1. Создать структуру каталогов для макета
         Path templatesDir = outputDir.resolve(epfName).resolve("Templates");
         Path templateXmlPath = DesignerLayout.createTemplateStructure(templatesDir, templateName);
-        
+
         // 2. Создать метаданные макета (Templates/<Name>.xml)
         String templateUuid = UuidGenerator.generate();
-        createTemplateMetadata(templatesDir.resolve(templateName + ".xml"), templateName, 
-                              templateSynonym != null ? templateSynonym : templateName, 
-                              templateUuid, templateType);
-        
+        createTemplateMetadata(templatesDir.resolve(templateName + ".xml"), templateName,
+                              templateSynonym != null ? templateSynonym : templateName,
+                              templateUuid, canonicalType);
+
         // 3. Создать тело макета (Templates/<Name>/Ext/Template.<ext>)
-        String extension = getTemplateExtension(templateType);
+        // TASK-171 D1/W5: тело генерируем через ObjectContainerEditor.getTemplateBody — корректную
+        // ветку (SpreadsheetDocument → корень <document>), чтобы EPF/ERF и конфиг-объекты шли единым путём.
+        String extension = ObjectContainerEditor.getExtension(canonicalType);
         Path templateBodyPath = templateXmlPath.getParent().resolve("Template." + extension);
-        createTemplateBody(templateBodyPath, templateType, templateName);
-        
+        createTemplateBody(templateBodyPath, canonicalType, templateName);
+
         // 4. Обновить корневой XML обработки (добавить <Template> в ChildObjects)
-        updateEpfXmlAddTemplate(outputDir.resolve(epfName + ".xml"), templateName);
-        
+        // TASK-171 D9/W5: вставку делаем через ObjectContainerEditor (аккуратный whitespace,
+        // expandSelfClosingChildObjects) вместо самописного String.replace.
+        Path epfXmlPath = outputDir.resolve(epfName + ".xml");
+        ObjectContainerEditor editor = new ObjectContainerEditor(epfXmlPath);
+        editor.addTemplate(templateName);
+
+        // TASK-171 D3/D6: для ERF со схемой компоновки проставляем MainDataCompositionSchema,
+        // если оно ещё пустое. Префикс для внешнего отчёта — ExternalReport. (НЕ Report.),
+        // т.к. это плоская EPF/ERF-раскладка, а не конфиг-объект Report.
+        if (isReport && TemplateType.valueByName(canonicalType) == TemplateType.DATA_COMPOSITION_SCHEME) {
+            editor.setMainDataCompositionSchemaIfEmpty(
+                    "ExternalReport." + epfName + ".Template." + templateName);
+        }
+        editor.save();
+
         System.out.println("Added template: " + templateName);
         System.out.println("  Metadata: " + templatesDir.resolve(templateName + ".xml"));
         System.out.println("  Body: " + templateBodyPath);
@@ -459,64 +539,45 @@ public class EpfWriter extends XmlWriter {
     
     /**
      * Создать тело макета.
+     *
+     * <p>TASK-171 D1/D3/D7/W5: тело генерируем через {@link ObjectContainerEditor#getTemplateBody},
+     * единый корректный источник истины для EPF/ERF и конфиг-объектов. Раньше EPF-ветка писала
+     * собственный дефектный шаблон с корнем {@code <SpreadsheetDocument>} (демо-эталон и наш же
+     * {@code validate --type mxl} требуют корень {@code <document>}), не знала DataCompositionSchema
+     * и писала тела без BOM.
+     *
+     * @param templateType <b>канонический</b> тип (уже нормализован через
+     *                      {@link TemplateWriter#canonicalTemplateTypeName})
      */
     private void createTemplateBody(Path outputPath, String templateType, String templateName) throws IOException {
         TemplateType tt = TemplateType.valueByName(templateType);
-        String content;
-        
-        if (tt == TemplateType.SPREADSHEET_DOCUMENT) {
-            content = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n" +
-                     "<SpreadsheetDocument xmlns=\"http://v8.1c.ru/8.2/data/spreadsheet\">\n" +
-                     "\t<!-- Табличный документ " + templateName + " -->\n" +
-                     "</SpreadsheetDocument>\n";
-        } else if (tt == TemplateType.HTML_DOCUMENT) {
-            content = "<!DOCTYPE html>\n" +
-                     "<html>\n" +
-                     "<head>\n" +
-                     "\t<meta charset=\"UTF-8\">\n" +
-                     "\t<title>" + templateName + "</title>\n" +
-                     "</head>\n" +
-                     "<body>\n" +
-                     "\t<h1>" + templateName + "</h1>\n" +
-                     "</body>\n" +
-                     "</html>\n";
-        } else if (tt == TemplateType.TEXT_DOCUMENT) {
-            content = "// Текстовый документ " + templateName + "\n";
-        } else if (tt == TemplateType.BINARY_DATA) {
+
+        // BinaryData — пустой бинарный файл без BOM (BOM в бинаре — мусор).
+        if (tt == TemplateType.BINARY_DATA) {
             Files.write(outputPath, new byte[0]);
             return;
-        } else {
-            throw new IllegalArgumentException("Unknown template type: " + templateType);
         }
-        
-        Files.writeString(outputPath, content);
+
+        // Единый источник тела (корректные корни: SpreadsheetDocument → <document>, DCS → <DataCompositionSchema>).
+        String content = ObjectContainerEditor.getTemplateBody(templateType);
+
+        // Тела макетов в Designer-выводе пишем с UTF-8 BOM — реальные демо-макеты
+        // (src/xml/.../Templates/**) начинаются с ef bb bf, как и весь Designer-дамп.
+        writeBodyWithBom(outputPath, content);
+    }
+
+    /** Записать текстовое тело макета с UTF-8 BOM (канон Designer-вывода, TASK-171). */
+    private void writeBodyWithBom(Path path, String content) throws IOException {
+        //++agent TASK-172 [02.06.2026 07:26:00]
+        // Канон Designer (_Демо): тела макетов Template.xml — BOM + CRLF (TASK-172 добавил CRLF).
+        Files.write(path, io.github.onec.xmlgen.io.Crlf.withBom(content));
+        //++agent TASK-172
     }
     
-    /**
-     * Получить расширение файла для типа макета.
-     */
-    private String getTemplateExtension(String templateType) {
-        TemplateType tt = TemplateType.valueByName(templateType);
-        if (tt == TemplateType.SPREADSHEET_DOCUMENT) return "xml";
-        if (tt == TemplateType.HTML_DOCUMENT) return "html";
-        if (tt == TemplateType.TEXT_DOCUMENT) return "txt";
-        if (tt == TemplateType.BINARY_DATA) return "bin";
-        return "xml";
-    }
-    
-    /**
-     * Обновить корневой XML обработки — добавить макет в ChildObjects.
-     */
-    private void updateEpfXmlAddTemplate(Path epfXmlPath, String templateName) throws IOException {
-        String content = Files.readString(epfXmlPath);
-        
-        // Добавляем <Template> в ChildObjects
-        String templateEntry = "\t\t<Template>" + templateName + "</Template>\n";
-        content = content.replace("</ChildObjects>", templateEntry + "\t</ChildObjects>");
-        
-        Files.writeString(epfXmlPath, content);
-    }
-    
+    // TASK-171 D1/W5: getTemplateExtension (Designer) удалён — расширение теперь берётся из
+    // ObjectContainerEditor.getExtension (единый источник). updateEpfXmlAddTemplate (самописный
+    // String.replace) удалён — ChildObjects правится через ObjectContainerEditor.addTemplate (D9).
+
     /**
      * Записать InternalInfo для обработки.
      */
@@ -580,26 +641,31 @@ public class EpfWriter extends XmlWriter {
     }
     
     private void addTemplateEdt(String epfName, String templateName, String templateSynonym, String templateType, Path outputDir) throws IOException, XMLStreamException {
+        // TASK-171 D3: нормализуем тип (поддержка алиасов и DataCompositionSchema) — иначе DCS падал.
+        String canonicalType = TemplateWriter.canonicalTemplateTypeName(templateType);
+
         // EDT: Templates/<TemplateName>/Template.<ext>
         Path epfDir = outputDir.resolve("src/" + edtSubdir()).resolve(epfName);
         Path templatesDir = epfDir.resolve("Templates");
         Path templatePath = EdtLayout.createTemplateStructure(templatesDir, templateName);
-        
+
         // Определить расширение для EDT
-        String edtExtension = getEdtTemplateExtension(templateType);
+        String edtExtension = getEdtTemplateExtension(canonicalType);
         Path templateBodyPath = templatePath.getParent().resolve("Template." + edtExtension);
-        createTemplateBody(templateBodyPath, templateType, templateName);
-        
+        createTemplateBody(templateBodyPath, canonicalType, templateName);
+
         System.out.println("Added template (EDT): " + templateName);
         System.out.println("  Body: " + templateBodyPath);
     }
-    
+
     /**
      * Получить расширение файла макета для EDT.
      */
     private String getEdtTemplateExtension(String templateType) {
         TemplateType tt = TemplateType.valueByName(templateType);
         if (tt == TemplateType.SPREADSHEET_DOCUMENT) return "mxlx";
+        // TASK-171 D3: схема компоновки данных в EDT — файл .dcs.
+        if (tt == TemplateType.DATA_COMPOSITION_SCHEME) return "dcs";
         if (tt == TemplateType.HTML_DOCUMENT) return "html";
         if (tt == TemplateType.TEXT_DOCUMENT) return "txt";
         if (tt == TemplateType.BINARY_DATA) return "bin";

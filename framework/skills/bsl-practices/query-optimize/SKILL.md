@@ -1,9 +1,10 @@
 ---
 name: query-optimize
-description: "Оптимизация запросов 1С и СКД. Используй когда нужно ускорить существующий запрос, переписать СКД dataset, устранить виртуальную таблицу без параметров, query-in-loop, dot-dereference или излишние итоги. Дополняет query-patterns (тот — написание с нуля, этот — оптимизация существующего)."
+description: "MUST use WHEN нужно ускорить существующий запрос или переписать СКД dataset. Provides правила устранения query-in-loop, dot-dereference, виртуальных таблиц без параметров и излишних итогов."
 target_agents:
   - developer-code
   - architect
+alwaysApply: false
 ---
 
 # Query Optimize — оптимизация запросов и СКД

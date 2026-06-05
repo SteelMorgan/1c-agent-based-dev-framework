@@ -29,6 +29,8 @@
 - [Современные LLM и промтинг](docs/info/llm-promting.md)
 - [Агентные системы](docs/info/agent-systems.md)
 - [Контекст](docs/info/context.md)
+- [Компактизация: как не дать агенту «поглупеть» после компакта](docs/info/compaction.md)
+- [RLM — меж-сессионная память знаний агента](docs/info/rlm.md)
 - [Обратная связь](docs/info/loopback.md)
 - [Методологические и практические Проблемы и решения](docs/info/problem-solutions.md)
 - [Навыки и Правила](docs/info/rules-skills.md)

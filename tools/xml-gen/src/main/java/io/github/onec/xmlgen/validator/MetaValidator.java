@@ -137,6 +137,8 @@ public class MetaValidator {
         // === Check 10-13: File structure ===
         if (objectDir != null && name != null && !name.isEmpty()) {
             validateFileStructure(objectDir, name, detectedType, typeDesc);
+            // TASK-171, проверки 2-4: формы/шаблоны-фантомы + висячие Default*Form.
+            validatePhantomFormsTemplates(objectDir, name, co, props);
         }
 
         return messages;
@@ -158,7 +160,9 @@ public class MetaValidator {
                 validateEnum(props, "DefaultPresentation", "AsDescription", "AsCode");
                 validateEnum(props, "SubordinationUse",
                         "ToItems", "ToFolders", "ToFoldersAndItems");
-                validateEnum(props, "ChoiceMode", "BothWays", "FromChoiceForm", "QuickChoice");
+                // TASK-171 (D3): платформа пишет ChoiceMode='FromForm', а не 'FromChoiceForm'.
+                // Грунт-труф: _Демо Catalogs → BothWays×127, FromForm×1, QuickChoice×1; FromChoiceForm не встречается.
+                validateEnum(props, "ChoiceMode", "BothWays", "FromForm", "QuickChoice");
                 validateEnum(props, "EditType", "InDialog", "InList", "BothWays");
                 validateHierarchyConsistency(props);
                 break;
@@ -172,10 +176,14 @@ public class MetaValidator {
                         "Nonperiodical", "Year", "Quarter", "Month", "Day");
                 validateEnum(props, "DefaultPresentation", "AsDescription", "AsCode");
                 validateEnum(props, "RealTimePosting", "Allow", "Deny");
+                // TASK-171 (D2): реальное платформенное значение — 'AutoDeleteOnUnpost' (самое частое,
+                // 25 _Демо), а 'DoNotDelete' платформа не пишет. Грунт-труф: _Демо Documents →
+                // AutoDeleteOnUnpost×25, AutoDelete×8, AutoDeleteOff×1.
                 validateEnum(props, "RegisterRecordsDeletion",
-                        "AutoDelete", "AutoDeleteOff", "DoNotDelete");
+                        "AutoDelete", "AutoDeleteOnUnpost", "AutoDeleteOff");
+                // TASK-171 (D5): дополнено платформенным значением 'WriteAll' (режим «Записывать все»).
                 validateEnum(props, "RegisterRecordsWritingOnPost",
-                        "WriteSelected", "WriteModified");
+                        "WriteSelected", "WriteModified", "WriteAll");
                 break;
 
             case "Enum":
@@ -190,7 +198,10 @@ public class MetaValidator {
                 break;
 
             case "AccumulationRegister":
-                validateEnum(props, "RegisterType", "Balances", "Turnovers");
+                // TASK-171 (D1): платформа пишет RegisterType='Balance' (ед.ч.), а не 'Balances'.
+                // Грунт-труф: _Демо AccumulationRegisters → Balance×2, Turnovers×3. 'Balances' принимаем
+                // как алиас (наш writer/DSL-историческое значение), но платформенное — 'Balance'.
+                validateEnum(props, "RegisterType", "Balance", "Balances", "Turnovers");
                 break;
 
             case "AccountingRegister":
@@ -210,8 +221,10 @@ public class MetaValidator {
                     warn(type + ": ChartOfCalculationTypes reference format — expected 'ChartOfCalculationTypes.Name'");
                 }
                 validateEnum(props, "Periodicity", "Day", "Month", "Quarter", "Year");
-                validateEnum(props, "ActionPeriodUse", "DontUse", "Use");
-                validateEnum(props, "RequireCalculationTypes", "DontUse", "Use");
+                // TASK-171 (D4): ActionPeriodUse / RequireCalculationTypes — НЕ свойства CalculationRegister
+                // и НЕ enum DontUse/Use. ActionPeriodUse — Boolean-свойство ChartOfCalculationTypes
+                // (грунт-труф _ДемоОсновныеНачисления: <ActionPeriodUse>true</ActionPeriodUse>).
+                // Проверка перенесена в case ChartOfCalculationTypes как Boolean. Здесь — удалена.
                 break;
 
             case "ChartOfAccounts":
@@ -237,6 +250,14 @@ public class MetaValidator {
                 validatePositiveInt(props, "DescriptionLength", false);
                 validateEnum(props, "CodeType", "String", "Number");
                 validateEnum(props, "CodeAllowedLength", "Variable", "Fixed");
+                // TASK-171 (D4): ActionPeriodUse / RequireCalculationTypes — Boolean-свойства ВПР,
+                // а не enum (грунт-труф _ДемоОсновныеНачисления: <ActionPeriodUse>true</ActionPeriodUse>).
+                validateBoolean(props, "ActionPeriodUse");
+                validateBoolean(props, "RequireCalculationTypes");
+                // TASK-171 (D4/D7): DependenceOnCalculationTypes — enum с платформенными значениями
+                // DontUse / OnActionPeriod (грунт-труф: <DependenceOnCalculationTypes>OnActionPeriod</…>).
+                // НЕ NotUsed/ExclusionAndDependence (это ошибка таблички meta-dsl-spec.md, см. D9).
+                validateEnum(props, "DependenceOnCalculationTypes", "DontUse", "OnActionPeriod");
                 break;
 
             case "CommonModule":
@@ -485,11 +506,12 @@ public class MetaValidator {
         // Validate EnumValues
         validateEnumValues(co);
 
-        // Validate Forms
-        validateNamedChildren(co, "Form");
+        // Validate Forms — TASK-171: форма обязана быть текст-ссылкой <Form>Имя</Form>,
+        // а не inline-блоком <Form uuid><Properties>...</Form> (форма-фантом).
+        validateFormTemplateReferences(co, "Form");
 
-        // Validate Templates
-        validateNamedChildren(co, "Template");
+        // Validate Templates — аналогично формам.
+        validateFormTemplateReferences(co, "Template");
 
         // Validate Commands
         validateNamedChildren(co, "Command");
@@ -514,6 +536,36 @@ public class MetaValidator {
         // Validate Operations (WebService)
         for (XmlNode op : co.children("Operation")) {
             validateOperation(op);
+        }
+    }
+
+    /**
+     * TASK-171, проверка 1: Form/Template в ChildObjects обязаны быть текст-ссылкой
+     * ({@code <Form>Имя</Form>}), а не inline-блоком с {@code <Properties>}.
+     * Inline-сериализация = форма-фантом, ломающая загрузку конфигурации (runaway памяти).
+     */
+    private void validateFormTemplateReferences(XmlNode co, String childType) {
+        Set<String> names = new HashSet<>();
+        for (XmlNode child : co.children(childType)) {
+            boolean inline = child.attr("uuid") != null || child.hasChild("Properties");
+            if (inline) {
+                String nm = child.hasChild("Properties")
+                        ? child.child("Properties").childText("Name") : null;
+                error(childType + " '" + safe(nm) + "': сериализован inline в ChildObjects "
+                        + "(атрибут uuid + <Properties>); ожидается текст-ссылка <" + childType
+                        + ">Имя</" + childType + "> + внешний файл "
+                        + ("Form".equals(childType) ? "Forms/Имя.xml" : "Templates/Имя.xml")
+                        + ". Это " + ("Form".equals(childType) ? "форма-фантом" : "фантом-шаблон")
+                        + " — ломает загрузку конфигурации (runaway памяти).");
+                continue;
+            }
+            // Текст-ссылка: имя в тексте элемента.
+            String refName = child.getText() != null ? child.getText().trim() : "";
+            if (refName.isEmpty()) {
+                error(childType + ": пустая текст-ссылка <" + childType + "></" + childType + ">");
+            } else if (!names.add(refName)) {
+                error(childType + ": дубликат текст-ссылки '" + refName + "'");
+            }
         }
     }
 
@@ -843,6 +895,91 @@ public class MetaValidator {
             Path flowchart = extDir.resolve("Flowchart.xml");
             if (Files.isDirectory(extDir) && !Files.exists(flowchart)) {
                 warn("FileStructure: " + name + "/Ext/Flowchart.xml not found (BusinessProcess)");
+            }
+        }
+    }
+
+    /**
+     * TASK-171, проверки 2-4 (требуют ФС):
+     * <ol>
+     *   <li>форма-фантом: текст-ссылка {@code <Form>Имя</Form>} без
+     *       {@code Forms/Имя.xml} / {@code Forms/Имя/Ext/Form.xml};</li>
+     *   <li>фантом-шаблон: {@code <Template>Имя</Template>} без {@code Templates/Имя.xml};</li>
+     *   <li>висячий Default*Form: {@code <Default…Form>Type.Obj.Form.X</Default…Form>},
+     *       где форма X не объявлена/нет файлов.</li>
+     * </ol>
+     *
+     * @param objectDir каталог, содержащий XML объекта (например {@code Documents/})
+     * @param name      имя объекта
+     * @param co        узел ChildObjects (может быть null)
+     * @param props     узел Properties
+     */
+    private void validatePhantomFormsTemplates(Path objectDir, String name,
+                                               XmlNode co, XmlNode props) {
+        Path objDir = objectDir.resolve(name);
+        // Если нормальной структуры каталога нет — ФС-проверки пропускаем (не падаем).
+        if (!Files.isDirectory(objDir)) return;
+
+        Set<String> declaredForms = new HashSet<>();
+
+        if (co != null) {
+            // Проверка 2: форма-фантом (объявлена текст-ссылкой, но файлов нет).
+            for (XmlNode f : co.children("Form")) {
+                if (f.attr("uuid") != null || f.hasChild("Properties")) continue; // inline — это проверка 1
+                String formName = f.getText() != null ? f.getText().trim() : "";
+                if (formName.isEmpty()) continue;
+                declaredForms.add(formName);
+                Path wrapper = objDir.resolve("Forms").resolve(formName + ".xml");
+                Path extForm = objDir.resolve("Forms").resolve(formName)
+                        .resolve("Ext").resolve("Form.xml");
+                if (!Files.isRegularFile(wrapper) || !Files.isRegularFile(extForm)) {
+                    error("Form '" + formName + "': объявлена форма, но файлов определения нет "
+                            + "(Forms/" + formName + ".xml / Forms/" + formName
+                            + "/Ext/Form.xml) — форма-фантом.");
+                }
+            }
+            // Проверка 3: фантом-шаблон.
+            for (XmlNode t : co.children("Template")) {
+                if (t.attr("uuid") != null || t.hasChild("Properties")) continue;
+                String tplName = t.getText() != null ? t.getText().trim() : "";
+                if (tplName.isEmpty()) continue;
+                Path wrapper = objDir.resolve("Templates").resolve(tplName + ".xml");
+                if (!Files.isRegularFile(wrapper)) {
+                    error("Template '" + tplName + "': объявлен шаблон, но файла определения нет "
+                            + "(Templates/" + tplName + ".xml) — фантом-шаблон.");
+                }
+            }
+        }
+
+        // Проверка 4: висячий Default*Form в Properties.
+        if (props != null) {
+            String[] defaultFormProps = {
+                    "DefaultObjectForm", "DefaultListForm", "DefaultChoiceForm",
+                    "DefaultFolderForm", "DefaultFolderListForm", "DefaultRecordForm"
+            };
+            for (String propName : defaultFormProps) {
+                XmlNode dn = props.child(propName);
+                if (dn == null) continue;
+                String ref = dn.getText() != null ? dn.getText().trim() : "";
+                if (ref.isEmpty()) continue; // пустой <Default…Form/> — игнорируем
+                // Формат: <Тип>.<Объект>.Form.<ИмяФормы>
+                int formIdx = ref.lastIndexOf(".Form.");
+                String formName = formIdx >= 0 ? ref.substring(formIdx + ".Form.".length()) : null;
+                if (formName == null || formName.isEmpty()) {
+                    error("Properties: " + propName + " = '" + ref
+                            + "' — не удалось извлечь имя формы (ожидается Тип.Объект.Form.Имя).");
+                    continue;
+                }
+                Path wrapper = objDir.resolve("Forms").resolve(formName + ".xml");
+                Path extForm = objDir.resolve("Forms").resolve(formName)
+                        .resolve("Ext").resolve("Form.xml");
+                boolean declared = declaredForms.contains(formName);
+                boolean filesOk = Files.isRegularFile(wrapper) && Files.isRegularFile(extForm);
+                if (!declared || !filesOk) {
+                    error("Properties: " + propName + " ссылается на форму '" + formName
+                            + "', которая не объявлена текст-ссылкой / не имеет файлов "
+                            + "(Forms/" + formName + ".xml) — висячая ссылка на форму.");
+                }
             }
         }
     }

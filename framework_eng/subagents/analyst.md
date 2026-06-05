@@ -73,19 +73,20 @@ Without verifying the hypothesis through Explorer — do not formulate the requi
 At the end of this prompt there is a `depends_on` section with a list of dependencies.
 In the header, the `skills:` field contains a list of skills.
 
-**Skills are NOT loaded automatically.** You MUST read each SKILL.md BEFORE starting work.
-Failing to apply a skill = protocol violation. Do not create artifacts without applying the corresponding skill.
+**Skills are NOT loaded automatically.** You MUST read only the purpose (frontmatter: `name` + `description`) of each skill in `skills:` before starting work - to know what each skill is for. **Read the full SKILL.md lazily - at the moment when you actually apply that skill.** Rules (step 4 below) are read IN FULL at the start - these are guardrails, they must be known before the first action.
+Failing to apply the needed skill = protocol violation. Do not create an artifact without reading and applying the corresponding skill.
 
 1. Find `.install-session.json` in the project root
 2. In it, the `component_map` field is a dictionary `"type/name" → {ru_path, en_path}`
 3. For each skill in the header `skills:`:
    - Find the `skill/{name}` key in `component_map`
-   - Read the SKILL.md at `ru_path` (or `en_path`)
-   - Record in context: `[SKILL_READ] {name} — read`
-4. For each path in `depends_on` that contains `/rules/`:
+   - Read only the SKILL.md frontmatter (`name` + `description`) at `ru_path` (or `en_path`) — record the purpose of the skill
+   - Record in context: `[SKILL_NOTED] {name} — purpose recorded`
+   - Read the full SKILL.md body later, when the task requires applying that exact skill → then `[SKILL_READ] {name} — read before applying`
+4. For each path in `depends_on` containing `/rules/`:
    - Extract the filename without extension → this is `name`
    - Find the `rule/{name}` key in `component_map`
-   - Read the file at `en_path` (or `ru_path` if EN is unavailable)
+   - Read the file by `en_path` (or `ru_path` if EN is unavailable)
 5. Apply the read skills and rules throughout the work
 
 ---
@@ -98,5 +99,5 @@ depends_on:
   - framework/rules/capability-resolution.mdc
   - framework/rules/no-direct-db-access.md
   - framework/rules/skill-learning-policy.md
-  - framework/workflows/source-of-truth-policy.md
+  - framework/rules/source-of-truth.md
 ---

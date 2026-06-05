@@ -1,6 +1,6 @@
 ---
 name: code-verification
-description: "Комплексная верификация BSL-кода после правок. Оркестрирует LSP-диагностику, проверку через Напарника (VALIDATE_BSL) и верификацию платформенного API через bsl-platform-context."
+description: "MUST use WHEN BSL-код изменён перед коммитом или передачей на ревью. Provides трёхслойную проверку: LSP-диагностику, VALIDATE_BSL через Напарника и верификацию платформенного API через bsl-platform-context."
 uses_capabilities:
   - get_diagnostics
   - ask_ai_assistant
@@ -8,6 +8,7 @@ uses_capabilities:
   - getMembers
   - getMember
   - getConstructors
+alwaysApply: false
 ---
 
 # Верификация кода (Code Verification)

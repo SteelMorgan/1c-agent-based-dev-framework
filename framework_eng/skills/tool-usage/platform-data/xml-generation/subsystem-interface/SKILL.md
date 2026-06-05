@@ -1,6 +1,6 @@
 ---
 name: subsystem-interface
-description: "Operations with 1C subsystems and the command interface — compile, info, edit, validate for subsystems and CommandInterface.xml. Use when creating subsystems, managing composition, configuring and checking CommandInterface."
+description: "Use for creating subsystems, managing their composition, and configuring CommandInterface.xml (visibility, command order, placement in groups). Helps maintain configuration navigation through xml-gen subsystem/interface compile/edit/validate."
 ---
 
 # Subsystem + Interface Operations
@@ -31,7 +31,7 @@ xml-gen subsystem compile <subsystem.json> <output_dir> [--parent <parentSubsyst
 ```
 
 - `--parent <path>` — bottom-up registration: the new subsystem is added to the parent subsystem's ChildObjects (instead of Configuration.xml).
-- `--no-stubs` — disable automatic creation of stub XML for declared `content` items and `children` whose object file is missing. Enabled by default so configuration validation does not fail in an intermediate state.
+- `--no-stubs` — disable automatic creation of stub XML for declared `content` items and `children` without files. Enabled by default so validation does not fail in an intermediate state.
 
 ### subsystem info
 

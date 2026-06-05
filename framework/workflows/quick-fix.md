@@ -1,39 +1,26 @@
 ---
 name: quick-fix
-description: Быстрое исправление в одном файле без кросс-ревью.
+description: >
+  Редирект. quick-fix перенесён в навык — используй Skill-тул или читай напрямую:
+  framework/skills/framework-meta/quick-fix/SKILL.md
+alwaysApply: false
 ---
 
-# Воркфлоу: Quick Fix
+# quick-fix → навык
 
-> Три шага без кросс-ревью. Один файл, < 20 строк, без архитектурных решений, без новых фич.
+> Этот файл — страховочный редирект. Актуальное тело навыка quick-fix (шаги, guard, эскалация)
+> живёт в `framework/skills/framework-meta/quick-fix/SKILL.md`.
 
-## Шаги
+Используй **Skill-тул** (`quick-fix`) или читай напрямую:
 
-### 1. Найти (Explorer → Economy)
-
-`navigate_symbol` + `get_call_graph` → путь к модулю, зависимости, убедиться что изменение локализовано.
-
-### 2. Исправить (Developer → Mid)
-
-Минимально необходимое изменение по `coding-standards`. Без «улучшений» за рамками задачи.
-
-### 3. Проверить (Developer → Mid)
-
-1. `get_diagnostics` — быстрая проверка изменённого файла
-2. `run_tests` — если есть тесты для модуля
-3. `check_syntax` — финальная проверка перед коммитом
-
-## Эскалация на Full-cycle
-
-| Ситуация | Действие |
-|----------|----------|
-| Тесты падают после изменения | Исправить или эскалировать |
-| Несколько модулей / архитектура / ревью / > 20 строк | Full-cycle |
-
-**Протокол:** зафиксировать состояние → передать оркестратору → full-cycle с Phase 1 (или Phase 3 если спека есть).
+```
+framework/skills/framework-meta/quick-fix/SKILL.md
+```
 
 ---
 depends_on:
+  - framework/skills/framework-meta/quick-fix/SKILL.md
+  - framework/subagents/orchestrator.md
   - framework/workflows/full-cycle.md
   - framework/subagents/explorer.md
   - framework/subagents/developer-code.md

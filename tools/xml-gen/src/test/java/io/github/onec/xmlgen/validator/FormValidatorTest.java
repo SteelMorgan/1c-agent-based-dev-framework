@@ -39,11 +39,12 @@ class FormValidatorTest {
     }
 
     @Test
-    void testAutoCommandBarWrongName() throws Exception {
+    void testAutoCommandBarWrongIdReportsForm001() throws Exception {
+        // FORM-001 теперь проверяет ТОЛЬКО id == -1, а не имя (TASK-171 V-1).
         Path file = writeXml("Form.xml",
                 "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n" +
                 "<Form xmlns=\"http://v8.1c.ru/8.3/xcf/logform\" version=\"2.17\">\n" +
-                "\t<AutoCommandBar name=\"WrongName\" id=\"-1\"/>\n" +
+                "\t<AutoCommandBar name=\"ФормаКоманднаяПанель\" id=\"5\"/>\n" +
                 "\t<ChildItems/>\n" +
                 "</Form>\n");
 
@@ -51,7 +52,25 @@ class FormValidatorTest {
         List<ValidationIssue> issues = validator.validate(doc, ValidationLevel.STRUCTURE);
 
         assertThat(issues).anyMatch(i ->
-                i.getCode().equals("FORM-001") && i.getMessage().contains("WrongName"));
+                i.getCode().equals("FORM-001") && i.getMessage().contains("id"));
+    }
+
+    @Test
+    void testAutoCommandBarAlternativeNameNoForm001() throws Exception {
+        // TASK-171 V-1 регресс: реальное имя главной панели может быть 'Форма_КоманднаяПанель'
+        // (с подчёркиванием) — это валидная выгрузка Конфигуратора (11 из 145 _Демо-форм).
+        // Имя НЕ должно давать FORM-001.
+        Path file = writeXml("Form.xml",
+                "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n" +
+                "<Form xmlns=\"http://v8.1c.ru/8.3/xcf/logform\" version=\"2.20\">\n" +
+                "\t<AutoCommandBar name=\"Форма_КоманднаяПанель\" id=\"-1\"/>\n" +
+                "\t<ChildItems/>\n" +
+                "</Form>\n");
+
+        XmlDocument doc = reader.parse(file);
+        List<ValidationIssue> issues = validator.validate(doc, ValidationLevel.STRUCTURE);
+
+        assertThat(issues).noneMatch(i -> i.getCode().equals("FORM-001"));
     }
 
     // ==================== FORM-004: Duplicate ID ====================
@@ -74,10 +93,12 @@ class FormValidatorTest {
         assertThat(issues).anyMatch(i -> i.getCode().equals("FORM-004"));
     }
 
-    // ==================== FORM-006: Missing ChildItems ====================
+    // ==================== FORM-006: Missing ChildItems (TASK-171 V-5) ====================
 
     @Test
-    void testMissingChildItems() throws Exception {
+    void testMissingChildItemsNoForm006() throws Exception {
+        // TASK-171 V-5 регресс: служебная форма обработки без UI-дерева штатно не имеет
+        // <ChildItems> (валидно, работает через код/параметры). FORM-006 больше не выдаётся.
         Path file = writeXml("Form.xml",
                 "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n" +
                 "<Form xmlns=\"http://v8.1c.ru/8.3/xcf/logform\" version=\"2.17\">\n" +
@@ -87,7 +108,55 @@ class FormValidatorTest {
         XmlDocument doc = reader.parse(file);
         List<ValidationIssue> issues = validator.validate(doc, ValidationLevel.STRUCTURE);
 
-        assertThat(issues).anyMatch(i -> i.getCode().equals("FORM-006"));
+        assertThat(issues).noneMatch(i -> i.getCode().equals("FORM-006"));
+    }
+
+    // ==================== FORM-101: SpreadSheetDocumentField валиден (TASK-171 V-2) ====================
+
+    @Test
+    void testSpreadSheetDocumentFieldIsKnown() throws Exception {
+        // TASK-171 V-2 регресс: SpreadSheetDocumentField — стандартное поле платформы,
+        // встречается в реальной выгрузке БСП (_ДемоГенерацияШтрихкода). НЕ должно давать FORM-101.
+        Path file = writeXml("Form.xml",
+                "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n" +
+                "<Form xmlns=\"http://v8.1c.ru/8.3/xcf/logform\" version=\"2.20\">\n" +
+                "\t<AutoCommandBar name=\"ФормаКоманднаяПанель\" id=\"-1\"/>\n" +
+                "\t<ChildItems>\n" +
+                "\t\t<SpreadSheetDocumentField name=\"Результат\" id=\"5\"/>\n" +
+                "\t</ChildItems>\n" +
+                "</Form>\n");
+
+        XmlDocument doc = reader.parse(file);
+        List<ValidationIssue> issues = validator.validate(doc, ValidationLevel.SEMANTIC);
+
+        assertThat(issues).noneMatch(i -> i.getCode().equals("FORM-101"));
+    }
+
+    // ==================== FORM-103: глобальные команды пропускаются (TASK-171 V-3) ====================
+
+    @Test
+    void testGlobalCommandNotReportedByForm103() throws Exception {
+        // TASK-171 V-3 регресс: ссылки на команды глобальных объектов
+        // (DataProcessor.*.StandardCommand.*, CommonCommand.*) резолвятся вне Form.xml
+        // и НЕ должны давать FORM-103.
+        Path file = writeXml("Form.xml",
+                "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n" +
+                "<Form xmlns=\"http://v8.1c.ru/8.3/xcf/logform\" version=\"2.20\">\n" +
+                "\t<AutoCommandBar name=\"ФормаКоманднаяПанель\" id=\"-1\"/>\n" +
+                "\t<ChildItems>\n" +
+                "\t\t<Button name=\"Btn1\" id=\"2\">\n" +
+                "\t\t\t<CommandName>DataProcessor.ЖурналРегистрации.StandardCommand.Open</CommandName>\n" +
+                "\t\t</Button>\n" +
+                "\t\t<Button name=\"Btn2\" id=\"3\">\n" +
+                "\t\t\t<CommandName>CommonCommand.СозданиеНачальногоОбразаСФайлами</CommandName>\n" +
+                "\t\t</Button>\n" +
+                "\t</ChildItems>\n" +
+                "</Form>\n");
+
+        XmlDocument doc = reader.parse(file);
+        List<ValidationIssue> issues = validator.validate(doc, ValidationLevel.SEMANTIC);
+
+        assertThat(issues).noneMatch(i -> i.getCode().equals("FORM-103"));
     }
 
     // ==================== FORM-101: Unknown element type ====================
