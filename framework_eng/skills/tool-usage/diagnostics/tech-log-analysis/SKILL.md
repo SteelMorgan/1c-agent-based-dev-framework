@@ -1,6 +1,6 @@
 ---
 name: tech-log-analysis
-description: "Working with the 1C technological log (Tech Log). The skill teaches the agent to manage the full TLog lifecycle - configuration, enablement, collection, analysis, restoration - and diagnose technical problems such as slow queries, locks, exceptions."
+description: "Use for managing the lifecycle of the 1C technological log (Tech Log): configuration, enablement, collection, analysis, restoration. Helps diagnose slow queries, locks, and platform exceptions not available in the Event Log."
 uses_capabilities:
   - search_tech_log
   - configure_tech_log
@@ -128,6 +128,12 @@ Steps 1 and 7 are **mandatory**. Never leave TLog enabled after diagnostics with
 | `logc_restore_techlog` | Restore the saved configuration |
 | `logc_disable_techlog` | Disable TLog |
 | `navigate_symbol` | Go to code by the context from a TLog entry |
+
+---
+
+## Scenario techniques
+
+See [`references/scenarios.md`](references/scenarios.md) for incident classification, required identifiers, timeline rules, and the output template.
 
 ---
 

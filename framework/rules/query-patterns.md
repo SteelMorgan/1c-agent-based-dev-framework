@@ -7,8 +7,6 @@ alwaysApply: true
 
 > **Триггер:** перед написанием нового запроса на языке запросов 1С. При срабатывании — применить навык `query-patterns` (`framework/skills/bsl-practices/query-patterns/SKILL.md`).
 
-Каждый запрос — сетевой round-trip. Убедись, что не создаёшь query-in-loop, dot-dereference и избыточных join-ов.
-
 ---
 depends_on:
   - query-patterns

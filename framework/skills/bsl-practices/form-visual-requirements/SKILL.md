@@ -1,6 +1,6 @@
 ---
 name: form-visual-requirements
-description: "Чек-лист и критерии проверки компоновки и удобства форм 1С. Используй для анализа скриншотов из visual-check."
+description: "MUST use WHEN проверяешь визуальное оформление формы 1С (скриншот или результат visual-check). Provides чек-лист компоновки, выравнивания, подписей и UX-критериев."
 alwaysApply: false
 ---
 

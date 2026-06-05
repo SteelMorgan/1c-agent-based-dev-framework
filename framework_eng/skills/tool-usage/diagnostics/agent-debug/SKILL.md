@@ -1,6 +1,6 @@
 ---
 name: agent-debug
-description: "Debug-message pattern for 1С BSL. Use when standard diagnostics (event-log, screenshots) do not reveal the actual system behavior - you need to insert temporary logging points into code, run a test, and analyze the registration log entries."
+description: "MUST use WHEN standard diagnostics (event-log, screenshots) do not reveal the actual system behavior - you need to insert temporary logging points into code, run a test, and analyze the registration log entries. Provides a debug-block pattern with AGENTDEBUG markers and cleanup afterward."
 alwaysApply: false
 ---
 

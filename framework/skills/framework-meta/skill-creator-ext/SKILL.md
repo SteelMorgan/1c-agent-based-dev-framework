@@ -1,11 +1,6 @@
 ---
 name: skill-creator-ext
-description: >
-  1C BSL Framework extension for skill-creator skill.
-  Use together with the base skill-creator skill when creating or modifying
-  framework skills (bsl-practices, tool-usage, spec-writing, agent-development-ext, etc.).
-  Covers: framework skill categories, tool-usage skills replacing tool-registry,
-  BSL content patterns, 1c-ai-agent-cli integration, project-specific skills.
+description: MUST load together with `skill-creator` in GBIG context. Adds категории навыков фреймворка (bsl-practices, tool-usage, spec-writing), BSL-паттерны контента и интеграцию 1c-ai-agent-cli.
 ---
 
 # Skill Creator — 1C BSL Framework Extension

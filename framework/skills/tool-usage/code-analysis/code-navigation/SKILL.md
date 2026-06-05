@@ -1,6 +1,6 @@
 ---
 name: code-navigation
-description: "Навигация по коду (Code Navigation). Навык учит агента **эффективно перемещаться по BSL-коду** с помощью LSP (Language Server Protocol)."
+description: "Use for навигации по BSL-коду через LSP (поиск определений, ссылок, граф вызовов, переименование). Helps точно находить символы по индексу проекта без угадывания расположения."
 uses_capabilities:
   - navigate_symbol
   - get_call_graph

@@ -7,7 +7,7 @@ alwaysApply: true
 
 > **Trigger:** before implementing any business logic in 1С code. When triggered — apply the `ssl-patterns` skill (`framework/skills/bsl-practices/ssl-patterns/SKILL.md`).
 
-Check whether БСП already has a ready-made mechanism. Duplicating БСП is an anti-pattern.
+**GUARD:** duplicating ready-made mechanisms in БСП blocks review.
 
 ---
 depends_on:

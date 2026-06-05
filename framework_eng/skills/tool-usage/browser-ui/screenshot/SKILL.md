@@ -1,6 +1,6 @@
 ---
 name: "screenshot"
-description: "Use when the user explicitly asks for a desktop or system screenshot (full screen, specific app or window, or a pixel region), or when tool-specific capture capabilities are unavailable and an OS-level capture is needed."
+description: "Use for capturing a desktop or window screenshot at the OS level (full screen, a specific app/window, or a pixel region). Helps get a shot when tool-specific capture (Playwright, Figma MCP) is unavailable."
 ---
 
 # Screenshot Capture

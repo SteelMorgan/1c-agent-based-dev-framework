@@ -1,6 +1,6 @@
 ---
 name: search-before-write
-description: "Search Before Write. The skill teaches the agent **to always perform a search before writing new code**."
+description: "MUST use BEFORE writing new BSL code or a function. Defines the search cascade (LSP → metadata → platform → БСП) as proof that no ready-made equivalent exists."
 alwaysApply: false
 ---
 

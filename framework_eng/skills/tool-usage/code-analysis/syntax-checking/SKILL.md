@@ -1,6 +1,6 @@
 ---
 name: syntax-checking
-description: "Syntax Checking. This skill teaches the agent to **correctly use syntax checking capabilities** for BSL code."
+description: "MUST use BEFORE committing or handing BSL code off for review. Defines a two-level process (LSP get_diagnostics → full Configurator check) as proof that there are no syntax errors."
 uses_capabilities:
   - get_diagnostics
   - syntax_check_designer_modules

@@ -1,6 +1,6 @@
 ---
 name: forms-toolkit
-description: "Полный инструментарий для работы с управляемыми формами 1С и внешними обработками (EPF/ERF) через xml-gen CLI: анализ структуры, добавление элементов, валидация, маппинг элементов по видимому тексту. Объединяет form-info, form-edit, form-validate, form-element-mapping, epf-validate."
+description: "Use for анализа структуры форм, добавления элементов, валидации и маппинга Title→Name для Vanessa-сценариев. Helps работать с Form.xml и EPF/ERF через xml-gen form-info/form-edit/form-validate/form-element-mapping/epf-validate."
 argument-hint: <operation> <FormPath> [<JsonPath>]
 allowed-tools:
   - Bash

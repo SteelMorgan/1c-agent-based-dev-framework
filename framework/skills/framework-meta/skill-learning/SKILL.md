@@ -1,6 +1,6 @@
 ---
 name: skill-learning
-description: Процедура ретроспективы и формат записи накопленных знаний (приём/антиприём) в references/learned-patterns.md навыка-владельца или {project}/.context/learned-patterns.md. Применяй после цикла работы с ≥2 итерациями (написал → ошибка → исправил → успех).
+description: MUST use AFTER цикла работы с ≥2 итерациями (написал → ошибка → исправил → успех). Provides процедуру ретроспективы и формат записи приём/антиприём в references/learned-patterns.md или {project}/.context/learned-patterns.md.
 alwaysApply: false
 ---
 

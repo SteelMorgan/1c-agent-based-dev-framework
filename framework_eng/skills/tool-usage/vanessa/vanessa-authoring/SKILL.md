@@ -84,12 +84,38 @@ The only exception is when the function being checked is available exclusively t
 
 ---
 
+## Two-Session Split (MUST)
+
+`.feature` file is logically divided into two parts:
+
+1. **Setup / infrastructure** - runs under a technical user (`AgentAI` in this project): preparing test data (creating documents, catalog items, register records), `VAExtension (Расширение)` steps, BSL fixtures from `vanessa-tests/support/`, everything that requires technical roles outside the business user's normal access.
+2. **Business flow (verification)** - runs under a specific business user (for example `Gavrilova Natalia` for OC-23400): only steps that verify user behavior under test. The business user **MUST NOT receive** technical roles (for example roles from `VAExtension.cfe`) just to make the step pass.
+
+Session switching:
+```gherkin
+И я закрываю сеанс TESTCLIENT
+```
+or
+```gherkin
+И я закрываю TestClient "<имя>"
+```
+after which a new session opens:
+```gherkin
+Дано я подключаю TestClient "<роль>" логин "<пользователь>" пароль "<пароль>"
+```
+
+**Rationale** (Infostart id=249957, id=249958): if the business flow runs with full rights, the test stops checking real role restrictions and creates a false sense of correctness. Granting the business user technical roles just to satisfy an infrastructure step is the same anti-pattern in another form.
+
+**Anti-pattern:** putting `(Расширение)` / fixture steps into the business user's session, then "fixing" the failure by granting technical roles. Instead, move the step into the setup block under the technical user.
+
+---
+
 ## Step Search
 
 Library: `/opt/onescript/2.0.0/lib/add/features/libraries/`
 
 | Category | Library file |
-|-----------|--------------|
+|-----------|-----------------|
 | Interface, fields, buttons, tabs | `UITestRunner/РаботаСИнтерфейсом.feature` |
 | Tables (tabular sections) | `UITestRunner/РаботаСТаблицами.feature` |
 | Form element state | `UITestRunner/СостояниеЭлементаФормы.feature` |

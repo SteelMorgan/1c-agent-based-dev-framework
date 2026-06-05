@@ -1,6 +1,6 @@
 ---
 name: form-dsl
-description: "JSON DSL для генерации управляемых форм 1С с UI-элементами, реквизитами и командами. Используй при form compile и редактировании форм через xml-generation (edit-команды)."
+description: "Use for генерации управляемых форм 1С с UI-элементами, реквизитами и командами через JSON DSL. Helps описать структуру и статические свойства формы для xml-gen form compile/edit."
 ---
 
 # Form DSL

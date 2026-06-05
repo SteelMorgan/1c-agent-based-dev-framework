@@ -7,7 +7,7 @@ alwaysApply: true
 
 > **Триггер:** после любого изменения BSL-кода. При срабатывании — применить навыки `code-verification` (`framework/skills/tool-usage/code-analysis/code-verification/SKILL.md`) и `syntax-checking` (`framework/skills/tool-usage/code-analysis/syntax-checking/SKILL.md`).
 
-Последовательность: сначала `syntax-checking` (быстрая LSP-диагностика), затем `code-verification` (Напарник + bsl-platform-context). Нулевые ошибки LSP обязательны перед коммитом.
+**GUARD:** нулевые ошибки LSP обязательны перед коммитом.
 
 ---
 depends_on:

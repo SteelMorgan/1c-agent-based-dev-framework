@@ -1,6 +1,6 @@
 ---
 name: mxl-dsl
-description: "JSON DSL для генерации табличных документов 1С (MXL) — печатные формы. Богатый канон: page/columns/rowStyle/rowspan/empty/detail/template/format. Используй при xml-gen mxl compile/decompile/info и xml-gen validate --type mxl для печатных форм."
+description: "Use for генерации и доработки печатных форм 1С (MXL) через JSON DSL. Helps описать области, ячейки и статические стили для xml-gen mxl compile/decompile/info/validate."
 ---
 
 # MXL DSL

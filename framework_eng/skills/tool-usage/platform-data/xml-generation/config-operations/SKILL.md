@@ -1,6 +1,6 @@
 ---
 name: config-operations
-description: "Configuration operations for 1C (CF) — init, info, edit, validate. Use when creating a configuration, analyzing structure, changing properties and ChildObjects, and validating Configuration.xml."
+description: "Use for creating a configuration, analyzing and changing its properties and ChildObjects, and validating Configuration.xml. Helps manage the composition and parameters of Configuration.xml through xml-gen config."
 ---
 
 # Config Operations
@@ -56,7 +56,7 @@ xml-gen config validate <configPath>
 
 ## ChildObjects — order of 44 types
 
-1C configuration requires a strict type order in ChildObjects:
+The 1C configuration requires a strict type order in ChildObjects:
 
 Language → Subsystem → StyleItem → Style → CommonPicture → SessionParameter → Role → CommonTemplate → FilterCriterion → CommonModule → CommonAttribute → ExchangePlan → XDTOPackage → WebService → HTTPService → WSReference → EventSubscription → ScheduledJob → SettingsStorage → FunctionalOption → FunctionalOptionsParameter → DefinedType → CommonCommand → CommandGroup → Constant → CommonForm → Catalog → Document → DocumentNumerator → Sequence → DocumentJournal → Enum → Report → DataProcessor → InformationRegister → AccumulationRegister → ChartOfCharacteristicTypes → ChartOfAccounts → AccountingRegister → ChartOfCalculationTypes → CalculationRegister → BusinessProcess → Task → IntegrationService
 

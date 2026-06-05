@@ -1,11 +1,11 @@
 ---
 name: mxl-dsl
-description: "JSON DSL for generating 1С tabular documents (MXL) - print forms. Rich canon: page/columns/rowStyle/rowspan/empty/detail/template/format. Use with xml-gen mxl compile/decompile/info and xml-gen validate --type mxl for print forms."
+description: "Use for generating and refining 1С print forms (MXL) through JSON DSL. Helps describe areas, cells, and static styles for xml-gen mxl compile/decompile/info/validate."
 ---
 
 # MXL DSL
 
-Compact JSON format for describing 1С tabular documents (SpreadsheetDocument). Claude describes **what** (areas, cells, styles, parameters), while the CLI guarantees XML **correctness** (palettes, indices, merges, namespaces).
+Compact JSON format for describing 1С tabular documents (SpreadsheetDocument). Claude describes **what** (areas, cells, styles, parameters), while the CLI guarantees XML **correctness** (palettes, indices, merges, namespace).
 
 The canon is taken from Shirokov's specification (cc-1c-skills) and extended with the `--format designer|edt` flag for two output formats.
 
@@ -17,7 +17,7 @@ The canon is taken from Shirokov's specification (cc-1c-skills) and extended wit
 | Refine an existing layout | `mxl decompile` → edit JSON → `mxl compile` |
 | Understand the structure of someone else's layout (areas, parameters, drill-downs) | `mxl info` → `references/info-modes.md` |
 | Check the correctness of the assembled Template.xml | `xml-gen validate --type mxl` → `references/validate-classes.md` |
-| Reverse-engineer a print layout from an example (screenshot/scan) | `mxl decompile` or build from scratch on a grid — define `page` + `"Nx"` widths |
+| Reverse-engineer print output from a sample (screenshot/scan) | `mxl decompile` or build from scratch on a grid — define `page` + `"Nx"` widths |
 
 ## Intentionally outside the DSL - do it in code
 
@@ -67,8 +67,8 @@ xml-gen validate --type mxl <Template.xml> [--detailed] [--max-errors N]
 
 | Was (old) | Became (canon) |
 |--------------|---------------|
-| `{"text": "[Параметр]"}` - parameter in brackets in the text | `{"param": "Параметр"}` - separate cell type |
-| `{"text": "Инв № [Номер]"}` - parameter in the template in brackets | `{"template": "Инв № [Номер]"}` - separate type |
+| `{"text": "[Parameter]"}` - parameter in brackets in the text | `{"param": "Parameter"}` - separate cell type |
+| `{"text": "Inv. No. [Number]"}` - parameter in the template in brackets | `{"template": "Inv. No. [Number]"}` - separate type |
 | `span` without `col` (sequential filling) | `col` 1-based + `span` (explicit positioning) |
 | Column widths were not specified | `columns` + `columnWidths` + `page` + `"Nx"` |
 | Solid row borders - every cell is explicit | `rowStyle` - automatic filling of gaps |
@@ -110,7 +110,7 @@ For **intersections** (Rows area + Columns area, for example labels/price tags),
 
 - Fonts and styles receive **automatic meaningful names** (`default`, `bold`, `header`, `bordered`, `bordered-right`, `bold-right`, `border-top`, etc.) based on property combinations - they do not have to match the original.
 - If all empty cells in a row have the same style, it is collapsed into `rowStyle`, and the empty cells are removed from the output.
-- Template parameters (`[Имя]` in text) are extracted into separate `template` cells.
+- Template parameters (`[Name]` in text) are extracted into separate `template` cells.
 
 ## Workflow (typical)
 

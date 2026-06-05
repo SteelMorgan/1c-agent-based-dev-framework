@@ -1,6 +1,6 @@
 ---
 name: xml-generation
-description: "Единый toolkit для генерации, редактирования и валидации XML метаданных 1С через CLI xml-gen. Покрывает 11 доменов (EPF, Form, MXL, SKD, Role, Config, Subsystem, Interface, Meta 23 типа, Extension/CFE) + универсальные операции (validate, edit replace-text, form/template/help add). ~45 CLI-операций в формате Designer. Применяй при создании конфигураций и внешних обработок, добавлении объектов метаданных, форм, ролей, отчётов, печатных форм, расширений; а также при валидации и точечной модификации существующих XML."
+description: "MUST use WHEN нужно создать, изменить или валидировать любой XML метаданных 1С (формы, роли, объекты, MXL, СКД, EPF, расширения, конфигурация). Provides безопасную генерацию и точечную модификацию через CLI xml-gen, соблюдая правило no-manual-xml-edit."
 argument-hint: <domain> <operation> [<args>]
 allowed-tools:
   - Bash

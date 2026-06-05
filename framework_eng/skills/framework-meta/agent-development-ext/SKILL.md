@@ -1,24 +1,19 @@
 ---
 name: agent-development-ext
-description: >
-  1C BSL Framework extension for agent-development skill.
-  Use together with the base agent-development skill when creating or modifying
-  framework agents (analyst, architect, developer, reviewer, tester, explorer).
-  Covers: universal agent format (Cursor + Claude Code), model tier mapping,
-  framework-specific frontmatter fields, 1C BSL domain context.
+description: MUST load together with `agent-development` in GBIG context. Adds the framework's universal agent format (analyst, architect, developer, reviewer, tester, explorer), model tier mapping, and 1C BSL specifics.
 ---
 
 # Agent Development — 1C BSL Framework Extension
 
 > **Base skill:** `agent-development` (Anthropic).
-> Read the base skill first — it contains the general principles for creating agents.
-> This file adds **only** 1C-specific details and adapts them for our framework.
+> First read the base skill — it contains the general principles of creating agents.
+> This file adds **only** 1C-specific details and adapts it to our framework.
 
 ---
 
-## 1. Universal Framework Agent Format
+## 1. Universal agent format of the framework
 
-A single `.md` file works for both Cursor and Claude Code without transformation.
+A single `.md` file works in both Cursor and Claude Code without transformation.
 
 ### Frontmatter
 
@@ -81,26 +76,26 @@ The "Skills and Rules" section in the body is needed for Cursor — it ignores t
 
 ---
 
-## 2. Framework Roles and Models
+## 2. Framework roles and models
 
 ### Role → Model Mapping Table
 
 | Role | model | readonly | Rationale |
 |------|-------|----------|-----------|
-| explorer | haiku | true | Deterministic work, tools deliver precise answers |
+| explorer | haiku | true | Deterministic work, tools deliver precise results |
 | analyst | sonnet | true | Requirements analysis and specification writing |
 | tester | sonnet | false | Writing and executing tests |
-| architect | sonnet | true | Technical decisions and trade-offs |
-| developer | sonnet | false | Implementing code, following TDD |
-| reviewer | opus | true | Critical role — assessing artifacts, tier ≥ author |
+| architect | sonnet | true | Technical decisions, trade-offs |
+| developer | sonnet | false | Implementing code, TDD |
+| reviewer | opus | true | Critical role — evaluating artifacts, tier ≥ author |
 
 ### Reviewer Rule
 
-The reviewer `model` MUST be at least the author’s model. If the author is `sonnet`, the reviewer must be `sonnet` or `opus`.
+The reviewer's `model` MUST be ≥ the artifact author's model. If the author is `sonnet` — the reviewer is `sonnet` or `opus`.
 
 ### CLI: Model Mapping
 
-Defaults live in `tools/model-defaults.json`. When running `python tools/install.py`, the user can accept defaults, pick per-agent (mode `[a]`), or use non-Anthropic models.
+Defaults are in `tools/model-defaults.json`. When running `python tools/install.py`, the user can accept the defaults, choose per-agent (mode `[a]`), or use non-Anthropic models.
 
 ---
 
@@ -109,25 +104,25 @@ Defaults live in `tools/model-defaults.json`. When running `python tools/install
 | Field | Claude Code | Cursor |
 |------|-------------|--------|
 | `name` | ✓ | ✓ |
-| `description` | ✓ trigger + examples | ✓ description as the rule text |
-| `model` | ✓ alias | ✓ CLI writes the concrete model |
-| `readonly` | — (tools/disallowedTools) | ✓ supported natively |
-| `skills` | ✓ preloads | ✗ ignored → mirror names in the body |
+| `description` | ✓ trigger + examples | ✓ description rules |
+| `model` | ✓ alias | ✓ CLI will substitute the concrete model |
+| `readonly` | — (tools/disallowedTools) | ✓ native |
+| `skills` | ✓ preload | ✗ ignored → duplicate names in the body |
 | `color` / `tools` | ✓ | ✗ |
 
-Unknown fields are simply ignored — not an error.
+Unknown fields are ignored — this is not an error.
 
 ---
 
 ## 4. 1C BSL Domain: Context for the System Prompt
 
-When writing the system prompt for 1C agents, keep these points in mind:
+When writing a system prompt for 1C agents, consider:
 
 ### Key Constraints
 - The agent **DOES NOT create metadata objects** — only code in `.bsl` modules.
-- BSL spans server and client modules with compilation directives (`&НаСервере`, `&НаКлиенте`).
-- Tools are discovered through MCP (`tools/list`); the "capability" section is not needed in the agent file.
-- Skills under `tool-usage/*` explain when and how to use specific MCP tools.
+- BSL is server and client code with compilation directives (`&НаСервере`, `&НаКлиенте`).
+- Tools are discovered through MCP (`tools/list`); the "capability" section in the agent file is not needed.
+- Skills `tool-usage/*` describe when and how to use MCP tools.
 - Standards: MADR 4.0, RFC 2119, YaxUnit, БСП.
 
 ---

@@ -288,7 +288,7 @@ Phases 3a and 3b are **parallel**. Phase 3c starts after both are complete.
                    Оркестратор возвращает задачу Developer.
 ```
 
-**User/Role context in Test Plan:** if code uses `SetPrivilegedMode`, role checks (`AccessRight`, `RoleAvailable`), or the result depends on the current user, the specification MUST explicitly state for each test in the "Test Plan" section: user name/role set, required mode (privileged or not), expected result (success/failure). Without this, a test under a full-rights runner (for example `AgentAI`) will produce a false positive: it will pass "by coincidence" through the privileged branch without checking role-dependent behavior. If this is technically impossible for unit tests, it is recorded in the spec as a separate ADR with a move to integration scope (Phase 4).
+**User/Role context in Test Plan:** if code uses `SetPrivilegedMode`, role checks (`AccessRight`, `RoleAvailable`), or the result depends on the current user, the specification MUST explicitly state for each test in the "Test Plan" section: user name/role set, required mode (privileged or not), expected result (success/failure). Without this, a test under a full-rights runner (for example `AgentAI`) will produce a false positive: it will pass "by coincidence" through the privileged branch without checking role-dependent behavior. If this is technically impossible for unit tests, record it in the spec as a separate ADR and move it to integration scope (Phase 4).
 
 ---
 depends_on: []

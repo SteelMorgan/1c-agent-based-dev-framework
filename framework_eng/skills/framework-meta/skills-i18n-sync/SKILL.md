@@ -1,10 +1,6 @@
 ---
 name: skills-i18n-sync
-description: >
-  Manage synchronization of Russian-language skills (framework/) with
-  the English mirror (framework_eng/). Use when you need to
-  check the synchronization status, manually trigger a translation,
-  or understand why a commit is blocked.
+description: Use for managing synchronization of framework/ (RU source) → framework_eng/ (EN mirror). Helps check status, run manual translation, or diagnose commit blocking.
 ---
 
 # skills-i18n-sync — RU→EN skill synchronization
@@ -17,11 +13,11 @@ description: >
 
 | Trigger | Action |
 |---------|--------|
-| You modified any file in `framework/` (except `README.md`) | Immediately synchronize the changed file via `/sync-skills <path>` |
+| You changed any file in `framework/` (except `README.md`) | Immediately synchronize the changed file via `/sync-skills <path>` |
 | You see a `dirty` or `pending` status in the registry | Run `/sync-skills` before using the skill |
 | A commit is blocked by a translation error in the hook | Run `python3 tools/sync-skill.py --all`, then retry the commit |
 | A new file was added to `framework/` | Run `/sync-skills <path>` to create the EN version |
-| You need to check the state of every skill | Run `/sync-skills check` |
+| You need to check the state of all skills | Run `/sync-skills check` |
 
 ---
 
@@ -67,11 +63,11 @@ python3 tools/sync-skill.py --init-all
 
 2. **Exception:** `README.md` files are not translated or synchronized.
 
-3. **Before using a skill** — ensure its status is `synced`. If it is `dirty`, the data in `.claude/skills/` is outdated.
+3. **Before using the skill** — make sure its status is `synced`. If it is `dirty`, the data in `.claude/skills/` is outdated.
 
 4. **`framework_eng/` is read-only**; never write there directly.
 
-5. **If RU and EN content conflict** — RU always wins (it is the source of truth).
+5. **If RU and EN content conflict** — RU always wins (source of truth).
 
 ---
 

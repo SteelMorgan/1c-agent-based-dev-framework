@@ -1,6 +1,6 @@
 ---
 name: syntax-checking
-description: "Проверка синтаксиса (Syntax Checking). Навык учит агента **правильно использовать возможности проверки синтаксиса** BSL-кода."
+description: "MUST use BEFORE коммитом или передачей BSL-кода на ревью. Defines двухуровневый процесс (LSP get_diagnostics → полная проверка Конфигуратором) как доказательство отсутствия синтаксических ошибок."
 uses_capabilities:
   - get_diagnostics
   - syntax_check_designer_modules

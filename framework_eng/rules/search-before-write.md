@@ -1,13 +1,13 @@
 ---
 name: search-before-write
-description: "Before creating a new function/query/processing -> apply the search-before-write skill"
+description: "Before creating a new function/query/processing -> apply the `search-before-write` skill"
 alwaysApply: true
 ---
 # Search Before Writing
 
-> **Trigger:** before creating a new function, query, or processing. When triggered, apply the `search-before-write` skill (`framework/skills/tool-usage/code-analysis/search-before-write/SKILL.md`).
+> **Trigger:** before creating a new function, query, or processing. When it fires, apply the `search-before-write` skill (`framework/skills/tool-usage/code-analysis/search-before-write/SKILL.md`).
 
-First, run the search cascade from the skill. Do not write new code until you have verified that no equivalent exists in the project or in БСП.
+**GUARD:** creating new code without first searching for analogs is prohibited.
 
 ---
 depends_on:

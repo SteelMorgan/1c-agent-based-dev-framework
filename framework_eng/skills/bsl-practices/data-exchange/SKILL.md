@@ -1,24 +1,24 @@
 ---
 name: data-exchange
-description: "1C data exchange: exchange plans, RIB, change registration, EnterpriseData format, KD 2.0/3.0. Use when you need to implement or diagnose data exchange - `ПланыОбмена`, `ЗарегистрироватьИзменения`, package import/export, data conflicts, RIB nodes, the БСП \"Data exchange\" subsystem."
+description: "Use for implementing and diagnosing 1C data exchange (РИБ, КД 2.0/3.0, EnterpriseData, БСП). Helps choose the exchange model, ensure packet idempotency, and explicit conflict resolution."
 ---
 
 # 1C Data Exchange
 
-**Key principle:** Data exchange is a distributed system. Every package must be idempotent (reloading it does not corrupt data), every conflict must be explicitly resolved, and every error must be logged with a link to the node and message number.
+**Key principle:** Data exchange is a distributed system. Each packet must be idempotent (reloading it does not corrupt data), each conflict must be explicitly resolved, and each error must be logged with a node and message number attached.
 
 ---
 
-## Rule 1: Exchange plan architecture - model selection
+## Rule 1: Exchange plan architecture - choosing a model
 
-Before implementation, you must define the exchange model. The choice affects all subsequent code.
+Before implementation, you must determine the exchange model. The choice affects all subsequent code.
 
 | Model | When to use | Mechanism |
-|--------|-------------|----------|
-| RIB (distributed infobase) | A full copy of the configuration on each node, all data is transferred | `ПланыОбмена`, XML serialization, `ОбменДаннымиXML` |
-| Selective exchange (БСП) | Rule-based exchange, object filtering, different configurations | БСП subsystem "Data exchange", EnterpriseData format |
-| KD 2.0 | Complex conversion rules between different configurations | "Data Conversion" processing, XML rules |
-| KD 3.0 / EDT | Modern projects, rules in BSL, EnterpriseData support | "Data Conversion 3" configuration |
+|--------|-------------------|----------|
+| РИБ (distributed information base) | Full copy of the configuration at the nodes; all data is transferred | `ПланыОбмена`, XML serialization, `ОбменДаннымиXML` |
+| Selective exchange (БСП) | Rule-based exchange, object filtering, different configurations | БСП "Data exchange" subsystem, EnterpriseData format |
+| КД 2.0 | Complex conversion rules between different configurations | "Data Conversion" processing, XML rules |
+| КД 3.0 / EDT | Modern projects, rules in BSL, EnterpriseData support | Configuration "Data Conversion 3" |
 
 ### Exchange plan structure
 
@@ -41,7 +41,7 @@ Before implementation, you must define the exchange model. The choice affects al
 
 ## Rule 2: Change registration - `ЗарегистрироватьИзменения`
 
-Change registration is the primary mechanism for tracking what needs to be sent to a node. Incorrect registration is the main source of errors: either data does not leave, or unnecessary data is sent.
+Change registration is the main mechanism for tracking what needs to be sent to a node. Incorrect registration is the main source of errors: either data does not leave, or extra data does.
 
 ### Explicit registration
 
@@ -84,13 +84,13 @@ Change registration is the primary mechanism for tracking what needs to be sent 
 КонецЕсли;
 ```
 
-Without this check: when data is loaded from an external database, the current database's business rules will run -> the data will be corrupted or the load will fail with an error.
+Without this check: when data is loaded from an external base, the current base's business rules will run -> the data will be corrupted or the load will end with an error.
 
 ---
 
-## Rule 3: Data export - building the message package
+## Rule 3: Data export - forming the message packet
 
-### Canonical export pattern (RIB)
+### Canonical export pattern (РИБ)
 
 ```bsl
 Функция СформироватьСообщениеОбмена(УзелОбмена) Экспорт
@@ -145,9 +145,9 @@ Without this check: when data is loaded from an external database, the current d
 
 ## Rule 4: Data loading - idempotency and duplicate protection
 
-Package idempotency means: reloading the same message does not change the result. This is critical when network failures occur and when manually rerunning the process.
+Idempotency of a packet means: reloading the same message does not change the result. This is critical during network failures and manual reruns.
 
-### Canonical loading pattern (RIB)
+### Canonical load pattern (РИБ)
 
 ```bsl
 Процедура ЗагрузитьСообщениеОбмена(ТекстСообщения) Экспорт
@@ -232,16 +232,16 @@ Package idempotency means: reloading the same message does not change the result
 
 ## Rule 5: Conflict resolution
 
-A conflict occurs when the same object is changed in two nodes at the same time. The resolution strategy must be documented and implemented explicitly. A "silent" last-write-wins policy is unacceptable in most business scenarios.
+A conflict occurs when the same object is changed in two nodes at the same time. The resolution strategy must be documented and implemented explicitly - a "silent" last-write-wins outcome is unacceptable in most business scenarios.
 
 ### Resolution strategies
 
-| Strategy | When to use | Implementation |
-|----------|-------------|----------------|
-| Master node wins | The main database is the source of truth | Reject changes from subordinate nodes during a conflict |
+| Strategy | When to apply | Implementation |
+|-----------|----------------|------------|
+| Main node wins | The main base is the source of truth | Reject changes from subordinate nodes when a conflict occurs |
 | Last change wins | Non-critical data (settings, descriptions) | `МоментВремени()` - the newer one wins |
-| Business-rule-based win | Status machines, priorities | Explicit resolution function |
-| Manual resolution | Critical data, cannot be automated | Record it in a conflict log |
+| Business-rule wins | State machine, priorities | Explicit resolution function |
+| Manual resolution | Critical data, cannot be automated | Record in the conflict register |
 
 ### Pattern: resolution by node priority
 
@@ -283,7 +283,7 @@ A conflict occurs when the same object is changed in two nodes at the same time.
 
 ## Rule 6: Exchange through the БСП "Data exchange" subsystem
 
-БСП provides ready-made infrastructure: node settings, exchange rules, transports (file, FTP, e-mail, WS), message queue, and conflict log.
+БСП provides ready-made infrastructure: node settings, exchange rules, transport (file, FTP, e-mail, WS), message queue, and conflict register.
 
 ### Key subsystem objects
 
@@ -337,11 +337,11 @@ EnterpriseData is a standardized XML format for exchange between 1C configuratio
 
 ---
 
-## Rule 7: KD 2.0 - conversion rules
+## Rule 7: КД 2.0 - conversion rules
 
-KD 2.0 is used for exchange between different configurations using a conversion rules file (XML).
+КД 2.0 is used for exchange between different configurations using a conversion rules file (XML).
 
-### Loading pattern through KD 2.0
+### Loading pattern through КД 2.0
 
 ```bsl
 // Загрузка данных с использованием обработки «Конвертация данных»
@@ -366,29 +366,29 @@ KD 2.0 is used for exchange between different configurations using a conversion 
 КонецПроцедуры
 ```
 
-### Differences between KD 2.0 and KD 3.0
+### Differences between КД 2.0 and КД 3.0
 
-| Aspect | KD 2.0 | KD 3.0 |
+| Aspect | КД 2.0 | КД 3.0 |
 |--------|--------|--------|
-| Rules | XML file | BSL modules in the KD 3 configuration |
+| Rules | XML file | BSL modules in the КД 3 configuration |
 | EDT support | No | Yes |
 | Format | Proprietary XML | EnterpriseData (optional) |
-| Handlers | In rules (code strings) | Full BSL, debugging |
+| Handlers | In the rules (code strings) | Full BSL, debugging |
 | Recommendation | Existing projects | New projects |
 
 ---
 
-## Rule 8: Diagnostics and exchange monitoring
+## Rule 8: Diagnostics and monitoring of exchange
 
 ### Registration log event table
 
-When diagnosing exchange, look for these events:
+When diagnosing exchange, look for events:
 
-| JR event | Meaning |
-|----------|---------|
+| Registration log event | What it means |
+|------------------------|---------------|
 | `ОбменДанными` | General events of the БСП subsystem |
-| `ОбменДанными.Выгрузка` | Package generation |
-| `ОбменДанными.Загрузка` | Package reception and processing |
+| `ОбменДанными.Выгрузка` | Packet formation |
+| `ОбменДанными.Загрузка` | Packet reception and processing |
 | `ОбменДанными.Конфликт` | Recorded conflicts |
 | `ОбменДанными.Транспорт` | Delivery errors |
 
@@ -433,7 +433,7 @@ When diagnosing exchange, look for these events:
     ПланыОбмена.УдалитьРегистрациюИзменений(УзелОбмена, 0);
 
     // Зарегистрировать заново
-    // (depends on the composition of the exchange plan - iterate over all object types)
+    // (зависит от состава плана обмена — перебрать все типы объектов)
 
     ЗаписьЖурналаРегистрации(
         НСтр("ru = 'ОбменДанными.Перерегистрация'"),
@@ -451,19 +451,19 @@ When diagnosing exchange, look for these events:
 
 | Error | Consequence | How to avoid |
 |-------|-------------|--------------|
-| No `ОбменДанными.Загрузка` check | Business logic runs during loading, data gets corrupted or exchange loops | In every `ПриЗаписи` handler in the first lines |
-| Fixing `НомерОтправленного` before delivery confirmation | Changes are marked as sent but never reached the node; they will not be exported in the next session | Fix the number only after recipient confirmation |
-| Loading without idempotency check | Duplicate documents, duplicate register movements | Check `НомерСообщения <= НомерПринятого` before loading |
-| Conflict without logging | Data is silently overwritten, user edits are lost | Always write to the JR on conflict with Warning level |
-| Registering changes inside the load handler | Infinite exchange: A->B->A->B | The `Загрузка = Истина` flag disables registration |
-| Long transaction while loading a large package | Locks, timeouts, rollback of the entire package | Load per object with separate transactions or batches |
-| Not deleting change register entries after export | Millions of records accumulate, performance degrades | `ПланыОбмена.УдалитьРегистрациюИзменений` after confirmation |
+| No `ОбменДанными.Загрузка` check | Business logic runs during load, data is corrupted or the exchange loops | In every `ПриЗаписи` handler, at the first lines |
+| Fixing `НомерОтправленного` before delivery confirmation | Changes are marked as sent but never reach the node; they will not be exported in the next session | Fix the number only after recipient confirmation |
+| Loading without idempotency check | Duplicate documents, double register movements | Check `НомерСообщения <= НомерПринятого` before loading |
+| Conflict without logging | Data is silently overwritten, user changes are lost | Always write to the registration log on conflict with Warning level |
+| Registering changes inside a load handler | Infinite exchange: A->B->A->B | The `Загрузка = Истина` flag disables registration |
+| Long transaction when loading a large packet | Locks, timeouts, rollback of the entire packet | Load object by object with separate transactions or batches |
+| Not deleting change register entries after export | Accumulation of millions of records, performance degradation | `ПланыОбмена.УдалитьРегистрациюИзменений` after confirmation |
 
 ---
 
 ## Related resources
 
-- [error-handling](../error-handling/SKILL.md) - canonical transaction pattern, mandatory for loading/exporting
+- [error-handling](../error-handling/SKILL.md) - canonical transaction pattern, required during loading/export
 - [background-jobs](../background-jobs/SKILL.md) - data exchange is often performed in background jobs
 
 ---

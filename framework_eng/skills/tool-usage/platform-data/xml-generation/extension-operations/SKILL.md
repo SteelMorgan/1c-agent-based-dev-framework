@@ -1,6 +1,6 @@
 ---
 name: extension-operations
-description: "Operations with 1C configuration extensions (CFE) — init, borrow, diff, validate. Use when creating extensions, borrowing objects, analyzing composition, and interceptors."
+description: "Operations with 1C configuration extensions (CFE) - init, borrowing objects, generating method interceptors, and analyzing extension composition. Helps manage CFE via xml-gen extension init/borrow/diff/validate."
 ---
 
 # Extension Operations (CFE)
@@ -56,7 +56,7 @@ xml-gen extension borrow <extensionPath> <configPath> "<objectSpec>"
 
 ### extension diff
 
-Extension analysis: composition, interceptors, transfer check.
+Extension analysis: composition, interceptors, transfer verification.
 
 ```bash
 xml-gen extension diff <extensionPath> <configPath> [--mode A|B]
@@ -70,10 +70,10 @@ xml-gen extension diff <extensionPath> <configPath> [--mode A|B]
 Without the flag, the borrowed form does not have DataPath — `form-edit` will fail when trying to display an extension attribute.
 
 ```bash
-# Реквизиты, уже выведенные на форме (рекомендуется)
+# Attributes already displayed on the form (recommended)
 xml-gen extension borrow <extPath> <configPath> "Catalog.Номенклатура.Form.ФормаЭлемента" --borrow-main-attribute form
 
-# Все реквизиты и табличные части объекта
+# All attributes and tabular sections of the object
 xml-gen extension borrow <extPath> <configPath> "Catalog.Номенклатура.Form.ФормаЭлемента" --borrow-main-attribute all
 ```
 

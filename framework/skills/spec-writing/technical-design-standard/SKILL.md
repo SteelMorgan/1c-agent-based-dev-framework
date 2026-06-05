@@ -1,6 +1,6 @@
 ---
 name: technical-design-standard
-description: "Стандарт технического дизайна для задач разработки 1С. Задаёт структуру technical-design.md, правила заполнения секций (MUST/SHOULD/MAY), чеклист качества и guidance по уровню детализации. Используется архитектором (Phase 2) и ревьюером (scope=arch)."
+description: "Use for написания технического дизайна (Phase 2). Defines структуру technical-design.md, правила заполнения секций (MUST/SHOULD/MAY) и чеклист качества для архитектора и ревьюера (scope=arch)."
 ---
 
 # Стандарт технического дизайна (Technical Design)

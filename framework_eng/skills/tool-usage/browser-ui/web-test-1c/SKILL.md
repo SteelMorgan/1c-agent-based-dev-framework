@@ -1,11 +1,11 @@
 ---
 name: web-test-1c
-description: "1C web client automation — navigation across sections, filling forms, reading tables and reports, filtering lists. Use when you need to test, verify, or automate actions in 1C through a browser."
+description: "Use for browser automation in 1С (navigation across sections, filling forms, reading tables and reports, filtering lists). Helps write browser tests for 1С on a semantic layer without knowing DOM details of the platform."
 ---
 
-# web-test-1c — 1C web client automation
+# web-test-1c — 1С Web Client Automation
 
-A semantic layer on top of Playwright for the DOM of the 1C:Enterprise web client.
+Semantic layer on top of Playwright for the DOM of the 1С:Предприятие web client.
 
 ## Installation
 

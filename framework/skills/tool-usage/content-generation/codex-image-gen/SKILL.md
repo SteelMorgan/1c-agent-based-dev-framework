@@ -1,6 +1,6 @@
 ---
 name: codex-image-gen
-description: "Используй когда нужно сгенерировать или отредактировать растровое изображение (UI mockup, wireframe, иллюстрация для документа/спеки, диаграмма, иконка, тестовая фикстура). Claude/Opus сами картинки не рисуют — навык делегирует работу Codex/GPT через `codex exec` с `image_generation`-инструментом, складывая результат в `tasks/<id>/assets/`. ТРИГГЕРЫ: пользователь просит «сделай картинку / нарисуй / сгенерируй изображение / нужен мокап / нужен скриншот-эскиз / illustration / mockup / wireframe / diagram / поправь это изображение / отредактируй PNG»."
+description: "Use for генерации и редактирования растровых изображений (UI mockup, wireframe, иллюстрация, диаграмма, иконка, тестовая фикстура). Helps делегировать создание картинок Codex/GPT через `codex exec image_generation`, складывая результат в `tasks/<id>/assets/`."
 capabilities: content-generation,image-generation,cross-provider,delegation
 ---
 

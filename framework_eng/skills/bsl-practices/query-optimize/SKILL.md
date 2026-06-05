@@ -1,24 +1,24 @@
 ---
 name: query-optimize
-description: "1С query and SCD optimization. Use when you need to speed up an existing query, rewrite an SCD dataset, eliminate a virtual table without parameters, query-in-loop, dot-dereference, or excessive totals. Complements query-patterns (that one is for writing from scratch, this one is for optimizing existing queries)."
+description: "MUST use WHEN you need to speed up an existing query or rewrite a DCS dataset. Provides rules for eliminating query-in-loop, dot-dereference, virtual tables without parameters, and excessive totals."
 target_agents:
   - developer-code
   - architect
 alwaysApply: false
 ---
 
-# Query Optimize — query and SCD optimization
+# Query Optimize — optimization of queries and СКД
 
-A skill for optimizing **existing** queries and data composition schemas. For writing queries from scratch use `query-patterns`. For DBMS diagnostics (plan, locks, evidence) use `db-performance`.
+A skill for optimizing **existing** queries and data composition schemas. For writing queries from scratch - `query-patterns`. For DB diagnostics (plan, locks, evidence) - `db-performance`.
 
 ---
 
 ## Relationship with other skills
 
 ```
-db-performance          ← lower evidence layer (DBMS evidence, plan, locks)
-    ↓ passes the query + reason
-query-optimize          ← rewriting (this skill)
+db-performance          ← lower evidentiary layer (DB evidence, plan, locks)
+    ↓ passes query + reason
+query-optimize          ← rewrite (this skill)
     ↓ uses writing rules
 query-patterns          ← basic patterns (parameterization, NULL, loops)
 ```
@@ -32,11 +32,11 @@ Without `db-performance` evidence, optimization is a guess. If the cause is unkn
 ### 1. Extract the query and execution context
 
 - Find the query text: `rg "Запрос.Текст\s*=" --type-add "bsl:*.bsl" -t bsl`
-- For SCD, find the `.xml` schema through `code-navigation` and identify the dataset
+- For DCS - find the `.xml` schema through `code-navigation`, determine the dataset
 - Record:
-  - Module / SCD dataset
+  - Module / DCS dataset
   - Virtual table parameters (passed / not passed)
-  - Temporary table chain
+  - Temp table chain
   - Calling loop (yes / no)
   - Expected row count / actual
 
@@ -45,46 +45,46 @@ Without `db-performance` evidence, optimization is a guess. If the cause is unkn
 Before rewriting, check the metadata object structure:
 - Register: type (accumulation / information), periodicity, dimensions, resources
 - Catalog / document: attributes, tabular sections
-- Indexed attributes (affects whether conditions can be applied)
+- Indexed attributes (affects condition applicability)
 
 Tool: `code-navigation` → object structure.
 
-### 3. Identify one cause
+### 3. Determine one cause
 
-Choose from the categories below (one per iteration):
+Choose from the categories (one per iteration):
 
-| Cause | Symptom |
+| Cause | Sign |
 |---------|---------|
-| Broad read of a virtual table | `Остатки()` / `Обороты()` without period or dimension parameters |
+| Broad virtual table read | `Остатки()` / `Обороты()` without period or dimension parameters |
 | Query-in-loop | Query inside `Для Каждого` / `Пока` / recursion |
-| Dot-dereference without `ВЫРАЗИТЬ` | `Движения.Регистратор.Контрагент` for a composite type |
-| Excessive temporary tables | Intermediate tables with the full field set instead of the minimum |
-| Redundant totals | `ИТОГИ` in a query when a flat result set is needed |
-| Filtering after join | `ГДЕ` conditions on fields from a large table instead of virtual table parameters |
+| Dot-dereference without ВЫРАЗИТЬ | `Движения.Регистратор.Контрагент` when the type is composite |
+| Excessive temp tables | Intermediate tables with a full field set instead of a minimal one |
+| Extra totals | `ИТОГИ` in the query when a flat result set is needed |
+| Filtering after join | `ГДЕ` conditions on fields of a large table instead of virtual table parameters |
 | Implicit row multiplication through JOIN | LEFT JOIN without aggregation duplicates rows |
-| `РАЗЛИЧНЫЕ` masks the problem | `ВЫБРАТЬ РАЗЛИЧНЫЕ` hides an extra JOIN instead of fixing it |
+| DISTINCT masks the problem | `ВЫБРАТЬ РАЗЛИЧНЫЕ` hides an unnecessary JOIN instead of fixing it |
 
 ### 4. Apply the optimization rule
 
-For each cause, use the specific rule below (see the "Rules" section).
+For each cause, use the specific rule (see the "Rules" section below).
 
 ### 5. Check syntax and semantics
 
 - Syntax: `v8-runner` after any change
-- Semantics: do not silently remove `РАЗРЕШЕННЫЕ` filters; keep security rules intact
-- For join changes: make sure the row count did not change unexpectedly
+- Semantics: do not silently remove `РАЗРЕШЕННЫЕ` filters; preserve safety rules
+- For join changes: make sure the row count has not changed unexpectedly
 
-### 6. Request DBMS verification when the effect is not obvious
+### 6. Request DB verification if the effect is non-obvious
 
-If the change affects the DBMS plan (index, virtual table parameters, join type), ask the user for `EXPLAIN` / tech log before and after. Without measurement, mark it as "expected effect, requires verification".
+If the change affects the DB plan (index, virtual table parameters, join type), ask the user for `EXPLAIN` / trace logs before and after. Without measurement, record it as "expected effect, requires verification."
 
 ---
 
 ## Optimization Rules
 
-### Virtual tables: push parameters inside
+### Virtual tables: parameters inside
 
-**Problem:** The DBMS computes all data first, then filters in `ГДЕ`.
+**Problem:** The DB computes all data first, then filters in `ГДЕ`.
 
 ```bsl
 // ПЛОХО — фильтр в WHERE, СУБД читает всё
@@ -98,9 +98,9 @@ If the change affects the DBMS plan (index, virtual table parameters, join type)
 |   ) КАК Ост"
 ```
 
-Rule: a virtual table always gets period and dimension parameters. The only exception is when there is explicit justification (a report across all warehouses with no filter).
+Rule: the virtual table always receives period and dimension parameters. The only exception is an explicit justification (a report for all warehouses without a filter).
 
-### Query-in-loop: one query + `Соответствие`
+### Query-in-loop: one query + Correspondence
 
 **Problem:** N iterations × (latency + query time).
 
@@ -125,9 +125,9 @@ Rule: a virtual table always gets period and dimension parameters. The only exce
 КонецЦикла;
 ```
 
-### Dot-dereference: `ВЫРАЗИТЬ` for a composite type
+### Dot-dereference: ВЫРАЗИТЬ for a composite type
 
-**Problem:** `Движения.Регистратор.Контрагент` on a composite type causes the DBMS to do a LEFT JOIN to all tables in the composite type.
+**Problem:** `Движения.Регистратор.Контрагент` when the type is composite - the DB performs a LEFT JOIN to all tables of the composite type.
 
 ```bsl
 // ПЛОХО — N LEFT JOIN по составному типу
@@ -140,7 +140,7 @@ Rule: a virtual table always gets period and dimension parameters. The only exce
 |ГДЕ Движения.Регистратор ССЫЛКА Документ.РеализацияТоваровУслуг"
 ```
 
-### Temporary tables: minimal fields and `ИНДЕКСИРОВАТЬ ПО`
+### Temporary tables: minimal fields and ИНДЕКСИРОВАТЬ
 
 ```bsl
 // Только поля, нужные следующим этапам
@@ -152,11 +152,11 @@ Rule: a virtual table always gets period and dimension parameters. The only exce
 |ИНДЕКСИРОВАТЬ ПО Контрагент"  // только поле соединения
 ```
 
-Rule: use `ИНДЕКСИРОВАТЬ ПО` for fields that will be used in a JOIN in the next query in the batch. Do not add an index to every field.
+Rule: use `ИНДЕКСИРОВАТЬ ПО` for fields that will be used in a JOIN in the next query of the package. Do not add an index on every field.
 
-### Redundant totals: replace `ИТОГИ` with `СГРУППИРОВАТЬ ПО`
+### Extra totals: replace ИТОГИ with GROUP BY
 
-`ИТОГИ` generates extra summary rows. If a flat result set is needed, use `СГРУППИРОВАТЬ ПО`.
+`ИТОГИ` generates extra total rows. If a flat result set is needed, use `СГРУППИРОВАТЬ ПО`.
 
 ```bsl
 // ИТОГИ нужны только при иерархическом обходе Выбрать(ПоГруппировкам)
@@ -166,7 +166,7 @@ Rule: use `ИНДЕКСИРОВАТЬ ПО` for fields that will be used in a JO
 |СГРУППИРОВАТЬ ПО Контрагент"
 ```
 
-### Composite-type filter: `IN` instead of JOIN + `РАЗЛИЧНЫЕ`
+### Filter on a composite type: IN instead of JOIN + DISTINCT
 
 ```bsl
 // ПЛОХО — JOIN умножает строки, РАЗЛИЧНЫЕ скрывает
@@ -185,47 +185,47 @@ Rule: use `ИНДЕКСИРОВАТЬ ПО` for fields that will be used in a JO
 
 ---
 
-## SCD: optimization specifics
+## DCS: optimization specifics
 
 ### Dataset parameters
 
-- SCD parameters passed into virtual tables of the dataset work the same way as query parameters: pass them inside, do not filter through selections afterward
-- For register period conditions, always parameterize them in the dataset query text
+- DCS parameters passed into dataset virtual tables work the same as query parameters: pass them inside, do not filter through selection afterward
+- For register period conditions - always parameterize them in the dataset query text
 
 ### Resources and calculated fields
 
-- SCD calculated fields that access other datasets through relations are a potential query-in-loop at the platform level
-- Dataset relations (`СВЯЗЬ`) with conditions and no index on the dependent side — check the metadata
+- DCS calculated fields that access other datasets through relations are a potential query-in-loop at the platform level
+- Dataset relations (`СВЯЗЬ`) with conditions and no index on the detail side - check metadata
 
-### SCD filters
+### DCS filters
 
 - Filters applied by the user through settings may not reach virtual table parameters - this is an architectural limitation; document it
-- For critical filters (period, organization), pass them as dataset query parameters; do not rely only on SCD filters
+- For critical filters (period, organization) - pass them as dataset query parameters, do not rely only on DCS filters
 
 ---
 
 ## Query review checklist
 
 - [ ] Virtual tables receive period and dimension parameters (not filtering in `ГДЕ`)
-- [ ] Temporary tables contain only the fields needed by the next steps
-- [ ] Join fields in temporary tables are indexed (`ИНДЕКСИРОВАТЬ ПО`)
-- [ ] There are no repeated subqueries or query-in-loop
+- [ ] Temp tables contain only the fields needed for later stages
+- [ ] Join fields in temp tables are indexed (`ИНДЕКСИРОВАТЬ ПО`)
+- [ ] No repeated subqueries or query-in-loop
 - [ ] JOIN does not multiply rows; totals and groupings match the business meaning
 - [ ] Date and organization filters are applied as early as possible
-- [ ] Composite types are expanded with `ВЫРАЗИТЬ` before dot-dereference
+- [ ] Composite types are expanded through `ВЫРАЗИТЬ` before dot-dereference
 - [ ] `ЛЕВОЕ СОЕДИНЕНИЕ` does not turn into `ВНУТРЕННЕЕ` because of a condition in `ГДЕ`
-- [ ] `РАЗЛИЧНЫЕ` does not mask an extra JOIN
+- [ ] `РАЗЛИЧНЫЕ` does not mask an unnecessary JOIN
 - [ ] `РАЗРЕШЕННЫЕ` and other rights filters are preserved
 
 ---
 
 ## Stop rules
 
-1. **Do not remove `РАЗРЕШЕННЫЕ`** without explicit security agreement.
-2. **Do not recommend an index without** a specific predicate + write-cost estimate - that is `db-performance`'s job.
-3. **Do not rewrite multiple causes in one step** - you cannot measure each contribution.
-4. **Do not replace LEFT JOIN with INNER JOIN** without checking the business requirement: do we need all rows or only matching ones.
-5. **Do not transfer an optimization based on one DBMS's data to another** without verification: PostgreSQL and MS SQL Server have different planner models.
+1. **Do not remove `РАЗРЕШЕННЫЕ`** without explicit security approval.
+2. **Do not recommend an index without** a concrete predicate + write-cost assessment - that is a `db-performance` task.
+3. **Do not rewrite multiple causes in one step** - it is impossible to measure each contribution.
+4. **Do not replace LEFT JOIN with INNER JOIN** without checking the business requirement: are all rows needed, or only matching ones.
+5. **Do not transfer an optimization based on one DBMS's data behavior** to another without verification: PostgreSQL and MS SQL Server have different planner models.
 
 ---
 depends_on:

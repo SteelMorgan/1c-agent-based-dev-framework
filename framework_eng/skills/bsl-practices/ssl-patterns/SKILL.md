@@ -1,6 +1,6 @@
 ---
 name: ssl-patterns
-description: "Patterns for working with БСП (Standard Subsystems Library). This skill teaches the agent to correctly use БСП (the Standard Subsystems Library, English."
+description: "MUST use WHEN you use or extend functionality of БСП (Standard Subsystems Library). Provides a catalog of ready-made ОбщегоНазначения functions and rules for calling subsystems without duplication."
 alwaysApply: false
 ---
 
@@ -60,7 +60,7 @@ The module contains optimized functions that handle edge cases correctly.
 
 ---
 
-## Rule 3: ОбщегоНазначенияКлиентСервер is utility code for both environments
+## Rule 3: ОбщегоНазначенияКлиентСервер are utilities for both environments
 
 The directive `&НаКлиентеНаСервереБезКонтекста` is available on both client and server.
 
@@ -323,7 +323,7 @@ Registering an external processor in a БСП-based configuration requires the `
 
 ## Searching for analogs via Buddy
 
-If `search_ssl_functions` did not return a result - `ask_ai_assistant` (VALIDATE_BSL template from `buddy-prompting`): pass a code fragment, get recommendations for replacement with БСП methods. Also use `SEARCH_DOCS` for documentation on a specific БСП method.
+If `search_ssl_functions` did not return a result, use `ask_ai_assistant` (VALIDATE_BSL template from `buddy-prompting`): pass a code fragment and get recommendations for replacing it with БСП methods. Also use `SEARCH_DOCS` for documentation on a specific БСП method.
 
 ---
 depends_on: []

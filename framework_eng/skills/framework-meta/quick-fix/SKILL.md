@@ -1,10 +1,6 @@
 ---
 name: quick-fix
-description: >
-  Short-cycle skill: a quick fix in one file without cross-review. Raised by the Lead
-  (orchestrator profile, Layer 1) when the task is classified as "simple." Three steps + strict guard
-  on the self path: boundaries <20 lines/1 file/no new metadata/no architecture + mandatory verify
-  even for self + escalation to full-cycle.
+description: MUST use WHEN the task is classified as simple (< 20 lines, 1 file, no new metadata objects, no architectural decisions). Provides a short cycle of 3 steps with a guard on the self path and mandatory verify.
 alwaysApply: false
 ---
 
@@ -21,7 +17,7 @@ under the guard below.
 
 ## Self-path guard (MUST, otherwise slippery slope)
 
-> self-execution is the only mode where the main flow has no cross-review. Therefore the boundaries are strict
+> self execution is the only mode where the main flow has no cross-review. Therefore the boundaries are strict
 > and are checked BEFORE any modification starts.
 
 - self is allowed ONLY within the bounds: `< 20 lines, 1 file, no new metadata objects, no
@@ -35,7 +31,7 @@ under the guard below.
 ### 1. Find (Explorer → Economy)
 
 `navigate_symbol` + `get_call_graph` → path to the module, dependencies, confirm that the change is localized
-  (confirmation of the guard boundaries: one file, no architectural links).
+(confirmation of the guard boundaries: one file, no architectural links).
 
 ### 2. Fix (Developer → Mid)
 

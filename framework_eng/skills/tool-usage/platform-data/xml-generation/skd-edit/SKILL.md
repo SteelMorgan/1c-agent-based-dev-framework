@@ -1,6 +1,6 @@
 ---
 name: skd-edit
-description: "Targeted editing of an existing 1C data composition schema (SKD, DataCompositionSchema). Use when you need to atomically modify Schema.xml - add/remove/change fields, totals, parameters, field roles, change the variant structure, or query text. Complements skd-dsl (compile), but does not overlap."
+description: "Use for atomic editing of an existing Schema.xml SKD: add/remove fields, totals, parameters, rewrite a data set query, or change the variant structure. Helps fine-tune SKD without full recompilation via xml-gen skd edit."
 ---
 
 # SKD Edit - targeted editing of Schema.xml
@@ -27,11 +27,11 @@ xml-gen skd edit <SchemaPath> <operation> "<value>" [--dataSet <name>] [--varian
 | Parameter | Description |
 |----------|----------|
 | `SchemaPath` | Path to `Template.xml` / `Schema.xml`. The folder is extended to `Ext/Template.xml`. |
-| `--dataSet` | Name of the target data set. By default - the first one. |
-| `--variant` | Name of the settings variant. By default - the first one. |
-| `--no-selection` | For `add-field` - do not add the field to the variant `selection`. |
+| `--dataSet` | Name of the target data set. By default — the first one. |
+| `--variant` | Name of the settings variant. By default — the first one. |
+| `--no-selection` | For `add-field` — do not add the field to the variant `selection`. |
 
-## Operations - cheat sheet
+## Operations — cheat sheet
 
 | Group | Shorthand | Reference |
 |--------|-----------|-----------|

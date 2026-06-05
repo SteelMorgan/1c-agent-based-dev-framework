@@ -1,9 +1,9 @@
 ---
 name: gui-control
-description: "Managing 1C GUI via X11. The skill teaches the agent to detect 1C windows (including error dialogs), take screenshots, and simulate input (Enter, Escape) to control the interface without human involvement."
+description: "MUST use WHEN the GUI dialog blocks database shutdown or a test hangs with no events in the event log. Provides X11 detection of 1C windows, screenshot capture, and keyboard simulation to unblock without human involvement."
 ---
 
-# Managing 1C GUI via X11
+# 1C GUI Control via X11
 
 X11 control is an action, not diagnostics. Use only when a GUI dialog is detected that blocks the normal shutdown of the database. Diagnose the cause through the event log (`event-log-analysis`).
 

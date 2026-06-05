@@ -1,6 +1,6 @@
 ---
 name: background-jobs
-description: "Фоновые и регламентные задания 1С. Используй когда нужно спроектировать, проверить или исправить background jobs: идемпотентность, retry-политику, локи, checkpointing, разделение retryable/permanent ошибок."
+description: "Use for проектирования, диагностики и исправления фоновых и регламентных заданий 1С. Helps обеспечить идемпотентность, retry-политику, checkpointing, mutex и разделение retryable/permanent ошибок."
 skills:
   - architect
   - developer-code

@@ -1,6 +1,6 @@
 ---
 name: api-design
-description: "Designing and reviewing the public program interface of 1C subsystems (БСП). Classification of export methods into 5 categories (Program Interface / Service Program Interface / Overridable Interface / For Call from Other Subsystems / Service Procedures), backward compatibility rules, API versioning, deprecated areas, and consumer migration. Use when you need to design a new API, assess the impact of changing an export method, review a cross-system call, or verify the correctness of a subsystem module structure."
+description: "Use for designing and reviewing the public API of 1C subsystems. Helps classify export methods into 5 categories, verify backward compatibility, and design versioning with deprecated wrappers."
 ---
 
 # API Design — design and review of 1C subsystem interfaces
@@ -23,7 +23,7 @@ Based on the Infostart article "API Base": `https://infostart.ru/1c/articles/268
 | Deleting or renaming an export method | Create a deprecated wrapper in `УстаревшиеПроцедурыИФункции` |
 | Code review: calling a method from another subsystem | Check the category of the called method (is the call allowed?) |
 | Code review: changing behavior without changing the signature | Check whether this breaks the contract (`ПрограммныйИнтерфейс`) |
-| Question about version bump when releasing changes | Apply versioning rules (section "Versioning") |
+| Question about a version bump when releasing changes | Apply versioning rules (section "Versioning") |
 
 ---
 
@@ -257,7 +257,7 @@ Every method in `ПрограммныйИнтерфейс` and `Переопре
 2. If it is for external consumers, place it in `#Область ПрограммныйИнтерфейс`.
 3. Write a full comment header with parameter types.
 4. Make sure nothing unnecessary is exported (the implementation belongs in `СлужебныеПроцедурыИФункции`).
-5. Note in the changelog: new PI method -> minor version bump.
+5. Note in the changelog: new Program Interface method -> minor version bump.
 
 ### Scenario 2: Review of a signature change
 

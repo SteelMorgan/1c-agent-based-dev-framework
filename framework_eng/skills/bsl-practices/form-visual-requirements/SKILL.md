@@ -1,12 +1,12 @@
 ---
 name: form-visual-requirements
-description: "Checklist and criteria for reviewing the layout and usability of 1C forms. Use for analyzing screenshots from visual-check."
+description: "MUST use WHEN checking the visual appearance of 1C forms (screenshot or visual-check result). Provides a checklist for layout, alignment, labels, and UX criteria."
 alwaysApply: false
 ---
 
 # Visual requirements for forms
 
-Use this checklist to check 1C forms.
+Use this checklist to review 1C forms.
 
 ## 1. Layout and alignment
 

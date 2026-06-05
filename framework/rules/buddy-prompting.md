@@ -7,7 +7,7 @@ alwaysApply: true
 
 > **Триггер:** перед вызовом `ask_ai_assistant` (1С Напарник / Buddy). При срабатывании — применить навык `buddy-prompting` (`framework/skills/tool-usage/code-analysis/buddy-prompting/SKILL.md`).
 
-Напарник — слабая LLM с хорошей базой знаний. Обращение без правильного шаблона даёт мусорный ответ. Выбери шаблон по Decision Table навыка.
+Напарник — слабая LLM с хорошей базой знаний. Обращение без правильного шаблона даёт мусорный ответ.
 
 ---
 depends_on:

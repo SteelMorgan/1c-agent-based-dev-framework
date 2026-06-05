@@ -1,6 +1,6 @@
 ---
 name: code-verification
-description: "Comprehensive BSL code verification after edits. Orchestrates LSP diagnostics, validation through Buddy (VALIDATE_BSL), and platform API verification through bsl-platform-context."
+description: "MUST use WHEN BSL code is changed before commit or handoff for review. Provides a three-layer check: LSP diagnostics, VALIDATE_BSL through Buddy, and platform API verification through bsl-platform-context."
 uses_capabilities:
   - get_diagnostics
   - ask_ai_assistant
@@ -31,7 +31,7 @@ Three verification layers, each catches its own class of errors.
 Goal: immediate feedback on the modified file.
 
 1. `get_diagnostics(uri)` — get errors/warnings from BSL Language Server.
-2. If there is an `error` level issue — fix it before moving to layer 2.
+2. If there is an `error`-level issue — fix it before moving to layer 2.
 3. If LSP is unavailable — proceed to layer 2, noting that the LSP check was skipped.
 
 ### Layer 2 — Buddy (VALIDATE_BSL)
@@ -73,7 +73,7 @@ Goal: confirm that every platform object, method, property, and constructor used
    | `Object.Property` | Does the property exist on this type? | `getMember` |
    | Type is unclear | Search by name | `search_syntax_reference` → `getMembers` |
 
-3. **Special attention to collection types.** The APIs of `Structure`, `Map`, `ValueTable`, `Array` differ. Do not assume the same methods — verify against the specific type.
+3. **Special attention to collection types.** The APIs of `Структура`, `Соответствие`, `ТаблицаЗначений`, `Массив` differ. Do not assume the same methods — verify against the specific type.
 
 4. If `navigate_symbol` is available — use it to determine a variable's type at the declaration/assignment site, then verify the API through platform-context.
 

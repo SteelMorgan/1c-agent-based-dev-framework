@@ -1,6 +1,6 @@
 ---
 name: epf-full
-description: "Full cycle of working with external 1C processors and reports: creating EPF/ERF (init/add-form), managing templates (template add/remove/add-help) for any metadata objects, BSP registration (СведенияОВнешнейОбработке + add-command). Use when creating processors, adding forms, templates, help, and connecting to the BSP subsystem «Additional Reports and Processors»."
+description: "Use for creating external processors and reports (EPF/ERF), adding forms, templates, and help, and connecting to the BSP subsystem «Additional Reports and Processors». Helps go through the full init→add-form→template→BSP registration cycle via xml-gen."
 targets:
   - developer-code
   - architect

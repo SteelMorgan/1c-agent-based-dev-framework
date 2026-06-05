@@ -1,6 +1,6 @@
 ---
 name: cross-provider-review
-description: "Use for advisory second-opinion review between model families. Routes GPT/Codex primary agents to Claude/Opus review, and Claude/Opus/Sonnet primary agents to GPT/Codex review; supports isolated sandbox sessions, follow-up, debate, sync, status, log, stats, show, and close lifecycle. Suitable for acceptance-bound artifact review and free-form criticism of ideas/documents."
+description: "Use for advisory second-opinion review between model families. Routes GPT/Codex primary agents to Claude/Opus review and vice versa; supports sandbox sessions, follow-up, debate, sync, status, log, stats, show, and close lifecycle."
 capabilities: review,agent-governance,cross-provider
 ---
 
@@ -73,11 +73,11 @@ practical evidence of a stuck state; `phase=timeout` means a single invocation e
 **✅ CHECKPOINT before task completion (MUST run):**
 
 ```bash
-# 1. Show all OPEN sandboxes in the project:
+# 1. Показать все НЕзакрытые sandbox в проекте:
 ls -1 .review-sandboxes/ 2>/dev/null
-# 2. For each remaining <review_id> - close it:
+# 2. Для каждого оставшегося <review_id> — закрыть:
 <adapter-script> close <review_id>
-# 3. Confirm that the directory is empty (expected 0):
+# 3. Подтвердить, что каталог пуст (ожидается 0):
 ls -1 .review-sandboxes/ 2>/dev/null | wc -l
 ```
 

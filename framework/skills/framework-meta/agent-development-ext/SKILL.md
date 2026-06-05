@@ -1,11 +1,6 @@
 ---
 name: agent-development-ext
-description: >
-  1C BSL Framework extension for agent-development skill.
-  Use together with the base agent-development skill when creating or modifying
-  framework agents (analyst, architect, developer, reviewer, tester, explorer).
-  Covers: universal agent format (Cursor + Claude Code), model tier mapping,
-  framework-specific frontmatter fields, 1C BSL domain context.
+description: MUST load together with `agent-development` in GBIG context. Adds универсальный формат агентов фреймворка (analyst, architect, developer, reviewer, tester, explorer), маппинг тиров моделей и 1С BSL-специфику.
 ---
 
 # Agent Development — 1C BSL Framework Extension

@@ -30,16 +30,7 @@ alwaysApply: true
 
 Some of the tools in v8-session-manager (`session_list`) are built-in and always available as long as the manager is running. The remaining tools are proxied from connected 1С clients and appear on the storefront only when a client with the required extension is connected to the manager via WS. If a capability with `server: v8-session-manager` is not available in `tools/list`, that means the corresponding client is not connected. Bringing up the client is the task of `v8-runner` (see SKILL.md in `framework/skills/tool-usage/v8-runner/`).
 
-## Replacing an Implementation
-
-Via CLI:
-
-```bash
-python tools/capability-registry.py set <capability> --server <server> --tool <tool>
-python tools/capability-registry.py set <capability> --runner <runner> --command "<cmd>"
-```
-
-Direct editing of `registry.yaml` is also allowed; the CLI preserves order and formatting.
+> Replacing a capability implementation (via `tools/capability-registry.py` or direct editing of `registry.yaml`) is a procedural how-to; see the documentation for `tools/capability-registry.py`.
 
 ---
 depends_on:

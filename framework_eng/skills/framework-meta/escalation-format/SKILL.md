@@ -1,6 +1,6 @@
 ---
 name: escalation-format
-description: Escalation message format for the user (What → Why → Options → Assessment → Recommendation). Structure, grouping rules, good and bad examples.
+description: MUST use BEFORE sending an escalation message to the user. Defines the structure (What → Why → Options → Assessment → Recommendation), grouping rules, and prohibitions.
 alwaysApply: false
 ---
 

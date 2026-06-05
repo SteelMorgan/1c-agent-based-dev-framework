@@ -2,10 +2,9 @@
 name: skill-editing-from-project
 installable: true
 description: >
-  How to edit framework skills while working from a 1С project directory.
-  Use this when the user asks to change, extend, or fix a framework skill/rule
-  while not being in the framework repository, but in a project where the
-  framework is installed through symlinks.
+  Use for editing framework skills while in a 1С project directory (not in the
+  framework repository). Helps find the RU source through symlinks and
+  `.install-session.json` without switching repositories.
 ---
 
 # Editing framework skills from a project
@@ -19,7 +18,7 @@ Skills are connected through symlinks to `framework_eng/` (EN mirror). Changes a
 | Trigger | Action |
 |---------|----------|
 | The user asks to change a framework skill/rule from the project directory | Follow the procedure below |
-| A skill bug needs to be fixed, but the working directory is the 1С project | Open `.install-session.json`, find the RU path, make the change, sync |
+| A skill bug needs to be fixed, but the working directory is the 1С project | Open `.install-session.json`, find the RU path, make the change, synchronize |
 
 ---
 
@@ -33,7 +32,7 @@ Key fields:
 
 | Field | Purpose |
 |------|-----------|
-| `sync_script` | Absolute path to the RU→EN sync script |
+| `sync_script` | Absolute path to the RU→EN synchronization script |
 | `framework_dir` | Absolute path to `framework/` (RU source) |
 | `component_map` | Map of all installed components |
 
@@ -61,7 +60,7 @@ Open the file at the path from `ru_path` and make the changes.
 **Required rules:**
 
 - **The language of changes is Russian.** All skill text is written in Russian.
-- **Do not edit `en_path`** — the file will be overwritten during sync.
+- **Do not edit `en_path`** — the file will be overwritten during synchronization.
 - **Do not translate manually** — translation is performed automatically by the script.
 
 ### 4. Sync the EN mirror
@@ -69,7 +68,7 @@ Open the file at the path from `ru_path` and make the changes.
 Immediately after the changes, run the sync script — **do not wait until commit**.
 
 ```bash
-# The script path comes from the sync_script field in .install-session.json
+# Путь к скрипту — из поля sync_script в .install-session.json
 python3 <sync_script> <ru_path>
 ```
 
@@ -85,9 +84,9 @@ python3 <sync_script> --all
 
 | Error | Consequence |
 |--------|------------|
-| Editing `en_path` directly | Changes will be lost during sync |
+| Editing `en_path` directly | Changes will be lost during synchronization |
 | Writing text in English | Violates the language policy |
-| Forgetting to sync | The EN version becomes outdated, and agents work with an outdated skill |
+| Forgetting to synchronize | The EN version becomes outdated, and agents work with an outdated skill |
 
 ---
 depends_on: []

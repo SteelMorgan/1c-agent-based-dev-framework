@@ -1,6 +1,6 @@
 ---
 name: spec-standard
-description: "Универсальный навык написания спецификаций (SDD). Задает структуру спеки, RFC 2119 и quality checklist независимо от режима исполнения задач."
+description: "Use for написания спецификации задачи (SDD). Defines структуру документа, RFC 2119 уровни требований и quality checklist для Phase 1 full-cycle."
 ---
 
 # Навык написания спецификаций (SDD)

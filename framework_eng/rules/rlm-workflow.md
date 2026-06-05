@@ -1,33 +1,47 @@
 ---
 name: rlm-workflow
-description: Triggers for RLM memory between sessions - "context" / "summarize" / "new task" / CRIT inject / pre-compact -> ritual from the rlm-workflow skill. Mandatory for the orchestrator and any agent that manages the session lifecycle.
+description: Universal reusable knowledge (patterns, architecture decisions, domain facts) → RLM, NOT into context. Before a non-trivial task/decision in a domain, pull from RLM. Native memory is only a thin always-on core.
 alwaysApply: true
 ---
-# RLM Workflow
+# Memory Layout and Working with RLM
 
-> **Trigger:** one of the events below. When it fires, apply the `rlm-workflow` skill (`framework/skills/framework-meta/rlm-workflow/SKILL.md`) and perform the corresponding ritual.
+> Two layers of memory with different loading models. Native is push (always in context), RLM is pull (retrieved on demand). Do not confuse their purpose.
 
-| Event (trigger) | Ritual in the skill |
-|---|---|
-| User started the session with **"context"** / **"context"** | "context" |
-| User said **"summarize"** / **"summarize"** | "summarize" |
-| User said **"new task"** / **"new task"** | "new task" |
-| CRIT inject from `context-monitor.sh` (`>=80%` or `>=300k tokens`) | "summarize" |
-| `pre-compact.sh` fires before a compact | "summarize" (short form: steps 1, 3, 4) |
-| Learned a stable pattern / made an architectural decision during work | "inline write" |
+## Layout (GUARD)
+
+| Knowledge | Where | Why |
+|---|---|---|
+| Small, needed **every turn**, critical: security, invariants, standing preferences, pointer to active task | **native** (`MEMORY.md` + `memory/*.md`) | push - hangs in context all the time, survives compaction for free |
+| Universal, reusable, **growing**, detailed: patterns/anti-patterns, architecture decisions with alternatives, stable 1С/БСП domain facts, module findings | **RLM** (pull) | must NOT hang in context; retrieved by topic via semantic search |
+| Transient task state: PENDING, next step, WIP | `task_dir/.context/*.md` (agent-context) | lives in the task, not in memory |
+
+**GUARD:** do NOT keep universal knowledge in native/always-on context permanently (bloats every startup). Transient must NOT be in RLM.
+
+## TRIGGER - WRITE to RLM
+
+- Learned a reusable pattern/anti-pattern (after >=2 iterations, see `skill-learning`)
+- Made an architectural decision with alternatives
+- Found a stable domain fact (platform/БСП behavior) that matters beyond the current task
+
+→ apply the `rlm-workflow` skill (how to write: tool, level, causal decision).
+
+## TRIGGER - READ from RLM (at the boundary of work, NOT every turn)
+
+- You are starting a non-trivial task or architectural decision in domain D
+- You got stuck on a problem that smells recurrent (error, integration quirk)
+
+→ one `rlm_enterprise_context(query=<domain/symptom>)` BEFORE design/implementation. Details are in the skill.
+
+> Parallel: `search-before-write` checks existing **code**; this trigger checks existing **knowledge**. The trigger is phase-based: when entering work, otherwise pull degenerates into push.
 
 ## MUST (invariant, always)
 
-- The "summarize" ritual must end with EXACTLY the line `Context saved in RLM. Press /clear.` - without it the user will not know whether `/clear` is safe.
-- A PENDING fact is mandatory and is written with the prefix `PENDING tasks next session:` - without the prefix, the "context" ritual will not find it.
 - Any write to RLM only after `rlm_start_session` (otherwise silent failure).
-
-Step-by-step ritual procedures, H-MEM levels, formats, and anti-patterns are in the `rlm-workflow` skill.
+- Universal knowledge is written to RLM, NOT duplicated in the native always-on core.
 
 ---
 depends_on:
   - rlm-workflow
   - framework/rules/agent-context-protocol.md
-upstream:
-  - Arman-Kudaibergenov/rlm-workflow (examples/CLAUDE.md.example)
+  - framework/rules/search-before-write.md
 ---

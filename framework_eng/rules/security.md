@@ -7,7 +7,7 @@ alwaysApply: true
 
 > **Trigger:** when working with passwords, tokens, encryption keys, digital signatures, certificates, privileged mode, or data masking in logs. When triggered, apply the `security` skill (`framework/skills/bsl-practices/security/SKILL.md`).
 
-Secrets do not belong in the registration log, comments, or temporary files. Privileged mode is only with explicit justification and minimal scope.
+**GUARD:** secrets in the registration log/comments/temporary files block acceptance; privileged mode without explicit justification does too.
 
 ---
 depends_on:

@@ -264,22 +264,22 @@ What becomes worse, more complex, or more expensive. If the drawbacks section is
 - БСП версии 3.1+ (иначе нужен fallback для ДлительныеОперации)
 ```
 
-**Open questions** — questions remaining unanswered. They do not block the architecture but require clarification before or during implementation.
+**Open questions** — unanswered items. They do not block the architecture but require clarification before or during implementation.
 
 ---
 
 ### § 9. Migration and rollback (conditional)
 
-**Condition:** the section is a MUST if existing metadata objects are changed or data migration is required. Otherwise — `N/A: new objects, migration is not required`.
+**Condition:** this section MUST if existing metadata objects are changed or data migration is required. Otherwise — `N/A: new objects, no migration required`.
 
 #### 9.1 Migration plan
 - Update order (configuration → data → rights)
-- Data filling/conversion routines
-- Staged rollout (if implementation is phased)
+- Fill / data conversion processes
+- Phasing (if the rollout is staged)
 
 #### 9.2 Rollback strategy
 - Whether the changes can be rolled back
-- What happens to the data upon rollback
+- What will happen to the data during rollback
 - Point of no return (if any)
 
 ---
@@ -302,86 +302,86 @@ Traceability matrix: requirement from the specification → design section → t
 
 ## 6. Quality criteria for technical-design.md
 
-Reviewer checklist (scope=arch):
+Checklist for the reviewer (scope=arch):
 
 ### Structure and completeness
-- [ ] All MUST sections are filled (or N/A with a reason)
-- [ ] The header contains links to spec, explorer-context, and task-breakdown
+- [ ] All MUST sections are filled in (or N/A with a reason)
+- [ ] The title contains links to spec, explorer-context, task-breakdown
 - [ ] Status is correct (Draft when created)
 
 ### Overview (§1)
-- [ ] Goals describe technical objectives without repeating the specification requirements
-- [ ] Non-goals include at least one deliberate exclusion
-- [ ] Background builds on explorer-context.md without duplication
-- [ ] Constraints consider development mode (extension/configuration), the platform, and БСП version
+- [ ] Goals describe technical goals and do not repeat specification requirements
+- [ ] Non-goals include at least 1 conscious exclusion
+- [ ] Background is based on explorer-context.md and does not duplicate it
+- [ ] Constraints account for: development mode (extension/configuration), platform/БСП version
 
 ### Solution strategy (§2)
-- [ ] The strategy addresses each Goal from §1.1
+- [ ] The strategy answers each Goal from §1.1
 - [ ] The description is at the approach level, not the code level
 
 ### Structural blocks (§3)
-- [ ] The module map covers all modules in the specification scope
-- [ ] Interfaces and contracts include signatures with parameters, returns, and compilation directives
-- [ ] No implicit dependencies exist between modules
+- [ ] The module map covers all modules from the specification scope
+- [ ] Interfaces and contracts contain signatures with parameters, return values, and compilation directives
+- [ ] There are no implicit dependencies between modules
 
 ### Data and metadata (§4)
-- [ ] All metadata objects are listed with their types and changes
-- [ ] Complex objects (forms, SKD, roles) link to JSON DSL files
-- [ ] The data flow covers key scenarios from the test plan
+- [ ] All metadata objects are listed with types and changes
+- [ ] Complex objects (forms, SKD, roles) have a link to the JSON DSL file
+- [ ] Data flow covers the key scenarios from the test plan
 
 ### Cross-cutting concepts (§5)
-- [ ] Decisions on error handling, transactions, rights, and client/server boundary are documented
-- [ ] The use or rejection of БСП mechanisms (ssl-patterns) is justified
-- [ ] Platform limitations with workarounds (if any) are described
+- [ ] Decisions for error handling, transactions, rights, and the client/server boundary
+- [ ] The use of or refusal to use БСП mechanisms is justified (ssl-patterns)
+- [ ] Platform limitations with workarounds (if any)
 
 ### Key decisions (§6)
 - [ ] Each non-obvious decision (≥2 alternatives) has justification
-- [ ] ADR files include consequences and confirmation
-- [ ] No decisions contradict the specification
+- [ ] ADR files contain consequences and confirmation
+- [ ] There are no decisions that contradict the specification
 
 ### Risks and drawbacks (§7)
 - [ ] Drawbacks are not empty — every decision has a cost
-- [ ] High risks have mitigation plans
-- [ ] Trade-offs are described honestly (Good + Bad)
+- [ ] High risks have a mitigation plan
+- [ ] Trade-offs are described honestly (pros + cons)
 
 ### Traceability (§10)
-- [ ] Every MUST from the specification is traced to a design section and a task
-- [ ] No requirements are left without a link to the design
-- [ ] Task IDs match those in task-breakdown.json
+- [ ] Every MUST from the specification is covered by a design section and a task
+- [ ] There are no requirements without a design link
+- [ ] Task IDs match task-breakdown.json
 
 ### Task decomposition (JSON)
 - [ ] All tasks have unique `task_id`
-- [ ] `depends_on` entries are valid and cycle-free
-- [ ] `spec_refs` refer to existing sections of the specification
+- [ ] `depends_on` values are valid and do not contain cycles
+- [ ] `spec_refs` point to existing specification sections
 - [ ] `task_type` is correct (code/test/migration/docs/analysis/architecture)
 - [ ] `done_criteria` are verifiable and specific
-- [ ] The JSON resides in a separate file, and the design contains the link
+- [ ] JSON is stored in a separate file, with only a link in the design
 
-### Consistency with the framework
-- [ ] The document is written in Russian (except for code identifiers and established terms)
+### Alignment with the framework
+- [ ] The document is written in Russian (except code identifiers and established terms)
 - [ ] Compatibility with the existing configuration (coding-standards)
 - [ ] The design is implementable within the specification scope
-- [ ] The design does not contradict the decisions from the specification’s Decision Log
+- [ ] The design does not contradict the decisions in the specification Decision Log
 
 ---
 
-## 7. Common mistakes
+## 7. Typical mistakes
 
-| Mistake | Consequence |
+| Error | Consequence |
 |--------|------------|
-| Empty non-goals | Scope creep |
-| Empty drawbacks | The reviewer cannot assess trade-offs |
-| Fully inline JSON DSL | The document bulks up and loses overview → keep DSL in artifacts/ |
-| Duplicating the specification | Breaks the single source of truth |
-| Missing traceability | Impossible to verify requirement coverage |
-| Filling all sections for a simple task | Formal overhead → use N/A |
-| Not specifying constraints | Incompatible approach (EDT vs Designer, БСП version) |
+| Non-goals are empty | Scope creep |
+| Drawbacks are empty | Reviewer cannot assess trade-offs |
+| JSON DSL is fully inline | The document becomes bloated, the overview is lost → DSL in artifacts/ |
+| Duplication of the specification | Violation of single source of truth |
+| Traceability is missing | Impossible to verify requirement coverage |
+| All sections are filled for a simple task | Formal overhead → use N/A |
+| Constraints are not specified | Incompatible approach (EDT vs Designer, БСП version) |
 
 ---
 
 ## 8. Related skills
 
-Inputs: `spec-standard`. Outputs: `task-breakdown-*`. Criteria: `coding-standards`, `ssl-patterns`. Metadata generation: `xml-generation`.
+Input: `spec-standard`. Output: `task-breakdown-*`. Criteria: `coding-standards`, `ssl-patterns`. Metadata generation: `xml-generation`.
 
 ---
 depends_on:

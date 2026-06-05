@@ -7,8 +7,6 @@ alwaysApply: true
 
 > **Триггер:** перед написанием или существенным изменением модуля управляемой формы 1С. При срабатывании — применить навык `form-patterns` (`framework/skills/bsl-practices/form-patterns/SKILL.md`).
 
-Минимизируй серверные вызовы. Не держи в `&НаКлиенте` данные, которые не нужны UI. Каждый `&НаСервере` — round-trip.
-
 ---
 depends_on:
   - form-patterns

@@ -258,7 +258,7 @@ Saved in `task_dir/.context/debug/<bug-id>/debug-report.md`.
 
 ## Hypotheses
 
-### H1: <formulation>
+### H1: <формулировка>
 - Evidence_from_trace: <which fact from the trace it is based on>
 - Verification method: <fix / additional probes>
 - Run: <link to trace-run-N.md>

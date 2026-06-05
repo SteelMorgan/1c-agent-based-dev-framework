@@ -1,6 +1,6 @@
 ---
 name: v8-session-manager
-description: Использовать при работе с менеджером сессий 1С (v8-session-manager) — запуск, конфигурация, подключение 1С-клиентов, чтение session_list, вызов проксированных MCP-tools расширений 1С, диагностика. Триггеры: упоминание `v8-session-manager`, `session_list`, MCP-витрина 1С-расширений, ошибка «no active sessions» / «session_id required», подключение клиента к менеджеру через `mcpMode=ws`.
+description: "Use for работы с менеджером сессий 1С: запуск, конфигурация, подключение клиентов, чтение session_list, вызов проксированных MCP-tools расширений 1С. Helps при ошибках «no active sessions» / «session_id required» и подключении клиента через mcpMode=ws."
 provides_capabilities:
   # Встроенные tools менеджера — доступны всегда, пока поднят.
   - session_list
