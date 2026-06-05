@@ -155,6 +155,53 @@ def _extract_backmatter(text: str) -> tuple[str, str]:
     return body, backmatter
 
 
+FRONTMATTER_RE = re.compile(r"^---\s*\n.*?\n---\s*\n", re.DOTALL)
+HEADING_RE = re.compile(r"(?m)^#{1,6}\s")
+# EN-тело короче этой доли RU-тела → подозрение на усечённый перевод
+MIN_EN_RU_LEN_RATIO = 0.5
+
+
+def _strip_frontmatter(text: str) -> str:
+    """Убирает ведущий YAML-frontmatter (--- ... ---), оставляя тело."""
+    return FRONTMATTER_RE.sub("", text, count=1)
+
+
+def _count_headings(text: str) -> int:
+    return len(HEADING_RE.findall(text))
+
+
+def _verify_translation(ru_path: Path, en_path: Path, old_en_text: "str | None") -> "tuple[bool, str]":
+    """Проверяет, что перевод реально выполнен, а не отрапортован вхолостую.
+
+    Codex может вернуть маркер DONE, фактически не перезаписав EN-файл
+    (наблюдалось на параллельных прогонах: статус ставился `synced`, а контент
+    оставался старым). Маркера + непустого файла недостаточно — сверяем содержимое.
+    """
+    ru_text = ru_path.read_text(encoding="utf-8")
+    en_text = en_path.read_text(encoding="utf-8")
+
+    # 1. No-op: EN байт-в-байт совпал с тем, что было до перевода.
+    if old_en_text is not None and en_text == old_en_text:
+        return False, "EN-файл не изменился после перевода (Codex вернул DONE, перевод не выполнен)"
+
+    ru_body, _ = _extract_backmatter(ru_text)
+    en_body, _ = _extract_backmatter(en_text)
+
+    # 2. Структурная чётность: перевод обязан сохранять разметку (число заголовков).
+    ru_h = _count_headings(_strip_frontmatter(ru_body))
+    en_h = _count_headings(_strip_frontmatter(en_body))
+    if ru_h != en_h:
+        return False, f"число заголовков расходится (RU={ru_h}, EN={en_h}) — перевод неполный"
+
+    # 3. EN не должен быть аномально короче RU (грубое усечение).
+    ru_len = len(ru_body.strip())
+    en_len = len(en_body.strip())
+    if ru_len > 200 and en_len < ru_len * MIN_EN_RU_LEN_RATIO:
+        return False, f"EN заметно короче RU (EN={en_len}, RU={ru_len} симв.) — вероятно усечён"
+
+    return True, ""
+
+
 def run_codex_prompt(prompt: str) -> str:
     """Безопасно запускает Codex CLI и возвращает финальный текст из `-o`.
 
@@ -249,6 +296,9 @@ def translate_file(ru_path: Path, en_path: Path) -> bool:
     ru_text = ru_path.read_text(encoding="utf-8")
     ru_body, ru_backmatter = _extract_backmatter(ru_text)
 
+    # Содержимое EN до перевода — для проверки, что перевод реально выполнен
+    old_en_text = en_path.read_text(encoding="utf-8") if en_path.exists() else None
+
     en_path.parent.mkdir(parents=True, exist_ok=True)
 
     print(f"  → Translating {ru_rel} ...", end="", flush=True)
@@ -282,6 +332,13 @@ def translate_file(ru_path: Path, en_path: Path) -> bool:
     if ru_backmatter:
         en_text = en_body.rstrip() + "\n" + ru_backmatter
         en_path.write_text(en_text, encoding="utf-8")
+
+    # ── Верификация: перевод действительно выполнен, а не отрапортован вхолостую ──
+    verified, reason = _verify_translation(ru_path, en_path, old_en_text)
+    if not verified:
+        print(" FAIL")
+        print(f"    ✗ Verification failed: {reason}")
+        return False
 
     print(" OK")
     return True

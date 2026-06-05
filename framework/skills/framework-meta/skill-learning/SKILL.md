@@ -23,9 +23,10 @@ alwaysApply: false
 
 ## Использование накопленных знаний
 
-Перед началом работы с навыком:
-1. Проверь `references/learned-patterns.md` в каталоге навыка — универсальные приёмы
-2. Проверь `{project}/.context/learned-patterns.md` — проектные приёмы
+Триггер чтения («перед работой с навыком — прочитать его уроки») — в правиле `skill-learning-policy` (always-on). Здесь — раскладка по уровням:
+
+- `references/learned-patterns.md` в каталоге навыка — универсальные приёмы;
+- `{project}/.context/learned-patterns.md` — проектные приёмы.
 
 Применяй `confirmed`-записи как дополнительные правила, `candidate` — как подсказки.
 
