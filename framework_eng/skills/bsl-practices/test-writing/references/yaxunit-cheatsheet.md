@@ -10,12 +10,12 @@
 |--------|---------|
 | `ЮТТесты` | Register tests in `ИсполняемыеСценарии` |
 | `ЮТест` | API entry point inside tests |
-| `ЮТест.ОжидаетЧто(...)` | → Assertions module `ЮТУтверждения` |
-| `ЮТест.ОжидаетЧтоТаблицаБазы(...)` | → Database assertions `ЮТУтвержденияИБ` |
-| `ЮТест.Данные()` | → Test data `ЮТТестовыеДанные` |
-| `ЮТест.Контекст()` | → Test context `ЮТКонтекстТеста` |
-| `ЮТест.Предикат()` | → Predicate builder `ЮТПредикаты` |
-| `ЮТест.Варианты()` | → Parameterization variants builder |
+| `ЮТест.ОжидаетЧто(...)` | → assertions module `ЮТУтверждения` |
+| `ЮТест.ОжидаетЧтоТаблицаБазы(...)` | → assertions for the infobase `ЮТУтвержденияИБ` |
+| `ЮТест.Данные()` | → test data `ЮТТестовыеДанные` |
+| `ЮТест.Контекст()` | → test context `ЮТКонтекстТеста` |
+| `ЮТест.Предикат()` | → predicate builder `ЮТПредикаты` |
+| `ЮТест.Варианты()` | → parameterization variants builder |
 | `Мокито` | Mocking configuration methods |
 
 ---
@@ -43,9 +43,60 @@
 
 ---
 
+## Cheatsheet: isolating write tests
+
+`.ВТранзакции()` is called **immediately after `ДобавитьТестовыйНабор()`** - the setting applies at the suite level.
+
+### Standard write suite (recommended template)
+
+```bsl
+ЮТТесты
+    .ДобавитьТестовыйНабор("Проведение документа")
+        .ВТранзакции()                              // ← обязательно для пишущих наборов
+        .ДобавитьСерверныйТест("ТестПроведениеСДоговором")
+        .ДобавитьСерверныйТест("ТестПроведениеСКорректнойСуммой");
+```
+
+### Exception (a): negative test - expected Denial during posting
+
+A failed nested transaction poisons the outer one. `.ВТранзакции()` MUST NOT be used.
+
+```bsl
+// Исключение (а): негативный тест проведения — ожидаемый Отказ отравляет внешнюю транзакцию.
+ЮТТесты
+    .ДобавитьТестовыйНабор("Запрет проведения")
+        .УдалениеТестовыхДанных()
+        .После("ОчиститьДокументыЗапретПроведения")
+        .ДобавитьСерверныйТест("ТестЗапретБезДоговора");
+```
+
+### Exception (b): production code with `ТранзакцияАктивна()` guard
+
+```bsl
+// Исключение (б): прод-код содержит гвард ТранзакцияАктивна() — нельзя запускать в транзакции.
+ЮТТесты
+    .ДобавитьТестовыйНабор("Двухфазная фиксация")
+        .После("ОчиститьДанныеДвухфазнойФиксации")
+        .ДобавитьСерверныйТест("ТестФиксацияПозиции");
+```
+
+### Re-reading an object during reposting (MUST)
+
+```bsl
+ДокОбъект = ДокСсылка.ПолучитьОбъект();
+ДокОбъект.Записать(РежимЗаписиДокумента.Проведение);
+
+ДокОбъект = ДокСсылка.ПолучитьОбъект();   // перечитать перед сменой режима
+ДокОбъект.Записать(РежимЗаписиДокумента.ОтменаПроведения);
+```
+
+> **Platform 8.3.27:** programmatic reposting in a server session can produce `[ОшибкаХранимыхДанных]` - a stack without application frames. Neither re-reading nor `.ВТранзакции()` helps. Reposting idempotency belongs in the scenario layer (Vanessa), unit tests should use `ЮТест.Пропустить()` with justification.
+
+---
+
 ## ЮТУтверждения — Basic Assertions
 
-All methods return `ЭтотОбъект` — chains are supported.
+All methods return `ЭтотОбъект` - chains are supported.
 
 ### Value Comparison
 ```bsl
@@ -65,7 +116,7 @@ All methods return `ЭтотОбъект` — chains are supported.
 .ЭтоНеЛожь()
 ```
 
-### Type and Completeness
+### Type and emptiness
 ```bsl
 .ИмеетТип("ИмяТипа")           // строка: "Число", "СправочникСсылка.Номенклатура"
 .НеЯвляетсяНеопределено()
@@ -91,12 +142,12 @@ All methods return `ЭтотОбъект` — chains are supported.
 
 ### Utility
 ```bsl
-.НазваниеПроверки("Описание")   // добавить имя к утверждению (для параметризации)
+.НазваниеПроверки("Описание")   // add a name to the assertion (for parameterization)
 ```
 
 ---
 
-## ЮТУтвержденияИБ — Assertions for Database
+## ЮТУтвержденияИБ — Assertions for the infobase
 
 ```bsl
 ЮТест.ОжидаетЧтоТаблицаБазы("Справочник.Склады")
@@ -158,9 +209,9 @@ All methods return `ЭтотОбъект` — chains are supported.
 ```
 
 **Context scopes:**
-- Test context — available in `ПередКаждымТестом` and `ПослеКаждогоТеста`
-- Suite context — available to all tests in the suite
-- Module context — available to all tests in the module (`ПередВсемиТестами` / `ПослеВсехТестов`)
+- Test context - available in `ПередКаждымТестом` and `ПослеКаждогоТеста`
+- Suite context - available to all tests in the suite
+- Module context - available to all tests in the module (`ПередВсемиТестами` / `ПослеВсехТестов`)
 
 ---
 
@@ -183,7 +234,7 @@ All methods return `ЭтотОбъект` — chains are supported.
 
 ---
 
-## ЮТест helper methods
+## ЮТест utility methods
 
 ```bsl
 ЮТест.Пропустить()                          // пропустить тест (skip)

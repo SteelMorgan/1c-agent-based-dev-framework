@@ -1,6 +1,6 @@
 ---
 name: test-writing
-description: "Writing YaxUnit (BSL) tests. The skill teaches an agent to create test modules for the YaxUnit framework - test registration, assertions, mocking, test data."
+description: "Use for writing YaxUnit (BSL) test modules. Covers test registration, assertions, mocking, and test data preparation."
 ---
 
 # Writing YaxUnit (BSL) Tests
@@ -22,7 +22,7 @@ Tests are stored in a **separate configuration extension**: `<project-root>/exts
 | EDT | `exts/TESTS/src/CommonModules/<ModuleName>/Module.bsl` | `.../<ModuleName>.mdo` |
 | DESIGNER | `exts/TESTS/src/CommonModules/<ModuleName>/Ext/Module.bsl` | `.../<ModuleName>.xml` |
 
-If the format is unclear - check `application-*.yml` / `yaxunit-*.yml` in the project root.
+If the format is not obvious, check `application-*.yml` / `yaxunit-*.yml` in the project root.
 
 Do not mix structures: DESIGNER requires `Ext/`, EDT does not use it.
 
@@ -42,20 +42,20 @@ Pattern: `<Prefix>_<ObjectName>[_<Suffix>]`
 
 | Object type | Prefix | Example |
 |-------------|--------|---------|
-| Общий модуль | `ОМ_` | `ОМ_ОбщегоНазначения` |
-| Документ | `Док_` | `Док_ПоступлениеТоваров` |
-| Справочник | `Спр_` | `Спр_Контрагенты` |
-| Регистр накопления | `РН_` | `РН_ОстаткиТоваров` |
-| Регистр сведений | `РС_` | `РС_КурсыВалют` |
-| Обработка | `Обр_` | `Обр_ЗакрытиеМесяца` |
+| Common module | `ОМ_` | `ОМ_ОбщегоНазначения` |
+| Document | `Док_` | `Док_ПоступлениеТоваров` |
+| Catalog | `Спр_` | `Спр_Контрагенты` |
+| Accumulation register | `РН_` | `РН_ОстаткиТоваров` |
+| Information register | `РС_` | `РС_КурсыВалют` |
+| Processing | `Обр_` | `Обр_ЗакрытиеМесяца` |
 
 ### Suffixes by module type
 
 | Module type | Suffix | Example |
-|-------------|--------|---------|
-| Модуль объекта | `_МО` | `Спр_Контрагенты_МО` |
-| Модуль менеджера | `_ММ` | `РН_ОстаткиТоваров_ММ` |
-| Модуль набора записей | `_НЗ` | `РБ_Хозрасчетный_НЗ` |
+|-----------|--------|---------|
+| Object module | `_МО` | `Спр_Контрагенты_МО` |
+| Manager module | `_ММ` | `РН_ОстаткиТоваров_ММ` |
+| Record set module | `_НЗ` | `РБ_Хозрасчетный_НЗ` |
 
 ---
 
@@ -77,7 +77,7 @@ Mandatory: exported procedure `ИсполняемыеСценарии`. Only tes
 ```
 
 | Method | Execution context |
-|--------|------------------|
+|-------|----------------|
 | `ДобавитьТест` | default context |
 | `ДобавитьСерверныйТест` | &НаСервереБезКонтекста |
 | `ДобавитьКлиентскийТест` | &НаКлиенте |
@@ -86,7 +86,7 @@ Mandatory: exported procedure `ИсполняемыеСценарии`. Only tes
 
 ## Test Implementation
 
-One test verifies a single assertion. Arrange-Act-Assert pattern:
+One test verifies one assertion. Arrange-Act-Assert pattern:
 
 ```bsl
 Процедура ТестПолучитьОстатки() Экспорт
@@ -238,6 +238,72 @@ Pattern: Train -> Run -> Verify.
 
 ---
 
+## Test Data Isolation (MUST)
+
+A test that writes to the database must roll back its changes. Without isolation, every run leaves garbage in the database and the tests lose idempotency.
+
+### Transactional isolation via `.ВТранзакции()`
+
+The fluent method `.ВТранзакции()` is called immediately after `ДобавитьТестовыйНабор()` - the setting is applied at the **suite** level (the runtime searches by hierarchy: Test -> Suite -> Module). Before each test in the suite, YaxUnit opens a transaction; after the test, it rolls it back.
+
+```bsl
+Процедура ИсполняемыеСценарии() Экспорт
+
+    ЮТТесты
+        .ДобавитьТестовыйНабор("Проведение документа")
+            .ВТранзакции()                              // ← isolation: rollback after each test
+            .ДобавитьСерверныйТест("ТестПроведениеСДоговором")
+            .ДобавитьСерверныйТест("ТестПроведениеСКорректнойСуммой");
+
+КонецПроцедуры
+```
+
+### Catalogs - only through `ЮТест.Данные()`
+
+Catalog items must be created through `ЮТест.Данные().СоздатьЭлемент(...)` or `КонструкторОбъекта(...).Записать()`. Such objects are tracked by YaxUnit and deleted automatically. A direct call to `Справочники.X.СоздатьЭлемент()` is an anti-pattern: the object is not tracked and remains in the database.
+
+### Documents through `СоздатьДокумент()` - mandatory teardown
+
+`ЮТест.Данные().СоздатьДокумент(...)` is tracked and deleted automatically. But if a document is created directly through `Документы.X.СоздатьДокумент()`, it is NOT tracked, and explicit teardown in `.После("ИмяПроцедурыОчистки")` is required.
+
+### Exceptions from `.ВТранзакции()`
+
+There are three situations in which `.ВТранзакции()` must NOT be used - for each one, an explanatory comment in the suite and teardown through `.После()` are mandatory:
+
+| Situation | Reason for exception | Isolation method |
+|---|---|---|
+| **(a) Negative posting test** (expected `Отказ`) | A failed nested transaction poisons the outer one: "Errors have already occurred in this transaction!" during subsequent reads | `.УдалениеТестовыхДанных()` + `.После("Очистка")` |
+| **(b) Production code with a `ТранзакцияАктивна()` guard** | Two-phase commits, real API calls, registers with a unique key - fail or behave unpredictably inside a transaction | `.После("Очистка")` with manual cleanup |
+| **(c) Client context** | `ДобавитьКлиентскийТест` - transactional rollback is unavailable on the client due to the platform architecture | `Перед`/`После` handlers with server context |
+
+```bsl
+// Exception (a): negative test - expected Отказ poisons the outer transaction.
+// Isolation: ЮТест.Данные() + .УдалениеТестовыхДанных() + teardown in .После().
+ЮТТесты
+    .ДобавитьТестовыйНабор("Запрет проведения")
+        .УдалениеТестовыхДанных()
+        .После("ОчиститьДокументыЗапретПроведения")
+        .ДобавитьСерверныйТест("ТестЗапретБезДоговора");
+```
+
+### Pattern for rereading an object when reposting
+
+A test that changes a document's write mode **must reread the object** between changes - this simulates form behavior:
+
+```bsl
+// Post
+ДокОбъект = ДокСсылка.ПолучитьОбъект();
+ДокОбъект.Записать(РежимЗаписиДокумента.Проведение);
+
+// Cancel posting - reread, like the form
+ДокОбъект = ДокСсылка.ПолучитьОбъект();
+ДокОбъект.Записать(РежимЗаписиДокумента.ОтменаПроведения);
+```
+
+**Platform 8.3.27 limitation:** programmatic reposting in a server session sometimes produces `[ОшибкаХранимыхДанных]` - a stack without application frames; neither rereading nor `.ВТранзакции()` helps. In that case, idempotency of reposting is verified at the scenario layer (Vanessa), and the unit test is handled through `ЮТест.Пропустить()` with an explicit rationale.
+
+---
+
 ## Anti-patterns
 
 | Anti-pattern | Correct approach |
@@ -248,6 +314,9 @@ Pattern: Train -> Run -> Verify.
 | Hardcoding links to IB objects | Create through `ЮТест.Данные()` |
 | Testing private logic | Test through the public interface |
 | Mocking the tested module | Mock only *dependencies* |
+| A writing suite without `.ВТранзакции()` | `.ВТранзакции()` by default; exceptions require a comment + teardown |
+| `Справочники.X.СоздатьЭлемент()` in a test | `ЮТест.Данные().СоздатьЭлемент()` - tracked and deleted automatically |
+| `.ВТранзакции()` on a negative posting test | Exception (a) - poisons the transaction; use `.УдалениеТестовыхДанных()` + `.После()` |
 
 ---
 
@@ -256,10 +325,10 @@ Pattern: Train -> Run -> Verify.
 Tests and implementation are written by **different agents** in **different phases**. The test author does not know the implementation, and the code author does not modify the tests.
 
 ```
-Phase 3a: Scenario-Author  → .feature (BDD)   ┐ параллельно
-Phase 3b: Developer-Tests  → unit-тесты (Red)  ┘
-Phase 3c: Developer-Code   → код (Green)
-Phase 4:  Tester           → edge cases, регрессия, BDD + unit
+Phase 3a: Scenario-Author  → .feature (BDD)   ┐ parallel
+Phase 3b: Developer-Tests  → unit tests (Red) ┘
+Phase 3c: Developer-Code   → code (Green)
+Phase 4:  Tester           → edge cases, regression, BDD + unit
 ```
 
 ### Test Layers
