@@ -105,9 +105,9 @@
       "status": "synced"
     },
     "framework/skills/framework-meta/skill-creator-ext/SKILL.md": {
-      "ru_hash": "sha256:6adb1b77ce3b37359cf73f177410d38341d34c5a93b14ebfd9f05043020b6a3c",
-      "en_hash": "sha256:d4c2a219c3d578953cdbf810f40901b3671abca152fcb4faf05633de6196be15",
-      "synced_at": "2026-06-04T15:54:27Z",
+      "ru_hash": "sha256:a4b790d8d30e634b3b30f731f298dfe5fd6bdec0c5fc94c586dea4d019ef75be",
+      "en_hash": "sha256:ce3ceabdbd0722831af0ca42c84a5ba310d7ee1e62f6e01c78635c6543365a60",
+      "synced_at": "2026-06-05T07:05:53Z",
       "status": "synced"
     },
     "framework/skills/framework-meta/skill-creator/LICENSE.txt": {
@@ -591,9 +591,9 @@
       "status": "synced"
     },
     "framework/rules/skill-learning-policy.md": {
-      "ru_hash": "sha256:d8eac50341a40bbe05ef42a115f66bb96d7b013c26b3d233a762419317ae2a89",
-      "en_hash": "sha256:5c65ab5aa9ca1c63afe4368cbe9856bd44ba86a173eb288166612baf3a45b90a",
-      "synced_at": "2026-06-04T12:03:51Z",
+      "ru_hash": "sha256:13190a982d8f6df74f093f548cf2ee090589fdb389826a21d8a186f953eaa37a",
+      "en_hash": "sha256:fd634e1928a4179e294002d0276e455c77d7c5acdfff641d76a1ad465914565f",
+      "synced_at": "2026-06-05T06:57:55Z",
       "status": "synced"
     },
     "framework/rules/vanessa-diagnostics-policy.md": {
@@ -1287,9 +1287,9 @@
       "status": "synced"
     },
     "framework/skills/framework-meta/skill-learning/SKILL.md": {
-      "ru_hash": "sha256:800127e7653e86ef9fedc060c93d19eba23b28284b58b54507a3c12a896cff07",
-      "en_hash": "sha256:cfc61ffc6deb6a4f62db6da2add212e6f2fd7b52307db2753d6456c49ee5b70e",
-      "synced_at": "2026-06-04T16:02:58Z",
+      "ru_hash": "sha256:75ea227037b352b8bb4afba09321d84801c9b2f47c0def9f0c321525c500e161",
+      "en_hash": "sha256:885ac3d7b842e6a75f054b8b8e3b3850c46cc50db8e11b6abda32d9826c2b4ce",
+      "synced_at": "2026-06-05T07:04:30Z",
       "status": "synced"
     },
     "framework/skills/framework-meta/source-of-truth/SKILL.md": {

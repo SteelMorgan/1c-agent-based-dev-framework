@@ -1,12 +1,12 @@
 ---
 name: skill-creator-ext
-description: MUST load together with `skill-creator` in GBIG context. Adds framework skill categories (bsl-practices, tool-usage, spec-writing), BSL content patterns, and 1c-ai-agent-cli integration.
+description: MUST load together with `skill-creator` in GBIG context. Adds framework skill categories (bsl-practices, tool-usage, spec-writing), BSL content patterns, and integration with 1c-ai-agent-cli.
 ---
 
 # Skill Creator — 1C BSL Framework Extension
 
 > **Base skill:** `skill-creator` (Anthropic).
-> First read the base skill — it contains the general principles for creating skills.
+> First read the base skill - it contains the general principles for creating skills.
 > This file adds **only** the 1C-specific framework details.
 
 ---
@@ -16,15 +16,15 @@ description: MUST load together with `skill-creator` in GBIG context. Adds frame
 | Trigger | Action |
 |---------|----------|
 | A new MCP tool appears, and the agent does not know WHEN to use it | Create a `tool-usage/` skill |
-| A recurring anti-pattern is found in BSL code | Create a `bsl-practices/` skill |
-| The agent needs to be taught the specifics of a particular configuration | Create a **project-specific** skill (in the project's IDE directory) |
-| A standard methodology is needed (SDD, TDD, review) | Create a `spec-writing/` skill or a new subdirectory |
+| A recurring antipattern is found in BSL code | Create a `bsl-practices/` skill |
+| The agent needs to be trained on the specifics of a particular configuration | Create a **project** skill (in the project's IDE directory) |
+| A standard methodology (SDD, TDD, review) is needed | Create `spec-writing/` or a new subdirectory |
 | An external skill needs to be adapted for the framework | Create a `*-ext/` extension |
 
-**DO NOT create** a skill if:
-- The information already exists in an existing skill — extend it
-- This is a one-off instruction — make a prompt, not a skill
-- This is a rule/policy (MUST/SHOULD) — make a rule, not a skill
+**Do NOT create** a skill if:
+- The information is already in an existing skill - extend it
+- It is a one-off instruction - make a prompt, not a skill
+- It is a rule/policy (MUST/SHOULD) - create a rule, not a skill
 
 ---
 
@@ -35,63 +35,67 @@ description: MUST load together with `skill-creator` in GBIG context. Adds frame
 | **BSL practices** | `skills/bsl-practices/` | Coding standards and patterns | `coding-standards`, `query-patterns` |
 | **Tool-usage** | `skills/tool-usage/` | When and how to use MCP tools | `syntax-checking`, `platform-data-core`, `test-execution` |
 | **Spec-writing** | `skills/spec-writing/` | Documentation and specification standards | `spec-standard` |
-| **Extensions** | `skills/*-ext/` | Extensions of external skills (Anthropic and others) | `agent-development-ext`, `skill-creator-ext` |
+| **Extensions** | `skills/*-ext/` | Extensions of external skills (Anthropic, etc.) | `agent-development-ext`, `skill-creator-ext` |
 
-### Extensions (-ext) — convention
+### Extensions (-ext) - convention
 
 1. The base skill is installed via `npx skills add` (updatable)
 2. The extension is `<base-name>-ext/SKILL.md` in `framework/skills/`
-3. The extension **only supplements**, it does not duplicate the base skill content
+3. The extension **only adds**, it does not duplicate the content of the base skill
 4. In the extension: `> First read the base skill: <name>`
 
 ---
 
 ## 3. Skill creation process
 
-1. **Analysis:** determine the category, check for duplication, determine dependencies
+1. **Analysis:** determine the category, check for duplication, identify dependencies
 2. **Design:** name `kebab-case.md`, target limit 300 lines (max 500)
-3. **Writing** — required sections:
+3. **Writing** - required sections:
    - YAML frontmatter
    - Heading + 1-3 sentences describing the purpose
-   - **When to apply** — trigger → action table
-   - **Scenarios** — concrete examples
-   - **Code examples** — correct + incorrect with explanation of WHY
+   - **When to apply** - trigger -> action table
+   - **Scenarios** - concrete examples
+   - **Code examples** - correct + incorrect with explanation of WHY
 4. **Integration:** file in `framework/skills/`, update `skills` in agents, `python tools/install.py --list`
+
+> **Lesson pointer (convention).** If a skill has (or will have) `references/learned-patterns.md`, then the body of SKILL.md MUST include a pointer line, otherwise the agent will not see accumulated lessons while working with the skill:
+> `**Accumulated lessons:** see references/learned-patterns.md (confirmed - as rules, candidate - as hints).`
+> This is the paired side of the `skill-learning-policy` rule: the rule defines the trigger for reading, and here is the convention for formatting the link in the owning skill.
 
 ---
 
-## 4. Tool-usage skills — replacement for tool-registry
+## 4. Tool-usage skills - replacement for tool-registry
 
 Tool-usage skills are the **only place** where MCP tools are described in the framework.
 
 ### Tool-usage skill structure
 
 ```markdown
-# [Name] — how to use MCP tools for [task]
+# [Название] — как использовать MCP-инструменты для [задачи]
 
-## When to apply
+## Когда применять
 
-| Trigger | Action |
-|---------|--------|
-| The user asks to check syntax | Call `bsl.checkSyntax(uri)` |
-| The agent wrote/changed .bsl code | Automatically check syntax |
+| Триггер | Действие |
+|---------|----------|
+| Пользователь просит проверить синтаксис | Вызвать `bsl.checkSyntax(uri)` |
+| Агент написал/изменил .bsl код | Автоматически проверить синтаксис |
 
-## MCP tools
+## MCP-инструменты
 
-| Tool | Purpose | Workarounds |
+| Инструмент | Назначение | Workarounds |
 |------------|------------|-------------|
-| `bsl.checkSyntax` | Syntax check | If the URI is not found, check encoding |
+| `bsl.checkSyntax` | Проверка синтаксиса | Если URI не найден — проверить encoding |
 
-## Scenarios
+## Сценарии
 [Конкретные цепочки вызовов]
 ```
 
 ### Principles
 
-1. **Do not duplicate the MCP tool description** — it comes from MCP (`tools/list`)
+1. **Do not duplicate the MCP tool description** - it comes from MCP (`tools/list`)
 2. **Focus on WHEN and WHY**, not on parameters
-3. **Workarounds and pitfalls** are the main value
-4. **Concrete scenarios** — call chains for typical tasks
+3. **Workarounds and pitfalls** - the main value
+4. **Concrete scenarios** - call chains for typical tasks
 
 ---
 
@@ -99,7 +103,7 @@ Tool-usage skills are the **only place** where MCP tools are described in the fr
 
 | Type | Location | Frontmatter | Installation |
 |-----|-----------|-------------|-----------|
-| Framework skill | `framework/skills/` | `name`, `description`, `depends_on` | CLI via symlinks |
+| Framework skill | `framework/skills/` | `name`, `description`, `depends_on` | CLI through symlinks |
 | IDE skill | `.cursor/skills/` or `.agents/skills/` | `name`, `description` | `npx skills add` |
 | Extension (-ext) | `framework/skills/<name>-ext/` | `name: base-name-ext`, `description` | CLI, part of the framework |
 
@@ -107,43 +111,44 @@ Tool-usage skills are the **only place** where MCP tools are described in the fr
 
 ## 6. Content patterns
 
-**Trigger → Action** (tool-usage): table `| Trigger | Action |`
+**Trigger -> Action** (tool-usage): table `| Trigger | Action |`
 
-**Correct / Incorrect** (bsl-practices): two code blocks + explanation of WHY (the consequence of violating it)
+**Correct / Incorrect** (bsl-practices): two code blocks + explanation of WHY (the consequence of the violation)
 
-**Workflow with checklist** (methodologies): `- [ ] Step N: ...`
+**Checklist workflow** (methodologies): `- [ ] Step N: ...`
 
-**Conditional workflow** (branches): `Determine type → branch A / branch B`
+**Conditional workflow** (branching): `Determine type -> branch A / branch B`
 
 ---
 
 ## 7. Project-specific skills
 
-Placement: `.cursor/skills/` or `.claude/skills/` at the project root. Anthropic SKILL.md format.
+Location: `.cursor/skills/` or `.claude/skills/` in the project root. Anthropic SKILL.md format.
 
 **Include:** configuration architecture, local conventions, business rules, critical modules, integrations.
 
-**Do NOT include:** general BSL standards (in framework skills), secrets, fast-changing information.
+**DO NOT include:** general BSL standards (in framework skills), secrets, rapidly outdated information.
 
 ---
 
 ## 8. BSL specifics
 
 ### Platform limitations
-- BSL does not support inheritance — only common modules
-- There is no package manager — dependencies are through the configuration
-- Code is divided by contexts (server/client/external connection)
-- Metadata is declarative, code is imperative
+- BSL does not support inheritance - only common modules
+- No package manager - dependencies are through configuration
+- Code is split by context (server/client/external connection)
+- Metadata are declarative, code is imperative
 
 ---
 
 ## 9. New skill checklist
 
-- [ ] YAML frontmatter, name in kebab-case (ASCII)
-- [ ] Explains WHY, has correct/incorrect examples
-- [ ] "When to apply" table (trigger → action)
+- [ ] YAML frontmatter, kebab-case name (Latin letters)
+- [ ] Explains WHY, correct/incorrect examples
+- [ ] "When to apply" table (trigger -> action)
 - [ ] No duplication with existing skills
-- [ ] Length ≤ 300 lines (max 500)
+- [ ] Volume <= 300 lines (max 500)
+- [ ] If `references/learned-patterns.md` exists, it is linked in the body of SKILL.md (convention `skill-learning`)
 - [ ] File in `framework/skills/`, agents updated, `install.py --list` shows the skill
 
 ---
