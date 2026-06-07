@@ -193,6 +193,8 @@ public class Commands {
                 epfPath = Paths.get(a);
             } else if (!a.startsWith("--")) {
                 // дополнительный позиционный — игнор
+            } else {
+                throw new IllegalArgumentException("Unknown option for epf bsp-init: " + a);
             }
         }
 
@@ -254,6 +256,8 @@ public class Commands {
                 form = args[++i];
             } else if (epfPath == null && !a.startsWith("--")) {
                 epfPath = Paths.get(a);
+            } else if (a.startsWith("--")) {
+                throw new IllegalArgumentException("Unknown option for epf bsp-add-command: " + a);
             }
         }
 
@@ -609,6 +613,9 @@ public class Commands {
             throw new IllegalArgumentException("Usage: xml-gen form add <objectXml> <formName> [--synonym <syn>] [--default]");
         }
 
+        Path formMeta = null;
+        Path formDir = null;
+        boolean ownsScaffold = false;
         try {
             ObjectContainerEditor editor = new ObjectContainerEditor(objectXml);
             if (editor.hasForm(formName)) {
@@ -620,7 +627,13 @@ public class Commands {
 
             // Create scaffold
             Path baseDir = objectXml.getParent().resolve(objectName != null ? objectName : "");
+            formMeta = baseDir.resolve("Forms").resolve(formName + ".xml");
+            formDir = baseDir.resolve("Forms").resolve(formName);
+            if (Files.exists(formMeta) || Files.exists(formDir)) {
+                throw new IllegalArgumentException("Form scaffold already exists for '" + formName + "'");
+            }
             String formatVersion = ConfigurationXmlReader.readFormatVersion(objectXml);
+            ownsScaffold = true;
             ObjectContainerEditor.createFormScaffold(baseDir, formName, synonym, objectType, objectName,
                     formatVersion);
 
@@ -635,7 +648,10 @@ public class Commands {
 
             System.out.println("Added form: " + formName);
             System.out.println("  Metadata: " + baseDir.resolve("Forms").resolve(formName + ".xml"));
-        } catch (IOException e) {
+        } catch (IOException | RuntimeException e) {
+            if (ownsScaffold) {
+                cleanupCreatedFormScaffold(formMeta, formDir, e);
+            }
             throw new RuntimeException("Failed to add form: " + e.getMessage(), e);
         }
     }
@@ -661,7 +677,7 @@ public class Commands {
 
         try {
             ObjectContainerEditor editor = new ObjectContainerEditor(objectXml);
-            if (!editor.removeForm(formName)) {
+            if (!editor.hasForm(formName)) {
                 //++agent TASK-155 [22.05.2026 00:00:00]
                 // TASK-155 A2 iter-3: fail-fast on missing form (bug-T-154-form-002 obs #6).
                 // Previously: print "Form not found" + exit=0 (silent no-op).
@@ -672,25 +688,102 @@ public class Commands {
                 //++agent TASK-155
             }
 
-            editor.clearDefaultFormIfMatches(formName);
-            editor.save();
-
-            // Delete form files
             String objectName = editor.getObjectName();
             Path baseDir = objectXml.getParent().resolve(objectName != null ? objectName : "");
             Path formMeta = baseDir.resolve("Forms").resolve(formName + ".xml");
             Path formDir = baseDir.resolve("Forms").resolve(formName);
+            if (Files.exists(formMeta) && !Files.isRegularFile(formMeta)) {
+                throw new IOException("Expected form metadata file, got non-file path: " + formMeta);
+            }
+            if (Files.exists(formDir) && !Files.isDirectory(formDir)) {
+                throw new IOException("Expected form directory, got non-directory path: " + formDir);
+            }
 
-            if (Files.exists(formMeta)) Files.delete(formMeta);
-            if (Files.exists(formDir)) {
-                Files.walk(formDir)
-                        .sorted(java.util.Comparator.reverseOrder())
-                        .forEach(p -> { try { Files.delete(p); } catch (IOException ignored) {} });
+            byte[] originalObjectXml = Files.readAllBytes(objectXml);
+            Path backupRoot = createFormRemoveBackupRoot(baseDir);
+            boolean backupCommitted = false;
+            try {
+                moveIfExists(formMeta, backupRoot.resolve(formName + ".xml"));
+                moveIfExists(formDir, backupRoot.resolve(formName));
+
+                editor.removeForm(formName);
+                editor.clearDefaultFormIfMatches(formName);
+                editor.save();
+                backupCommitted = true;
+            } catch (IOException e) {
+                restoreFormRemoveBackup(backupRoot, formMeta, formDir, formName, e);
+                try {
+                    Files.write(objectXml, originalObjectXml);
+                } catch (IOException restoreError) {
+                    e.addSuppressed(restoreError);
+                }
+                throw e;
+            } finally {
+                if (backupCommitted) {
+                    cleanupCommittedFormRemoveBackup(backupRoot);
+                }
             }
 
             System.out.println("Removed form: " + formName);
         } catch (IOException e) {
             throw new RuntimeException("Failed to remove form: " + e.getMessage(), e);
+        }
+    }
+
+    private static Path createFormRemoveBackupRoot(Path baseDir) throws IOException {
+        Path formsDir = baseDir.resolve("Forms");
+        Files.createDirectories(formsDir);
+        return Files.createTempDirectory(formsDir, ".xml-gen-remove-");
+    }
+
+    private static void moveIfExists(Path source, Path target) throws IOException {
+        if (!Files.exists(source)) return;
+        Files.createDirectories(target.getParent());
+        try {
+            Files.move(source, target, java.nio.file.StandardCopyOption.ATOMIC_MOVE);
+        } catch (java.nio.file.AtomicMoveNotSupportedException e) {
+            Files.move(source, target);
+        }
+    }
+
+    private static void restoreFormRemoveBackup(Path backupRoot, Path formMeta, Path formDir,
+                                                String formName, Exception cause) {
+        try {
+            moveIfExists(backupRoot.resolve(formName), formDir);
+            moveIfExists(backupRoot.resolve(formName + ".xml"), formMeta);
+            Files.deleteIfExists(backupRoot);
+        } catch (IOException restoreError) {
+            cause.addSuppressed(restoreError);
+        }
+    }
+
+    private static void cleanupCommittedFormRemoveBackup(Path backupRoot) {
+        try {
+            deleteDirectoryTree(backupRoot);
+        } catch (IOException e) {
+            System.err.println("Warning: cannot delete temporary form backup " + backupRoot
+                    + ": " + e.getMessage());
+        }
+    }
+
+    private static void cleanupCreatedFormScaffold(Path formMeta, Path formDir, Exception cause) {
+        try {
+            if (formMeta != null && Files.exists(formMeta)) {
+                Files.deleteIfExists(formMeta);
+            }
+            deleteDirectoryTree(formDir);
+        } catch (IOException cleanupError) {
+            cause.addSuppressed(cleanupError);
+        }
+    }
+
+    private static void deleteDirectoryTree(Path dir) throws IOException {
+        if (dir == null || !Files.exists(dir)) return;
+        try (java.util.stream.Stream<Path> paths = Files.walk(dir)) {
+            List<Path> toDelete = paths.sorted(java.util.Comparator.reverseOrder()).toList();
+            for (Path path : toDelete) {
+                Files.delete(path);
+            }
         }
     }
 
@@ -2233,6 +2326,7 @@ public class Commands {
         String validationType = effectiveValidationType(document, objectType);
         boolean expectBom = "designer".equals(formatStr) && isMetadataFile(validationType);
         List<ValidationIssue> allIssues = new ArrayList<>(genValidator.validate(document, validationType, expectBom));
+        allIssues.addAll(validateFormatSpecificShape(document, validationType, formatStr));
 
         Optional<XmlValidator> validator = factory.getValidator(validationType);
         if (validator.isPresent()) {
@@ -2258,6 +2352,23 @@ public class Commands {
             }
         }
         return allIssues;
+    }
+
+    private static List<ValidationIssue> validateFormatSpecificShape(XmlDocument document,
+                                                                     String validationType,
+                                                                     String formatStr) {
+        if (!"form".equals(validationType) || !"edt".equals(formatStr)) {
+            return List.of();
+        }
+        String ns = document.getRoot().getNamespace();
+        String expected = "http://g5.1c.ru/v8/dt/form";
+        if (expected.equals(ns)) {
+            return List.of();
+        }
+        return List.of(ValidationIssue.error("GEN-005",
+                "EDT managed form must use namespace '" + expected
+                        + "', got '" + (ns != null ? ns : "(none)") + "'",
+                document.getRoot().getLine(), "/Form"));
     }
 
     private static List<ValidationIssue> validateTemplateMetadataWrapper(XmlDocument document) {

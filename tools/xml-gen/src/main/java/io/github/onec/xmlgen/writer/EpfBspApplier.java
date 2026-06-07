@@ -9,6 +9,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
+import java.util.regex.Pattern;
 
 /**
  * Высокоуровневая операция применения BSP-обвязки к файловой системе EPF/ERF:
@@ -113,6 +114,21 @@ public class EpfBspApplier {
         // Определим вид из существующего кода
         BspKind kind = detectKindFromModule(editor);
         BspCommandType cmdType = opts.type != null ? opts.type : kind.defaultCommandType();
+        if (commandAlreadyRegistered(editor, opts.identifier)) {
+            throw new IllegalStateException(
+                    "BSP command with identifier '" + opts.identifier + "' already exists");
+        }
+        if (cmdType.isClientHandler()) {
+            if (opts.form == null || opts.form.isBlank()) {
+                throw new IllegalArgumentException(
+                        "--form is required for ВызовКлиентскогоМетода");
+            }
+            Path formModule = resolveFormModule(epfDir, opts.form);
+            if (!Files.exists(formModule)) {
+                throw new IllegalStateException(
+                        "Form module not found: " + formModule);
+            }
+        }
 
         // Шаг 1: вставить блок команды перед "Возврат"
         String commandBlock = writer.renderCommandBlock(opts.identifier, opts.label, cmdType, kind);
@@ -122,20 +138,39 @@ public class EpfBspApplier {
         if (cmdType.isServerHandler()) {
             applyServerHandler(editor, kind, opts.identifier);
         } else if (cmdType.isClientHandler()) {
-            if (opts.form == null || opts.form.isBlank()) {
-                editor.save();
-                throw new IllegalArgumentException(
-                        "--form is required for ВызовКлиентскогоМетода");
-            }
             Path formModule = resolveFormModule(epfDir, opts.form);
-            if (!Files.exists(formModule)) {
-                editor.save(); // основной модуль уже изменён — сохраним прогресс по команде
-                throw new IllegalStateException(
-                        "Form module not found: " + formModule);
+            BslModuleEditor formEditor = buildClientHandler(formModule, kind, opts.identifier);
+            byte[] originalModule = Files.readAllBytes(module);
+            byte[] originalFormModule = Files.readAllBytes(formModule);
+            try {
+                editor.save();
+                formEditor.save();
+            } catch (IOException | RuntimeException e) {
+                try {
+                    Files.write(module, originalModule);
+                } catch (IOException restoreError) {
+                    e.addSuppressed(restoreError);
+                }
+                try {
+                    Files.write(formModule, originalFormModule);
+                } catch (IOException restoreError) {
+                    e.addSuppressed(restoreError);
+                }
+                throw e;
             }
-            applyClientHandler(formModule, kind, opts.identifier);
+            return;
         }
         editor.save();
+    }
+
+    private boolean commandAlreadyRegistered(BslModuleEditor editor, String identifier) {
+        String quoted = Pattern.quote(identifier);
+        Pattern registration = Pattern.compile(
+                "НоваяКоманда\\.Идентификатор\\s*=\\s*\"" + quoted + "\"");
+        Pattern serverBranch = Pattern.compile(
+                "ИдентификаторКоманды\\s*=\\s*\"" + quoted + "\"");
+        String content = editor.content();
+        return registration.matcher(content).find() || serverBranch.matcher(content).find();
     }
 
     private void applyServerHandler(BslModuleEditor editor, BspKind kind, String identifier) {
@@ -151,7 +186,7 @@ public class EpfBspApplier {
             // Добавить ветку
             String body = "\t\t// TODO: Реализация " + identifier;
             String cond = "ИдентификаторКоманды = \"" + identifier + "\"";
-            editor.appendBranchToIfChain(PROC_VYPOLNIT, cond, body);
+            appendCommandCondition(editor, cond, body);
         } else {
             // Создать процедуру с одной веткой Если
             String params = kind.requiresTarget()
@@ -165,6 +200,20 @@ public class EpfBspApplier {
                     + "\n"
                     + "КонецПроцедуры\n";
             editor.findOrCreateProcedure(PROC_VYPOLNIT, src, REGION_PROGRAMMATIC_INTERFACE);
+        }
+    }
+
+    private void appendCommandCondition(BslModuleEditor editor, String cond, String body) {
+        try {
+            editor.appendBranchToIfChain(PROC_VYPOLNIT, cond, body);
+        } catch (IllegalStateException e) {
+            if (!e.getMessage().contains("has no 'Если ... КонецЕсли'")) {
+                throw e;
+            }
+            editor.appendBeforeReturn(PROC_VYPOLNIT,
+                    "\tЕсли " + cond + " Тогда\n"
+                            + body + "\n"
+                            + "\tКонецЕсли;\n");
         }
     }
 
@@ -192,17 +241,17 @@ public class EpfBspApplier {
         }
     }
 
-    private void applyClientHandler(Path formModulePath, BspKind kind, String identifier) throws IOException {
+    private BslModuleEditor buildClientHandler(Path formModulePath, BspKind kind, String identifier) throws IOException {
         BslModuleEditor formEditor = new BslModuleEditor(formModulePath);
         if (formEditor.findProcedure(PROC_VYPOLNIT).isPresent()) {
             String body = "\t\t// TODO: Реализация " + identifier;
             String cond = "ИдентификаторКоманды = \"" + identifier + "\"";
-            formEditor.appendBranchToIfChain(PROC_VYPOLNIT, cond, body);
+            appendCommandCondition(formEditor, cond, body);
         } else {
             String handler = writer.renderClientHandler(kind, identifier);
             formEditor.findOrCreateProcedure(PROC_VYPOLNIT, handler, null);
         }
-        formEditor.save();
+        return formEditor;
     }
 
     /**
