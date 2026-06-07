@@ -140,7 +140,12 @@ public class ConfigWriter {
         sb.append("\t\t\t<ObjectAutonumerationMode>NotAutoFree</ObjectAutonumerationMode>\n");
         sb.append("\t\t\t<ModalityUseMode>DontUse</ModalityUseMode>\n");
         sb.append("\t\t\t<SynchronousPlatformExtensionAndAddInCallUseMode>DontUse</SynchronousPlatformExtensionAndAddInCallUseMode>\n");
-        sb.append("\t\t\t<InterfaceCompatibilityMode>Taxi</InterfaceCompatibilityMode>\n");
+        //**agent TASK-175 [07.06.2026 18:55:00]
+        // XG-36 (72bad1aa cf-init v1.1): Taxi → TaxiEnableVersion8_2 — соответствует всем
+        // реальным конфигурациям (acc 8.3.20/24/27, erp 8.3.24); голый Taxi не встречается.
+        //sb.append("\t\t\t<InterfaceCompatibilityMode>Taxi</InterfaceCompatibilityMode>\n");
+        sb.append("\t\t\t<InterfaceCompatibilityMode>TaxiEnableVersion8_2</InterfaceCompatibilityMode>\n");
+        //**agent TASK-175
         sb.append("\t\t\t<DatabaseTablespacesUseMode>DontUse</DatabaseTablespacesUseMode>\n");
         sb.append("\t\t\t<MainClientApplicationWindowMode>Normal</MainClientApplicationWindowMode>\n");
         sb.append("\t\t\t<UsePurposes>\n");

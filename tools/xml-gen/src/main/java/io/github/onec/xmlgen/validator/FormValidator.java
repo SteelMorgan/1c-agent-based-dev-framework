@@ -398,8 +398,16 @@ public class FormValidator implements XmlValidator {
 
         // FORM-101: Тип UI-элемента — известный FormElementType
         XmlNode childItems = root.child("ChildItems");
+        //**agent TASK-175 [07.06.2026 19:10:00]
+        // XG-38 (5f7ee6fc, .ps1-эталон A-5): у заимствованной формы расширения (<BaseForm>)
+        // реквизиты base-элементов живут в базовой конфигурации, а Attributes расширения
+        // пусты ПО ПОСТРОЕНИЮ — DataPath-проверки на них дают ложные ошибки.
+        boolean hasBaseForm = root.child("BaseForm") != null;
+        //validateElementsInAllChildItems(root, "/Form",
+        //        attributeNames, commandNames, tableDataPaths, issues);
         validateElementsInAllChildItems(root, "/Form",
-                attributeNames, commandNames, tableDataPaths, issues);
+                attributeNames, commandNames, tableDataPaths, hasBaseForm, issues);
+        //**agent TASK-175
 
         // Проверяем атрибуты (FORM-107..110, 114, 115)
         if (attributes != null) {
@@ -456,7 +464,72 @@ public class FormValidator implements XmlValidator {
 
         // FORM-120: Title должен быть multilingual XML (v8:item), а не plain text
         validateMultilingualTitles(root, issues);
+
+        //++agent TASK-175 [07.06.2026 19:05:00]
+        // FORM-128 (XG-37): минимальный объём Check 12 upstream (A-7 спеки) —
+        // External*-типы валидны только в EPF/ERF; в контексте конфигурации платформа
+        // бросает XDTO-исключение. Полные словари Check 12 (dd88f789) НЕ портированы — D-4.
+        validateExternalObjectTypesInContext(document, issues);
+        //++agent TASK-175
     }
+
+    //++agent TASK-175 [07.06.2026 19:05:00]
+    /**
+     * FORM-128 (TASK-175 W-03, XG-37; upstream dd88f789 → 3bd69baa → d5aacc9e):
+     * {@code cfg:ExternalDataProcessorObject.*} / {@code cfg:ExternalReportObject.*}
+     * валидны только в контексте EPF/ERF; внутри выгрузки конфигурации платформа
+     * отвергает их XDTO-исключением → ERROR.
+     *
+     * <p>Контекст определяется подъёмом от файла формы вверх (максимум 15 уровней,
+     * как в upstream 3bd69baa) в поисках {@code Configuration.xml}. Документ без
+     * привязки к файлу контекста не имеет — проверка пропускается.</p>
+     */
+    private void validateExternalObjectTypesInContext(XmlDocument document,
+                                                      List<ValidationIssue> issues) {
+        if (document.getFile() == null) return;
+        if (!isConfigurationContext(document.getFile())) return;
+        collectExternalObjectTypeIssues(document.getRoot(), "/Form", issues);
+    }
+
+    /** Подъём от файла формы вверх (≤15 уровней) в поисках Configuration.xml. */
+    private boolean isConfigurationContext(java.nio.file.Path formFile) {
+        java.nio.file.Path dir = formFile.toAbsolutePath().getParent();
+        for (int level = 0; level < 15 && dir != null; level++) {
+            if (java.nio.file.Files.isRegularFile(dir.resolve("Configuration.xml"))) {
+                return true;
+            }
+            dir = dir.getParent();
+        }
+        return false;
+    }
+
+    private void collectExternalObjectTypeIssues(XmlNode node, String path,
+                                                 List<ValidationIssue> issues) {
+        if ("Type".equals(node.getName()) && V8_PREFIX.equals(node.getPrefix())) {
+            String text = node.getText() != null ? node.getText().trim() : "";
+            // F-03 cross-review: upstream form-validate.py ~689 сравнивает ТОЧНЫЙ
+            // префикс до первой точки (suffix.split('.')[0] in ('ExternalDataProcessorObject',
+            // 'ExternalReportObject')), а не startsWith — иначе суффиксное имя типа
+            // (cfg:ExternalDataProcessorObjectФу.Что) ловится ложно.
+            if (text.startsWith("cfg:")) {
+                String suffix = text.substring(4);
+                int dot = suffix.indexOf('.');
+                String prefix = dot >= 0 ? suffix.substring(0, dot) : suffix;
+                if ("ExternalDataProcessorObject".equals(prefix)
+                        || "ExternalReportObject".equals(prefix)) {
+                    // Формулировка по upstream d5aacc9e (Report-Error в Check 12)
+                    issues.add(ValidationIssue.error("FORM-128",
+                            "Type '" + text + "': External* type in configuration context "
+                                    + "(use DataProcessorObject/ReportObject instead)",
+                            node.getLine(), path + "/v8:Type"));
+                }
+            }
+        }
+        for (XmlNode child : node.getChildren()) {
+            collectExternalObjectTypeIssues(child, path + "/" + child.getName(), issues);
+        }
+    }
+    //++agent TASK-175
 
     /**
      * Коллекция UI-элементов типа Table в форме (для резолва Items.X.CurrentData.*).
@@ -587,6 +660,7 @@ public class FormValidator implements XmlValidator {
     private void validateElements(XmlNode parent, String parentPath,
                                    Set<String> attrNames, Set<String> cmdNames,
                                    Map<String, String> tableMap,
+                                   boolean hasBaseForm,
                                    List<ValidationIssue> issues) {
         for (XmlNode elem : parent.getChildren()) {
             String elemName = elem.getName();
@@ -599,9 +673,31 @@ public class FormValidator implements XmlValidator {
                         elem.getLine(), elemPath));
             }
 
+            //++agent TASK-175 [07.06.2026 19:10:00]
+            // XG-38 (5f7ee6fc): skip DataPath-проверок (FORM-102/FORM-104) для base-элементов
+            // borrowed-формы. Условие СТРОГО по двум осям upstream: hasBaseForm И числовой
+            // id < 1000000 (платформа выдаёт own-элементам расширения id от 1000000).
+            // Содержимое DataPath в условии НЕ участвует — «разрешить все Объект.*» было бы
+            // сверхшироким фиксом (защитные кейсы F-02 в FormValidatorTask175Test).
+            boolean baseElementOfBorrowedForm = false;
+            if (hasBaseForm) {
+                String idText = elem.attr("id");
+                if (idText != null && idText.matches("-?\\d+")) {
+                    try {
+                        baseElementOfBorrowedForm = Long.parseLong(idText) < 1000000L;
+                    } catch (NumberFormatException ignored) {
+                        // id вне диапазона long — считаем own-элементом, проверки сохраняются
+                    }
+                }
+            }
+            //++agent TASK-175
+
             // FORM-102: DataPath → существующий Attribute.name (с расширенным резолвом)
             String dataPath = elem.childText("DataPath");
-            if (dataPath != null && !dataPath.isEmpty()) {
+            //**agent TASK-175 [07.06.2026 19:10:00]
+            //if (dataPath != null && !dataPath.isEmpty()) {
+            if (dataPath != null && !dataPath.isEmpty() && !baseElementOfBorrowedForm) {
+            //**agent TASK-175
                 boolean handled = resolveDataPath(dataPath, attrNames, tableMap,
                         elem.getLine(), elemPath, issues);
                 if (!handled) {
@@ -634,8 +730,15 @@ public class FormValidator implements XmlValidator {
             }
 
             // FORM-104: InputField/Table должен иметь DataPath
-            if ("InputField".equals(elemName) || "Table".equals(elemName)
-                    || "LabelField".equals(elemName)) {
+            //**agent TASK-175 [07.06.2026 19:10:00]
+            // XG-38 (сосед того же класса, протокол FORM-103/104 дизайна §3.3 W-02):
+            // borrow вырезает DataPath у base-элементов → FORM-104 давал бы ложный WARN
+            // на каждом base-поле заимствованной формы. Тот же skip, что и FORM-102.
+            // FORM-103 не затронут: borrow заменяет CommandName на «0», префикс
+            // «Form.Command.» невозможен — ложных срабатываний нет.
+            if (("InputField".equals(elemName) || "Table".equals(elemName)
+                    || "LabelField".equals(elemName)) && !baseElementOfBorrowedForm) {
+            //**agent TASK-175
                 if (dataPath == null || dataPath.isEmpty()) {
                     issues.add(ValidationIssue.warning("FORM-104",
                             elemName + " has no DataPath",
@@ -646,18 +749,21 @@ public class FormValidator implements XmlValidator {
         }
     }
 
+    //**agent TASK-175 [07.06.2026 19:10:00] — прокинут параметр hasBaseForm (XG-38)
     private void validateElementsInAllChildItems(XmlNode node, String path,
                                                  Set<String> attrNames, Set<String> cmdNames,
                                                  Map<String, String> tableMap,
+                                                 boolean hasBaseForm,
                                                  List<ValidationIssue> issues) {
         if ("ChildItems".equals(node.getName())) {
-            validateElements(node, path, attrNames, cmdNames, tableMap, issues);
+            validateElements(node, path, attrNames, cmdNames, tableMap, hasBaseForm, issues);
         }
         for (XmlNode child : node.getChildren()) {
             validateElementsInAllChildItems(child, path + "/" + child.getName(),
-                    attrNames, cmdNames, tableMap, issues);
+                    attrNames, cmdNames, tableMap, hasBaseForm, issues);
         }
     }
+    //**agent TASK-175
 
     private void validateAttributes(XmlNode attributes, List<ValidationIssue> issues) {
         int idx = 0;

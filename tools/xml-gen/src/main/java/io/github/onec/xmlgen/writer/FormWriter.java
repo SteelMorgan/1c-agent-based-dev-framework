@@ -12,6 +12,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -213,16 +214,47 @@ public class FormWriter extends XmlWriter {
         // биг_УборщикТестовыхДанных). Fallback-текст — имя формы из пути назначения
         // (.../Forms/<ИмяФормы>/Ext/Form.xml), детерминированно, без параметра от агента.
         String rootTitle = dsl.getTitle();
+        //**agent TASK-175 [07.06.2026 19:20:00]
+        // XG-39 (36cd63d8): триггер «явный Title» ДВОЙНОЙ — dsl.title ИЛИ properties.title
+        // (form-compile.py:2677-2679: form_title = defn.title || properties.title).
+        // properties.title продвигается в корневой <Title> и исключается из Properties:
+        // плоский <Title> внутри Properties невалиден (FORM-120) и дублировал бы корневой.
+        boolean explicitTitle = rootTitle != null && !rootTitle.isBlank();
+        Map<String, Object> formProperties = dsl.getProperties() != null
+                ? new LinkedHashMap<>(dsl.getProperties())
+                : null;
+        Object propertiesTitle = formProperties != null ? formProperties.remove("title") : null;
+        if (!explicitTitle && propertiesTitle instanceof String propTitleText
+                && !propTitleText.isBlank()) {
+            rootTitle = propTitleText;
+            explicitTitle = true;
+        }
         if (rootTitle == null || rootTitle.isBlank()) {
             rootTitle = deriveFormName(outputPath);
         }
         writeMultilingualString("Title", rootTitle);
-        //**agent TASK-174
-        
-        // Properties
-        if (dsl.getProperties() != null) {
-            writeProperties(dsl.getProperties());
+        // XG-39: при явном Title без явного autoTitle платформа добавила бы суффикс
+        // синонима (двойной заголовок «Номенклатура: Номенклатура») — эмитим
+        // <AutoTitle>false</AutoTitle> сразу после </Title> (канон Designer,
+        // фикстура valid-vyborkontragenta.xml:10). Для fallback-Title (XG-11, форма
+        // без явного title) AutoTitle НЕ подавляем — там платформенный AutoTitle=true
+        // осмыслен. Явный properties.autoTitle всегда уважается (эмитится writeProperties).
+        if (explicitTitle
+                && (formProperties == null || !formProperties.containsKey("autoTitle"))) {
+            writeElement("AutoTitle", "false");
         }
+        //**agent TASK-175
+        //**agent TASK-174
+
+        // Properties
+        //**agent TASK-175 [07.06.2026 19:20:00]
+        //if (dsl.getProperties() != null) {
+        //    writeProperties(dsl.getProperties());
+        //}
+        if (formProperties != null && !formProperties.isEmpty()) {
+            writeProperties(formProperties);
+        }
+        //**agent TASK-175
 
         //++agent TASK-174 [07.06.2026 11:15:00]
         // Аудит порта (форм): excludedCommands парсились DSL (FormDsl.excludedCommands),
@@ -2062,7 +2094,23 @@ public class FormWriter extends XmlWriter {
         endElement(); // autoCommandBar
         
         // Form-level properties
-        writeElement("autoTitle", "true");
+        //**agent TASK-175 [07.06.2026 19:20:00]
+        // XG-39, EDT-сосед того же класса (36cd63d8): раньше — безусловный autoTitle=true.
+        // Триггер тот же, что в Designer-пути: явный title (dsl.title или properties.title)
+        // без явного properties.autoTitle → false; явный autoTitle уважается всегда.
+        //writeElement("autoTitle", "true");
+        boolean edtExplicitTitle = (dsl.getTitle() != null && !dsl.getTitle().isBlank())
+                || (dsl.getProperties() != null
+                        && dsl.getProperties().get("title") instanceof String edtPropTitle
+                        && !edtPropTitle.isBlank());
+        String edtAutoTitle;
+        if (dsl.getProperties() != null && dsl.getProperties().containsKey("autoTitle")) {
+            edtAutoTitle = String.valueOf(dsl.getProperties().get("autoTitle"));
+        } else {
+            edtAutoTitle = edtExplicitTitle ? "false" : "true";
+        }
+        writeElement("autoTitle", edtAutoTitle);
+        //**agent TASK-175
         writeElement("autoUrl", "true");
         writeElement("group", "Vertical");
         writeElement("autoFillCheck", "true");

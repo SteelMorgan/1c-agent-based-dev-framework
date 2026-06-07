@@ -560,9 +560,34 @@ public class ExtensionEditor {
             autoCommandBarXml = nsPattern.matcher(autoCommandBarXml).replaceAll("");
             autoCommandBarXml = autoCommandBarXml.replaceAll("<CommandName>[^<]*</CommandName>", "<CommandName>0</CommandName>");
             autoCommandBarXml = autoCommandBarXml.replace("<Autofill>true</Autofill>", "<Autofill>false</Autofill>");
+            //++agent TASK-175 [07.06.2026 18:45:00]
+            // XG-35: strip-операции безусловной ветки cfe-borrow.py @ HEAD (upstream 7abe26af, de7e943d).
+            // Ссылки на стандартные команды и пути данных базовой формы невалидны в расширении —
+            // Designer отказывается загружать форму. Набор для ACB отличается от набора для
+            // ChildItems (см. ниже) — НЕ объединять (риск 1 §7.2 дизайна TASK-175).
+            // Условный keep Объект.* (флаг -BorrowMainAttribute, f7695a95) — new-feature, не портирован.
+            autoCommandBarXml = autoCommandBarXml.replaceAll("\\s*<ExcludedCommand>[^<]*</ExcludedCommand>", "");
+            autoCommandBarXml = autoCommandBarXml.replaceAll("\\s*<DataPath>[^<]*</DataPath>", "");
+            // CommandSet, опустевший после strip ExcludedCommand, не несёт информации — убираем,
+            // иначе в выводе останется пустая обёртка, которой нет в каноне Designer
+            autoCommandBarXml = autoCommandBarXml.replaceAll("\\s*<CommandSet>\\s*</CommandSet>", "");
+            //++agent TASK-175
         }
         childItemsXml = nsPattern.matcher(childItemsXml).replaceAll("");
         childItemsXml = childItemsXml.replaceAll("<CommandName>[^<]*</CommandName>", "<CommandName>0</CommandName>");
+        //++agent TASK-175 [07.06.2026 18:45:00]
+        // XG-35: strip-набор для ChildItems формы (безусловная ветка cfe-borrow.py @ HEAD):
+        // DataPath/TitleDataPath ссылаются на реквизиты базовой формы (в расширении их нет),
+        // RowPictureDataPath и ExcludedCommand невалидны в расширении (7abe26af),
+        // TypeLink с человекочитаемым DataPath Items.* и element-level Events не переносимы.
+        childItemsXml = childItemsXml.replaceAll("\\s*<DataPath>[^<]*</DataPath>", "");
+        childItemsXml = childItemsXml.replaceAll("\\s*<TitleDataPath>[^<]*</TitleDataPath>", "");
+        childItemsXml = childItemsXml.replaceAll("\\s*<RowPictureDataPath>[^<]*</RowPictureDataPath>", "");
+        childItemsXml = childItemsXml.replaceAll("\\s*<ExcludedCommand>[^<]*</ExcludedCommand>", "");
+        childItemsXml = childItemsXml.replaceAll("(?s)\\s*<TypeLink>\\s*<xr:DataPath>Items\\.[^<]*</xr:DataPath>.*?</TypeLink>", "");
+        childItemsXml = childItemsXml.replaceAll("(?s)\\s*<Events>.*?</Events>", "");
+        childItemsXml = childItemsXml.replaceAll("\\s*<CommandSet>\\s*</CommandSet>", "");
+        //++agent TASK-175
 
         // Build output with \r\n line endings (as in Python reference)
         StringBuilder sb = new StringBuilder();
@@ -764,17 +789,33 @@ public class ExtensionEditor {
     private String extractTopLevelElement(String content, String tagName) {
         // Match top-level element (direct child of <Form>)
         // Support both tab and space indentation
+        //**agent TASK-175 [07.06.2026 18:45:00]
+        // XG-35 (находка 3b): раньше брали ПЕРВОЕ вхождение тега в документе — у форм, где
+        // AutoCommandBar идёт раньше form-level ChildItems (например, СообщениеSMS), извлекался
+        // <ChildItems> ВНУТРИ ACB, и дерево формы терялось целиком. Привязываемся к отступу
+        // прямых детей <Form> (первый отступ в документе): upstream (cfe-borrow.py) итерирует
+        // именно direct children корня.
+        String topIndent = "\t";
+        Matcher firstChild = Pattern.compile("(?m)^([ \\t]+)<\\w").matcher(content);
+        if (firstChild.find()) {
+            topIndent = firstChild.group(1);
+        }
+        String indentRe = Pattern.quote(topIndent);
+
         // Look for self-closing first
-        Pattern selfClose = Pattern.compile("(?m)^[ \\t]+<" + tagName + "\\s*/>");
+        //Pattern selfClose = Pattern.compile("(?m)^[ \\t]+<" + tagName + "\\s*/>");
+        Pattern selfClose = Pattern.compile("(?m)^" + indentRe + "<" + tagName + "\\s*/>");
         Matcher scm = selfClose.matcher(content);
         if (scm.find()) {
             return scm.group().stripLeading();
         }
 
         // Look for opening tag
-        Pattern openPattern = Pattern.compile("(?m)^[ \\t]+<" + tagName + "[\\s>]");
+        //Pattern openPattern = Pattern.compile("(?m)^[ \\t]+<" + tagName + "[\\s>]");
+        Pattern openPattern = Pattern.compile("(?m)^" + indentRe + "<" + tagName + "[\\s>]");
         Matcher om = openPattern.matcher(content);
         if (!om.find()) return null;
+        //**agent TASK-175
 
         int tagStart = content.indexOf('<', om.start());
         if (tagStart < 0) return null;

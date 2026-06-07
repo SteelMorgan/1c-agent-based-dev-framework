@@ -534,15 +534,45 @@ public class SkdWriter extends XmlWriter {
             writeParameterValue(param.getValue(), param.getType());
         }
 
+        //++agent TASK-175 [07.06.2026 19:30:00]
+        // XG-40 (32e06cbc): платформа ВСЕГДА пишет <useRestriction> у параметра
+        // (не задано → false) — условная эмиссия давала LOST в roundtrip.
+        // Позиция по канону Designer (D-3, _Демо/ДатыЗапретаИзменения Template.xml):
+        // value → useRestriction → valueListAllowed → availableAsField.
+        // НЕ путать с writeUseRestriction (useRestriction ПОЛЯ набора данных)
+        // и derived-параметрами autoDates (там жёстко true).
+        //
+        // F-01 cross-review (upstream skd-compile.py @ 32e06cbc, emit_single_param
+        // ~1174-1177): «Hidden implies useRestriction=true + availableAsField=false» —
+        // перезапись parsed БЕЗУСЛОВНА и выполняется до вычисления ur_emit, поэтому
+        // hidden:true перекрывает даже явный useRestriction:false пользователя.
+        // Деривация намеренно здесь, в writer (а не в SkdDsl-конструкторе): upstream
+        // мутирует parsed в emit-пути, и writer-слой не обходится сеттерами Lombok
+        // или shorthand-конструктором.
+        boolean hiddenParam = Boolean.TRUE.equals(param.getHidden());
+        writeElement("useRestriction",
+                (hiddenParam || Boolean.TRUE.equals(param.getUseRestriction()))
+                        ? "true" : "false");
+        //++agent TASK-175
+
         if (Boolean.TRUE.equals(param.getValueListAllowed())) {
             writeElement("valueListAllowed", "true");
         }
-        if (Boolean.TRUE.equals(param.getHidden())) {
+        //**agent TASK-175 [07.06.2026 18:55:00]
+        //if (Boolean.TRUE.equals(param.getHidden())) {
+        //    writeElement("availableAsField", "false");
+        //}
+        //if (Boolean.FALSE.equals(param.getAvailableAsField())) {
+        //    writeElement("availableAsField", "false");
+        //}
+        // Сосед того же класса (F-01): upstream после деривации hidden эмитит
+        // <availableAsField>false</availableAsField> ОДИН раз (единый
+        // `if parsed.get('availableAsField') is False`); две независимые ветки
+        // давали дубль тега при hidden:true + явном availableAsField:false.
+        if (hiddenParam || Boolean.FALSE.equals(param.getAvailableAsField())) {
             writeElement("availableAsField", "false");
         }
-        if (Boolean.FALSE.equals(param.getAvailableAsField())) {
-            writeElement("availableAsField", "false");
-        }
+        //**agent TASK-175
         if (Boolean.TRUE.equals(param.getDenyIncompleteValues())) {
             writeElement("denyIncompleteValues", "true");
         }

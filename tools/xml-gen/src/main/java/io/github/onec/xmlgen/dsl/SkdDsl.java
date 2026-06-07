@@ -370,6 +370,10 @@ public class SkdDsl {
         /** {@code Always | Auto | DontUse}. */
         private String use;
         private List<Object> availableValues;
+        //++agent TASK-175 [07.06.2026 19:30:00]
+        /** XG-40 (32e06cbc): ограничение использования параметра; платформа эмитит тег всегда. */
+        private Boolean useRestriction;
+        //++agent TASK-175
 
         public Parameter(@JsonProperty("name") String name,
                          @JsonProperty("title") Object title,
@@ -381,7 +385,10 @@ public class SkdDsl {
                          @JsonProperty("denyIncompleteValues") Boolean denyIncompleteValues,
                          @JsonProperty("autoDates") Boolean autoDates,
                          @JsonProperty("use") String use,
-                         @JsonProperty("availableValues") List<Object> availableValues) {
+                         @JsonProperty("availableValues") List<Object> availableValues,
+                         //++agent TASK-175 [07.06.2026 19:30:00]
+                         @JsonProperty("useRestriction") Boolean useRestriction) {
+                         //++agent TASK-175
             this.name = name;
             this.title = title;
             this.type = type;
@@ -393,6 +400,9 @@ public class SkdDsl {
             this.autoDates = autoDates;
             this.use = use;
             this.availableValues = availableValues;
+            //++agent TASK-175 [07.06.2026 19:30:00]
+            this.useRestriction = useRestriction;
+            //++agent TASK-175
         }
 
         /** Legacy 4-arg конструктор. */

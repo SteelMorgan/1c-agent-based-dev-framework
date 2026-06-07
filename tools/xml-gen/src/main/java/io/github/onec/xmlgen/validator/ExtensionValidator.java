@@ -19,6 +19,10 @@ import java.util.regex.Pattern;
  * 7. Файлы языков Languages/<name>.xml существуют
  * 8. Каталоги объектов из ChildObjects существуют
  * 9. Borrowed objects: ObjectBelonging=Adopted + валидный ExtendedConfigurationObject UUID
+ * 10. (EXT-10, TASK-175 XG-35) Заимствованная форма (Ext/Form.xml с BaseForm) не содержит
+ *     конструкций, которые borrow обязан вырезать (паттерн XG-04 «валидатор слеп к битому XML»):
+ *     ExcludedCommand, DataPath в AutoCommandBar, RowPictureDataPath, top-level CommandSet,
+ *     TitleDataPath, TypeLink с Items.*, element-level Events в ChildItems
  */
 public class ExtensionValidator {
 
@@ -404,6 +408,9 @@ public class ExtensionValidator {
                     }
                     validateBorrowedChildObjects(dirName + "/" + objName + ".xml", typeEl);
                     validateBorrowedFormMetadata(extDir, dirName, objName);
+                    //++agent TASK-175 [07.06.2026 18:50:00]
+                    validateBorrowedFormExtContent(extDir, dirName, objName);
+                    //++agent TASK-175
                 } catch (Exception e) {
                     warn("9. Cannot parse " + dirName + "/" + objName + ".xml: " + e.getMessage());
                 }
@@ -449,6 +456,84 @@ public class ExtensionValidator {
             warn("8. Cannot parse Roles/" + roleName + "/Ext/Rights.xml: " + e.getMessage());
         }
     }
+
+    //++agent TASK-175 [07.06.2026 18:50:00]
+    // ── Check 10 (EXT-10): запрещённые конструкции в заимствованной форме ──────────
+    // XG-35, паттерн XG-04: borrow раньше эмитил формы с конструкциями, которые Designer
+    // отказывается загружать, а валидатор был к этому слеп. Правило флажит ПОЛНЫЙ strip-набор
+    // безусловной ветки cfe-borrow.py @ HEAD (technical-design TASK-175 §3.3 W-05).
+    // ChildItems AutoCommandBar с кнопками и CommandName=0 — валидны, НЕ флажатся.
+
+    private void validateBorrowedFormExtContent(Path extDir, String dirName, String objName) {
+        Path formsDir = extDir.resolve(dirName).resolve(objName).resolve("Forms");
+        if (!Files.isDirectory(formsDir)) return;
+        try (Stream<Path> paths = Files.list(formsDir)) {
+            paths.filter(Files::isDirectory).forEach(formDir -> {
+                Path formXml = formDir.resolve("Ext").resolve("Form.xml");
+                if (!Files.isRegularFile(formXml)) return;
+                String relativePath = dirName + "/" + objName + "/Forms/"
+                        + formDir.getFileName() + "/Ext/Form.xml";
+                try {
+                    XmlDocument doc = new XmlStructureReader().parse(formXml);
+                    XmlNode form = doc.getRoot();
+                    // Правило применяется только к заимствованным формам (есть снимок BaseForm);
+                    // для собственных форм расширения эти конструкции легитимны
+                    if (!"Form".equals(form.getName()) || form.child("BaseForm") == null) return;
+
+                    Map<String, Integer> hits = new LinkedHashMap<>();
+                    if (form.child("CommandSet") != null) {
+                        hits.put("top-level <CommandSet>", 1);
+                    }
+                    scanForbiddenBorrowConstructs(form, false, false, hits);
+                    for (Map.Entry<String, Integer> hit : hits.entrySet()) {
+                        error("10. EXT-10 Borrowed form " + relativePath + ": forbidden construct "
+                                + hit.getKey() + " (x" + hit.getValue()
+                                + ") — must be stripped by 'extension borrow'");
+                    }
+                } catch (Exception e) {
+                    warn("10. Cannot parse " + relativePath + ": " + e.getMessage());
+                }
+            });
+        } catch (Exception e) {
+            warn("10. Cannot scan " + dirName + "/" + objName + "/Forms: " + e.getMessage());
+        }
+    }
+
+    private void scanForbiddenBorrowConstructs(XmlNode node, boolean inAutoCommandBar,
+                                               boolean inChildItems, Map<String, Integer> hits) {
+        for (XmlNode child : node.getChildren()) {
+            String childName = child.getName();
+            switch (childName) {
+                case "ExcludedCommand" -> bumpHit(hits, "<ExcludedCommand>");
+                case "RowPictureDataPath" -> bumpHit(hits, "<RowPictureDataPath>");
+                case "TitleDataPath" -> bumpHit(hits, "<TitleDataPath>");
+                case "DataPath" -> {
+                    // DataPath запрещён только внутри AutoCommandBar: в ChildItems
+                    // собственные элементы расширения легитимно несут DataPath
+                    if (inAutoCommandBar) bumpHit(hits, "<DataPath> in AutoCommandBar");
+                }
+                case "TypeLink" -> {
+                    String dataPath = child.childText("DataPath");
+                    if (dataPath != null && dataPath.startsWith("Items.")) {
+                        bumpHit(hits, "<TypeLink> with Items.*");
+                    }
+                }
+                case "Events" -> {
+                    if (inChildItems) bumpHit(hits, "element-level <Events> in ChildItems");
+                }
+                default -> { /* остальные теги не входят в strip-набор */ }
+            }
+            scanForbiddenBorrowConstructs(child,
+                    inAutoCommandBar || "AutoCommandBar".equals(childName),
+                    inChildItems || "ChildItems".equals(childName),
+                    hits);
+        }
+    }
+
+    private void bumpHit(Map<String, Integer> hits, String key) {
+        hits.merge(key, 1, Integer::sum);
+    }
+    //++agent TASK-175
 
     private void validateBorrowedChildObjects(String relativeObjectPath, XmlNode typeEl) {
         validateBorrowedChildObjectsRecursive(relativeObjectPath, typeEl);

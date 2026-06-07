@@ -95,6 +95,12 @@ public class ExtensionWriter {
         // (формат 2.20) это рассинхрон версии расширения с базой.
         String formatVersion = ConfigurationXmlReader.DEFAULT_FORMAT_VERSION;
         //++agent TASK-174
+        //++agent TASK-175 [07.06.2026 18:55:00]
+        // XG-36 (72bad1aa cfe-init v1.1, сосед cf-init): режим интерфейса расширения должен
+        // совпадать с базой — иначе Designer ругается при загрузке CFE. Дефолт без
+        // --config-path — TaxiEnableVersion8_2 (как в upstream else-ветке).
+        String interfaceCompat = "TaxiEnableVersion8_2";
+        //++agent TASK-175
 
         // Auto-resolve from base config
         if (configPath != null) {
@@ -105,6 +111,13 @@ public class ExtensionWriter {
                     cmp = resolvedCompat;
                     out.println("[INFO] Base config CompatibilityMode: " + cmp);
                 }
+                //++agent TASK-175 [07.06.2026 18:55:00]
+                String resolvedInterfaceCompat = readInterfaceCompatibilityMode(cfgFile);
+                if (resolvedInterfaceCompat != null) {
+                    interfaceCompat = resolvedInterfaceCompat;
+                    out.println("[INFO] Base config InterfaceCompatibilityMode: " + interfaceCompat);
+                }
+                //++agent TASK-175
                 String resolvedLangUuid = readLanguageUuid(cfgFile.getParent());
                 if (resolvedLangUuid != null) {
                     baseLangUuid = resolvedLangUuid;
@@ -123,8 +136,12 @@ public class ExtensionWriter {
         String roleName = pfx + "ОсновнаяРоль";
 
         // 1. Configuration.xml
+        //**agent TASK-175 [07.06.2026 18:55:00]
+        //writeConfigurationXml(outputDir, name, syn, pfx, purp, cmp, ver, vnd,
+        //        baseLangUuid, roleName, noRole, formatVersion);
         writeConfigurationXml(outputDir, name, syn, pfx, purp, cmp, ver, vnd,
-                baseLangUuid, roleName, noRole, formatVersion);
+                baseLangUuid, roleName, noRole, formatVersion, interfaceCompat);
+        //**agent TASK-175
 
         // 2. Languages/Русский.xml
         writeLanguageXml(outputDir, baseLangUuid, formatVersion);
@@ -145,11 +162,14 @@ public class ExtensionWriter {
 
     // ─── Configuration.xml ──────────────────────────────────────────────
 
+    //**agent TASK-175 [07.06.2026 18:55:00]
+    // XG-36: + параметр interfaceCompat (режим интерфейса из базы либо дефолт)
     private void writeConfigurationXml(Path outputDir, String name, String synonym,
                                        String prefix, String purpose, String compat,
                                        String version, String vendor, String baseLangUuid,
                                        String roleName, boolean noRole,
-                                       String formatVersion) throws IOException {
+                                       String formatVersion, String interfaceCompat) throws IOException {
+    //**agent TASK-175
         String cfgUuid = UuidGenerator.generate();
 
         StringBuilder sb = new StringBuilder();
@@ -206,7 +226,11 @@ public class ExtensionWriter {
         sb.append("\t\t\t<Copyright/>\n");
         sb.append("\t\t\t<VendorInformationAddress/>\n");
         sb.append("\t\t\t<ConfigurationInformationAddress/>\n");
-        sb.append("\t\t\t<InterfaceCompatibilityMode>TaxiEnableVersion8_2</InterfaceCompatibilityMode>\n");
+        //**agent TASK-175 [07.06.2026 18:55:00]
+        // XG-36: режим интерфейса наследуется от базовой конфигурации (раньше хардкод)
+        //sb.append("\t\t\t<InterfaceCompatibilityMode>TaxiEnableVersion8_2</InterfaceCompatibilityMode>\n");
+        sb.append("\t\t\t<InterfaceCompatibilityMode>").append(esc(interfaceCompat)).append("</InterfaceCompatibilityMode>\n");
+        //**agent TASK-175
         sb.append("\t\t</Properties>\n");
 
         // ChildObjects
@@ -316,6 +340,24 @@ public class ExtensionWriter {
         }
         return null;
     }
+
+    //++agent TASK-175 [07.06.2026 18:55:00]
+    // XG-36 (72bad1aa): зеркально readCompatibilityMode — извлечение режима интерфейса базы.
+    // Теги не путаются: подстрока «<CompatibilityMode>» (с угловой скобкой) не входит
+    // в «<InterfaceCompatibilityMode>», и наоборот.
+    private String readInterfaceCompatibilityMode(Path cfgFile) {
+        try {
+            String content = Files.readString(cfgFile, StandardCharsets.UTF_8);
+            var m = java.util.regex.Pattern
+                    .compile("<InterfaceCompatibilityMode>(\\w+)</InterfaceCompatibilityMode>")
+                    .matcher(content);
+            if (m.find()) return m.group(1);
+        } catch (IOException e) {
+            out.println("[WARN] Could not read base config: " + e.getMessage());
+        }
+        return null;
+    }
+    //++agent TASK-175
 
     private String readLanguageUuid(Path configDir) {
         Path langFile = configDir.resolve("Languages").resolve("Русский.xml");
