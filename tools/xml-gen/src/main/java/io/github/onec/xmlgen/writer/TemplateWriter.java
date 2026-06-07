@@ -47,6 +47,12 @@ public class TemplateWriter {
         validateObjectExists(objectXml, object);
 
         TemplateType templateType = parseTemplateType(typeStr);
+        if (setMainDcs && !object.isReport()) {
+            throw new IllegalArgumentException("--set-main-dcs is only valid with Report objects");
+        }
+        if (setMainDcs && templateType != TemplateType.DATA_COMPOSITION_SCHEME) {
+            throw new IllegalArgumentException("--set-main-dcs requires --type DataCompositionSchema");
+        }
 
         // Warning for SpreadsheetDocument without ПФ_ prefix
         if (templateType == TemplateType.SPREADSHEET_DOCUMENT && !name.startsWith("ПФ_")) {

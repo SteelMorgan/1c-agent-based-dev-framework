@@ -419,6 +419,10 @@ public class SubsystemEditor {
             setLocalStringProperty(propName, value);
         } else if (BOOLEAN_PROPS.contains(propName)) {
             String normalized = normalizeBoolean(value);
+            if (!"true".equals(normalized) && !"false".equals(normalized)) {
+                throw new IllegalArgumentException(
+                        propName + " has invalid boolean value '" + value + "' (expected true/false)");
+            }
             setSimpleProperty(propName, normalized);
         } else if ("Picture".equals(propName)) {
             setPictureProperty(value);

@@ -1468,9 +1468,8 @@ public class Commands {
         // templates. Check existence in the CLI layer before delegating so we get exit=1 + ERROR.
         // Use srcDir to resolve the object XML (same logic as TemplateWriter.resolveSrcDir).
         try {
-            Path effectiveSrc = "src".equals(srcDir) ? configDir : configDir.resolve(srcDir);
-            // Also handle absolute srcDir paths passed by tests
-            if (Paths.get(srcDir).isAbsolute()) effectiveSrc = Paths.get(srcDir);
+            Path srcPath = Paths.get(srcDir);
+            Path effectiveSrc = srcPath.isAbsolute() ? srcPath : configDir.resolve(srcDir);
             Path objectXmlForCheck = effectiveSrc.resolve(object.getObjectXmlRelPath());
             if (Files.exists(objectXmlForCheck)) {
                 io.github.onec.xmlgen.editor.ObjectContainerEditor checkEditor =
@@ -2042,6 +2041,10 @@ public class Commands {
             throw new IllegalArgumentException(
                     "Usage: validate [--type <form|role|skd|mxl|epf>] [--output <text|json>] [--src-root <path>] <file> [files...]");
         }
+        if (options.srcRoot() != null && !Files.isDirectory(options.srcRoot())) {
+            throw new IllegalArgumentException("--src-root does not exist or is not a directory: "
+                    + options.srcRoot());
+        }
 
         XmlStructureReader reader = new XmlStructureReader();
         ValidatorFactory factory = new ValidatorFactory();
@@ -2227,10 +2230,11 @@ public class Commands {
                                                           String formatStr, ValidationLevel level,
                                                           GenValidator genValidator,
                                                           ValidatorFactory factory) {
-        boolean expectBom = "designer".equals(formatStr) && isMetadataFile(objectType);
-        List<ValidationIssue> allIssues = new ArrayList<>(genValidator.validate(document, objectType, expectBom));
+        String validationType = effectiveValidationType(document, objectType);
+        boolean expectBom = "designer".equals(formatStr) && isMetadataFile(validationType);
+        List<ValidationIssue> allIssues = new ArrayList<>(genValidator.validate(document, validationType, expectBom));
 
-        Optional<XmlValidator> validator = factory.getValidator(objectType);
+        Optional<XmlValidator> validator = factory.getValidator(validationType);
         if (validator.isPresent()) {
             allIssues.addAll(validator.get().validate(document, level));
             return allIssues;
@@ -2240,8 +2244,9 @@ public class Commands {
         switch (objectType) {
             case "config" -> allIssues.addAll(convertMessages("CONFIG",
                     new ConfigValidator().validate(document, contextDir)));
-            case "meta", "template" -> allIssues.addAll(convertMessages("META",
+            case "meta" -> allIssues.addAll(convertMessages("META",
                     new MetaValidator().validate(document, contextDir)));
+            case "template" -> allIssues.addAll(validateTemplateMetadataWrapper(document));
             case "subsystem" -> allIssues.addAll(convertMessages("SUBSYSTEM",
                     new SubsystemValidator().validate(document, contextDir, file)));
             case "interface" -> allIssues.addAll(convertMessages("INTERFACE",
@@ -2253,6 +2258,96 @@ public class Commands {
             }
         }
         return allIssues;
+    }
+
+    private static List<ValidationIssue> validateTemplateMetadataWrapper(XmlDocument document) {
+        List<ValidationIssue> issues = new ArrayList<>();
+        XmlNode root = document.getRoot();
+
+        if (!"MetaDataObject".equals(root.getName())) {
+            issues.add(ValidationIssue.error("TEMPLATE-001",
+                    "Expected root element 'MetaDataObject' or template body XML, found '"
+                            + root.getName() + "'",
+                    root.getLine(), "/"));
+            return issues;
+        }
+
+        String version = root.attr("version");
+        if (version == null || version.isEmpty()) {
+            issues.add(ValidationIssue.error("TEMPLATE-002",
+                    "Structure: version attribute missing on <MetaDataObject>",
+                    root.getLine(), "/MetaDataObject"));
+        } else if (!"2.17".equals(version) && !"2.20".equals(version)) {
+            issues.add(ValidationIssue.warning("TEMPLATE-002",
+                    "Structure: unexpected version '" + version + "' (expected 2.17 or 2.20)",
+                    root.getLine(), "/MetaDataObject/@version"));
+        }
+
+        XmlNode template = root.child("Template");
+        if (template == null) {
+            issues.add(ValidationIssue.error("TEMPLATE-003",
+                    "Structure: <Template> element missing inside <MetaDataObject>",
+                    root.getLine(), "/MetaDataObject"));
+            return issues;
+        }
+
+        String uuid = template.attr("uuid");
+        if (uuid == null || uuid.isEmpty()) {
+            issues.add(ValidationIssue.error("TEMPLATE-004",
+                    "Structure: uuid attribute missing on <Template>",
+                    template.getLine(), "/MetaDataObject/Template"));
+        } else if (!uuid.matches("[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}")) {
+            issues.add(ValidationIssue.error("TEMPLATE-004",
+                    "Structure: invalid uuid format '" + uuid + "'",
+                    template.getLine(), "/MetaDataObject/Template/@uuid"));
+        }
+
+        XmlNode props = template.child("Properties");
+        if (props == null) {
+            issues.add(ValidationIssue.error("TEMPLATE-005",
+                    "Properties: section missing",
+                    template.getLine(), "/MetaDataObject/Template"));
+            return issues;
+        }
+
+        String name = props.childText("Name");
+        if (name == null || name.isBlank()) {
+            issues.add(ValidationIssue.error("TEMPLATE-006",
+                    "Properties: Name is required",
+                    props.getLine(), "/MetaDataObject/Template/Properties/Name"));
+        }
+
+        String templateType = props.childText("TemplateType");
+        Set<String> knownTypes = Set.of(
+                "SpreadsheetDocument", "HTMLDocument", "TextDocument",
+                "BinaryData", "DataCompositionSchema");
+        if (templateType == null || templateType.isBlank()) {
+            issues.add(ValidationIssue.error("TEMPLATE-007",
+                    "Properties: TemplateType is required",
+                    props.getLine(), "/MetaDataObject/Template/Properties/TemplateType"));
+        } else if (!knownTypes.contains(templateType)) {
+            issues.add(ValidationIssue.error("TEMPLATE-007",
+                    "Properties: unknown TemplateType '" + templateType + "'",
+                    props.getLine(), "/MetaDataObject/Template/Properties/TemplateType"));
+        }
+
+        if (props.child("Synonym") == null) {
+            issues.add(ValidationIssue.warning("TEMPLATE-008",
+                    "Properties: Synonym is missing",
+                    props.getLine(), "/MetaDataObject/Template/Properties/Synonym"));
+        }
+
+        return issues;
+    }
+
+    private static String effectiveValidationType(XmlDocument document, String objectType) {
+        if ("template".equals(objectType) && "document".equals(document.getRootElement())) {
+            return "mxl";
+        }
+        if ("template".equals(objectType) && "DataCompositionSchema".equals(document.getRootElement())) {
+            return "skd";
+        }
+        return objectType;
     }
 
     private static Path validationContextDir(String objectType, Path file) {
@@ -2303,7 +2398,7 @@ public class Commands {
         return "role".equals(type) || "form".equals(type) || "epf".equals(type)
                 || "skd".equals(type) || "mxl".equals(type)
                 || "meta".equals(type) || "config".equals(type) || "extension".equals(type)
-                || "subsystem".equals(type) || "interface".equals(type);
+                || "subsystem".equals(type) || "interface".equals(type) || "template".equals(type);
     }
 
     /**
@@ -3142,11 +3237,79 @@ public class Commands {
                             + "set-group-order (alias: group-order)");
             }
 
+            validateInterfacePreviewNoNewErrors(file, editor.previewContent());
             editor.save();
             System.out.println("CommandInterface updated: " + operation);
         } catch (IOException e) {
             throw new RuntimeException("Failed to edit CommandInterface: " + e.getMessage(), e);
         }
+    }
+
+    private static void validateInterfacePreviewNoNewErrors(Path file, String previewContent) throws IOException {
+        Set<String> preExistingErrors;
+        try {
+            preExistingErrors = interfaceErrorKeys(validateInterfaceContent(file, Files.readString(file)));
+        } catch (Exception e) {
+            throw new IllegalArgumentException(
+                    "Cannot validate existing CommandInterface.xml before edit: " + e.getMessage(), e);
+        }
+
+        List<InterfaceValidator.ValidationMessage> afterMessages;
+        try {
+            afterMessages = validateInterfaceContent(file, previewContent);
+        } catch (Exception e) {
+            throw new IllegalArgumentException(
+                    "Interface edit would produce unparsable CommandInterface.xml: " + e.getMessage(), e);
+        }
+
+        List<InterfaceValidator.ValidationMessage> newErrors = afterMessages.stream()
+                .filter(m -> "ERROR".equals(m.level))
+                .filter(m -> !preExistingErrors.contains(interfaceMessageKey(m)))
+                .toList();
+        if (!newErrors.isEmpty()) {
+            String details = newErrors.stream()
+                    .map(m -> m.message)
+                    .collect(java.util.stream.Collectors.joining("; "));
+            throw new IllegalArgumentException(
+                    "Interface edit would introduce validation errors; file was not changed. Errors: "
+                            + details);
+        }
+    }
+
+    private static List<InterfaceValidator.ValidationMessage> validateInterfaceContent(Path file, String content)
+            throws Exception {
+        Path dir = file.toAbsolutePath().normalize().getParent();
+        Path tmp = Files.createTempFile(dir, ".xmlgen-interface-edit-", ".xml");
+        try {
+            Files.writeString(tmp, content, java.nio.charset.StandardCharsets.UTF_8);
+            XmlDocument doc = new XmlStructureReader().parse(tmp);
+            Path configRoot = locateConfigRoot(file);
+            if (configRoot == null) {
+                Path p2 = file.getParent();
+                Path p3 = (p2 != null) ? p2.getParent() : null;
+                if (p3 != null) configRoot = p3.getParent();
+            }
+            return new InterfaceValidator().validate(doc, configRoot);
+        } finally {
+            try {
+                Files.deleteIfExists(tmp);
+            } catch (Exception ignored) {
+            }
+        }
+    }
+
+    private static Set<String> interfaceErrorKeys(List<InterfaceValidator.ValidationMessage> messages) {
+        Set<String> keys = new HashSet<>();
+        for (InterfaceValidator.ValidationMessage message : messages) {
+            if ("ERROR".equals(message.level)) {
+                keys.add(interfaceMessageKey(message));
+            }
+        }
+        return keys;
+    }
+
+    private static String interfaceMessageKey(InterfaceValidator.ValidationMessage message) {
+        return message.level + "\u0001" + message.message;
     }
 
     /**

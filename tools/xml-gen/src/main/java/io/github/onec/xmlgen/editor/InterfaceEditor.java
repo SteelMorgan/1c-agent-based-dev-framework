@@ -182,6 +182,10 @@ public class InterfaceEditor {
         //++agent TASK-172
     }
 
+    public String previewContent() {
+        return content;
+    }
+
     // --- Internal ---
 
     private void setVisibility(String command, boolean visible) {
