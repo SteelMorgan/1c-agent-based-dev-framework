@@ -227,6 +227,21 @@ class FormEditApplierTest {
     }
 
     @Test
+    void applyJsonSpec_elementBefore_insertsBeforeNamedSibling() throws Exception {
+        editor.addElement("input", "Первый", null, null, null);
+        editor.addElement("input", "Третий", null, null, null);
+
+        String json = "{\"elements\":[{\"kind\":\"input\",\"name\":\"Второй\",\"before\":\"Третий\"}]}";
+        FormEditDsl spec = mapper.readValue(json, FormEditDsl.class);
+        new FormEditApplier(editor).apply(spec);
+
+        XmlNode items = document.getRoot().child("ChildItems");
+        assertEquals("Первый", items.getChildren().get(0).attr("name"));
+        assertEquals("Второй", items.getChildren().get(1).attr("name"));
+        assertEquals("Третий", items.getChildren().get(2).attr("name"));
+    }
+
+    @Test
     void applyJsonSpec_preservesCommandPictureShortcutRepresentation() throws Exception {
         String json = "{\"commands\":[{"
                 + "\"name\":\"Печать\","

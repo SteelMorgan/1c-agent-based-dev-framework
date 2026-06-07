@@ -198,6 +198,26 @@ public class MxlValidator implements XmlValidator {
                         merge.getLine(), mergePath));
                 continue;
             }
+            Integer r = parseIntOrNull(rStr);
+            Integer c = parseIntOrNull(cStr);
+            if (r == null) {
+                issues.add(ValidationIssue.error("MXL-103",
+                        "Invalid merge <r> value: '" + rStr + "'",
+                        merge.getLine(), mergePath + "/r"));
+            } else if (r < -1) {
+                issues.add(ValidationIssue.error("MXL-103",
+                        "Merge <r> must be >= -1, found " + r,
+                        merge.getLine(), mergePath + "/r"));
+            }
+            if (c == null) {
+                issues.add(ValidationIssue.error("MXL-103",
+                        "Invalid merge <c> value: '" + cStr + "'",
+                        merge.getLine(), mergePath + "/c"));
+            } else if (c < 0) {
+                issues.add(ValidationIssue.error("MXL-103",
+                        "Merge <c> must be >= 0, found " + c,
+                        merge.getLine(), mergePath + "/c"));
+            }
             checkMergeComponent(merge, "w", mergePath, issues);
             checkMergeComponent(merge, "h", mergePath, issues);
         }

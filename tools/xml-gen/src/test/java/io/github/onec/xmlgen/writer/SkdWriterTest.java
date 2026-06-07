@@ -937,10 +937,10 @@ class SkdWriterTest {
         assertThat(content).contains("<v8:content>Кол-во</v8:content>");
         assertThat(content).contains("<dcscom:ignoreNullValues");
         assertThat(content).contains(">true</dcscom:ignoreNullValues>");
-        assertThat(content).contains("<order>false</order>");
+        assertThat(content).contains("<order>true</order>");
         assertThat(content).contains("<dataPath>Маржа</dataPath>");
         assertThat(content).contains("<expression>Цена - Закупка</expression>");
-        assertThat(content).contains("<condition>false</condition>");
+        assertThat(content).contains("<condition>true</condition>");
         assertThat(content).contains("<expression>Сумма(Количество)</expression>");
         assertThat(content).contains("<name>Период</name>");
         assertThat(content).contains("<name>ДатаНачала</name>");

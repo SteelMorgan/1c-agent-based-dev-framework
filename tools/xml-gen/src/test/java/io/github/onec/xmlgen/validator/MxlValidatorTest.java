@@ -114,6 +114,21 @@ class MxlValidatorTest {
         assertThat(issues).anyMatch(i -> i.getCode().equals("MXL-103"));
     }
 
+    @Test
+    void mxl103_failsOnInvalidDocumentMergeCoordinates() throws Exception {
+        Path file = writeMxlBody(
+                "\t<columns><size>2</size></columns>\n" +
+                "\t<height>1</height>\n" +
+                "\t<merge><r>bad</r><c>-1</c><w>1</w></merge>\n");
+
+        List<ValidationIssue> issues = validator.validate(reader.parse(file), ValidationLevel.SEMANTIC);
+
+        assertThat(issues).anyMatch(i ->
+                i.getCode().equals("MXL-103") && i.getElement().endsWith("/r"));
+        assertThat(issues).anyMatch(i ->
+                i.getCode().equals("MXL-103") && i.getElement().endsWith("/c"));
+    }
+
     // ==================== Valid complete MXL ====================
 
     @Test

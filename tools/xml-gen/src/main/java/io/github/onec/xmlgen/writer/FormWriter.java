@@ -850,6 +850,7 @@ public class FormWriter extends XmlWriter {
         // Остаточные (НЕ порядок-критичные) свойства; всё порядок-значимое выведено выше и исключено
         writeElementProperties(element, java.util.Set.of(
             "visible", "userVisible", "enabled", "readOnly",
+            "hidden", "disabled",
             "titleLocation", "multiLine", "passwordMode", "choiceButton", "clearButton",
             "spinButton", "dropListButton", "markIncomplete", "textEdit", "skipOnInput",
             "autoMaxWidth", "maxWidth", "autoMaxHeight", "maxHeight",
@@ -1807,6 +1808,19 @@ public class FormWriter extends XmlWriter {
             }
             //++agent TASK-174
             if (skipKeys.contains(key)) {
+                continue;
+            }
+
+            if (key.equals("hidden")) {
+                if (!element.containsKey("visible") && Boolean.TRUE.equals(entryValue)) {
+                    writeElement("Visible", "false");
+                }
+                continue;
+            }
+            if (key.equals("disabled")) {
+                if (!element.containsKey("enabled") && Boolean.TRUE.equals(entryValue)) {
+                    writeElement("Enabled", "false");
+                }
                 continue;
             }
 

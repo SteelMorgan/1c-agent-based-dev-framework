@@ -2,6 +2,7 @@ package io.github.onec.xmlgen.writer;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import io.github.onec.xmlgen.editor.ConfigEditor;
 import io.github.onec.xmlgen.model.ConfigurationXmlReader;
 import io.github.onec.xmlgen.model.MetadataTypeRegistry;
 import io.github.onec.xmlgen.model.UuidGenerator;
@@ -116,6 +117,8 @@ public class SubsystemWriter {
         // 4. Регистрация в родительской подсистеме (bottom-up --parent).
         if (parentPath != null) {
             registerChildInParent(parentPath, name);
+        } else {
+            registerTopLevelInConfiguration(cfgRoot, outputDir, name);
         }
     }
 
@@ -347,6 +350,20 @@ public class SubsystemWriter {
             dir = dir.getParent();
         }
         return null;
+    }
+
+    private void registerTopLevelInConfiguration(Path configRoot, Path outputDir, String name) throws IOException {
+        if (configRoot == null) {
+            return;
+        }
+        Path expectedTopLevelDir = configRoot.resolve("Subsystems").toAbsolutePath().normalize();
+        Path actualOutputDir = outputDir.toAbsolutePath().normalize();
+        if (!actualOutputDir.equals(expectedTopLevelDir)) {
+            return;
+        }
+        ConfigEditor editor = new ConfigEditor(configRoot.resolve("Configuration.xml"));
+        editor.addChildObject("Subsystem." + name);
+        editor.save();
     }
 
     private static String resolveDirectoryForType(String type) {

@@ -84,6 +84,32 @@ class RoleValidatorTask174Test {
     }
 
     @Test
+    void role103_updateOnCalculationRegister_isWarning() throws Exception {
+        // Спека: CalculationRegister — только Read, View. Update/Edit раньше проходили молча.
+        List<ValidationIssue> issues = validateRights(
+                objectBlock("CalculationRegister.Начисления", "Read", "View", "Update", "Edit"));
+
+        assertThat(issues).anyMatch(i -> "ROLE-103".equals(i.getCode())
+                && i.getMessage().contains("'Update'")
+                && i.getMessage().contains("CalculationRegister"));
+        assertThat(issues).anyMatch(i -> "ROLE-103".equals(i.getCode())
+                && i.getMessage().contains("'Edit'")
+                && i.getMessage().contains("CalculationRegister"));
+        assertThat(issues).noneMatch(i -> "ROLE-103".equals(i.getCode())
+                && (i.getMessage().contains("'Read'") || i.getMessage().contains("'View'")));
+    }
+
+    @Test
+    void role103_useOnCatalog_isWarning() throws Exception {
+        // Полная top-level матрица: Use известное право, но для Catalog оно не применимо.
+        List<ValidationIssue> issues = validateRights(objectBlock("Catalog.Номенклатура", "Use"));
+
+        assertThat(issues).anyMatch(i -> "ROLE-103".equals(i.getCode())
+                && i.getMessage().contains("'Use'")
+                && i.getMessage().contains("Catalog"));
+    }
+
+    @Test
     void role103_rightsOnEnum_isWarning() throws Exception {
         // Спека: Enum не фигурирует в Rights.xml (тип без прав).
         List<ValidationIssue> issues = validateRights(objectBlock("Enum.ВидыОпераций", "View"));
@@ -115,6 +141,22 @@ class RoleValidatorTask174Test {
                 && i.getMessage().contains("'Edit'"));
         assertThat(issues).noneMatch(i -> "ROLE-103".equals(i.getCode())
                 && i.getMessage().contains("'View'"));
+    }
+
+    @Test
+    void role103_nestedServiceNodes_onlyUse() throws Exception {
+        List<ValidationIssue> issues = validateRights(
+                objectBlock("WebService.Exchange.Operation.GetIBParameters", "Use", "Read")
+                        + objectBlock("HTTPService.ЭДО.URLTemplate.Документы.Method.POST", "Use", "Read"));
+
+        assertThat(issues).anyMatch(i -> "ROLE-103".equals(i.getCode())
+                && i.getMessage().contains("'Read'")
+                && i.getMessage().contains("Operation"));
+        assertThat(issues).anyMatch(i -> "ROLE-103".equals(i.getCode())
+                && i.getMessage().contains("'Read'")
+                && i.getMessage().contains("Method"));
+        assertThat(issues).noneMatch(i -> "ROLE-103".equals(i.getCode())
+                && i.getMessage().contains("'Use'"));
     }
 
     @Test
@@ -179,5 +221,57 @@ class RoleValidatorTask174Test {
         assertThat(rights).doesNotContain("<name>Insert</name>")
                 .doesNotContain("<name>Delete</name>")
                 .doesNotContain("InteractiveInsert");
+    }
+
+    @Test
+    void presetEdit_onCalculationRegister_emitsReadViewOnly() throws Exception {
+        RoleDsl dsl = new RoleDsl("TestRoleCalcReg", null, null, null, null, null,
+                List.of(new RoleDsl.ObjectRights("CalculationRegister.Начисления", "edit", null, null)),
+                null);
+        new RoleWriter(OutputFormat.DESIGNER).create(dsl, tempDir);
+
+        Path rightsPath = tempDir.resolve("Roles/TestRoleCalcReg/Ext/Rights.xml");
+        String rights = Files.readString(rightsPath, StandardCharsets.UTF_8);
+        assertThat(rights).contains("<name>Read</name>").contains("<name>View</name>");
+        assertThat(rights).doesNotContain("<name>Update</name>")
+                .doesNotContain("<name>Edit</name>");
+
+        List<ValidationIssue> issues = validator.validate(reader.parse(rightsPath), ValidationLevel.SEMANTIC);
+        assertThat(issues).noneMatch(i -> "ROLE-103".equals(i.getCode()));
+    }
+
+    @Test
+    void presetView_onCommonCommand_emitsViewOnly() throws Exception {
+        RoleDsl dsl = new RoleDsl("TestRoleCommand", null, null, null, null, null,
+                List.of(new RoleDsl.ObjectRights("CommonCommand.Настройки", "view", null, null)),
+                null);
+        new RoleWriter(OutputFormat.DESIGNER).create(dsl, tempDir);
+
+        Path rightsPath = tempDir.resolve("Roles/TestRoleCommand/Ext/Rights.xml");
+        String rights = Files.readString(rightsPath, StandardCharsets.UTF_8);
+        assertThat(rights).contains("<name>View</name>");
+        assertThat(rights).doesNotContain("<name>Read</name>");
+
+        List<ValidationIssue> issues = validator.validate(reader.parse(rightsPath), ValidationLevel.SEMANTIC);
+        assertThat(issues).noneMatch(i -> "ROLE-103".equals(i.getCode()));
+    }
+
+    @Test
+    void presetEdit_onConstant_emitsNoCrudInsertDelete() throws Exception {
+        RoleDsl dsl = new RoleDsl("TestRoleConstant", null, null, null, null, null,
+                List.of(new RoleDsl.ObjectRights("Constant.ВалютаУчета", "edit", null, null)),
+                null);
+        new RoleWriter(OutputFormat.DESIGNER).create(dsl, tempDir);
+
+        Path rightsPath = tempDir.resolve("Roles/TestRoleConstant/Ext/Rights.xml");
+        String rights = Files.readString(rightsPath, StandardCharsets.UTF_8);
+        assertThat(rights).contains("<name>Read</name>").contains("<name>Update</name>")
+                .contains("<name>View</name>").contains("<name>Edit</name>");
+        assertThat(rights).doesNotContain("<name>Insert</name>")
+                .doesNotContain("<name>Delete</name>")
+                .doesNotContain("InteractiveInsert");
+
+        List<ValidationIssue> issues = validator.validate(reader.parse(rightsPath), ValidationLevel.SEMANTIC);
+        assertThat(issues).noneMatch(i -> "ROLE-103".equals(i.getCode()));
     }
 }

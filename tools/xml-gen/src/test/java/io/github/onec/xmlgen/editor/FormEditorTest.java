@@ -169,6 +169,19 @@ class FormEditorTest {
         assertEquals("Field2", childItems.getChildren().get(0).attr("name"));
         assertEquals("Field1", childItems.getChildren().get(1).attr("name"));
     }
+
+    @Test
+    void addElementBefore_insertsBeforeNamedSibling() {
+        editor.addElement("InputField", "Field1", null, null, null);
+        editor.addElement("InputField", "Field3", null, null, null);
+
+        editor.addElement("InputField", "Field2", null, null, null, "Field3", null);
+
+        XmlNode childItems = document.getRoot().child("ChildItems");
+        assertEquals("Field1", childItems.getChildren().get(0).attr("name"));
+        assertEquals("Field2", childItems.getChildren().get(1).attr("name"));
+        assertEquals("Field3", childItems.getChildren().get(2).attr("name"));
+    }
     
     @Test
     void testRemoveElement() {

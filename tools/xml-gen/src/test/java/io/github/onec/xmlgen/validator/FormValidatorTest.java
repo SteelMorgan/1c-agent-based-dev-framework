@@ -93,6 +93,47 @@ class FormValidatorTest {
         assertThat(issues).anyMatch(i -> i.getCode().equals("FORM-004"));
     }
 
+    @Test
+    void form004_duplicateIdInsideCommandBarChildItemsReported() throws Exception {
+        Path file = writeXml("Form.xml",
+                "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n" +
+                "<Form xmlns=\"http://v8.1c.ru/8.3/xcf/logform\" version=\"2.17\">\n" +
+                "\t<AutoCommandBar name=\"ФормаКоманднаяПанель\" id=\"-1\">\n" +
+                "\t\t<ChildItems>\n" +
+                "\t\t\t<Button name=\"ToolbarButton\" id=\"2\"><Type>CommandBarButton</Type></Button>\n" +
+                "\t\t</ChildItems>\n" +
+                "\t</AutoCommandBar>\n" +
+                "\t<ChildItems>\n" +
+                "\t\t<InputField name=\"BodyField\" id=\"2\"/>\n" +
+                "\t</ChildItems>\n" +
+                "</Form>\n");
+
+        XmlDocument doc = reader.parse(file);
+        List<ValidationIssue> issues = validator.validate(doc, ValidationLevel.STRUCTURE);
+
+        assertThat(issues).anyMatch(i -> i.getCode().equals("FORM-004"));
+    }
+
+    @Test
+    void form123_rootCommandBarButtonWithoutTypeReported() throws Exception {
+        Path file = writeXml("Form.xml",
+                "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n" +
+                "<Form xmlns=\"http://v8.1c.ru/8.3/xcf/logform\" version=\"2.17\">\n" +
+                "\t<AutoCommandBar name=\"ФормаКоманднаяПанель\" id=\"-1\">\n" +
+                "\t\t<ChildItems>\n" +
+                "\t\t\t<Button name=\"ToolbarButton\" id=\"2\"/>\n" +
+                "\t\t</ChildItems>\n" +
+                "\t</AutoCommandBar>\n" +
+                "\t<ChildItems/>\n" +
+                "</Form>\n");
+
+        XmlDocument doc = reader.parse(file);
+        List<ValidationIssue> issues = validator.validate(doc, ValidationLevel.STRUCTURE);
+
+        assertThat(issues).anyMatch(i -> i.getCode().equals("FORM-123")
+                && i.getMessage().contains("ToolbarButton"));
+    }
+
     // ==================== FORM-006: Missing ChildItems (TASK-171 V-5) ====================
 
     @Test
@@ -230,6 +271,39 @@ class FormValidatorTest {
 
         assertThat(issues).anyMatch(i ->
                 i.getCode().equals("FORM-103") && i.getMessage().contains("FakeCmd"));
+    }
+
+    @Test
+    void form103_contextMenuButtonCommandChecked() throws Exception {
+        Path file = writeXml("Form.xml",
+                "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n" +
+                "<Form xmlns=\"http://v8.1c.ru/8.3/xcf/logform\" version=\"2.17\">\n" +
+                "\t<AutoCommandBar name=\"ФормаКоманднаяПанель\" id=\"-1\"/>\n" +
+                "\t<ChildItems>\n" +
+                "\t\t<Table name=\"T\" id=\"1\">\n" +
+                "\t\t\t<ContextMenu name=\"TCtx\" id=\"2\">\n" +
+                "\t\t\t\t<ChildItems>\n" +
+                "\t\t\t\t\t<Button name=\"CtxButton\" id=\"3\">\n" +
+                "\t\t\t\t\t\t<Type>CommandBarButton</Type>\n" +
+                "\t\t\t\t\t\t<CommandName>Form.Command.Missing</CommandName>\n" +
+                "\t\t\t\t\t</Button>\n" +
+                "\t\t\t\t</ChildItems>\n" +
+                "\t\t\t</ContextMenu>\n" +
+                "\t\t\t<AutoCommandBar name=\"TCmd\" id=\"4\"/>\n" +
+                "\t\t\t<ExtendedTooltip name=\"TTooltip\" id=\"5\"/>\n" +
+                "\t\t\t<SearchStringAddition name=\"TSearch\" id=\"6\"/>\n" +
+                "\t\t\t<ViewStatusAddition name=\"TStatus\" id=\"7\"/>\n" +
+                "\t\t\t<SearchControlAddition name=\"TControl\" id=\"8\"/>\n" +
+                "\t\t\t<ChildItems/>\n" +
+                "\t\t</Table>\n" +
+                "\t</ChildItems>\n" +
+                "</Form>\n");
+
+        XmlDocument doc = reader.parse(file);
+        List<ValidationIssue> issues = validator.validate(doc, ValidationLevel.SEMANTIC);
+
+        assertThat(issues).anyMatch(i -> i.getCode().equals("FORM-103")
+                && i.getMessage().contains("Form.Command.Missing"));
     }
 
     // ==================== FORM-108: Invalid AllowedLength ====================
@@ -581,6 +655,32 @@ class FormValidatorTest {
         List<ValidationIssue> issues = validator.validate(doc, ValidationLevel.SEMANTIC);
         assertThat(issues).anyMatch(i -> i.getCode().equals("FORM-125")
                 && i.getMessage().contains("Wrong"));
+    }
+
+    @Test
+    void form125_tableAdditionWithWrongItem_reported() throws Exception {
+        Path file = writeXml("Form.xml",
+                "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n" +
+                "<Form xmlns=\"http://v8.1c.ru/8.3/xcf/logform\" version=\"2.17\">\n" +
+                "\t<AutoCommandBar name=\"FormCommandBar\" id=\"-1\"/>\n" +
+                "\t<ChildItems>\n" +
+                "\t\t<Table name=\"T\" id=\"1\">\n" +
+                "\t\t\t<ContextMenu name=\"TContext\" id=\"2\"/>\n" +
+                "\t\t\t<AutoCommandBar name=\"TCmd\" id=\"3\"/>\n" +
+                "\t\t\t<ExtendedTooltip name=\"TTooltip\" id=\"4\"/>\n" +
+                "\t\t\t<SearchStringAddition name=\"TSearch\" id=\"5\">\n" +
+                "\t\t\t\t<AdditionSource><Item>OtherTable</Item><Type>SearchStringRepresentation</Type></AdditionSource>\n" +
+                "\t\t\t</SearchStringAddition>\n" +
+                "\t\t\t<ViewStatusAddition name=\"TStatus\" id=\"6\"/>\n" +
+                "\t\t\t<SearchControlAddition name=\"TControl\" id=\"7\"/>\n" +
+                "\t\t\t<ChildItems/>\n" +
+                "\t\t</Table>\n" +
+                "\t</ChildItems>\n" +
+                "</Form>\n");
+        XmlDocument doc = reader.parse(file);
+        List<ValidationIssue> issues = validator.validate(doc, ValidationLevel.SEMANTIC);
+        assertThat(issues).anyMatch(i -> i.getCode().equals("FORM-125")
+                && i.getMessage().contains("OtherTable"));
     }
 
     // ==================== FORM-118: Event handler non-empty ====================

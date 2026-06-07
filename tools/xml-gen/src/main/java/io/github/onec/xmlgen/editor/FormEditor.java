@@ -278,6 +278,15 @@ public class FormEditor {
     // вызывала команду. Формат значения совпадает с compile-путём: Form.Command.<имя>.
     public void addElement(String type, String name, String dataPath, String parentName,
                            String afterName, String command) {
+        addElement(type, name, dataPath, parentName, afterName, null, command);
+    }
+
+    public void addElement(String type, String name, String dataPath, String parentName,
+                           String afterName, String beforeName, String command) {
+        if (afterName != null && beforeName != null) {
+            throw new IllegalArgumentException("Use either after or before, not both");
+        }
+
         String normalizedType = "radio".equalsIgnoreCase(type) ? "RadioButtonField" : type;
         FormElementKind kind = FormElementKind.resolve(normalizedType);
 
@@ -354,9 +363,11 @@ public class FormEditor {
         }
 
         if (afterName != null) {
-             insertAfter(parent, element, afterName);
+            insertAfter(parent, element, afterName);
+        } else if (beforeName != null) {
+            insertBefore(parent, element, beforeName);
         } else {
-             parent.addChild(element);
+            parent.addChild(element);
         }
     }
 
@@ -507,6 +518,21 @@ public class FormEditor {
         }
         if (index != -1) {
             parent.getChildren().add(index + 1, element);
+        } else {
+            parent.addChild(element);
+        }
+    }
+
+    private void insertBefore(XmlNode parent, XmlNode element, String beforeName) {
+        int index = -1;
+        for (int i = 0; i < parent.getChildren().size(); i++) {
+            if (beforeName.equals(parent.getChildren().get(i).attr("name"))) {
+                index = i;
+                break;
+            }
+        }
+        if (index != -1) {
+            parent.getChildren().add(index, element);
         } else {
             parent.addChild(element);
         }

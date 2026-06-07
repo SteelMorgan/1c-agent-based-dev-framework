@@ -25,7 +25,7 @@ public class EpfEditor {
     public void addTabularSection(String name, String synonym) {
         XmlNode section = XmlNode.createElement("TabularSection", Map.of("uuid", UUID.randomUUID().toString()));
         section.addChild(buildTabularSectionInternalInfo(name));
-        section.addChild(buildTabularSectionProperties(name, synonym));
+        section.addChild(buildTabularSectionProperties(name, synonym, formatAtLeast220()));
         section.addChild(createNode("ChildObjects"));
         insertChildObject(section, "TabularSection");
     }
@@ -142,19 +142,21 @@ public class EpfEditor {
         return generatedType;
     }
 
-    private XmlNode buildTabularSectionProperties(String name, String synonym) {
+    private XmlNode buildTabularSectionProperties(String name, String synonym, boolean formatAtLeast220) {
         XmlNode props = XmlNode.createElement("Properties", Map.of());
         props.addChild(textNode("Name", name));
         props.addChild(synonymNode(synonym != null ? synonym : name));
         props.addChild(createNode("Comment"));
         props.addChild(createNode("ToolTip"));
         props.addChild(textNode("FillChecking", "DontCheck"));
-        props.addChild(textNode("LineNumberLength", "5"));
-        props.addChild(standardAttributes());
+        if (formatAtLeast220) {
+            props.addChild(textNode("LineNumberLength", "5"));
+        }
+        props.addChild(standardAttributes(formatAtLeast220));
         return props;
     }
 
-    private XmlNode standardAttributes() {
+    private XmlNode standardAttributes(boolean formatAtLeast220) {
         XmlNode standardAttributes = createNode("StandardAttributes");
         XmlNode lineNumber = createNode("xr:StandardAttribute");
         lineNumber.setAttribute("name", "LineNumber");
@@ -163,7 +165,9 @@ public class EpfEditor {
         lineNumber.addChild(textNode("xr:MultiLine", "false"));
         lineNumber.addChild(textNode("xr:FillFromFillingValue", "false"));
         lineNumber.addChild(textNode("xr:CreateOnInput", "Auto"));
-        lineNumber.addChild(textNode("xr:TypeReductionMode", "TransformValues"));
+        if (formatAtLeast220) {
+            lineNumber.addChild(textNode("xr:TypeReductionMode", "TransformValues"));
+        }
         lineNumber.addChild(nilNode("xr:MaxValue"));
         lineNumber.addChild(createNode("xr:ToolTip"));
         lineNumber.addChild(textNode("xr:ExtendedEdit", "false"));
@@ -181,6 +185,22 @@ public class EpfEditor {
         lineNumber.addChild(textNode("xr:FullTextSearch", "Use"));
         standardAttributes.addChild(lineNumber);
         return standardAttributes;
+    }
+
+    private boolean formatAtLeast220() {
+        String version = document.getRoot() != null ? document.getRoot().attr("version") : null;
+        if (version == null || version.isBlank()) {
+            return false;
+        }
+        java.util.regex.Matcher m = java.util.regex.Pattern
+                .compile("^(\\d+)\\.(\\d+)")
+                .matcher(version.trim());
+        if (!m.find()) {
+            return false;
+        }
+        int major = Integer.parseInt(m.group(1));
+        int minor = Integer.parseInt(m.group(2));
+        return major > 2 || (major == 2 && minor >= 20);
     }
 
     private XmlNode synonymNode(String synonym) {

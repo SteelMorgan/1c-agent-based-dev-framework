@@ -15,51 +15,128 @@ public class RoleValidator implements XmlValidator {
 
     private static final String NS_ROLES = "http://v8.1c.ru/8.2/roles";
 
-    // Права, применимые только к Document
-    private static final Set<String> DOCUMENT_ONLY_RIGHTS = Set.of(
-            "Posting", "UndoPosting",
-            "InteractivePosting", "InteractivePostingRegular",
-            "InteractiveUndoPosting", "InteractiveChangeOfPosted"
-    );
+    private static final Set<String> CATALOG_RIGHTS = rights(
+            "Read", "Insert", "Update", "Delete", "View", "Edit", "InputByString",
+            "InteractiveInsert", "InteractiveSetDeletionMark", "InteractiveClearDeletionMark",
+            "InteractiveDelete", "InteractiveDeleteMarked", "InteractiveDeletePredefinedData",
+            "InteractiveSetDeletionMarkPredefinedData", "InteractiveClearDeletionMarkPredefinedData",
+            "InteractiveDeleteMarkedPredefinedData", "ReadDataHistory", "ViewDataHistory",
+            "UpdateDataHistory", "UpdateDataHistoryOfMissingData", "ReadDataHistoryOfMissingData",
+            "UpdateDataHistorySettings", "UpdateDataHistoryVersionComment",
+            "EditDataHistoryVersionComment", "SwitchToDataHistoryVersion");
 
-    //**agent TASK-174 [07.06.2026 13:30:00]
-    // Прежний SUBORDINATE_ONLY_RIGHTS был объявлен, но НИГДЕ не использовался (dead code) —
-    // матрица применимости право↔тип из спеки 1c-role-spec («Полный каталог прав») не
-    // проверялась вовсе: Read на DataProcessor, Insert на InformationRegister, права на
-    // Enum/CommonModule проходили validate молча (класс XG-04). Ниже — рабочая матрица.
+    private static final Set<String> DOCUMENT_RIGHTS = rights(
+            "Read", "Insert", "Update", "Delete", "View", "Edit", "InputByString",
+            "InteractiveInsert", "InteractiveSetDeletionMark", "InteractiveClearDeletionMark",
+            "InteractiveDelete", "InteractiveDeleteMarked", "ReadDataHistory", "ViewDataHistory",
+            "UpdateDataHistory", "UpdateDataHistoryOfMissingData", "ReadDataHistoryOfMissingData",
+            "UpdateDataHistorySettings", "UpdateDataHistoryVersionComment",
+            "EditDataHistoryVersionComment", "SwitchToDataHistoryVersion",
+            "Posting", "UndoPosting", "InteractivePosting", "InteractivePostingRegular",
+            "InteractiveUndoPosting", "InteractiveChangeOfPosted");
 
-    // Права ссылочных объектов, НЕ применимые к регистрам (у регистров только
-    // Read/Update/View/Edit/TotalsControl + права истории данных; спека 1c-role-spec
-    // §«InformationRegister/AccumulationRegister/AccountingRegister/CalculationRegister»).
-    private static final Set<String> REF_OBJECT_ONLY_RIGHTS = Set.of(
-            "Insert", "Delete",
-            "InputByString", "InteractiveInsert", "InteractiveDelete", "InteractiveDeleteMarked",
-            "InteractiveClearDeletionMark", "InteractiveSetDeletionMark",
-            "InteractiveDeletePredefinedData", "InteractiveSetDeletionMarkPredefinedData",
-            "InteractiveClearDeletionMarkPredefinedData", "InteractiveDeleteMarkedPredefinedData"
-    );
+    private static final Set<String> INFORMATION_REGISTER_RIGHTS = rights(
+            "Read", "Update", "View", "Edit", "TotalsControl", "ReadDataHistory",
+            "ViewDataHistory", "UpdateDataHistory", "UpdateDataHistoryOfMissingData",
+            "ReadDataHistoryOfMissingData", "UpdateDataHistorySettings",
+            "UpdateDataHistoryVersionComment", "EditDataHistoryVersionComment",
+            "SwitchToDataHistoryVersion");
 
-    // Типы регистров (для проверки REF_OBJECT_ONLY_RIGHTS).
-    private static final Set<String> REGISTER_TYPES = Set.of(
-            "InformationRegister", "AccumulationRegister",
-            "AccountingRegister", "CalculationRegister");
+    private static final Set<String> REGISTER_RIGHTS = rights(
+            "Read", "Update", "View", "Edit", "TotalsControl");
 
-    // «Простые типы» — допустимые права целиком по таблице спеки 1c-role-spec
-    // §«Простые типы (одно-два права)».
-    private static final Map<String, Set<String>> SIMPLE_TYPE_RIGHTS = Map.ofEntries(
-            Map.entry("DataProcessor", Set.of("Use", "View")),
-            Map.entry("Report", Set.of("Use", "View")),
-            Map.entry("CommonForm", Set.of("View")),
-            Map.entry("CommonCommand", Set.of("View")),
-            Map.entry("Subsystem", Set.of("View")),
-            Map.entry("FilterCriterion", Set.of("View")),
-            Map.entry("DocumentJournal", Set.of("Read", "View")),
-            Map.entry("Sequence", Set.of("Read", "Update")),
-            Map.entry("WebService", Set.of("Use")),
-            Map.entry("HTTPService", Set.of("Use")),
-            Map.entry("IntegrationService", Set.of("Use")),
-            Map.entry("SessionParameter", Set.of("Get", "Set")),
-            Map.entry("CommonAttribute", Set.of("View", "Edit"))
+    private static final Set<String> CONSTANT_RIGHTS = rights(
+            "Read", "Update", "View", "Edit", "ReadDataHistory", "ViewDataHistory",
+            "UpdateDataHistory", "UpdateDataHistorySettings", "UpdateDataHistoryVersionComment",
+            "EditDataHistoryVersionComment", "SwitchToDataHistoryVersion");
+
+    private static final Set<String> CHART_OF_ACCOUNTS_RIGHTS = rights(
+            "Read", "Insert", "Update", "Delete", "View", "Edit", "InputByString",
+            "InteractiveInsert", "InteractiveSetDeletionMark", "InteractiveClearDeletionMark",
+            "InteractiveDelete", "InteractiveDeletePredefinedData",
+            "InteractiveSetDeletionMarkPredefinedData", "InteractiveClearDeletionMarkPredefinedData",
+            "InteractiveDeleteMarkedPredefinedData", "ReadDataHistory", "ReadDataHistoryOfMissingData",
+            "UpdateDataHistory", "UpdateDataHistoryOfMissingData", "UpdateDataHistorySettings",
+            "UpdateDataHistoryVersionComment");
+
+    private static final Set<String> CHART_OF_CHARACTERISTIC_TYPES_RIGHTS = rights(
+            "Read", "Insert", "Update", "Delete", "View", "Edit", "InputByString",
+            "InteractiveInsert", "InteractiveSetDeletionMark", "InteractiveClearDeletionMark",
+            "InteractiveDelete", "InteractiveDeletePredefinedData",
+            "InteractiveSetDeletionMarkPredefinedData", "InteractiveClearDeletionMarkPredefinedData",
+            "InteractiveDeleteMarkedPredefinedData", "ReadDataHistory", "ReadDataHistoryOfMissingData",
+            "UpdateDataHistory", "UpdateDataHistoryOfMissingData", "UpdateDataHistorySettings",
+            "UpdateDataHistoryVersionComment", "InteractiveDeleteMarked",
+            "EditDataHistoryVersionComment", "SwitchToDataHistoryVersion", "ViewDataHistory");
+
+    private static final Set<String> CHART_OF_CALCULATION_TYPES_RIGHTS = rights(
+            "Read", "Insert", "Update", "Delete", "View", "Edit", "InputByString",
+            "InteractiveInsert", "InteractiveSetDeletionMark", "InteractiveClearDeletionMark",
+            "InteractiveDelete", "InteractiveDeletePredefinedData",
+            "InteractiveSetDeletionMarkPredefinedData", "InteractiveClearDeletionMarkPredefinedData",
+            "InteractiveDeleteMarkedPredefinedData");
+
+    private static final Set<String> EXCHANGE_PLAN_RIGHTS = rights(
+            "Read", "Insert", "Update", "Delete", "View", "Edit", "InputByString",
+            "InteractiveInsert", "InteractiveSetDeletionMark", "InteractiveClearDeletionMark",
+            "InteractiveDelete", "InteractiveDeleteMarked", "ReadDataHistory", "ViewDataHistory",
+            "UpdateDataHistory", "ReadDataHistoryOfMissingData", "UpdateDataHistoryOfMissingData",
+            "UpdateDataHistorySettings", "UpdateDataHistoryVersionComment",
+            "EditDataHistoryVersionComment", "SwitchToDataHistoryVersion");
+
+    private static final Set<String> BUSINESS_PROCESS_RIGHTS = rights(
+            "Read", "Insert", "Update", "Delete", "View", "Edit", "InputByString",
+            "Start", "InteractiveInsert", "InteractiveSetDeletionMark",
+            "InteractiveClearDeletionMark", "InteractiveDelete", "InteractiveActivate",
+            "InteractiveStart");
+
+    private static final Set<String> TASK_RIGHTS = rights(
+            "Read", "Insert", "Update", "Delete", "View", "Edit", "InputByString",
+            "Execute", "InteractiveInsert", "InteractiveSetDeletionMark",
+            "InteractiveClearDeletionMark", "InteractiveDelete", "InteractiveActivate",
+            "InteractiveExecute");
+
+    private static final Set<String> CONFIGURATION_RIGHTS = rights(
+            "Administration", "DataAdministration", "UpdateDataBaseConfiguration",
+            "ConfigurationExtensionsAdministration", "ActiveUsers", "EventLog", "ExclusiveMode",
+            "ThinClient", "ThickClient", "WebClient", "MobileClient", "ExternalConnection",
+            "Automation", "Output", "SaveUserData", "TechnicalSpecialistMode",
+            "InteractiveOpenExtDataProcessors", "InteractiveOpenExtReports",
+            "AnalyticsSystemClient", "CollaborationSystemInfoBaseRegistration",
+            "MainWindowModeNormal", "MainWindowModeWorkplace", "MainWindowModeEmbeddedWorkplace",
+            "MainWindowModeFullscreenWorkplace", "MainWindowModeKiosk",
+            "AllFunctionsMode", "RemoteDesktopClient", "RemoteDesktopHost",
+            "SessionStandardAuthenticationChange", "SessionOSAuthenticationChange",
+            "StandardAuthenticationChange", "ExclusiveModeTerminationAtSessionStart");
+
+    private static final Map<String, Set<String>> TOP_LEVEL_TYPE_RIGHTS = Map.ofEntries(
+            Map.entry("Configuration", CONFIGURATION_RIGHTS),
+            Map.entry("Catalog", CATALOG_RIGHTS),
+            Map.entry("Document", DOCUMENT_RIGHTS),
+            Map.entry("InformationRegister", INFORMATION_REGISTER_RIGHTS),
+            Map.entry("AccumulationRegister", REGISTER_RIGHTS),
+            Map.entry("AccountingRegister", REGISTER_RIGHTS),
+            Map.entry("CalculationRegister", rights("Read", "View")),
+            Map.entry("Constant", CONSTANT_RIGHTS),
+            Map.entry("ChartOfAccounts", CHART_OF_ACCOUNTS_RIGHTS),
+            Map.entry("ChartOfCharacteristicTypes", CHART_OF_CHARACTERISTIC_TYPES_RIGHTS),
+            Map.entry("ChartOfCalculationTypes", CHART_OF_CALCULATION_TYPES_RIGHTS),
+            Map.entry("ExchangePlan", EXCHANGE_PLAN_RIGHTS),
+            Map.entry("BusinessProcess", BUSINESS_PROCESS_RIGHTS),
+            Map.entry("Task", TASK_RIGHTS),
+            Map.entry("DataProcessor", rights("Use", "View")),
+            Map.entry("Report", rights("Use", "View")),
+            Map.entry("CommonForm", rights("View")),
+            Map.entry("CommonCommand", rights("View")),
+            Map.entry("Subsystem", rights("View")),
+            Map.entry("FilterCriterion", rights("View")),
+            Map.entry("DocumentJournal", rights("Read", "View")),
+            Map.entry("Sequence", rights("Read", "Update")),
+            Map.entry("WebService", rights("Use")),
+            Map.entry("HTTPService", rights("Use")),
+            Map.entry("IntegrationService", rights("Use")),
+            Map.entry("SessionParameter", rights("Get", "Set")),
+            Map.entry("CommonAttribute", rights("View", "Edit"))
     );
 
     // Типы объектов БЕЗ прав в ролях (спека: «не фигурируют в Rights.xml»).
@@ -76,9 +153,14 @@ public class RoleValidator implements XmlValidator {
             Map.entry("Dimension", Set.of("View", "Edit")),
             Map.entry("Resource", Set.of("View", "Edit")),
             Map.entry("AddressingAttribute", Set.of("View", "Edit")),
-            Map.entry("Command", Set.of("View"))
+            Map.entry("Command", Set.of("View")),
+            Map.entry("Operation", Set.of("Use")),
+            Map.entry("URLTemplate", Set.of("Use")),
+            Map.entry("Method", Set.of("Use"))
     );
-    //**agent TASK-174
+    private static Set<String> rights(String... rights) {
+        return Set.of(rights);
+    }
 
     @Override
     public String objectType() {
@@ -292,25 +374,8 @@ public class RoleValidator implements XmlValidator {
 
                 // ROLE-103: Право применимо к типу объекта
                 if (mdoType.isPresent() && mdoType.get() != MDOType.UNKNOWN) {
-                    MDOType type = mdoType.get();
-                    boolean flagged103 = false;
-
-                    // Posting-права только для Document
-                    if (DOCUMENT_ONLY_RIGHTS.contains(rightName) && type != MDOType.DOCUMENT) {
-                        issues.add(ValidationIssue.warning("ROLE-103",
-                                "Right '" + rightName + "' is only applicable to Document objects, " +
-                                        "but object type is " + typePart,
-                                right.getLine(), rightPath + "/name"));
-                        flagged103 = true;
-                    }
-
-                    //++agent TASK-174 [07.06.2026 13:30:00]
-                    // Матрица применимости право↔тип (раньше не проверялась — дыра XG-04).
-                    if (!flagged103) {
-                        checkRightApplicability(objName, typePart, rightName,
-                                right.getLine(), rightPath, issues);
-                    }
-                    //++agent TASK-174
+                    checkRightApplicability(objName, typePart, rightName,
+                            right.getLine(), rightPath, issues);
                 }
 
                 // ROLE-106: restrictionByCondition.condition непустой
@@ -327,16 +392,14 @@ public class RoleValidator implements XmlValidator {
         }
     }
 
-    //++agent TASK-174 [07.06.2026 13:30:00]
     /**
-     * ROLE-103 (расширение): применимость права к типу/части объекта по спеке 1c-role-spec.
+     * ROLE-103: применимость права к типу/части объекта по спеке 1c-role-spec.
      * Все находки — WARNING: Designer часть таких прав молча игнорирует, часть отвергает;
      * ERROR не ставим, чтобы не валить validate на нестандартных, но загружаемых ролях.
      * Порядок проверок:
      * 1) вложенная часть (предпоследний сегмент имени — Attribute/Command/...) → View/Edit | View;
      * 2) тип без прав вовсе (Enum, CommonModule, ...) → любое право подозрительно;
-     * 3) «простой» тип (DataProcessor, Report, ...) → права строго из таблицы спеки;
-     * 4) регистры → права ссылочных объектов (Insert/Delete/Interactive*) не применимы.
+     * 3) верхнеуровневый тип из таблицы спеки → строгий whitelist.
      */
     private void checkRightApplicability(String objName, String typePart, String rightName,
                                          int line, String rightPath,
@@ -355,7 +418,7 @@ public class RoleValidator implements XmlValidator {
                 }
                 return; // вложенная часть обработана — проверки типа не нужны
             }
-            // Неизвестный вид вложенности (Recalculation, Operation, URLTemplate...) —
+            // Неизвестный вид вложенности (Recalculation, Parameter...) —
             // прав по спеке не сверяем, пропускаем без предупреждения.
             return;
         }
@@ -370,27 +433,17 @@ public class RoleValidator implements XmlValidator {
             return;
         }
 
-        // 3) Простые типы — строгий whitelist.
-        Set<String> simpleAllowed = SIMPLE_TYPE_RIGHTS.get(typePart);
-        if (simpleAllowed != null) {
-            if (!simpleAllowed.contains(rightName)) {
+        // 3) Верхнеуровневые объекты — строгий whitelist по 1c-role-spec.md.
+        Set<String> allowed = TOP_LEVEL_TYPE_RIGHTS.get(typePart);
+        if (allowed != null) {
+            if (!allowed.contains(rightName)) {
                 issues.add(ValidationIssue.warning("ROLE-103",
                         "Right '" + rightName + "' is not applicable to " + typePart
-                                + " objects; allowed: " + String.join(", ", simpleAllowed),
+                                + " objects; allowed: " + String.join(", ", allowed),
                         line, rightPath + "/name"));
             }
-            return;
-        }
-
-        // 4) Регистры — права ссылочных объектов не применимы.
-        if (REGISTER_TYPES.contains(typePart) && REF_OBJECT_ONLY_RIGHTS.contains(rightName)) {
-            issues.add(ValidationIssue.warning("ROLE-103",
-                    "Right '" + rightName + "' is only applicable to reference objects "
-                            + "(Catalog/Document/...), but object type is " + typePart,
-                    line, rightPath + "/name"));
         }
     }
-    //++agent TASK-174
 
     /**
      * Проверяет, является ли имя права известным RoleRight.

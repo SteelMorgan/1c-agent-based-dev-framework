@@ -82,8 +82,32 @@ class EpfEditorTest {
 
         XmlNode props = section.child("Properties");
         assertEquals("Goods", props.childText("Name"));
-        assertEquals("5", props.childText("LineNumberLength"));
+        assertNull(props.child("LineNumberLength"));
         assertTrue(props.hasChild("StandardAttributes"));
+        XmlNode lineNumber = props.child("StandardAttributes").child("StandardAttribute");
+        assertNull(lineNumber.child("TypeReductionMode"));
+    }
+
+    @Test
+    void addTabularSection_format220EmitsVersionSpecificFields() {
+        XmlNode root = XmlNode.createElement("MetaDataObject", Map.of("version", "2.20"));
+        XmlNode epf = XmlNode.createElement("ExternalDataProcessor", Map.of());
+        XmlNode props = XmlNode.createElement("Properties", Map.of());
+        XmlNode name = XmlNode.createElement("Name", Map.of());
+        name.setText("Test");
+        props.addChild(name);
+        epf.addChild(props);
+        root.addChild(epf);
+        XmlDocument doc = new XmlDocument(null, false, null, "MetaDataObject", "",
+                root.getAttributes(), root.getChildren(), root);
+
+        new EpfEditor(doc).addTabularSection("Rows", "Строки");
+
+        XmlNode section = epf.child("ChildObjects").getChildren().get(0);
+        XmlNode sectionProps = section.child("Properties");
+        assertEquals("5", sectionProps.childText("LineNumberLength"));
+        XmlNode lineNumber = sectionProps.child("StandardAttributes").child("StandardAttribute");
+        assertEquals("TransformValues", lineNumber.childText("TypeReductionMode"));
     }
 
     @Test

@@ -30,7 +30,14 @@ class SubsystemWriterTask171Test {
         Files.createDirectories(configRoot.resolve("Subsystems"));
         Files.createDirectories(configRoot.resolve("Catalogs"));
         Files.writeString(configRoot.resolve("Configuration.xml"),
-                "<?xml version=\"1.0\"?><MetaDataObject/>", StandardCharsets.UTF_8);
+                "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
+                        + "<MetaDataObject xmlns=\"http://v8.1c.ru/8.3/MDClasses\" version=\"2.17\">\n"
+                        + "\t<Configuration uuid=\"00000000-0000-0000-0000-000000000001\">\n"
+                        + "\t\t<Properties><Name>Test</Name></Properties>\n"
+                        + "\t\t<ChildObjects/>\n"
+                        + "\t</Configuration>\n"
+                        + "</MetaDataObject>\n",
+                StandardCharsets.UTF_8);
         // Реальный объект-сосед в корне конфигурации.
         Files.writeString(configRoot.resolve("Catalogs").resolve("Товары.xml"),
                 "<?xml version=\"1.0\"?><MetaDataObject/>", StandardCharsets.UTF_8);
@@ -58,6 +65,18 @@ class SubsystemWriterTask171Test {
                 .doesNotThrowAnyException();
 
         assertThat(Files.exists(outputDir.resolve("ТестоваяПодсистема.xml"))).isTrue();
+    }
+
+    @Test
+    void compile_configLayout_registersTopLevelSubsystemInConfiguration() throws Exception {
+        Path configRoot = buildConfigLayout();
+        Path outputDir = configRoot.resolve("Subsystems");
+        Path json = writeSubsystemJson("");
+
+        new SubsystemWriter().compile(json, outputDir);
+
+        String configuration = Files.readString(configRoot.resolve("Configuration.xml"), StandardCharsets.UTF_8);
+        assertThat(configuration).contains("<Subsystem>ТестоваяПодсистема</Subsystem>");
     }
 
     @Test

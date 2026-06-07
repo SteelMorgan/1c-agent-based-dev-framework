@@ -114,7 +114,8 @@ public class FormEditApplier {
         String parent = parentOverride != null ? parentOverride : e.getInto();
         //**agent TASK-174 [05.06.2026 00:00:00]
         // XG-02: пробрасываем command в FormEditor (раньше терялся → кнопка без CommandName).
-        editor.addElement(e.getKind(), e.getName(), e.getDataPath(), parent, e.getAfter(), e.getCommand());
+        editor.addElement(e.getKind(), e.getName(), e.getDataPath(), parent,
+                e.getAfter(), e.getBefore(), e.getCommand());
         //**agent TASK-174
 
         // Привязать события к только что созданному элементу

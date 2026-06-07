@@ -87,11 +87,27 @@ public class MetadataTypeValidator {
             initialize();
         }
 
-        // Пропускаем составные типы или сложные описания (пока только простые)
-        if (typeName.contains(" ")) { 
-            return Collections.emptyList(); // TODO: Парсинг составных типов
+        List<ValidationIssue> issues = new ArrayList<>();
+        for (String part : splitTypeNames(typeName)) {
+            issues.addAll(validateSingleType(part, contextNode, path));
         }
+        return issues;
+    }
 
+    private List<String> splitTypeNames(String typeName) {
+        if (typeName == null || typeName.isBlank()) {
+            return Collections.emptyList();
+        }
+        if (typeName.contains("|")) {
+            return Arrays.stream(typeName.split("\\|"))
+                    .map(String::trim)
+                    .filter(s -> !s.isEmpty())
+                    .collect(Collectors.toList());
+        }
+        return List.of(typeName.trim());
+    }
+
+    private List<ValidationIssue> validateSingleType(String typeName, XmlNode contextNode, String path) {
         // Убираем namespace prefix (cfg:CatalogRef.X -> CatalogRef.X)
         if (typeName.contains(":")) {
             typeName = typeName.substring(typeName.indexOf(":") + 1);

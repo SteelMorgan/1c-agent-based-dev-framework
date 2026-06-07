@@ -192,6 +192,32 @@ class FormWriterFormsAuditTest {
         assertThat(content).doesNotContain("<InputHint>Введите название</InputHint>");
     }
 
+    /** F12: hidden/disabled are DSL aliases; generated XML must use Visible/Enabled. */
+    @Test
+    void testHiddenDisabledAliasesDoNotLeakAsXmlTags() throws Exception {
+        Map<String, Object> input = new LinkedHashMap<>();
+        input.put("input", "Поле");
+        input.put("hidden", true);
+        input.put("disabled", true);
+        input.put("readOnly", true);
+
+        Map<String, Object> group = new LinkedHashMap<>();
+        group.put("group", "vertical");
+        group.put("name", "Группа");
+        group.put("hidden", true);
+        group.put("disabled", true);
+
+        FormDsl dsl = new FormDsl("Форма", null, null, null,
+                List.of(input, group), null, null, null);
+        String content = generate(dsl);
+
+        assertThat(content).contains("<Visible>false</Visible>");
+        assertThat(content).contains("<Enabled>false</Enabled>");
+        assertThat(content).contains("<ReadOnly>true</ReadOnly>");
+        assertThat(content).doesNotContain("<Hidden>");
+        assertThat(content).doesNotContain("<Disabled>");
+    }
+
     /** F8: group:"collapsible" → Group=Vertical + Behavior=Collapsible (1c-form-spec.md §8.1). */
     @Test
     void testCollapsibleGroup() throws Exception {

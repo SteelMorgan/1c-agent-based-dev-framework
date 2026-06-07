@@ -6,6 +6,7 @@ import io.github.onec.xmlgen.editor.ObjectContainerEditor;
 import io.github.onec.xmlgen.format.DesignerLayout;
 import io.github.onec.xmlgen.format.EdtLayout;
 import io.github.onec.xmlgen.format.OutputFormat;
+import io.github.onec.xmlgen.model.ConfigurationXmlReader;
 import io.github.onec.xmlgen.model.TypeResolver;
 import io.github.onec.xmlgen.model.UuidGenerator;
 
@@ -293,6 +294,7 @@ public class EpfWriter extends XmlWriter {
         Path epfXmlPath = outputDir.resolve(epfName + ".xml");
         ObjectContainerEditor editor = new ObjectContainerEditor(epfXmlPath);
         boolean targetIsReport = targetIsReport(editor);
+        String formatVersion = ConfigurationXmlReader.readFormatVersion(epfXmlPath);
         if (editor.hasForm(formName)) {
             throw new IllegalArgumentException("Form '" + formName + "' already exists in ChildObjects");
         }
@@ -309,10 +311,11 @@ public class EpfWriter extends XmlWriter {
         
         // 2. Создать метаданные формы (Forms/<FormName>.xml)
         String formUuid = UuidGenerator.generate();
-        createFormMetadata(formsDir.resolve(formName + ".xml"), formName, formSynonym != null ? formSynonym : formName, formUuid);
+        createFormMetadata(formsDir.resolve(formName + ".xml"), formName,
+                formSynonym != null ? formSynonym : formName, formUuid, formatVersion);
         
         // 3. Создать описание формы (Forms/<FormName>/Ext/Form.xml)
-        createFormDefinition(formXmlPath, epfName, targetIsReport);
+        createFormDefinition(formXmlPath, epfName, targetIsReport, formatVersion);
         
         // 4. Создать пустой модуль формы
         Path moduleDir = formXmlPath.getParent().resolve("Form");
@@ -339,7 +342,8 @@ public class EpfWriter extends XmlWriter {
     /**
      * Создать метаданные формы (Forms/<Name>.xml).
      */
-    private void createFormMetadata(Path outputPath, String name, String synonym, String uuid) throws IOException, XMLStreamException {
+    private void createFormMetadata(Path outputPath, String name, String synonym, String uuid,
+                                    String formatVersion) throws IOException, XMLStreamException {
         createWriter(outputPath, true, METADATA_NAMESPACES);
         writeXmlDeclaration();
         
@@ -349,7 +353,7 @@ public class EpfWriter extends XmlWriter {
         allNamespaces.put("xpr", "http://v8.1c.ru/8.3/xcf/predef");
         
         Map<String, String> rootAttrs = new HashMap<>();
-        rootAttrs.put("version", "2.17");
+        rootAttrs.put("version", formatVersion);
         writeRootElement("MetaDataObject", allNamespaces, rootAttrs);
         
         // Form
@@ -397,7 +401,8 @@ public class EpfWriter extends XmlWriter {
     /**
      * Создать описание формы (Form.xml).
      */
-    private void createFormDefinition(Path outputPath, String epfName, boolean targetIsReport) throws IOException, XMLStreamException {
+    private void createFormDefinition(Path outputPath, String epfName, boolean targetIsReport,
+                                      String formatVersion) throws IOException, XMLStreamException {
         //**agent TASK-172 [01.06.2026 22:05:00]
         // BOM на Form.xml: канон _Демо — ВСЕ Ext/Form.xml идут с BOM (ef bb bf,
         // проверено на CommonForms/Documents-формах), и standalone FormWriter:133
@@ -413,7 +418,7 @@ public class EpfWriter extends XmlWriter {
         allNamespaces.put("xr", "http://v8.1c.ru/8.3/xcf/readable");
         
         Map<String, String> rootAttrs = new HashMap<>();
-        rootAttrs.put("version", "2.17");
+        rootAttrs.put("version", formatVersion);
         writeRootElement("Form", allNamespaces, rootAttrs);
         
         // AutoCommandBar (обязательный, id=-1)
@@ -463,6 +468,7 @@ public class EpfWriter extends XmlWriter {
         Path epfXmlPath = outputDir.resolve(epfName + ".xml");
         ObjectContainerEditor editor = new ObjectContainerEditor(epfXmlPath);
         boolean targetIsReport = targetIsReport(editor);
+        String formatVersion = ConfigurationXmlReader.readFormatVersion(epfXmlPath);
         if (editor.hasTemplate(templateName)) {
             throw new IllegalArgumentException("Template '" + templateName + "' already exists in ChildObjects");
         }
@@ -481,7 +487,7 @@ public class EpfWriter extends XmlWriter {
         String templateUuid = UuidGenerator.generate();
         createTemplateMetadata(templatesDir.resolve(templateName + ".xml"), templateName,
                               templateSynonym != null ? templateSynonym : templateName,
-                              templateUuid, canonicalType);
+                              templateUuid, canonicalType, formatVersion);
 
         // 3. Создать тело макета (Templates/<Name>/Ext/Template.<ext>)
         // TASK-171 D1/W5: тело генерируем через ObjectContainerEditor.getTemplateBody — корректную
@@ -512,7 +518,8 @@ public class EpfWriter extends XmlWriter {
     /**
      * Создать метаданные макета (Templates/<Name>.xml).
      */
-    private void createTemplateMetadata(Path outputPath, String name, String synonym, String uuid, String templateType) throws IOException, XMLStreamException {
+    private void createTemplateMetadata(Path outputPath, String name, String synonym, String uuid,
+                                        String templateType, String formatVersion) throws IOException, XMLStreamException {
         createWriter(outputPath, true, METADATA_NAMESPACES);
         writeXmlDeclaration();
         
@@ -522,7 +529,7 @@ public class EpfWriter extends XmlWriter {
         allNamespaces.put("xpr", "http://v8.1c.ru/8.3/xcf/predef");
         
         Map<String, String> rootAttrs = new HashMap<>();
-        rootAttrs.put("version", "2.17");
+        rootAttrs.put("version", formatVersion);
         writeRootElement("MetaDataObject", allNamespaces, rootAttrs);
         
         // Template

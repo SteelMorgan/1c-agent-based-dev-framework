@@ -328,10 +328,10 @@ public class SkdWriter extends XmlWriter {
         if (field.getRestrict() != null) {
             for (String flag : field.getRestrict()) {
                 switch (flag) {
-                    case "noField": out.put("field", false); break;
-                    case "noFilter": case "noCondition": out.put("condition", false); break;
-                    case "noGroup": out.put("group", false); break;
-                    case "noOrder": out.put("order", false); break;
+                    case "noField": out.put("field", true); break;
+                    case "noFilter": case "noCondition": out.put("condition", true); break;
+                    case "noGroup": out.put("group", true); break;
+                    case "noOrder": out.put("order", true); break;
                     default: break;
                 }
             }

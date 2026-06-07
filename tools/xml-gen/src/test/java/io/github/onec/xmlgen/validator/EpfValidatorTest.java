@@ -367,6 +367,84 @@ class EpfValidatorTest {
         assertThat(issues).noneMatch(i -> i.getCode().equals("EPF-012"));
     }
 
+    @Test
+    void epf006_declaredFormDirWithoutMetadataFile_reported() throws Exception {
+        Path sub = tempDir.resolve("missing-form-meta");
+        Files.createDirectories(sub.resolve("Test/Forms/Форма/Ext"));
+        Files.writeString(sub.resolve("Test/Forms/Форма/Ext/Form.xml"),
+                "<Form xmlns=\"http://v8.1c.ru/8.3/xcf/logform\" version=\"2.17\"/>",
+                StandardCharsets.UTF_8);
+        Path file = sub.resolve("Test.xml");
+        Files.writeString(file,
+                "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n" +
+                "<MetaDataObject xmlns=\"http://v8.1c.ru/8.3/MDClasses\" version=\"2.17\">\n" +
+                "\t<ExternalDataProcessor uuid=\"a1b2c3d4-e5f6-4789-abcd-0123456789ab\">\n" +
+                "\t\t<Properties><Name>Test</Name></Properties>\n" +
+                "\t\t<ChildObjects><Form>Форма</Form></ChildObjects>\n" +
+                "\t</ExternalDataProcessor>\n" +
+                "</MetaDataObject>\n", StandardCharsets.UTF_8);
+
+        XmlDocument doc = reader.parse(file);
+        List<ValidationIssue> issues = validator.validate(doc, ValidationLevel.STRUCTURE);
+
+        assertThat(issues).anyMatch(i -> i.getCode().equals("EPF-006")
+                && i.getMessage().contains("metadata file not found")
+                && i.getMessage().contains("Форма.xml"));
+    }
+
+    @Test
+    void epf012_formMetadataOnDiskNotDeclared_reported() throws Exception {
+        Path sub = tempDir.resolve("phantom-form-meta");
+        Files.createDirectories(sub.resolve("Test/Forms"));
+        Files.writeString(sub.resolve("Test/Forms/Фантом.xml"),
+                "<MetaDataObject xmlns=\"http://v8.1c.ru/8.3/MDClasses\" version=\"2.17\"/>",
+                StandardCharsets.UTF_8);
+        Path file = sub.resolve("Test.xml");
+        Files.writeString(file,
+                "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n" +
+                "<MetaDataObject xmlns=\"http://v8.1c.ru/8.3/MDClasses\" version=\"2.17\">\n" +
+                "\t<ExternalDataProcessor uuid=\"a1b2c3d4-e5f6-4789-abcd-0123456789ab\">\n" +
+                "\t\t<Properties><Name>Test</Name></Properties>\n" +
+                "\t\t<ChildObjects/>\n" +
+                "\t</ExternalDataProcessor>\n" +
+                "</MetaDataObject>\n", StandardCharsets.UTF_8);
+
+        XmlDocument doc = reader.parse(file);
+        List<ValidationIssue> issues = validator.validate(doc, ValidationLevel.STRUCTURE);
+
+        assertThat(issues).anyMatch(i -> i.getCode().equals("EPF-012")
+                && i.getMessage().contains("metadata file")
+                && i.getMessage().contains("Фантом.xml"));
+    }
+
+    @Test
+    void epf015_childMetadataVersionMismatch_reported() throws Exception {
+        Path sub = tempDir.resolve("version-mismatch");
+        Files.createDirectories(sub.resolve("Test/Forms/Форма/Ext"));
+        Files.writeString(sub.resolve("Test/Forms/Форма.xml"),
+                "<MetaDataObject xmlns=\"http://v8.1c.ru/8.3/MDClasses\" version=\"2.17\"/>",
+                StandardCharsets.UTF_8);
+        Files.writeString(sub.resolve("Test/Forms/Форма/Ext/Form.xml"),
+                "<Form xmlns=\"http://v8.1c.ru/8.3/xcf/logform\" version=\"2.20\"/>",
+                StandardCharsets.UTF_8);
+        Path file = sub.resolve("Test.xml");
+        Files.writeString(file,
+                "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n" +
+                "<MetaDataObject xmlns=\"http://v8.1c.ru/8.3/MDClasses\" version=\"2.20\">\n" +
+                "\t<ExternalDataProcessor uuid=\"a1b2c3d4-e5f6-4789-abcd-0123456789ab\">\n" +
+                "\t\t<Properties><Name>Test</Name></Properties>\n" +
+                "\t\t<ChildObjects><Form>Форма</Form></ChildObjects>\n" +
+                "\t</ExternalDataProcessor>\n" +
+                "</MetaDataObject>\n", StandardCharsets.UTF_8);
+
+        XmlDocument doc = reader.parse(file);
+        List<ValidationIssue> issues = validator.validate(doc, ValidationLevel.STRUCTURE);
+
+        assertThat(issues).anyMatch(i -> i.getCode().equals("EPF-015")
+                && i.getMessage().contains("2.17")
+                && i.getMessage().contains("expected '2.20'"));
+    }
+
     // ==================== EPF-007: Duplicate child names ====================
 
     @Test
@@ -388,6 +466,28 @@ class EpfValidatorTest {
         assertThat(issues).anyMatch(i -> i.getCode().equals("EPF-007"));
     }
 
+    @Test
+    void epf007_duplicateAttributeNames_reported() throws Exception {
+        Path file = writeXml("Test.xml",
+                "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n" +
+                "<MetaDataObject xmlns=\"http://v8.1c.ru/8.3/MDClasses\">\n" +
+                "  <ExternalDataProcessor uuid=\"a1b2c3d4-e5f6-4789-abcd-0123456789ab\">\n" +
+                "    <Properties><Name>MyEpf</Name></Properties>\n" +
+                "    <ChildObjects>\n" +
+                "      <Attribute uuid=\"11111111-1111-1111-1111-111111111111\"><Properties><Name>Параметр</Name></Properties></Attribute>\n" +
+                "      <Attribute uuid=\"22222222-2222-2222-2222-222222222222\"><Properties><Name>Параметр</Name></Properties></Attribute>\n" +
+                "    </ChildObjects>\n" +
+                "  </ExternalDataProcessor>\n" +
+                "</MetaDataObject>\n");
+
+        XmlDocument doc = reader.parse(file);
+        List<ValidationIssue> issues = validator.validate(doc, ValidationLevel.SEMANTIC);
+
+        assertThat(issues).anyMatch(i -> i.getCode().equals("EPF-007")
+                && i.getMessage().contains("Attribute")
+                && i.getMessage().contains("Параметр"));
+    }
+
     // ==================== EPF-008: Identifier pattern ====================
 
     @Test
@@ -404,6 +504,27 @@ class EpfValidatorTest {
         XmlDocument doc = reader.parse(file);
         List<ValidationIssue> issues = validator.validate(doc, ValidationLevel.SEMANTIC);
         assertThat(issues).anyMatch(i -> i.getCode().equals("EPF-008"));
+    }
+
+    @Test
+    void epf008_invalidTabularSectionName_reported() throws Exception {
+        Path file = writeXml("Test.xml",
+                "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n" +
+                "<MetaDataObject xmlns=\"http://v8.1c.ru/8.3/MDClasses\">\n" +
+                "  <ExternalDataProcessor uuid=\"a1b2c3d4-e5f6-4789-abcd-0123456789ab\">\n" +
+                "    <Properties><Name>MyEpf</Name></Properties>\n" +
+                "    <ChildObjects>\n" +
+                "      <TabularSection uuid=\"11111111-1111-1111-1111-111111111111\"><Properties><Name>Bad Name</Name></Properties></TabularSection>\n" +
+                "    </ChildObjects>\n" +
+                "  </ExternalDataProcessor>\n" +
+                "</MetaDataObject>\n");
+
+        XmlDocument doc = reader.parse(file);
+        List<ValidationIssue> issues = validator.validate(doc, ValidationLevel.SEMANTIC);
+
+        assertThat(issues).anyMatch(i -> i.getCode().equals("EPF-008")
+                && i.getMessage().contains("TabularSection")
+                && i.getMessage().contains("Bad Name"));
     }
 
     @Test

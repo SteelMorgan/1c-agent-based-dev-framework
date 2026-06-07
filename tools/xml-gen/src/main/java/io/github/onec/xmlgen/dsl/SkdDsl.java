@@ -957,11 +957,11 @@ public class SkdDsl {
         for (String token : text.split("\\s+")) {
             if (!token.startsWith("#")) continue;
             switch (token.substring(1)) {
-                case "noField": out.put("field", false); break;
+                case "noField": out.put("field", true); break;
                 case "noFilter":
-                case "noCondition": out.put("condition", false); break;
-                case "noGroup": out.put("group", false); break;
-                case "noOrder": out.put("order", false); break;
+                case "noCondition": out.put("condition", true); break;
+                case "noGroup": out.put("group", true); break;
+                case "noOrder": out.put("order", true); break;
                 default: break;
             }
         }

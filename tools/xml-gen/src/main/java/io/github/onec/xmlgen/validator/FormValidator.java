@@ -153,10 +153,9 @@ public class FormValidator implements XmlValidator {
         // _Демо-форм). Прежний WARN был ложным; у Николая такой проверки нет вовсе. WARNING убран,
         // при наличии <ChildItems> по-прежнему проверяем name/id вложенных элементов (FORM-007).
         XmlNode childItems = root.child("ChildItems");
-        if (childItems != null) {
-            // FORM-007: UI elements имеют name и id
-            collectElementIds(childItems, "/Form/ChildItems", elemIds, duplicateIds, issues);
-        }
+        // FORM-007: UI elements имеют name и id. Проверяем все реальные UI-деревья:
+        // тело формы, корневой AutoCommandBar, контекстные меню и командные панели таблиц.
+        collectElementIdsInAllChildItems(root, "/Form", elemIds, duplicateIds, issues);
 
         // FORM-004: Дубли id
         for (String dupId : duplicateIds) {
@@ -185,12 +184,7 @@ public class FormValidator implements XmlValidator {
         // такую кнопку при загрузке (validate раньше давал PASS — класс XG-04).
         // FORM-124 (XG-15): контейнерный элемент без <ChildItems> — Designer молча
         // обрезает контейнер. Проверяем оба инварианта одним обходом UI-дерева.
-        if (autoCmd != null) {
-            validateButtonsAndContainers(autoCmd, "/Form/AutoCommandBar", issues);
-        }
-        if (childItems != null) {
-            validateButtonsAndContainers(childItems, "/Form/ChildItems", issues);
-        }
+        validateButtonsAndContainersInAllChildItems(root, "/Form", issues);
         //++agent TASK-174
     }
 
@@ -252,6 +246,17 @@ public class FormValidator implements XmlValidator {
      *       формально загружаема, но почти всегда признак бага генератора.</li>
      * </ul>
      */
+    private void validateButtonsAndContainersInAllChildItems(XmlNode node, String path,
+                                                             List<ValidationIssue> issues) {
+        if ("ChildItems".equals(node.getName())) {
+            validateButtonsAndContainers(node, path, issues);
+        }
+        for (XmlNode child : node.getChildren()) {
+            validateButtonsAndContainersInAllChildItems(child,
+                    path + "/" + child.getName(), issues);
+        }
+    }
+
     private void validateButtonsAndContainers(XmlNode parent, String parentPath,
                                               List<ValidationIssue> issues) {
         for (XmlNode elem : parent.getChildren()) {
@@ -276,10 +281,6 @@ public class FormValidator implements XmlValidator {
                                     + "silently trims empty containers on load",
                             elem.getLine(), elemPath));
                 }
-            }
-
-            if (innerChildItems != null) {
-                validateButtonsAndContainers(innerChildItems, elemPath + "/ChildItems", issues);
             }
         }
     }
@@ -326,9 +327,21 @@ public class FormValidator implements XmlValidator {
         }
     }
 
+    private void collectElementIdsInAllChildItems(XmlNode node, String path,
+                                                  Set<String> allIds, List<String> duplicateIds,
+                                                  List<ValidationIssue> issues) {
+        if ("ChildItems".equals(node.getName())) {
+            collectElementIds(node, path, allIds, duplicateIds, issues);
+        }
+        for (XmlNode child : node.getChildren()) {
+            collectElementIdsInAllChildItems(child, path + "/" + child.getName(),
+                    allIds, duplicateIds, issues);
+        }
+    }
+
     private void collectElementIds(XmlNode parent, String parentPath,
-                                    Set<String> allIds, List<String> duplicateIds,
-                                    List<ValidationIssue> issues) {
+                                   Set<String> allIds, List<String> duplicateIds,
+                                   List<ValidationIssue> issues) {
         for (XmlNode child : parent.getChildren()) {
             String childPath = parentPath + "/" + child.getName();
 
@@ -349,12 +362,6 @@ public class FormValidator implements XmlValidator {
                 duplicateIds.add(id);
             }
 
-            // Рекурсивно для ChildItems внутри элемента
-            XmlNode innerChildItems = child.child("ChildItems");
-            if (innerChildItems != null) {
-                collectElementIds(innerChildItems, childPath + "/ChildItems",
-                        allIds, duplicateIds, issues);
-            }
         }
     }
 
@@ -390,10 +397,8 @@ public class FormValidator implements XmlValidator {
 
         // FORM-101: Тип UI-элемента — известный FormElementType
         XmlNode childItems = root.child("ChildItems");
-        if (childItems != null) {
-            validateElements(childItems, "/Form/ChildItems",
-                    attributeNames, commandNames, tableDataPaths, issues);
-        }
+        validateElementsInAllChildItems(root, "/Form",
+                attributeNames, commandNames, tableDataPaths, issues);
 
         // Проверяем атрибуты (FORM-107..110, 114, 115)
         if (attributes != null) {
@@ -435,9 +440,7 @@ public class FormValidator implements XmlValidator {
         validateEventHandlersNonEmpty(root, issues);
 
         // FORM-117: Companions для UI-элементов
-        if (childItems != null) {
-            validateElementCompanions(childItems, "/Form/ChildItems", issues);
-        }
+        validateElementCompanionsInAllChildItems(root, "/Form", issues);
 
         // FORM-125: Table addition elements must carry AdditionSource(Item/Type)
         if (childItems != null) {
@@ -636,12 +639,19 @@ public class FormValidator implements XmlValidator {
                 }
             }
 
-            // Рекурсивно для дочерних ChildItems
-            XmlNode innerChildItems = elem.child("ChildItems");
-            if (innerChildItems != null) {
-                validateElements(innerChildItems, elemPath + "/ChildItems",
-                        attrNames, cmdNames, tableMap, issues);
-            }
+        }
+    }
+
+    private void validateElementsInAllChildItems(XmlNode node, String path,
+                                                 Set<String> attrNames, Set<String> cmdNames,
+                                                 Map<String, String> tableMap,
+                                                 List<ValidationIssue> issues) {
+        if ("ChildItems".equals(node.getName())) {
+            validateElements(node, path, attrNames, cmdNames, tableMap, issues);
+        }
+        for (XmlNode child : node.getChildren()) {
+            validateElementsInAllChildItems(child, path + "/" + child.getName(),
+                    attrNames, cmdNames, tableMap, issues);
         }
     }
 
@@ -1083,10 +1093,17 @@ public class FormValidator implements XmlValidator {
                     }
                 }
             }
-            XmlNode innerChildItems = elem.child("ChildItems");
-            if (innerChildItems != null) {
-                validateElementCompanions(innerChildItems, elemPath + "/ChildItems", issues);
-            }
+        }
+    }
+
+    private void validateElementCompanionsInAllChildItems(XmlNode node, String path,
+                                                          List<ValidationIssue> issues) {
+        if ("ChildItems".equals(node.getName())) {
+            validateElementCompanions(node, path, issues);
+        }
+        for (XmlNode child : node.getChildren()) {
+            validateElementCompanionsInAllChildItems(child,
+                    path + "/" + child.getName(), issues);
         }
     }
 
@@ -1122,6 +1139,12 @@ public class FormValidator implements XmlValidator {
                                         + "' has unexpected AdditionSource Type '" + type
                                         + "', expected '" + expected.getValue() + "'",
                                 addition.getLine(), elemPath + "/" + expected.getKey() + "/AdditionSource/Type"));
+                    } else if (tableName != null && !tableName.equals(item)) {
+                        issues.add(ValidationIssue.warning("FORM-125",
+                                expected.getKey() + " for Table '" + tableName
+                                        + "' points AdditionSource Item to '" + item
+                                        + "', expected owning table name '" + tableName + "'",
+                                addition.getLine(), elemPath + "/" + expected.getKey() + "/AdditionSource/Item"));
                     }
                 }
             }
@@ -1150,10 +1173,7 @@ public class FormValidator implements XmlValidator {
             }
         }
         // Element-level events (рекурсивно)
-        XmlNode childItems = root.child("ChildItems");
-        if (childItems != null) {
-            scanElementEvents(childItems, "/Form/ChildItems", issues);
-        }
+        scanElementEventsInAllChildItems(root, "/Form", issues);
     }
 
     private void scanElementEvents(XmlNode parent, String parentPath, List<ValidationIssue> issues) {
@@ -1173,10 +1193,17 @@ public class FormValidator implements XmlValidator {
                     }
                 }
             }
-            XmlNode inner = elem.child("ChildItems");
-            if (inner != null) {
-                scanElementEvents(inner, elemPath + "/ChildItems", issues);
-            }
+        }
+    }
+
+    private void scanElementEventsInAllChildItems(XmlNode node, String path,
+                                                  List<ValidationIssue> issues) {
+        if ("ChildItems".equals(node.getName())) {
+            scanElementEvents(node, path, issues);
+        }
+        for (XmlNode child : node.getChildren()) {
+            scanElementEventsInAllChildItems(child,
+                    path + "/" + child.getName(), issues);
         }
     }
 
@@ -1222,17 +1249,23 @@ public class FormValidator implements XmlValidator {
             }
         }
         XmlNode childItems = root.child("ChildItems");
-        if (childItems != null) {
-            checkTitlesRecursive(childItems, "/Form/ChildItems", issues);
-        }
+        checkTitlesInAllChildItems(root, "/Form", issues);
     }
 
     private void checkTitlesRecursive(XmlNode parent, String path, List<ValidationIssue> issues) {
         for (XmlNode elem : parent.getChildren()) {
             String p = path + "/" + elem.getName();
             checkTitleShape(elem, p, issues);
-            XmlNode inner = elem.child("ChildItems");
-            if (inner != null) checkTitlesRecursive(inner, p + "/ChildItems", issues);
+        }
+    }
+
+    private void checkTitlesInAllChildItems(XmlNode node, String path,
+                                            List<ValidationIssue> issues) {
+        if ("ChildItems".equals(node.getName())) {
+            checkTitlesRecursive(node, path, issues);
+        }
+        for (XmlNode child : node.getChildren()) {
+            checkTitlesInAllChildItems(child, path + "/" + child.getName(), issues);
         }
     }
 

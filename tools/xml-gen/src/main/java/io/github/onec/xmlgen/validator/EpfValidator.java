@@ -1,8 +1,11 @@
 package io.github.onec.xmlgen.validator;
 
+import io.github.onec.xmlgen.model.ConfigurationXmlReader;
+
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.*;
+import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
@@ -26,6 +29,8 @@ import java.util.regex.Pattern;
  *       Attributes/TabularSections вместо ChildObjects (XG-25).</li>
  *   <li>EPF-014 — пути Default*Form/MainDataCompositionSchema используют не тот внешний
  *       тип объекта (ExternalReport vs ExternalDataProcessor).</li>
+ *   <li>EPF-015 — версия формата дочерних XML-файлов формы/макета не совпадает с
+ *       версией корневого файла.</li>
  * </ul>
  */
 public class EpfValidator implements XmlValidator {
@@ -122,6 +127,7 @@ public class EpfValidator implements XmlValidator {
 
         String elementName = isReport ? "ExternalReport" : "ExternalDataProcessor";
         String expectedClassId = isReport ? ERF_CLASS_ID : EPF_CLASS_ID;
+        String formatVersion = rootFormatVersion(root);
 
         // EPF-001: uuid присутствует
         String uuid = epfNode.attr("uuid");
@@ -223,7 +229,7 @@ public class EpfValidator implements XmlValidator {
                     ? fileName.substring(0, fileName.length() - 4)
                     : fileName;
             Path childBase = docDir.resolve(objectName);
-            validateChildFiles(childObjects, childBase, elementName, issues);
+            validateChildFiles(childObjects, childBase, elementName, formatVersion, issues);
             //++agent TASK-174 [05.06.2026 00:00:00]
             // EPF-012 (XG-04): обратная проверка — каталог формы/макета лежит на диске под
             // <objectName>/Forms|Templates, но объект НЕ объявлен в <ChildObjects>. Designer при
@@ -261,6 +267,10 @@ public class EpfValidator implements XmlValidator {
                 childObjects, elementName, issues);
         checkUndeclaredDirs(baseDir.resolve("Templates"), declaredTemplates, "Template",
                 childObjects, elementName, issues);
+        checkUndeclaredMetadataFiles(baseDir.resolve("Forms"), declaredForms, "Form",
+                childObjects, elementName, issues);
+        checkUndeclaredMetadataFiles(baseDir.resolve("Templates"), declaredTemplates, "Template",
+                childObjects, elementName, issues);
     }
 
     private void checkUndeclaredDirs(Path dir, Set<String> declared, String kind,
@@ -285,6 +295,32 @@ public class EpfValidator implements XmlValidator {
             // Каталог нечитаем — не структурный дефект EPF, молча пропускаем (диск/права).
         }
     }
+
+    private void checkUndeclaredMetadataFiles(Path dir, Set<String> declared, String kind,
+                                              XmlNode childObjects, String elementName,
+                                              List<ValidationIssue> issues) {
+        if (!Files.isDirectory(dir)) {
+            return;
+        }
+        try (var stream = Files.list(dir)) {
+            stream.filter(Files::isRegularFile)
+                    .filter(p -> p.getFileName().toString().endsWith(".xml"))
+                    .forEach(file -> {
+                        String fileName = file.getFileName().toString();
+                        String objectName = fileName.substring(0, fileName.length() - 4);
+                        if (!declared.contains(objectName)) {
+                            issues.add(ValidationIssue.error("EPF-012",
+                                    kind + " metadata file '" + fileName + "' exists on disk (" + file
+                                            + ") but is not declared in <ChildObjects> (phantom; will break "
+                                            + "Designer load from files)",
+                                    childObjects.getLine(),
+                                    "/" + elementName + "/ChildObjects"));
+                        }
+                    });
+        } catch (java.io.IOException e) {
+            // Каталог нечитаем — не структурный дефект EPF, молча пропускаем (диск/права).
+        }
+    }
     //++agent TASK-174
 
     private String findClassId(XmlNode internalInfo) {
@@ -303,7 +339,8 @@ public class EpfValidator implements XmlValidator {
         return null;
     }
 
-    private void validateChildFiles(XmlNode childObjects, Path baseDir, String elementName, List<ValidationIssue> issues) {
+    private void validateChildFiles(XmlNode childObjects, Path baseDir, String elementName,
+                                    String formatVersion, List<ValidationIssue> issues) {
         for (XmlNode child : childObjects.getChildren()) {
             String childName = child.getName();
             String objName = child.getText();
@@ -311,12 +348,24 @@ public class EpfValidator implements XmlValidator {
 
             // Проверяем наличие каталога дочернего объекта
             Path childDir;
+            Path childMeta;
             if ("Form".equals(childName)) {
                 childDir = baseDir.resolve("Forms").resolve(objName);
+                childMeta = baseDir.resolve("Forms").resolve(objName + ".xml");
             } else if ("Template".equals(childName)) {
                 childDir = baseDir.resolve("Templates").resolve(objName);
+                childMeta = baseDir.resolve("Templates").resolve(objName + ".xml");
             } else {
                 continue;
+            }
+
+            if (!Files.isRegularFile(childMeta)) {
+                issues.add(ValidationIssue.error("EPF-006",
+                        childName + " '" + objName + "' metadata file not found: " + childMeta,
+                        child.getLine(), "/" + elementName + "/ChildObjects/" + childName));
+            } else {
+                validateChildFormatVersion(childMeta, formatVersion, childName, objName,
+                        child.getLine(), "/" + elementName + "/ChildObjects/" + childName, issues);
             }
 
             if (!Files.exists(childDir)) {
@@ -340,9 +389,48 @@ public class EpfValidator implements XmlValidator {
                     issues.add(ValidationIssue.error("EPF-009",
                             "Form '" + objName + "' declared but Form.xml not found: " + formXml,
                             child.getLine(), "/" + elementName + "/ChildObjects/Form"));
+                } else {
+                    validateChildFormatVersion(formXml, formatVersion, "Form.xml", objName,
+                            child.getLine(), "/" + elementName + "/ChildObjects/Form", issues);
                 }
                 //**agent TASK-174
             }
+        }
+    }
+
+    private String rootFormatVersion(XmlNode root) {
+        String version = root.attr("version");
+        return version == null || version.isBlank() ? null : version.trim();
+    }
+
+    private void validateChildFormatVersion(Path file, String expectedVersion, String kind,
+                                            String objectName, int line, String element,
+                                            List<ValidationIssue> issues) {
+        if (expectedVersion == null || expectedVersion.isBlank()) {
+            return;
+        }
+        String actualVersion = readVersionAttribute(file);
+        if (actualVersion == null || actualVersion.isBlank()) {
+            issues.add(ValidationIssue.error("EPF-015",
+                    kind + " '" + objectName + "' file " + file
+                            + " has no root version attribute; expected version '" + expectedVersion + "'",
+                    line, element));
+        } else if (!expectedVersion.equals(actualVersion)) {
+            issues.add(ValidationIssue.error("EPF-015",
+                    kind + " '" + objectName + "' file " + file
+                            + " has format version '" + actualVersion + "', expected '" + expectedVersion + "'",
+                    line, element));
+        }
+    }
+
+    private String readVersionAttribute(Path file) {
+        try {
+            String content = ConfigurationXmlReader.readContent(file);
+            Matcher matcher = Pattern.compile("<(?:\\w+:)?(?:MetaDataObject|Form)\\b[^>]*\\bversion=\"([^\"]+)\"",
+                    Pattern.DOTALL).matcher(content);
+            return matcher.find() ? matcher.group(1) : null;
+        } catch (java.io.IOException e) {
+            return null;
         }
     }
 
@@ -388,7 +476,7 @@ public class EpfValidator implements XmlValidator {
             Map<String, Set<String>> seenByKind = new HashMap<>();
             for (XmlNode child : childObjects.getChildren()) {
                 String kind = child.getName();
-                String objName = child.getText();
+                String objName = childObjectName(child);
                 if (objName == null || objName.isEmpty()) continue;
 
                 // EPF-008: identifier pattern
@@ -421,6 +509,19 @@ public class EpfValidator implements XmlValidator {
             }
             validateExternalObjectPaths(props, elementName, name, issues);
         }
+    }
+
+    private String childObjectName(XmlNode child) {
+        String name = child.getText();
+        if (name != null && !name.isBlank()) {
+            return name.trim();
+        }
+        XmlNode props = child.child("Properties");
+        if (props == null) {
+            return null;
+        }
+        String propName = props.childText("Name");
+        return propName == null || propName.isBlank() ? null : propName.trim();
     }
 
     private void validateExternalObjectPaths(XmlNode props, String elementName, String objectName,

@@ -231,7 +231,7 @@ public class RoleWriter extends XmlWriter {
             rights.put(r.fullName().getEn(), true);
         }
     }
-    
+
     /** Определить MDOType из имени объекта (Catalog.Товары → CATALOG). */
     private static MDOType resolveObjectType(String objectName) {
         String typePart = objectName.split("\\.")[0];
@@ -245,24 +245,17 @@ public class RoleWriter extends XmlWriter {
     private Map<String, Boolean> getPresetRights(String objectName, String preset) {
         Map<String, Boolean> rights = new LinkedHashMap<>();
         MDOType mdoType = resolveObjectType(objectName);
+        String typePart = objectName.split("\\.")[0];
         
-        //**agent TASK-174 [07.06.2026 13:40:00]
-        // Пресеты учитывают каталог прав по типам из спеки 1c-role-spec. Раньше view
-        // безусловно давал Read+View — для DataProcessor/Report это эмиссия НЕВАЛИДНЫХ
-        // прав (у них только Use, View), а edit на регистрах давал Insert/Delete/Interactive*
-        // (у регистров только Read/Update/View/Edit/TotalsControl). Designer такие
-        // Rights.xml отвергает или молча режет; валидатор ловит теперь это как ROLE-103.
-        boolean useViewOnly = (mdoType == MDOType.DATA_PROCESSOR || mdoType == MDOType.REPORT);
+        // Keep presets within the top-level rights matrix from 1c-role-spec.md.
+        // Some types do not have Read/View or CRUD rights at all.
         boolean isRegister = (mdoType == MDOType.INFORMATION_REGISTER
                 || mdoType == MDOType.ACCUMULATION_REGISTER
-                || mdoType == MDOType.ACCOUNTING_REGISTER
-                || mdoType == MDOType.CALCULATION_REGISTER);
+                || mdoType == MDOType.ACCOUNTING_REGISTER);
 
         switch (preset.toLowerCase()) {
             case "view":
-                if (useViewOnly) {
-                    // Спека: DataProcessor/Report — только Use, View (Read не существует).
-                    grant(rights, RoleRight.USE, RoleRight.VIEW);
+                if (grantSimplePreset(rights, typePart, false)) {
                     break;
                 }
                 grant(rights, RoleRight.READ, RoleRight.VIEW);
@@ -272,13 +265,10 @@ public class RoleWriter extends XmlWriter {
                 break;
 
             case "edit":
-                if (useViewOnly) {
-                    // У DataProcessor/Report нет CRUD-прав — edit вырождается в Use+View.
-                    grant(rights, RoleRight.USE, RoleRight.VIEW);
+                if (grantSimplePreset(rights, typePart, true)) {
                     break;
                 }
                 if (isRegister) {
-                    // Регистры: без Insert/Delete/Interactive* (их не существует).
                     grant(rights, RoleRight.READ, RoleRight.UPDATE, RoleRight.VIEW, RoleRight.EDIT);
                     break;
                 }
@@ -301,7 +291,6 @@ public class RoleWriter extends XmlWriter {
                     );
                 }
                 break;
-        //**agent TASK-174
                 
             case "full":
                 rights.putAll(getPresetRights(objectName, "edit"));
@@ -309,6 +298,44 @@ public class RoleWriter extends XmlWriter {
         }
         
         return rights;
+    }
+
+    private boolean grantSimplePreset(Map<String, Boolean> rights, String typePart, boolean editPreset) {
+        switch (typePart) {
+            case "DataProcessor", "Report" -> grant(rights, RoleRight.USE, RoleRight.VIEW);
+            case "CommonForm", "CommonCommand", "Subsystem", "FilterCriterion" -> grant(rights, RoleRight.VIEW);
+            case "DocumentJournal" -> grant(rights, RoleRight.READ, RoleRight.VIEW);
+            case "Sequence" -> {
+                grant(rights, RoleRight.READ);
+                if (editPreset) {
+                    grant(rights, RoleRight.UPDATE);
+                }
+            }
+            case "WebService", "HTTPService", "IntegrationService" -> grant(rights, RoleRight.USE);
+            case "SessionParameter" -> {
+                grant(rights, RoleRight.GET);
+                if (editPreset) {
+                    grant(rights, RoleRight.SET);
+                }
+            }
+            case "CommonAttribute" -> {
+                grant(rights, RoleRight.VIEW);
+                if (editPreset) {
+                    grant(rights, RoleRight.EDIT);
+                }
+            }
+            case "Constant" -> {
+                grant(rights, RoleRight.READ, RoleRight.VIEW);
+                if (editPreset) {
+                    grant(rights, RoleRight.UPDATE, RoleRight.EDIT);
+                }
+            }
+            case "CalculationRegister" -> grant(rights, RoleRight.READ, RoleRight.VIEW);
+            default -> {
+                return false;
+            }
+        }
+        return true;
     }
 
     private static Map<String, String> normalizeRls(Map<String, String> rls) {

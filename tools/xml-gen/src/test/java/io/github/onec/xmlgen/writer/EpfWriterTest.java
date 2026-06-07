@@ -315,4 +315,25 @@ class EpfWriterTest {
         assertThat(root).doesNotContain("MainDataCompositionSchema");
         assertThat(root).contains("<Template>Схема</Template>");
     }
+
+    @Test
+    void addFormAndTemplateInheritExistingExternalObjectFormatVersion() throws Exception {
+        EpfWriter writer = new EpfWriter(OutputFormat.DESIGNER);
+        writer.init("Версия220", "Версия 2.20", tempDir);
+
+        Path rootXml = tempDir.resolve("Версия220.xml");
+        String root = io.github.onec.xmlgen.model.ConfigurationXmlReader.readContent(rootXml)
+                .replace("version=\"2.17\"", "version=\"2.20\"");
+        Files.write(rootXml, io.github.onec.xmlgen.io.Crlf.withBom(root));
+
+        writer.addForm("Версия220", "Форма", "Форма", tempDir, true);
+        writer.addTemplate("Версия220", "ПФ_Макет", "Макет", "SpreadsheetDocument", tempDir);
+
+        assertThat(Files.readString(tempDir.resolve("Версия220/Forms/Форма.xml")))
+                .contains("version=\"2.20\"");
+        assertThat(Files.readString(tempDir.resolve("Версия220/Forms/Форма/Ext/Form.xml")))
+                .contains("version=\"2.20\"");
+        assertThat(Files.readString(tempDir.resolve("Версия220/Templates/ПФ_Макет.xml")))
+                .contains("version=\"2.20\"");
+    }
 }
