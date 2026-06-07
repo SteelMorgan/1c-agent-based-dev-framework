@@ -65,6 +65,7 @@ public class FormValidator implements XmlValidator {
     private static final Set<String> KNOWN_ALLOWED_LENGTHS = Set.of("Variable", "Fixed");
     private static final Set<String> KNOWN_ALLOWED_SIGNS = Set.of("Any", "Nonnegative");
     private static final Set<String> KNOWN_DATE_FRACTIONS = Set.of("Date", "Time", "DateTime");
+    private static final Set<String> KNOWN_CALL_TYPES = Set.of("Before", "After", "Override");
 
     @Override
     public String objectType() {
@@ -438,6 +439,9 @@ public class FormValidator implements XmlValidator {
 
         // FORM-118: Event-хэндлер не должен быть пустой строкой (при наличии name)
         validateEventHandlersNonEmpty(root, issues);
+
+        // FORM-126/127: callType on events/actions is extension-only and has a fixed enum.
+        validateCallTypes(root, issues);
 
         // FORM-117: Companions для UI-элементов
         validateElementCompanionsInAllChildItems(root, "/Form", issues);
@@ -1204,6 +1208,39 @@ public class FormValidator implements XmlValidator {
         for (XmlNode child : node.getChildren()) {
             scanElementEventsInAllChildItems(child,
                     path + "/" + child.getName(), issues);
+        }
+    }
+
+    // ==================== FORM-126/127: callType ====================
+
+    private void validateCallTypes(XmlNode root, List<ValidationIssue> issues) {
+        boolean hasBaseForm = root.child("BaseForm") != null;
+        scanCallTypes(root, "/Form", hasBaseForm, issues);
+    }
+
+    private void scanCallTypes(XmlNode node, String path, boolean hasBaseForm,
+                               List<ValidationIssue> issues) {
+        if ("Event".equals(node.getName()) || "Action".equals(node.getName())) {
+            String callType = node.attr("callType");
+            if (callType != null) {
+                if (!KNOWN_CALL_TYPES.contains(callType)) {
+                    issues.add(ValidationIssue.error("FORM-126",
+                            node.getName() + " has invalid callType '" + callType
+                                    + "', expected one of: " + KNOWN_CALL_TYPES,
+                            node.getLine(), path + "/@callType"));
+                } else if (!hasBaseForm) {
+                    issues.add(ValidationIssue.warning("FORM-127",
+                            node.getName() + " has callType '" + callType
+                                    + "' but the form has no <BaseForm>; callType is valid only for borrowed extension forms",
+                            node.getLine(), path + "/@callType"));
+                }
+            }
+        }
+        int idx = 0;
+        for (XmlNode child : node.getChildren()) {
+            idx++;
+            scanCallTypes(child, path + "/" + child.getName() + "[" + idx + "]",
+                    hasBaseForm, issues);
         }
     }
 

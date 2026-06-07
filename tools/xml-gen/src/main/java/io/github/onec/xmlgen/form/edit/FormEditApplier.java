@@ -41,6 +41,17 @@ public class FormEditApplier {
      * если {@code formXmlPath} задан и есть отложенные handler'ы.
      */
     public void apply(FormEditDsl spec) {
+        apply(spec, true);
+    }
+
+    /**
+     * Применить спецификацию к форме с управляемым моментом записи BSL-заглушек.
+     *
+     * <p>CLI использует {@code flushBsl=false}, чтобы сначала провалидировать и
+     * сохранить {@code Form.xml}; иначе ошибка XML-валидации оставляла бы уже
+     * изменённый {@code Module.bsl}.</p>
+     */
+    public void apply(FormEditDsl spec, boolean flushBsl) {
         if (spec == null) return;
 
         if (spec.getAttributes() != null) {
@@ -69,7 +80,11 @@ public class FormEditApplier {
             }
         }
 
-        flushBslStubs();
+        if (flushBsl) {
+            flushBslStubs();
+        } else {
+            lastBslStubsAdded = List.of();
+        }
     }
 
     /** Список handler-имён, ранее отсутствовавших и дописанных в Module.bsl на прошлом apply(). */
@@ -159,11 +174,11 @@ public class FormEditApplier {
         pendingHandlers.add(ref);
     }
 
-    private void flushBslStubs() {
+    public List<String> flushBslStubs() {
         if (bslStubWriter == null || pendingHandlers.isEmpty()) {
             lastBslStubsAdded = List.of();
             pendingHandlers.clear();
-            return;
+            return lastBslStubsAdded;
         }
         try {
             lastBslStubsAdded = bslStubWriter.appendStubs(pendingHandlers);
@@ -171,6 +186,7 @@ public class FormEditApplier {
             throw new RuntimeException("Failed to write BSL stubs: " + e.getMessage(), e);
         }
         pendingHandlers.clear();
+        return lastBslStubsAdded;
     }
 
     private XmlNode findElement(String name) {

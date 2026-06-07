@@ -491,6 +491,21 @@ class MxlValidatorTest {
         assertThat(issues).anyMatch(i -> i.getCode().equals("MXL-106"));
     }
 
+    @Test
+    void mxl209_failsOnNonPositiveFormatWidth() throws Exception {
+        Path file = writeMxlBody(
+                "\t<format>\n" +
+                "\t\t<width>0</width>\n" +
+                "\t</format>\n" +
+                "\t<format>\n" +
+                "\t\t<width>-10</width>\n" +
+                "\t</format>\n" +
+                "\t<columns><size>1</size></columns>\n" +
+                "\t<height>0</height>\n");
+        List<ValidationIssue> issues = validator.validate(reader.parse(file), ValidationLevel.SEMANTIC);
+        assertThat(issues.stream().filter(i -> i.getCode().equals("MXL-209")).count()).isEqualTo(2);
+    }
+
     private Path writeMxlBody(String body) throws Exception {
         Path file = tempDir.resolve("Template.xml");
         String xml = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n" +

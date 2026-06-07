@@ -190,6 +190,29 @@ class EpfValidatorTest {
     }
 
     @Test
+    void epf005_tabularSectionAfterForm_reported() throws Exception {
+        Path file = writeXml("Test.xml",
+                "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n" +
+                "<MetaDataObject xmlns=\"http://v8.1c.ru/8.3/MDClasses\">\n" +
+                "\t<ExternalDataProcessor uuid=\"11111111-1111-1111-1111-111111111111\">\n" +
+                "\t\t<Properties><Name>Test</Name></Properties>\n" +
+                "\t\t<ChildObjects>\n" +
+                "\t\t\t<Form>Форма1</Form>\n" +
+                "\t\t\t<TabularSection uuid=\"22222222-2222-2222-2222-222222222222\">\n" +
+                "\t\t\t\t<Properties><Name>Строки</Name></Properties>\n" +
+                "\t\t\t</TabularSection>\n" +
+                "\t\t</ChildObjects>\n" +
+                "\t</ExternalDataProcessor>\n" +
+                "</MetaDataObject>\n");
+
+        XmlDocument doc = reader.parse(file);
+        List<ValidationIssue> issues = validator.validate(doc, ValidationLevel.STRUCTURE);
+
+        assertThat(issues).anyMatch(i -> i.getCode().equals("EPF-005")
+                && i.getMessage().contains("Attribute -> TabularSection -> Form -> Template"));
+    }
+
+    @Test
     void epf013_attributesContainerInsideObject_reported() throws Exception {
         Path file = writeXml("Test.xml",
                 "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n" +
@@ -608,6 +631,81 @@ class EpfValidatorTest {
                 && i.getMessage().contains("DefaultForm"));
         assertThat(issues).anyMatch(i -> i.getCode().equals("EPF-014")
                 && i.getMessage().contains("MainDataCompositionSchema"));
+    }
+
+    @Test
+    void epf016_externalReportMainDcsNotDeclared_reported() throws Exception {
+        Path file = writeXml("Report.xml",
+                "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n" +
+                "<MetaDataObject xmlns=\"http://v8.1c.ru/8.3/MDClasses\">\n" +
+                "  <ExternalReport uuid=\"a1b2c3d4-e5f6-4789-abcd-0123456789ab\">\n" +
+                "    <Properties>\n" +
+                "      <Name>Отчет</Name>\n" +
+                "      <MainDataCompositionSchema>ExternalReport.Отчет.Template.Схема</MainDataCompositionSchema>\n" +
+                "    </Properties>\n" +
+                "    <ChildObjects/>\n" +
+                "  </ExternalReport>\n" +
+                "</MetaDataObject>\n");
+
+        XmlDocument doc = reader.parse(file);
+        List<ValidationIssue> issues = validator.validate(doc, ValidationLevel.SEMANTIC);
+
+        assertThat(issues).anyMatch(i -> i.getCode().equals("EPF-016")
+                && i.getMessage().contains("not declared"));
+    }
+
+    @Test
+    void epf016_externalReportMainDcsTemplateWrongType_reported() throws Exception {
+        Path sub = tempDir.resolve("wrong-dcs-type");
+        Files.createDirectories(sub.resolve("Report/Templates"));
+        Files.writeString(sub.resolve("Report/Templates/Схема.xml"),
+                "<MetaDataObject xmlns=\"http://v8.1c.ru/8.3/MDClasses\" version=\"2.17\">\n"
+                        + "  <Template uuid=\"11111111-1111-1111-1111-111111111111\">\n"
+                        + "    <Properties><Name>Схема</Name><TemplateType>SpreadsheetDocument</TemplateType></Properties>\n"
+                        + "  </Template>\n"
+                        + "</MetaDataObject>\n",
+                StandardCharsets.UTF_8);
+        Path file = sub.resolve("Report.xml");
+        Files.writeString(file,
+                "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n" +
+                "<MetaDataObject xmlns=\"http://v8.1c.ru/8.3/MDClasses\" version=\"2.17\">\n" +
+                "  <ExternalReport uuid=\"a1b2c3d4-e5f6-4789-abcd-0123456789ab\">\n" +
+                "    <Properties>\n" +
+                "      <Name>Report</Name>\n" +
+                "      <MainDataCompositionSchema>ExternalReport.Report.Template.Схема</MainDataCompositionSchema>\n" +
+                "    </Properties>\n" +
+                "    <ChildObjects><Template>Схема</Template></ChildObjects>\n" +
+                "  </ExternalReport>\n" +
+                "</MetaDataObject>\n",
+                StandardCharsets.UTF_8);
+
+        XmlDocument doc = reader.parse(file);
+        List<ValidationIssue> issues = validator.validate(doc, ValidationLevel.SEMANTIC);
+
+        assertThat(issues).anyMatch(i -> i.getCode().equals("EPF-016")
+                && i.getMessage().contains("SpreadsheetDocument")
+                && i.getMessage().contains("DataCompositionSchema"));
+    }
+
+    @Test
+    void epf017_processorWithReportOnlyProperty_reported() throws Exception {
+        Path file = writeXml("Processor.xml",
+                "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n" +
+                "<MetaDataObject xmlns=\"http://v8.1c.ru/8.3/MDClasses\">\n" +
+                "  <ExternalDataProcessor uuid=\"a1b2c3d4-e5f6-4789-abcd-0123456789ab\">\n" +
+                "    <Properties>\n" +
+                "      <Name>Обработка</Name>\n" +
+                "      <MainDataCompositionSchema/>\n" +
+                "    </Properties>\n" +
+                "    <ChildObjects/>\n" +
+                "  </ExternalDataProcessor>\n" +
+                "</MetaDataObject>\n");
+
+        XmlDocument doc = reader.parse(file);
+        List<ValidationIssue> issues = validator.validate(doc, ValidationLevel.SEMANTIC);
+
+        assertThat(issues).anyMatch(i -> i.getCode().equals("EPF-017")
+                && i.getMessage().contains("ExternalReport"));
     }
 
     // ==================== TASK-171: init --type report --with-skd ====================

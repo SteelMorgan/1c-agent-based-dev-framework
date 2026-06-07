@@ -15,7 +15,7 @@ import java.nio.file.Path;
  * Создаёт минимальную структуру:
  * - Configuration.xml (extension-specific properties)
  * - Languages/Русский.xml (заимствованный язык)
- * - Roles/<prefix>ОсновнаяРоль.xml (опционально)
+ * - Roles/<prefix>ОсновнаяРоль.xml + Roles/<prefix>ОсновнаяРоль/Ext/Rights.xml (опционально)
  */
 public class ExtensionWriter {
 
@@ -132,6 +132,7 @@ public class ExtensionWriter {
         // 3. Role (optional)
         if (!noRole) {
             writeRoleXml(outputDir, roleName, formatVersion);
+            writeRoleRightsXml(outputDir, roleName, formatVersion);
         }
 
         // Summary
@@ -269,6 +270,24 @@ public class ExtensionWriter {
         sb.append("</MetaDataObject>");
 
         writeWithBom(roleDir.resolve(roleName + ".xml"), sb.toString());
+    }
+
+    private void writeRoleRightsXml(Path outputDir, String roleName, String formatVersion) throws IOException {
+        Path rightsDir = outputDir.resolve("Roles").resolve(roleName).resolve("Ext");
+        Files.createDirectories(rightsDir);
+
+        StringBuilder sb = new StringBuilder();
+        sb.append("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n");
+        sb.append("<Rights xmlns=\"http://v8.1c.ru/8.2/roles\" ")
+                .append("xmlns:xs=\"http://www.w3.org/2001/XMLSchema\" ")
+                .append("xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\" ")
+                .append("xsi:type=\"Rights\" version=\"").append(formatVersion).append("\">\n");
+        sb.append("\t<setForNewObjects>false</setForNewObjects>\n");
+        sb.append("\t<setForAttributesByDefault>true</setForAttributesByDefault>\n");
+        sb.append("\t<independentRightsOfChildObjects>false</independentRightsOfChildObjects>\n");
+        sb.append("</Rights>");
+
+        writeWithBom(rightsDir.resolve("Rights.xml"), sb.toString());
     }
 
     // ─── Config path resolution ─────────────────────────────────────────

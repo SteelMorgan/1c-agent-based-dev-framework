@@ -95,6 +95,18 @@ class ByteSafeFileHandlerTest {
     }
 
     @Test
+    void unsupportedEncodingIsRejected() throws Exception {
+        Path file = tempDir.resolve("bad-encoding.xml");
+        Files.writeString(file, "<root/>");
+
+        IllegalArgumentException ex = assertThrows(
+                IllegalArgumentException.class,
+                () -> ByteSafeFileHandler.open(file, "utf8"));
+
+        assertTrue(ex.getMessage().contains("Expected utf-8-sig or utf-8"));
+    }
+
+    @Test
     void backupCreatesFile() throws Exception {
         Path file = tempDir.resolve("original.xml");
         Files.writeString(file, "<root/>");

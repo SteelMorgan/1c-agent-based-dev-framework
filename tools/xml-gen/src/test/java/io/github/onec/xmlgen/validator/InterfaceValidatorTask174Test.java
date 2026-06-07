@@ -129,6 +129,36 @@ class InterfaceValidatorTask174Test {
     }
 
     @Test
+    void checksCommonFormCommandReferenceExistenceWhenConfigRootIsKnown() throws Exception {
+        Path configRoot = tempDir.resolve("cfg");
+        Files.createDirectories(configRoot.resolve("CommonForms"));
+        Files.writeString(configRoot.resolve("CommonForms/Настройки.xml"),
+                "<MetaDataObject/>", StandardCharsets.UTF_8);
+
+        Path ci = writeCi("""
+                <?xml version="1.0" encoding="UTF-8"?>
+                <CommandInterface xmlns="%s" xmlns:xr="%s" version="2.17">
+                    <CommandsVisibility>
+                        <Command name="CommonForm.Настройки.Command.Открыть">
+                            <Visibility><xr:Common>true</xr:Common></Visibility>
+                        </Command>
+                        <Command name="CommonForm.НетТакой.Command.Открыть">
+                            <Visibility><xr:Common>true</xr:Common></Visibility>
+                        </Command>
+                    </CommandsVisibility>
+                </CommandInterface>
+                """.formatted(CI_NS, XR_NS));
+
+        List<InterfaceValidator.ValidationMessage> messages =
+                validator.validate(reader.parse(ci), configRoot);
+
+        assertThat(messages).noneMatch(m ->
+                "ERROR".equals(m.level) && m.message.contains("CommonForm.Настройки"));
+        assertThat(messages).anyMatch(m ->
+                "ERROR".equals(m.level) && m.message.contains("CommonForm.НетТакой"));
+    }
+
+    @Test
     void warnsAboutMalformedSubsystemOrderPath() throws Exception {
         Path ci = writeCi("""
                 <?xml version="1.0" encoding="UTF-8"?>

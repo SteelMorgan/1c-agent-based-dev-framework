@@ -3,6 +3,7 @@ package io.github.onec.xmlgen.cli;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.github.onec.xmlgen.dsl.FormDsl;
 import io.github.onec.xmlgen.dsl.FormEditDsl;
+import io.github.onec.xmlgen.form.edit.BslStubWriter;
 import io.github.onec.xmlgen.form.edit.FormEditApplier;
 import io.github.onec.xmlgen.dsl.MxlDsl;
 import io.github.onec.xmlgen.dsl.RoleDsl;
@@ -35,6 +36,7 @@ import io.github.onec.xmlgen.info.SubsystemInfoPrinter;
 import io.github.onec.xmlgen.info.MetaInfoPrinter;
 import io.github.onec.xmlgen.info.ExtensionDiffPrinter;
 import io.github.onec.xmlgen.model.ConfigurationXmlReader;
+import io.github.onec.xmlgen.model.MetadataTypeRegistry;
 
 import io.github.onec.xmlgen.editor.ReplaceTextEditor;
 
@@ -129,7 +131,7 @@ public class Commands {
             case "--help":
             case "-h":
                 throw new IllegalArgumentException("Use without arguments to see help");
-            default:
+                default:
                 throw new IllegalArgumentException("Unknown command: " + command);
         }
     }
@@ -796,6 +798,7 @@ public class Commands {
                      getArg(args, "--path", false),
                      getArg(args, "--parent", false),
                      getArg(args, "--after", false),
+                     getArg(args, "--before", false),
                      getArg(args, "--command", false)
                  );
                  //**agent TASK-174
@@ -894,6 +897,12 @@ public class Commands {
         }
 
         try {
+            byte[] originalFormBytes = Files.readAllBytes(formFile);
+            BslStubWriter bslWriter = new BslStubWriter(formFile);
+            Path modulePath = bslWriter.getModulePath();
+            boolean moduleExisted = modulePath != null && Files.exists(modulePath);
+            byte[] originalModuleBytes = moduleExisted ? Files.readAllBytes(modulePath) : null;
+
             XmlDocument doc = new XmlStructureReader().parse(formFile);
             // Snapshot pre-existing errors, чтобы diff-gate не блокировался на них
             Set<String> preEditErrors = snapshotErrors(doc, "form", args);
@@ -901,10 +910,40 @@ public class Commands {
             ObjectMapper mapper = new ObjectMapper();
             FormEditDsl spec = mapper.readValue(jsonFile.toFile(), FormEditDsl.class);
             // formFile передаётся, чтобы BslStubWriter мог найти соседний Module.bsl
-            new FormEditApplier(editor, formFile).apply(spec);
-            saveAndValidate(doc, formFile, "form", args, preEditErrors);
+            FormEditApplier applier = new FormEditApplier(editor, formFile);
+            applier.apply(spec, false);
+            try {
+                saveAndValidate(doc, formFile, "form", args, preEditErrors);
+                applier.flushBslStubs();
+            } catch (Exception e) {
+                restoreBytes(formFile, originalFormBytes);
+                restoreOptionalBytes(modulePath, moduleExisted, originalModuleBytes);
+                throw e;
+            }
         } catch (Exception e) {
             throw new RuntimeException("Form edit failed: " + e.getMessage(), e);
+        }
+    }
+
+    private static void restoreBytes(Path file, byte[] bytes) {
+        if (file == null || bytes == null) return;
+        try {
+            Files.write(file, bytes);
+        } catch (Exception ignored) {
+            // best effort rollback
+        }
+    }
+
+    private static void restoreOptionalBytes(Path file, boolean existed, byte[] bytes) {
+        if (file == null) return;
+        try {
+            if (existed) {
+                Files.write(file, bytes);
+            } else {
+                Files.deleteIfExists(file);
+            }
+        } catch (Exception ignored) {
+            // best effort rollback
         }
     }
 
@@ -1982,54 +2021,31 @@ public class Commands {
     // validate command
     // ============================================================
 
+    static record ValidateOptions(String type, String format, ValidationLevel level,
+                                  String output, List<Path> files, Path srcRoot) {
+    }
+
     private static MetadataTypeValidator createMetadataValidator(String[] args) {
         String srcRootStr = getArg(args, "--src-root", false);
         Path srcRoot = srcRootStr != null ? Paths.get(srcRootStr) : null;
         return new MetadataTypeValidator(srcRoot);
     }
 
+    private static MetadataTypeValidator createMetadataValidator(Path srcRoot) {
+        return new MetadataTypeValidator(srcRoot);
+    }
+
     private static void executeValidate(String[] args) {
-        // Парсинг: [--type <form|role|skd|mxl|epf>] [--format <designer|edt>] [--src-root <path>]
-        //          [--level <structure|semantic>] [--output <text|json>] <file1> [file2] ...
-        String type = null;
-        String formatStr = "designer";
-        ValidationLevel level = ValidationLevel.SEMANTIC;
-        String output = "text";
-        List<Path> files = new ArrayList<>();
-        
-        MetadataTypeValidator metadataValidator = createMetadataValidator(args);
+        ValidateOptions options = parseValidateOptions(args);
 
-        for (int i = 0; i < args.length; i++) {
-            if ("--type".equals(args[i]) && i + 1 < args.length) {
-                type = args[++i].toLowerCase();
-                if ("erf".equals(type)) type = "epf"; // ERF uses same validator as EPF
-                // TASK-155 A2: whitelist --type — reject unknown type values early
-                if (!KNOWN_VALIDATE_TYPES.contains(type)) {
-                    throw new IllegalArgumentException(
-                        "Unknown --type value: \"" + type + "\". Expected one of: " +
-                        "form, role, skd, mxl, epf, meta, config, extension, subsystem, interface, template");
-                }
-            } else if ("--format".equals(args[i]) && i + 1 < args.length) {
-                formatStr = args[++i].toLowerCase();
-            } else if ("--level".equals(args[i]) && i + 1 < args.length) {
-                String lvl = args[++i].toLowerCase();
-                level = "structure".equals(lvl) ? ValidationLevel.STRUCTURE : ValidationLevel.SEMANTIC;
-            } else if ("--output".equals(args[i]) && i + 1 < args.length) {
-                output = args[++i].toLowerCase();
-            } else if ("--src-root".equals(args[i]) && i + 1 < args.length) {
-                i++; // Skip value (already handled)
-            } else if (!args[i].startsWith("--")) {
-                files.add(Paths.get(args[i]));
-            }
-        }
-
-        if (files.isEmpty()) {
+        if (options.files().isEmpty()) {
             throw new IllegalArgumentException(
                     "Usage: validate [--type <form|role|skd|mxl|epf>] [--output <text|json>] [--src-root <path>] <file> [files...]");
         }
 
         XmlStructureReader reader = new XmlStructureReader();
         ValidatorFactory factory = new ValidatorFactory();
+        MetadataTypeValidator metadataValidator = createMetadataValidator(options.srcRoot());
         GenValidator genValidator = new GenValidator(metadataValidator);
         TextReporter textReporter = new TextReporter();
         JsonReporter jsonReporter = new JsonReporter();
@@ -2037,7 +2053,7 @@ public class Commands {
         boolean hasErrors = false;
         boolean hasWarnings = false;
 
-        for (Path file : files) {
+        for (Path file : options.files()) {
             XmlDocument document;
             try {
                 document = reader.parse(file);
@@ -2046,43 +2062,114 @@ public class Commands {
                         ValidationIssue.error("GEN-001", e.getMessage(), 0, "/")
                 );
                 ValidationResult parseResult = new ValidationResult(
-                        file, type != null ? type : "unknown", formatStr, parseIssues);
-                System.out.println("text".equals(output)
+                        file, options.type() != null ? options.type() : "unknown", options.format(), parseIssues);
+                System.out.println("text".equals(options.output())
                         ? textReporter.format(parseResult)
                         : jsonReporter.format(parseResult));
                 hasErrors = true;
                 continue;
             }
 
-            String objectType = type;
+            String objectType = options.type();
             if (objectType == null) {
                 Optional<XmlValidator> detected = factory.detectValidator(document);
                 objectType = detected.map(XmlValidator::objectType).orElse(detectTypeByRoot(document));
             }
 
             List<ValidationIssue> allIssues = validateDocumentForType(
-                    document, objectType, file, formatStr, level, genValidator, factory);
+                    document, objectType, file, options.format(), options.level(), genValidator, factory);
 
-            ValidationResult result = new ValidationResult(file, objectType, formatStr, allIssues);
+            ValidationResult result = new ValidationResult(file, objectType, options.format(), allIssues);
 
             if (!result.isValid()) hasErrors = true;
             if (result.warningCount() > 0) hasWarnings = true;
 
-            System.out.println("text".equals(output)
+            System.out.println("text".equals(options.output())
                     ? textReporter.format(result)
                     : jsonReporter.format(result));
         }
 
-        if (hasErrors) {
-            System.exit(1);
-        } else if (hasWarnings) {
-            System.exit(2);
+        exitForValidationSummary(hasErrors ? 1 : 0, hasWarnings ? 1 : 0);
+    }
+
+    static ValidateOptions parseValidateOptions(String[] args) {
+        // Парсинг: [--type <form|role|skd|mxl|epf>] [--format <designer|edt>] [--src-root <path>]
+        //          [--level <structure|semantic>] [--output <text|json>] <file1> [file2] ...
+        String type = null;
+        String formatStr = "designer";
+        ValidationLevel level = ValidationLevel.SEMANTIC;
+        String output = "text";
+        Path srcRoot = null;
+        List<Path> files = new ArrayList<>();
+
+        for (int i = 0; i < args.length; i++) {
+            String arg = args[i];
+            switch (arg) {
+                case "--type" -> {
+                    String rawType = requireOptionValue(args, i, "--type").toLowerCase();
+                    i++;
+                    type = "erf".equals(rawType) ? "epf" : rawType;
+                    if (!KNOWN_VALIDATE_TYPES.contains(rawType) && !KNOWN_VALIDATE_TYPES.contains(type)) {
+                        throw new IllegalArgumentException(
+                                "Unknown --type value: \"" + rawType + "\". Expected one of: "
+                                        + "form, role, skd, mxl, epf, erf, meta, config, extension, "
+                                        + "subsystem, interface, template");
+                    }
+                }
+                case "--format" -> {
+                    formatStr = requireOptionValue(args, i, "--format").toLowerCase();
+                    i++;
+                    if (!"designer".equals(formatStr) && !"edt".equals(formatStr)) {
+                        throw new IllegalArgumentException(
+                                "Unknown --format value: \"" + formatStr + "\". Expected designer or edt");
+                    }
+                }
+                case "--level" -> {
+                    String lvl = requireOptionValue(args, i, "--level").toLowerCase();
+                    i++;
+                    if ("structure".equals(lvl)) {
+                        level = ValidationLevel.STRUCTURE;
+                    } else if ("semantic".equals(lvl)) {
+                        level = ValidationLevel.SEMANTIC;
+                    } else {
+                        throw new IllegalArgumentException(
+                                "Unknown --level value: \"" + lvl + "\". Expected structure or semantic");
+                    }
+                }
+                case "--output" -> {
+                    output = requireOptionValue(args, i, "--output").toLowerCase();
+                    i++;
+                    if (!"text".equals(output) && !"json".equals(output)) {
+                        throw new IllegalArgumentException(
+                                "Unknown --output value: \"" + output + "\". Expected text or json");
+                    }
+                }
+                case "--src-root" -> {
+                    srcRoot = Paths.get(requireOptionValue(args, i, "--src-root"));
+                    i++;
+                }
+                default -> {
+                    if (arg.startsWith("--")) {
+                        throw new IllegalArgumentException("Unknown validate option: " + arg);
+                    }
+                    files.add(Paths.get(arg));
+                }
+            }
         }
+
+        return new ValidateOptions(type, formatStr, level, output, List.copyOf(files), srcRoot);
+    }
+
+    private static String requireOptionValue(String[] args, int index, String option) {
+        if (index + 1 >= args.length || args[index + 1].startsWith("--")) {
+            throw new IllegalArgumentException(option + " requires a value");
+        }
+        return args[index + 1];
     }
     
     // --- Helpers ---
 
-    private static String detectTypeByRoot(XmlDocument doc) {
+    static String detectTypeByRoot(XmlDocument doc) {
         switch (doc.getRootElement()) {
             case "Rights": return "role";
             case "Form": return "form";
@@ -2090,7 +2177,49 @@ public class Commands {
             case "document": return "mxl";
             case "ExternalDataProcessor": return "epf";
             case "ExternalReport": return "epf";
+            case "CommandInterface": return "interface";
+            case "Subsystem": return "subsystem";
+            case "MetaDataObject": return detectMetaDataObjectType(doc.getRoot());
             default: return "unknown";
+        }
+    }
+
+    private static String detectMetaDataObjectType(XmlNode root) {
+        if (root.child("ExternalDataProcessor") != null || root.child("ExternalReport") != null) {
+            return "epf";
+        }
+        XmlNode configuration = root.child("Configuration");
+        if (configuration != null) {
+            XmlNode props = configuration.child("Properties");
+            if (props != null
+                    && (props.child("ConfigurationExtensionPurpose") != null
+                    || props.child("NamePrefix") != null
+                    || props.child("ConfigurationExtensionCompatibilityMode") != null)) {
+                return "extension";
+            }
+            return "config";
+        }
+        if (root.child("Subsystem") != null) {
+            return "subsystem";
+        }
+        for (XmlNode child : root.getChildren()) {
+            if (MetadataTypeRegistry.byXmlElement(child.getName()) != null) {
+                return "meta";
+            }
+        }
+        return "unknown";
+    }
+
+    static int validationExitCode(int errors, int warnings) {
+        if (errors > 0) return 1;
+        if (warnings > 0) return 2;
+        return 0;
+    }
+
+    private static void exitForValidationSummary(int errors, int warnings) {
+        int exitCode = validationExitCode(errors, warnings);
+        if (exitCode != 0) {
+            System.exit(exitCode);
         }
     }
 
@@ -2529,17 +2658,78 @@ public class Commands {
                 case "set-defaultRoles":
                     editor.setDefaultRoles(value);
                     break;
-                default:
+            default:
                     throw new IllegalArgumentException("Unknown operation: " + operation
                             + ". Supported: modify-property, add-childObject, remove-childObject, "
                             + "add-defaultRole, remove-defaultRole, set-defaultRoles");
             }
 
+            validateConfigPreviewNoNewErrors(file, editor.previewContent());
             editor.save();
             System.out.println("Configuration updated: " + operation);
         } catch (IOException e) {
             throw new RuntimeException("Failed to edit configuration: " + e.getMessage(), e);
         }
+    }
+
+    private static void validateConfigPreviewNoNewErrors(Path file, String previewContent) throws IOException {
+        Set<String> preExistingErrors;
+        try {
+            preExistingErrors = configErrorKeys(validateConfigContent(
+                    file, ConfigurationXmlReader.readContent(file)));
+        } catch (Exception e) {
+            throw new IllegalArgumentException(
+                    "Cannot validate existing Configuration.xml before edit: " + e.getMessage(), e);
+        }
+
+        List<ConfigValidator.ValidationMessage> afterMessages;
+        try {
+            afterMessages = validateConfigContent(file, previewContent);
+        } catch (Exception e) {
+            throw new IllegalArgumentException(
+                    "Config edit would produce unparsable Configuration.xml: " + e.getMessage(), e);
+        }
+
+        List<ConfigValidator.ValidationMessage> newErrors = afterMessages.stream()
+                .filter(m -> "ERROR".equals(m.level))
+                .filter(m -> !preExistingErrors.contains(configMessageKey(m)))
+                .toList();
+        if (!newErrors.isEmpty()) {
+            String first = newErrors.get(0).message;
+            throw new IllegalArgumentException(
+                    "Config edit would introduce validation errors; file was not changed. First error: "
+                            + first);
+        }
+    }
+
+    private static List<ConfigValidator.ValidationMessage> validateConfigContent(Path file, String content)
+            throws Exception {
+        Path dir = file.toAbsolutePath().normalize().getParent();
+        Path tmp = Files.createTempFile(dir, ".xmlgen-config-edit-", ".xml");
+        try {
+            Files.writeString(tmp, content, java.nio.charset.StandardCharsets.UTF_8);
+            XmlDocument doc = new XmlStructureReader().parse(tmp);
+            return new ConfigValidator().validate(doc, dir);
+        } finally {
+            try {
+                Files.deleteIfExists(tmp);
+            } catch (Exception ignored) {
+            }
+        }
+    }
+
+    private static Set<String> configErrorKeys(List<ConfigValidator.ValidationMessage> messages) {
+        Set<String> keys = new HashSet<>();
+        for (ConfigValidator.ValidationMessage message : messages) {
+            if ("ERROR".equals(message.level)) {
+                keys.add(configMessageKey(message));
+            }
+        }
+        return keys;
+    }
+
+    private static String configMessageKey(ConfigValidator.ValidationMessage message) {
+        return message.level + "\u0001" + message.message;
     }
 
     /**
@@ -2605,9 +2795,7 @@ public class Commands {
             System.out.println();
             System.out.println("Summary: " + errors + " errors, " + warnings + " warnings");
 
-            if (errors > 0) {
-                System.exit(1);
-            }
+            exitForValidationSummary(errors, warnings);
         } catch (XmlStructureReader.XmlParseException e) {
             throw new RuntimeException("Failed to parse Configuration XML: " + e.getMessage(), e);
         }
@@ -2829,7 +3017,7 @@ public class Commands {
             }
             System.out.println();
             System.out.println("Summary: " + errors + " errors, " + warnings + " warnings");
-            if (errors > 0) System.exit(1);
+            exitForValidationSummary(errors, warnings);
         } catch (XmlStructureReader.XmlParseException e) {
             throw new RuntimeException("Failed to parse Subsystem XML: " + e.getMessage(), e);
         }
@@ -3030,7 +3218,7 @@ public class Commands {
             }
             System.out.println();
             System.out.println("Summary: " + errors + " errors, " + warnings + " warnings");
-            if (errors > 0) System.exit(1);
+            exitForValidationSummary(errors, warnings);
         } catch (XmlStructureReader.XmlParseException e) {
             throw new RuntimeException("Failed to parse CommandInterface XML: " + e.getMessage(), e);
         }
@@ -3322,7 +3510,7 @@ public class Commands {
             }
             System.out.println();
             System.out.println("Summary: " + errors + " errors, " + warnings + " warnings");
-            if (errors > 0) System.exit(1);
+            exitForValidationSummary(errors, warnings);
         } catch (XmlStructureReader.XmlParseException e) {
             throw new RuntimeException("Failed to parse metadata XML: " + e.getMessage(), e);
         }
@@ -3468,7 +3656,7 @@ public class Commands {
             }
             System.out.println();
             System.out.println("Summary: " + errors + " errors, " + warnings + " warnings");
-            if (errors > 0) System.exit(1);
+            exitForValidationSummary(errors, warnings);
         } catch (XmlStructureReader.XmlParseException e) {
             throw new RuntimeException("Failed to parse extension XML: " + e.getMessage(), e);
         }

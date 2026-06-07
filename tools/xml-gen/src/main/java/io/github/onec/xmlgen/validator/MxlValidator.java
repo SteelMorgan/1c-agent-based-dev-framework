@@ -16,6 +16,7 @@ import java.util.*;
  *   MXL-206 Page size impossible (sum of widths exceeds page)
  *   MXL-207 Style reference broken
  *   MXL-208 Non-canonical pageSetup extension
+ *   MXL-209 Non-positive column width
  */
 public class MxlValidator implements XmlValidator {
 
@@ -312,6 +313,12 @@ public class MxlValidator implements XmlValidator {
         for (XmlNode fmt : formatPalette) {
             String id = fmt.childText("id");
             if (id != null && !id.isEmpty()) definedFormatIds.add(id);
+            Integer width = parseIntOrNull(fmt.childText("width"));
+            if (width != null && width <= 0) {
+                issues.add(ValidationIssue.error("MXL-209",
+                        "Format width must be > 0, found " + width,
+                        fmt.getLine(), "/document/format/width"));
+            }
         }
         // Numeric format ids referenced via formatIndex in columnsItem are auto-defined too
         // (we don't enforce numeric vs string; collect for cross-check anyway)

@@ -165,6 +165,14 @@ public class ConfigEditor {
         //++agent TASK-172
     }
 
+    /**
+     * Текущее содержимое после операций, но до записи на диск.
+     * Используется CLI для validate-before-save без временной порчи Configuration.xml.
+     */
+    public String previewContent() {
+        return content;
+    }
+
     // --- Internal ---
 
     /** LocalString свойства, требующие замены v8:content. */

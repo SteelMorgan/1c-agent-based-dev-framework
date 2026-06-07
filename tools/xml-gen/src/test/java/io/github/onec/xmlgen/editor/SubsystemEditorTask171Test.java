@@ -121,6 +121,22 @@ class SubsystemEditorTask171Test {
     }
 
     @Test
+    void removeContent_normalizesTypeToCanonical() throws Exception {
+        Path root = configRoot();
+        Path ssFile = root.resolve("Subsystems").resolve("Тест.xml");
+        Files.createDirectories(ssFile.getParent());
+        Files.writeString(ssFile, SUBSYSTEM_XML, StandardCharsets.UTF_8);
+
+        SubsystemEditor editor = new SubsystemEditor(ssFile);
+        editor.addContent("Catalogs.УчетныеЗаписиЭлектроннойПочты");
+        editor.removeContent("Справочник.УчетныеЗаписиЭлектроннойПочты");
+        editor.save();
+
+        String written = Files.readString(ssFile, StandardCharsets.UTF_8);
+        assertThat(written).doesNotContain("Catalog.УчетныеЗаписиЭлектроннойПочты");
+    }
+
+    @Test
     void normalizeContentType_pluralAndRussian() {
         assertThat(SubsystemEditor.normalizeContentType("Catalogs.Товары"))
                 .isEqualTo("Catalog.Товары");

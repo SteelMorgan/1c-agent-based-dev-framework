@@ -683,6 +683,93 @@ class FormValidatorTest {
                 && i.getMessage().contains("OtherTable"));
     }
 
+    // ==================== FORM-126/127: callType ====================
+
+    @Test
+    void form126_invalidEventCallType_reportedAsError() throws Exception {
+        Path file = writeXml("Form.xml",
+                "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n" +
+                "<Form xmlns=\"http://v8.1c.ru/8.3/xcf/logform\" version=\"2.17\">\n" +
+                "\t<AutoCommandBar name=\"FormCommandBar\" id=\"-1\"/>\n" +
+                "\t<BaseForm version=\"2.17\">Catalog.X.Form.Main</BaseForm>\n" +
+                "\t<Events>\n" +
+                "\t\t<Event name=\"OnOpen\" callType=\"Instead\">Handler</Event>\n" +
+                "\t</Events>\n" +
+                "</Form>\n");
+
+        XmlDocument doc = reader.parse(file);
+        List<ValidationIssue> issues = validator.validate(doc, ValidationLevel.SEMANTIC);
+
+        assertThat(issues).anyMatch(i -> i.getCode().equals("FORM-126")
+                && i.getSeverity() == Severity.ERROR
+                && i.getMessage().contains("Instead"));
+    }
+
+    @Test
+    void form126_invalidActionCallType_reportedAsError() throws Exception {
+        Path file = writeXml("Form.xml",
+                "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n" +
+                "<Form xmlns=\"http://v8.1c.ru/8.3/xcf/logform\" version=\"2.17\">\n" +
+                "\t<AutoCommandBar name=\"FormCommandBar\" id=\"-1\"/>\n" +
+                "\t<BaseForm version=\"2.17\">Catalog.X.Form.Main</BaseForm>\n" +
+                "\t<Commands>\n" +
+                "\t\t<Command name=\"Do\" id=\"1\">\n" +
+                "\t\t\t<Action callType=\"Around\">DoAround</Action>\n" +
+                "\t\t</Command>\n" +
+                "\t</Commands>\n" +
+                "</Form>\n");
+
+        XmlDocument doc = reader.parse(file);
+        List<ValidationIssue> issues = validator.validate(doc, ValidationLevel.SEMANTIC);
+
+        assertThat(issues).anyMatch(i -> i.getCode().equals("FORM-126")
+                && i.getSeverity() == Severity.ERROR
+                && i.getMessage().contains("Around"));
+    }
+
+    @Test
+    void form127_callTypeWithoutBaseForm_reportedAsWarning() throws Exception {
+        Path file = writeXml("Form.xml",
+                "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n" +
+                "<Form xmlns=\"http://v8.1c.ru/8.3/xcf/logform\" version=\"2.17\">\n" +
+                "\t<AutoCommandBar name=\"FormCommandBar\" id=\"-1\"/>\n" +
+                "\t<Events>\n" +
+                "\t\t<Event name=\"OnOpen\" callType=\"Before\">Handler</Event>\n" +
+                "\t</Events>\n" +
+                "</Form>\n");
+
+        XmlDocument doc = reader.parse(file);
+        List<ValidationIssue> issues = validator.validate(doc, ValidationLevel.SEMANTIC);
+
+        assertThat(issues).anyMatch(i -> i.getCode().equals("FORM-127")
+                && i.getSeverity() == Severity.WARNING
+                && i.getMessage().contains("Before"));
+    }
+
+    @Test
+    void formCallType_validExtensionUsage_hasNoForm126Or127() throws Exception {
+        Path file = writeXml("Form.xml",
+                "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n" +
+                "<Form xmlns=\"http://v8.1c.ru/8.3/xcf/logform\" version=\"2.17\">\n" +
+                "\t<AutoCommandBar name=\"FormCommandBar\" id=\"-1\"/>\n" +
+                "\t<BaseForm version=\"2.17\">Catalog.X.Form.Main</BaseForm>\n" +
+                "\t<Events>\n" +
+                "\t\t<Event name=\"OnOpen\" callType=\"Before\">BeforeOpen</Event>\n" +
+                "\t</Events>\n" +
+                "\t<Commands>\n" +
+                "\t\t<Command name=\"Do\" id=\"1\">\n" +
+                "\t\t\t<Action callType=\"After\">DoAfter</Action>\n" +
+                "\t\t</Command>\n" +
+                "\t</Commands>\n" +
+                "</Form>\n");
+
+        XmlDocument doc = reader.parse(file);
+        List<ValidationIssue> issues = validator.validate(doc, ValidationLevel.SEMANTIC);
+
+        assertThat(issues).noneMatch(i -> i.getCode().equals("FORM-126"));
+        assertThat(issues).noneMatch(i -> i.getCode().equals("FORM-127"));
+    }
+
     // ==================== FORM-118: Event handler non-empty ====================
 
     @Test

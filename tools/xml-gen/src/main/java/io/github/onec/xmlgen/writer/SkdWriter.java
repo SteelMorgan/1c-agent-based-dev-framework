@@ -15,6 +15,7 @@ import java.nio.file.Path;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
 /**
@@ -147,7 +148,7 @@ public class SkdWriter extends XmlWriter {
         // Settings variants.
         if (dsl.getSettingsVariants() != null && !dsl.getSettingsVariants().isEmpty()) {
             for (SkdDsl.SettingsVariant sv : dsl.getSettingsVariants()) {
-                writeSettingsVariant(sv);
+                writeSettingsVariant(sv, dsl.getParameters());
             }
         } else {
             writeDefaultSettingsVariant();
@@ -180,15 +181,22 @@ public class SkdWriter extends XmlWriter {
     // ============================================================
 
     private void writeDataSet(SkdDsl.DataSet ds) throws XMLStreamException {
-        writer.writeCharacters("\t");
-        writer.writeStartElement("dataSet");
+        writeDataSetElement(ds, "dataSet", 1);
+    }
+
+    private void writeDataSetElement(SkdDsl.DataSet ds, String elementName, int elementIndent)
+            throws XMLStreamException {
+        int previousIndent = indentLevel;
+        indentLevel = elementIndent;
+        writer.writeCharacters("\t".repeat(indentLevel));
+        writer.writeStartElement(elementName);
 
         String xsiType = ds.getXsiType();
         // Маппим через mdclasses enum для надёжности (DataSetType.DATA_SET_QUERY etc.)
         normalizeDataSetType(xsiType);
         writer.writeAttribute("xsi:type", xsiType);
         writer.writeCharacters("\n");
-        indentLevel = 2;
+        indentLevel = elementIndent + 1;
 
         writeElement("name", ds.getName() != null ? ds.getName() : "НаборДанных1");
 
@@ -223,7 +231,7 @@ public class SkdWriter extends XmlWriter {
         // Union: nested datasets OR sourceDataSets.
         if (ds.getItems() != null) {
             for (SkdDsl.DataSet item : ds.getItems()) {
-                writeDataSet(item);
+                writeDataSetElement(item, "item", indentLevel);
             }
         }
         if (ds.getSourceDataSets() != null) {
@@ -241,10 +249,11 @@ public class SkdWriter extends XmlWriter {
             //**agent TASK-174
         }
 
-        indentLevel = 1;
-        writer.writeCharacters("\t");
+        indentLevel = elementIndent;
+        writer.writeCharacters("\t".repeat(indentLevel));
         writer.writeEndElement(); // dataSet
         writer.writeCharacters("\n");
+        indentLevel = previousIndent;
     }
 
     /** Маппит xsi:type через mdclasses enum для валидации, бросает при unknown. */
@@ -261,11 +270,12 @@ public class SkdWriter extends XmlWriter {
     // ============================================================
 
     private void writeField(SkdDsl.Field field) throws XMLStreamException {
-        writer.writeCharacters("\t\t");
+        int fieldIndent = indentLevel;
+        writer.writeCharacters("\t".repeat(fieldIndent));
         writer.writeStartElement("field");
         writer.writeAttribute("xsi:type", "DataSetFieldField");
         writer.writeCharacters("\n");
-        indentLevel = 3;
+        indentLevel = fieldIndent + 1;
 
         String dataPath = field.getDataPath() != null ? field.getDataPath() : field.getField();
         writeElement("dataPath", dataPath);
@@ -314,8 +324,8 @@ public class SkdWriter extends XmlWriter {
             endElement();
         }
 
-        indentLevel = 2;
-        writer.writeCharacters("\t\t");
+        indentLevel = fieldIndent;
+        writer.writeCharacters("\t".repeat(fieldIndent));
         writer.writeEndElement(); // field
         writer.writeCharacters("\n");
     }
@@ -634,7 +644,8 @@ public class SkdWriter extends XmlWriter {
     // Settings variant.
     // ============================================================
 
-    private void writeSettingsVariant(SkdDsl.SettingsVariant sv) throws XMLStreamException {
+    private void writeSettingsVariant(SkdDsl.SettingsVariant sv, List<SkdDsl.Parameter> schemaParameters)
+            throws XMLStreamException {
         startElement("settingsVariant");
         writeElement("dcsset:name", sv.getName());
 
@@ -649,7 +660,7 @@ public class SkdWriter extends XmlWriter {
         }
 
         if (sv.getSettings() != null) {
-            writeSettings(sv.getSettings());
+            writeSettings(sv.getSettings(), schemaParameters);
         } else {
             writeEmptySettings();
         }
@@ -657,7 +668,8 @@ public class SkdWriter extends XmlWriter {
         endElement();
     }
 
-    private void writeSettings(SkdDsl.Settings settings) throws XMLStreamException {
+    private void writeSettings(SkdDsl.Settings settings, List<SkdDsl.Parameter> schemaParameters)
+            throws XMLStreamException {
         writer.writeCharacters("\t\t");
         writer.writeStartElement("dcsset:settings");
         writer.writeNamespace("style", "http://v8.1c.ru/8.1/data/ui/style");
@@ -669,12 +681,12 @@ public class SkdWriter extends XmlWriter {
 
         if (settings.getSelection() != null && !settings.getSelection().isEmpty()) {
             startElement("dcsset:selection");
-            for (String f : settings.getSelection()) writeSelectionItem(f);
+            for (Object f : settings.getSelection()) writeSelectionItem(f);
             endElement();
         }
         if (settings.getFilter() != null && !settings.getFilter().isEmpty()) {
             startElement("dcsset:filter");
-            for (String f : settings.getFilter()) writeFilterItem(f);
+            for (Object f : settings.getFilter()) writeFilterItem(f);
             endElement();
         }
         if (settings.getOrder() != null && !settings.getOrder().isEmpty()) {
@@ -693,7 +705,7 @@ public class SkdWriter extends XmlWriter {
             writeSettingsParameters("dcsset:outputParameters", settings.getOutputParameters());
         }
         if (settings.getDataParameters() != null) {
-            writeDataParameters(settings.getDataParameters());
+            writeDataParameters(settings.getDataParameters(), schemaParameters);
         }
         if (settings.getStructure() != null && !settings.getStructure().isEmpty()) {
             //**agent TASK-174 [07.06.2026 11:35:00]
@@ -714,7 +726,16 @@ public class SkdWriter extends XmlWriter {
         writer.writeCharacters("\n");
     }
 
-    private void writeSelectionItem(String field) throws XMLStreamException {
+    @SuppressWarnings("unchecked")
+    private void writeSelectionItem(Object item) throws XMLStreamException {
+        String field;
+        if (item instanceof Map) {
+            Map<String, Object> map = (Map<String, Object>) item;
+            Object fieldValue = map.get("field") != null ? map.get("field") : map.get("dataPath");
+            field = fieldValue != null ? fieldValue.toString() : "Auto";
+        } else {
+            field = item != null ? item.toString() : "Auto";
+        }
         writer.writeCharacters("\t".repeat(indentLevel));
         writer.writeStartElement("dcsset:item");
         boolean auto = "Auto".equalsIgnoreCase(field);
@@ -762,12 +783,12 @@ public class SkdWriter extends XmlWriter {
         }
         if (struct.getSelection() != null && !struct.getSelection().isEmpty()) {
             startElement("dcsset:selection");
-            for (String f : struct.getSelection()) writeSelectionItem(f);
+            for (Object f : struct.getSelection()) writeSelectionItem(f);
             endElement();
         }
         if (struct.getFilter() != null && !struct.getFilter().isEmpty()) {
             startElement("dcsset:filter");
-            for (String f : struct.getFilter()) writeFilterItem(f);
+            for (Object f : struct.getFilter()) writeFilterItem(f);
             endElement();
         }
         if (struct.getOrder() != null && !struct.getOrder().isEmpty()) {
@@ -838,17 +859,56 @@ public class SkdWriter extends XmlWriter {
     // Filter (with Or/And/Not group support).
     // ============================================================
 
+    @SuppressWarnings("unchecked")
+    private void writeFilterItem(Object filter) throws XMLStreamException {
+        if (filter instanceof Map) {
+            Map<String, Object> map = (Map<String, Object>) filter;
+            if (map.get("group") != null) {
+                writeFilterGroup(new SkdDsl.FilterGroup(
+                        map.get("group").toString(),
+                        (List<Object>) map.get("items")));
+                return;
+            }
+
+            FilterParts fp = new FilterParts();
+            Object field = map.get("field");
+            Object op = map.get("op");
+            fp.field = field != null ? field.toString() : "";
+            fp.op = op != null ? op.toString() : "=";
+            Object value = map.get("value");
+            fp.value = value != null ? value.toString() : null;
+            fp.valueType = stringOrNull(map.get("valueType"));
+            Object use = map.get("use");
+            fp.use = use instanceof Boolean ? (Boolean) use : null;
+            fp.presentation = stringOrNull(map.get("presentation"));
+            fp.viewMode = stringOrNull(map.get("viewMode"));
+            fp.userSettingID = stringOrNull(map.get("userSettingID"));
+            fp.userSettingPresentation = stringOrNull(map.get("userSettingPresentation"));
+            writeFilterComparison(fp);
+            return;
+        }
+        writeFilterItem(filter != null ? filter.toString() : "");
+    }
+
     private void writeFilterItem(String filterStr) throws XMLStreamException {
         // Поддержка "Field op value" — операторы могут быть многосимвольными.
         FilterParts fp = parseFilterString(filterStr);
         if (fp == null) {
             throw new IllegalArgumentException("Unsupported SKD filter shorthand: " + filterStr);
         }
+        writeFilterComparison(fp);
+    }
+
+    private void writeFilterComparison(FilterParts fp) throws XMLStreamException {
         writer.writeCharacters("\t".repeat(indentLevel));
         writer.writeStartElement("dcsset:item");
         writer.writeAttribute("xsi:type", "dcsset:FilterItemComparison");
         writer.writeCharacters("\n");
         indentLevel++;
+
+        if (fp.use != null) {
+            writeElement("dcsset:use", fp.use.toString());
+        }
 
         writer.writeCharacters("\t".repeat(indentLevel));
         writer.writeStartElement("dcsset:left");
@@ -862,10 +922,24 @@ public class SkdWriter extends XmlWriter {
         if (fp.value != null && !fp.value.equals("_")) {
             writer.writeCharacters("\t".repeat(indentLevel));
             writer.writeStartElement("dcsset:right");
-            writer.writeAttribute("xsi:type", detectValueType(fp.value));
+            writer.writeAttribute("xsi:type",
+                    fp.valueType != null ? fp.valueType : detectValueType(fp.value));
             writer.writeCharacters(fp.value);
             writer.writeEndElement();
             writer.writeCharacters("\n");
+        }
+
+        if (fp.presentation != null) {
+            writeLocalStringType("dcsset:presentation", fp.presentation);
+        }
+        if (fp.viewMode != null) {
+            writeElement("dcsset:viewMode", fp.viewMode);
+        }
+        if (fp.userSettingID != null) {
+            writeElement("dcsset:userSettingID", resolveUserSettingID(fp.userSettingID));
+        }
+        if (fp.userSettingPresentation != null) {
+            writeLocalStringType("dcsset:userSettingPresentation", fp.userSettingPresentation);
         }
 
         indentLevel--;
@@ -878,18 +952,26 @@ public class SkdWriter extends XmlWriter {
     static FilterParts parseFilterString(String s) {
         if (s == null) return null;
         String trimmed = s.trim();
-        String[] ops = {"<>", ">=", "<=", "=", ">", "<", "InHierarchy",
-                "notIn", "in", "contains", "filled", "notFilled"};
+        String[] ops = {"<>", ">=", "<=", "=", ">", "<",
+                "notInHierarchy", "inHierarchy",
+                "notBeginsWith", "beginsWith",
+                "notContains", "contains",
+                "notFilled", "filled",
+                "notIn", "in"};
         // ищем оператор как отдельное слово (с разделителями-пробелами вокруг).
         for (String op : ops) {
             int idx = findOpToken(trimmed, op);
             if (idx >= 0) {
                 String left = trimmed.substring(0, idx).trim();
                 String right = trimmed.substring(idx + op.length()).trim();
+                ParsedFlags flags = parseTrailingFlags(right);
                 FilterParts fp = new FilterParts();
                 fp.field = left;
                 fp.op = op;
-                fp.value = right.isEmpty() ? null : right;
+                fp.value = flags.cleanText.isEmpty() ? null : flags.cleanText;
+                fp.use = flags.use;
+                fp.viewMode = flags.viewMode;
+                fp.userSettingID = flags.userSettingID;
                 return fp;
             }
         }
@@ -898,12 +980,14 @@ public class SkdWriter extends XmlWriter {
 
     private static int findOpToken(String s, String op) {
         int start = 0;
+        String source = s.toLowerCase(Locale.ROOT);
+        String token = op.toLowerCase(Locale.ROOT);
         while (true) {
-            int idx = s.indexOf(op, start);
+            int idx = source.indexOf(token, start);
             if (idx < 0) return -1;
             // оператор должен быть отделён пробелом слева (или начало).
             boolean leftOk = idx == 0 || Character.isWhitespace(s.charAt(idx - 1));
-            int endPos = idx + op.length();
+            int endPos = idx + token.length();
             boolean rightOk = endPos == s.length() || Character.isWhitespace(s.charAt(endPos));
             if (leftOk && rightOk) return idx;
             start = idx + 1;
@@ -914,10 +998,17 @@ public class SkdWriter extends XmlWriter {
         String field;
         String op;
         String value;
+        String valueType;
+        Boolean use;
+        String presentation;
+        String viewMode;
+        String userSettingID;
+        String userSettingPresentation;
     }
 
     private String mapOperatorToComparisonType(String op) {
-        return switch (op) {
+        String normalized = op.toLowerCase(Locale.ROOT);
+        return switch (normalized) {
             case "=" -> "Equal";
             case "<>" -> "NotEqual";
             case ">" -> "Greater";
@@ -925,11 +1016,15 @@ public class SkdWriter extends XmlWriter {
             case "<" -> "Less";
             case "<=" -> "LessOrEqual";
             case "in" -> "InList";
-            case "notIn" -> "NotInList";
+            case "notin" -> "NotInList";
             case "contains" -> "Contains";
+            case "notcontains" -> "NotContains";
+            case "beginswith" -> "BeginsWith";
+            case "notbeginswith" -> "NotBeginsWith";
             case "filled" -> "Filled";
-            case "notFilled" -> "NotFilled";
-            case "InHierarchy" -> "InHierarchy";
+            case "notfilled" -> "NotFilled";
+            case "inhierarchy" -> "InHierarchy";
+            case "notinhierarchy" -> "NotInHierarchy";
             default -> "Equal";
         };
     }
@@ -981,13 +1076,16 @@ public class SkdWriter extends XmlWriter {
 
         if (item.getSelection() != null && !item.getSelection().isEmpty()) {
             startElement("dcsset:selection");
-            for (String f : item.getSelection()) {
+            for (Object f : item.getSelection()) {
                 writer.writeCharacters("\t".repeat(indentLevel));
                 writer.writeStartElement("dcsset:item");
                 writer.writeAttribute("xsi:type", "dcsset:SelectedItemField");
                 writer.writeCharacters("\n");
                 indentLevel++;
-                writeElement("dcsset:field", f);
+                String field = f instanceof Map
+                        ? stringOrNull(((Map<?, ?>) f).get("field"))
+                        : stringOrNull(f);
+                writeElement("dcsset:field", field != null ? field : "");
                 indentLevel--;
                 writer.writeCharacters("\t".repeat(indentLevel));
                 writer.writeEndElement();
@@ -1002,7 +1100,7 @@ public class SkdWriter extends XmlWriter {
             endElement();
         } else if (item.getFilter() != null && !item.getFilter().isEmpty()) {
             startElement("dcsset:filter");
-            for (String f : item.getFilter()) writeFilterItem(f);
+            for (Object f : item.getFilter()) writeFilterItem(f);
             endElement();
         }
 
@@ -1061,13 +1159,7 @@ public class SkdWriter extends XmlWriter {
                                 (List<Object>) m.get("items"));
                         writeFilterGroup(nested);
                     } else {
-                        Object fld = m.get("field");
-                        Object op = m.get("op");
-                        Object val = m.get("value");
-                        String s = (fld != null ? fld.toString() : "") + " "
-                                + (op != null ? op.toString() : "") + " "
-                                + (val != null ? val.toString() : "");
-                        writeFilterItem(s.trim());
+                        writeFilterItem(m);
                     }
                 } else if (child instanceof String) {
                     writeFilterItem((String) child);
@@ -1095,8 +1187,23 @@ public class SkdWriter extends XmlWriter {
     }
 
     @SuppressWarnings("unchecked")
-    private void writeDataParameters(Object dataParameters) throws XMLStreamException {
+    private void writeDataParameters(Object dataParameters, List<SkdDsl.Parameter> schemaParameters)
+            throws XMLStreamException {
         if (dataParameters instanceof String && "auto".equalsIgnoreCase((String) dataParameters)) {
+            if (schemaParameters == null || schemaParameters.isEmpty()) {
+                return;
+            }
+            startElement("dcsset:dataParameters");
+            for (SkdDsl.Parameter parameter : schemaParameters) {
+                if (Boolean.TRUE.equals(parameter.getHidden())
+                        || Boolean.FALSE.equals(parameter.getAvailableAsField())) {
+                    continue;
+                }
+                Boolean use = parameter.getValue() == null ? Boolean.FALSE : null;
+                writeSettingsParameterValue(parameter.getName(), parameter.getValue(),
+                        use, null, "auto", null);
+            }
+            endElement();
             return;
         }
         startElement("dcsset:dataParameters");
@@ -1118,28 +1225,67 @@ public class SkdWriter extends XmlWriter {
             Map<String, Object> map = (Map<String, Object>) item;
             Object name = map.get("name") != null ? map.get("name") : map.get("parameter");
             if (name != null) {
-                writeSettingsParameterValue(name.toString(), map.get("value"));
+                Object use = map.get("use");
+                writeSettingsParameterValue(name.toString(), map.get("value"),
+                        use instanceof Boolean ? (Boolean) use : null,
+                        stringOrNull(map.get("viewMode")),
+                        stringOrNull(map.get("userSettingID")),
+                        stringOrNull(map.get("userSettingPresentation")));
             }
             return;
         }
         String text = item.toString();
+        ParsedFlags flags = parseTrailingFlags(text);
+        text = flags.cleanText;
         String name = text;
         Object value = null;
         int eq = text.indexOf('=');
         if (eq >= 0) {
             name = text.substring(0, eq).trim();
-            value = text.substring(eq + 1).replaceAll("@\\w+", "").trim();
+            value = text.substring(eq + 1).trim();
         }
-        writeSettingsParameterValue(name, value);
+        writeSettingsParameterValue(name, value, flags.use, flags.viewMode, flags.userSettingID, null);
     }
 
     private void writeSettingsParameterValue(String paramName, Object value) throws XMLStreamException {
+        writeSettingsParameterValue(paramName, value, null, null, null, null);
+    }
+
+    @SuppressWarnings("unchecked")
+    private void writeSettingsParameterValue(String paramName, Object value, Boolean use,
+                                             String viewMode, String userSettingID,
+                                             String userSettingPresentation)
+            throws XMLStreamException {
+        if (value instanceof Map) {
+            Map<String, Object> valueMap = (Map<String, Object>) value;
+            if (valueMap.containsKey("variant")) {
+                value = valueMap.get("variant");
+            } else if (valueMap.containsKey("value")) {
+                value = valueMap.get("value");
+            }
+            if (use == null && valueMap.get("use") instanceof Boolean) {
+                use = (Boolean) valueMap.get("use");
+            }
+            if (viewMode == null) {
+                viewMode = stringOrNull(valueMap.get("viewMode"));
+            }
+            if (userSettingID == null) {
+                userSettingID = stringOrNull(valueMap.get("userSettingID"));
+            }
+            if (userSettingPresentation == null) {
+                userSettingPresentation = stringOrNull(valueMap.get("userSettingPresentation"));
+            }
+        }
+
         writer.writeCharacters("\t".repeat(indentLevel));
         writer.writeStartElement("dcscor:item");
         writer.writeAttribute("xsi:type", "dcsset:SettingsParameterValue");
         writer.writeCharacters("\n");
         indentLevel++;
 
+        if (use != null) {
+            writeElement("dcscor:use", use.toString());
+        }
         writeElement("dcscor:parameter", paramName);
 
         String valueStr = value != null ? value.toString() : "";
@@ -1176,15 +1322,92 @@ public class SkdWriter extends XmlWriter {
         writer.writeEndElement();
         writer.writeCharacters("\n");
 
+        if (viewMode != null) {
+            writeElement("dcsset:viewMode", viewMode);
+        }
+        if (userSettingID != null) {
+            writeElement("dcsset:userSettingID", resolveUserSettingID(userSettingID));
+        }
+        if (userSettingPresentation != null) {
+            writeLocalStringType("dcsset:userSettingPresentation", userSettingPresentation);
+        }
+
         indentLevel--;
         writer.writeCharacters("\t".repeat(indentLevel));
         writer.writeEndElement();
         writer.writeCharacters("\n");
     }
 
+    private static String stringOrNull(Object value) {
+        return value != null ? value.toString() : null;
+    }
+
+    private static String resolveUserSettingID(String userSettingID) {
+        return "auto".equalsIgnoreCase(userSettingID)
+                ? java.util.UUID.randomUUID().toString()
+                : userSettingID;
+    }
+
+    private static ParsedFlags parseTrailingFlags(String text) {
+        ParsedFlags result = new ParsedFlags();
+        if (text == null || text.isBlank()) {
+            result.cleanText = "";
+            return result;
+        }
+
+        StringBuilder clean = new StringBuilder();
+        for (String token : text.trim().split("\\s+")) {
+            if (!token.startsWith("@")) {
+                if (clean.length() > 0) {
+                    clean.append(' ');
+                }
+                clean.append(token);
+                continue;
+            }
+
+            switch (token.substring(1)) {
+                case "off" -> result.use = Boolean.FALSE;
+                case "user" -> result.userSettingID = "auto";
+                case "quickAccess" -> result.viewMode = "QuickAccess";
+                case "normal" -> result.viewMode = "Normal";
+                case "inaccessible" -> result.viewMode = "Inaccessible";
+                default -> {
+                    if (clean.length() > 0) {
+                        clean.append(' ');
+                    }
+                    clean.append(token);
+                }
+            }
+        }
+        result.cleanText = clean.toString().trim();
+        return result;
+    }
+
+    private static class ParsedFlags {
+        String cleanText = "";
+        Boolean use;
+        String viewMode;
+        String userSettingID;
+    }
+
     private String detectAppearanceValueType(String paramName, String value) {
         if (value.startsWith("style:") || value.startsWith("web:") || value.startsWith("win:")) {
             return "v8ui:Color";
+        }
+        if ("РасположениеПолейГруппировки".equals(paramName)) {
+            return "dcsset:DataCompositionGroupFieldsPlacement";
+        }
+        if ("РасположениеРеквизитов".equals(paramName)) {
+            return "dcsset:DataCompositionAttributesPlacement";
+        }
+        if ("ГоризонтальноеРасположениеОбщихИтогов".equals(paramName)
+                || "ВертикальноеРасположениеОбщихИтогов".equals(paramName)) {
+            return "dcscor:DataCompositionTotalPlacement";
+        }
+        if ("ВыводитьЗаголовок".equals(paramName)
+                || "ВыводитьПараметрыДанных".equals(paramName)
+                || "ВыводитьОтбор".equals(paramName)) {
+            return "dcsset:DataCompositionTextOutputType";
         }
         if ("LastMonth".equals(value) || "ThisMonth".equals(value) || "ThisYear".equals(value)
                 || "LastYear".equals(value) || "ThisQuarter".equals(value) || "LastQuarter".equals(value)) {

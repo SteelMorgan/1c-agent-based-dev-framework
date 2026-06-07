@@ -42,6 +42,20 @@ class BslStubWriterTest {
     }
 
     @Test
+    void resolveModulePath_canonicalExtFormXmlUsesExtFormModule(@TempDir Path tmp) throws IOException {
+        Path formXml = tmp.resolve("Forms/Main/Ext/Form.xml");
+        Files.createDirectories(formXml.getParent());
+        BslStubWriter writer = new BslStubWriter(formXml);
+
+        writer.appendStubs(List.of(
+                new FormEventsWriter.HandlerRef("FieldOnChange", false, "OnChange")
+        ));
+
+        assertTrue(Files.exists(tmp.resolve("Forms/Main/Ext/Form/Module.bsl")));
+        assertFalse(Files.exists(tmp.resolve("Forms/Main/Ext/Module.bsl")));
+    }
+
+    @Test
     void appendStubs_formEventUsesCorrectDirectiveAndSignature(@TempDir Path tmp) throws IOException {
         Path formXml = tmp.resolve("Ext/Form/Form.xml");
         Files.createDirectories(formXml.getParent());

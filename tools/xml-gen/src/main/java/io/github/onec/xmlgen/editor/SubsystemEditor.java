@@ -293,7 +293,7 @@ public class SubsystemEditor {
     public void removeContent(String spec) {
         String[] items = parseItems(spec);
         for (String item : items) {
-            String trimmed = item.trim();
+            String trimmed = normalizeContentType(item.trim());
             if (trimmed.isEmpty()) continue;
 
             String escaped = Pattern.quote(escapeXml(trimmed));

@@ -258,6 +258,15 @@ public class InterfaceValidator {
             "CommonForm", "SettingsStorage");
 
     /**
+     * Local fallback for command-bearing types that are valid in CommandInterface but are
+     * not registered in MetadataTypeRegistry. Keep this validator self-contained because
+     * the registry is shared by metadata generation code.
+     */
+    private static final Map<String, String> COMMAND_REF_TYPE_DIRS = Map.of(
+            "CommonForm", "CommonForms",
+            "SettingsStorage", "SettingsStorages");
+
+    /**
      * Validate command reference format.
      * 4 valid patterns:
      * 1. "0:<uuid>" — UUID reference
@@ -310,13 +319,14 @@ public class InterfaceValidator {
         // the CommandInterface will reference a non-existent command at runtime.
         if (configRootForCheck != null && COMMAND_REF_TYPES.contains(parts[0])) {
             MetadataTypeRegistry.TypeDescriptor td = MetadataTypeRegistry.get(parts[0]);
-            if (td != null) {
-                Path objFile = configRootForCheck.resolve(td.directory()).resolve(parts[1] + ".xml");
-                Path objDir = configRootForCheck.resolve(td.directory()).resolve(parts[1]);
+            String directory = td != null ? td.directory() : COMMAND_REF_TYPE_DIRS.get(parts[0]);
+            if (directory != null) {
+                Path objFile = configRootForCheck.resolve(directory).resolve(parts[1] + ".xml");
+                Path objDir = configRootForCheck.resolve(directory).resolve(parts[1]);
                 if (!Files.exists(objFile) && !Files.isDirectory(objDir)) {
                     error(section + ": command reference '" + ref
                         + "' refers to a non-existent object " + parts[0] + "." + parts[1]
-                        + " (not found in " + td.directory() + "/)");
+                        + " (not found in " + directory + "/)");
                 }
             }
         }

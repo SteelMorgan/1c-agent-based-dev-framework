@@ -3,6 +3,7 @@ package io.github.onec.xmlgen.writer;
 import com.github._1c_syntax.bsl.mdo.support.RoleRight;
 import com.github._1c_syntax.bsl.types.MDOType;
 import io.github.onec.xmlgen.dsl.RoleDsl;
+import io.github.onec.xmlgen.editor.ConfigEditor;
 import io.github.onec.xmlgen.format.OutputFormat;
 import io.github.onec.xmlgen.model.ConfigurationXmlReader;
 import io.github.onec.xmlgen.model.UuidGenerator;
@@ -66,6 +67,9 @@ public class RoleWriter extends XmlWriter {
 
         // 2. Создать Rights.xml
         createRightsXml(roleDir.resolve("Ext/Rights.xml"), dsl, formatVersion);
+
+        // 3. Зарегистрировать роль в Configuration.xml, если компиляция идёт из корня выгрузки.
+        registerInConfiguration(outputDir.resolve("Configuration.xml"), name);
         
         System.out.println("Created role: " + name);
         System.out.println("  Metadata: " + outputDir.resolve("Roles").resolve(name + ".xml"));
@@ -156,6 +160,27 @@ public class RoleWriter extends XmlWriter {
         
         writer.writeEndElement(); // Rights
         close();
+    }
+
+    /**
+     * Зарегистрировать роль в {@code Configuration.xml/ChildObjects}, если файл конфигурации
+     * доступен рядом с {@code outputDir}. Без этой записи Designer не видит созданную роль
+     * как объект конфигурации.
+     */
+    private void registerInConfiguration(Path configurationXml, String name) {
+        if (!Files.isRegularFile(configurationXml)) {
+            System.err.println("WARN: Configuration.xml not found at " + configurationXml
+                    + " — role Role." + name + " was not registered in ChildObjects.");
+            return;
+        }
+        try {
+            ConfigEditor editor = new ConfigEditor(configurationXml);
+            editor.addChildObject("Role." + name);
+            editor.save();
+        } catch (IOException e) {
+            throw new RuntimeException("Failed to register Role." + name
+                    + " in Configuration.xml: " + e.getMessage(), e);
+        }
     }
     
     /**

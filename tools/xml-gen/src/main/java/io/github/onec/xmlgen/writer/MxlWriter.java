@@ -820,8 +820,18 @@ public class MxlWriter extends XmlWriter {
         for (int c = 1; c <= totalColumns; c++) {
             if (!specifiedCols.contains(c)) totalUnits += 1.0;
         }
+        int remaining = target - absoluteSum;
+        if (remaining < 0 || (remaining == 0 && totalUnits > 0)) {
+            throw new IllegalArgumentException("MXL page width " + target
+                    + " is not enough for absolute column widths " + absoluteSum);
+        }
         if (totalUnits > 0) {
-            return (int) Math.round((target - absoluteSum) / totalUnits);
+            int computed = (int) Math.round((double) remaining / totalUnits);
+            if (computed <= 0) {
+                throw new IllegalArgumentException("MXL page width " + target
+                        + " produces non-positive default column width " + computed);
+            }
+            return computed;
         }
         return fallbackWidth;
     }

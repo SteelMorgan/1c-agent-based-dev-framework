@@ -321,6 +321,13 @@ public class ExtensionEditor {
                                 String formatVersion) throws IOException {
         out.println("[INFO] Borrowing " + typeName + "." + objName + "...");
 
+        Path targetDir = extDir.resolve(dirName);
+        Path targetFile = targetDir.resolve(objName + ".xml");
+        if (Files.isRegularFile(targetFile)) {
+            out.println("[WARN]   Already exists, not overwritten: " + targetFile);
+            return addToChildObjects(extCfgContent, typeName, objName);
+        }
+
         // Read source object UUID
         String sourceUuid = readSourceObjectUuid(configDir, dirName, objName, typeName);
         out.println("[INFO]   Source UUID: " + sourceUuid);
@@ -335,9 +342,7 @@ public class ExtensionEditor {
         String borrowedXml = buildBorrowedObjectXml(typeName, objName, sourceUuid, sourceProps, formatVersion);
 
         // Write to extension directory
-        Path targetDir = extDir.resolve(dirName);
         Files.createDirectories(targetDir);
-        Path targetFile = targetDir.resolve(objName + ".xml");
         writeWithBom(targetFile, borrowedXml);
         out.println("[INFO]   Created: " + targetFile);
         createdFiles.add(targetFile.toString());
@@ -371,30 +376,24 @@ public class ExtensionEditor {
         String newFormUuid = UuidGenerator.generate();
         String formMetaXml = buildFormMetadataXml(formName, newFormUuid, sourceFormUuid, formatVersion);
 
-        // 4. Write form metadata
+        // 4. Write form metadata without overwriting existing extension changes
         Path formMetaDir = extDir.resolve(dirName).resolve(objName).resolve("Forms");
         Files.createDirectories(formMetaDir);
         Path formMetaFile = formMetaDir.resolve(formName + ".xml");
-        writeWithBom(formMetaFile, formMetaXml);
-        out.println("[INFO]   Created: " + formMetaFile);
-        createdFiles.add(formMetaFile.toString());
+        writeIfMissing(formMetaFile, formMetaXml);
 
         // 5. Generate Form.xml with BaseForm
         String formXml = buildFormXmlWithBaseForm(srcFormContent);
         Path formXmlDir = formMetaDir.resolve(formName).resolve("Ext");
         Files.createDirectories(formXmlDir);
         Path formXmlFile = formXmlDir.resolve("Form.xml");
-        writeWithBom(formXmlFile, formXml);
-        out.println("[INFO]   Created: " + formXmlFile);
-        createdFiles.add(formXmlFile.toString());
+        writeIfMissing(formXmlFile, formXml);
 
         // 6. Create empty Module.bsl
         Path moduleDir = formXmlDir.resolve("Form");
         Files.createDirectories(moduleDir);
         Path moduleBslFile = moduleDir.resolve("Module.bsl");
-        writeWithBom(moduleBslFile, "");
-        out.println("[INFO]   Created: " + moduleBslFile);
-        createdFiles.add(moduleBslFile.toString());
+        writeIfMissing(moduleBslFile, "");
 
         // 7. Register form in parent object ChildObjects
         registerFormInObject(extDir, dirName, objName, formName);
@@ -834,6 +833,16 @@ public class ExtensionEditor {
         //++agent TASK-172
     }
 
+    private void writeIfMissing(Path path, String content) throws IOException {
+        if (Files.isRegularFile(path)) {
+            out.println("[WARN]   Already exists, not overwritten: " + path);
+            return;
+        }
+        writeWithBom(path, content);
+        out.println("[INFO]   Created: " + path);
+        createdFiles.add(path.toString());
+    }
+
     private static String esc(String s) {
         if (s == null) return "";
         return s.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace("\"", "&quot;");
@@ -901,6 +910,8 @@ public class ExtensionEditor {
         List<String> tabularXmlBlocks = copyTabularSections
                 ? extractElementsByTopLevelName(baseObjContent, "TabularSection", null, existingTabular)
                 : Collections.emptyList();
+        attrXmlBlocks = toAdoptedChildBlocks(attrXmlBlocks);
+        tabularXmlBlocks = toAdoptedChildBlocks(tabularXmlBlocks);
 
         if (attrXmlBlocks.isEmpty() && tabularXmlBlocks.isEmpty()) {
             out.println("[WARN] Nothing to add: all referenced attributes/tabular sections already present.");
@@ -996,6 +1007,74 @@ public class ExtensionEditor {
             out.add(block);
         }
         return out;
+    }
+
+    private List<String> toAdoptedChildBlocks(List<String> blocks) {
+        List<String> result = new ArrayList<>(blocks.size());
+        for (String block : blocks) {
+            result.add(toAdoptedChildBlock(block));
+        }
+        return result;
+    }
+
+    private String toAdoptedChildBlock(String block) {
+        String sourceUuid = extractUuid(block);
+        String result = replaceElementUuid(block, UuidGenerator.generate());
+
+        if (!result.contains("<ObjectBelonging>")) {
+            result = insertAfter(result, "<Properties>",
+                    "\n\t\t\t\t<ObjectBelonging>Adopted</ObjectBelonging>");
+        }
+        if (sourceUuid != null && !result.contains("<ExtendedConfigurationObject>")) {
+            String extendedRef = "\n\t\t\t\t<ExtendedConfigurationObject>"
+                    + sourceUuid + "</ExtendedConfigurationObject>";
+            String afterComment = insertAfterFirstMatch(result,
+                    Pattern.compile("<Comment\\s*/>|</Comment>"), extendedRef);
+            if (afterComment != null) {
+                result = afterComment;
+            } else {
+                String afterName = insertAfterFirstMatch(result, Pattern.compile("</Name>"), extendedRef);
+                result = afterName != null ? afterName : insertAfter(result, "<Properties>", extendedRef);
+            }
+        }
+        return result;
+    }
+
+    private String extractUuid(String block) {
+        Matcher m = Pattern.compile("\\buuid=\"([^\"]+)\"").matcher(block);
+        return m.find() ? m.group(1) : null;
+    }
+
+    private String replaceElementUuid(String block, String newUuid) {
+        Matcher m = Pattern.compile("^<([A-Za-z]+)([^>]*)>").matcher(block);
+        if (!m.find()) {
+            return block;
+        }
+        String attrs = m.group(2);
+        if (attrs.contains("uuid=\"")) {
+            attrs = attrs.replaceFirst("\\s+uuid=\"[^\"]*\"", " uuid=\"" + newUuid + "\"");
+        } else {
+            attrs = " uuid=\"" + newUuid + "\"" + attrs;
+        }
+        return "<" + m.group(1) + attrs + ">" + block.substring(m.end());
+    }
+
+    private String insertAfter(String value, String marker, String insertion) {
+        int pos = value.indexOf(marker);
+        if (pos < 0) {
+            return value;
+        }
+        int insertPos = pos + marker.length();
+        return value.substring(0, insertPos) + insertion + value.substring(insertPos);
+    }
+
+    private String insertAfterFirstMatch(String value, Pattern pattern, String insertion) {
+        Matcher matcher = pattern.matcher(value);
+        if (!matcher.find()) {
+            return null;
+        }
+        int insertPos = matcher.end();
+        return value.substring(0, insertPos) + insertion + value.substring(insertPos);
     }
 
     /**

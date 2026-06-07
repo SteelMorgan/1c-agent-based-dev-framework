@@ -24,14 +24,20 @@ public class GenValidator {
             "[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}",
             Pattern.CASE_INSENSITIVE
     );
+    private static final Pattern XML_DECL_ATTR_PATTERN = Pattern.compile(
+            "(\\w+)\\s*=\\s*(['\"])(.*?)\\2"
+    );
 
     // Ожидаемые root-элементы и namespace-ы для каждого типа
-    private static final java.util.Map<String, RootExpectation> TYPE_EXPECTATIONS = java.util.Map.of(
-            "role", new RootExpectation("Rights", "http://v8.1c.ru/8.2/roles"),
-            "form", new RootExpectation("Form", "http://v8.1c.ru/8.3/xcf/logform"),
-            "skd", new RootExpectation("DataCompositionSchema", "http://v8.1c.ru/8.1/data-composition-system/schema"),
-            "mxl", new RootExpectation("document", "http://v8.1c.ru/8.2/data/spreadsheet"),
-            "epf", new RootExpectation("MetaDataObject", "http://v8.1c.ru/8.3/MDClasses")
+    private static final java.util.Map<String, java.util.List<RootExpectation>> TYPE_EXPECTATIONS = java.util.Map.of(
+            "role", java.util.List.of(new RootExpectation("Rights", "http://v8.1c.ru/8.2/roles")),
+            "form", java.util.List.of(new RootExpectation("Form", "http://v8.1c.ru/8.3/xcf/logform")),
+            "skd", java.util.List.of(new RootExpectation("DataCompositionSchema", "http://v8.1c.ru/8.1/data-composition-system/schema")),
+            "mxl", java.util.List.of(new RootExpectation("document", "http://v8.1c.ru/8.2/data/spreadsheet")),
+            "epf", java.util.List.of(
+                    new RootExpectation("MetaDataObject", "http://v8.1c.ru/8.3/MDClasses"),
+                    new RootExpectation("ExternalDataProcessor", "http://v8.1c.ru/8.3/MDClasses"),
+                    new RootExpectation("ExternalReport", "http://v8.1c.ru/8.3/MDClasses"))
     );
 
     private final MetadataTypeValidator metadataValidator;
@@ -57,6 +63,9 @@ public class GenValidator {
 
         // GEN-001: XML well-formed — уже проверено при парсинге (XmlStructureReader бросит XmlParseException)
 
+        // GEN-002: XML declaration и UTF-8 encoding
+        validateXmlDeclaration(document, issues);
+
         // GEN-003: BOM-политика
         if (expectBom && !document.isHasBom()) {
             issues.add(ValidationIssue.error("GEN-003",
@@ -70,19 +79,26 @@ public class GenValidator {
         }
 
         // GEN-004 + GEN-005: Root element и namespace
-        RootExpectation expected = TYPE_EXPECTATIONS.get(objectType);
+        java.util.List<RootExpectation> expected = TYPE_EXPECTATIONS.get(objectType);
         if (expected != null) {
-            if (!expected.rootElement.equals(document.getRootElement())) {
+            RootExpectation matchedRoot = expected.stream()
+                    .filter(e -> e.rootElement.equals(document.getRootElement()))
+                    .findFirst()
+                    .orElse(null);
+            if (matchedRoot == null) {
                 issues.add(ValidationIssue.error("GEN-004",
-                        "Expected root element '" + expected.rootElement
-                                + "', found '" + document.getRootElement() + "'",
+                        "Expected root element " + expectedRoots(expected)
+                                + ", found '" + document.getRootElement() + "'",
                         1, "/"));
             }
             String actualNs = document.getRootNamespace();
-            if (actualNs == null || !actualNs.equals(expected.namespace)) {
+            boolean namespaceMatches = expected.stream()
+                    .filter(e -> matchedRoot == null || e.rootElement.equals(document.getRootElement()))
+                    .anyMatch(e -> e.namespace.equals(actualNs));
+            if (!namespaceMatches) {
                 issues.add(ValidationIssue.error("GEN-005",
-                        "Expected namespace '" + expected.namespace
-                                + "', found '" + (actualNs != null ? actualNs : "(none)") + "'",
+                        "Expected namespace " + expectedNamespaces(expected, matchedRoot)
+                                + ", found '" + (actualNs != null ? actualNs : "(none)") + "'",
                         1, "/"));
             }
         }
@@ -97,10 +113,37 @@ public class GenValidator {
 
         return issues;
     }
+
+    private void validateXmlDeclaration(XmlDocument document, List<ValidationIssue> issues) {
+        String declaration = document.getXmlDeclaration();
+        if (declaration == null || declaration.isBlank()) {
+            issues.add(ValidationIssue.error("GEN-002",
+                    "Missing XML declaration; expected <?xml version=\"1.0\" encoding=\"UTF-8\"?>",
+                    1, "/"));
+            return;
+        }
+
+        java.util.Map<String, String> attrs = new java.util.HashMap<>();
+        java.util.regex.Matcher matcher = XML_DECL_ATTR_PATTERN.matcher(declaration);
+        while (matcher.find()) {
+            attrs.put(matcher.group(1), matcher.group(3));
+        }
+
+        String version = attrs.get("version");
+        String encoding = attrs.get("encoding");
+        if (!"1.0".equals(version) || encoding == null || !"UTF-8".equalsIgnoreCase(encoding)) {
+            issues.add(ValidationIssue.error("GEN-002",
+                    "XML declaration must specify version=\"1.0\" and encoding=\"UTF-8\"",
+                    1, "/"));
+        }
+    }
     
     private void checkTypes(XmlNode node, String path, List<ValidationIssue> issues) {
-        // Если это элемент <Type> или <v8:Type> - проверяем содержимое
-        if ("Type".equalsIgnoreCase(node.getName()) || "v8:Type".equalsIgnoreCase(node.getName())) {
+        // Если это элемент <Type>, <v8:Type> или <v8:TypeSet> - проверяем содержимое
+        if ("Type".equalsIgnoreCase(node.getName())
+                || "TypeSet".equalsIgnoreCase(node.getName())
+                || "v8:Type".equalsIgnoreCase(node.getName())
+                || "v8:TypeSet".equalsIgnoreCase(node.getName())) {
             String typeName = node.getText();
             if (typeName != null && !typeName.isEmpty()) {
                 issues.addAll(metadataValidator.validateType(typeName, node, path));
@@ -113,6 +156,22 @@ public class GenValidator {
             idx++;
             checkTypes(child, path + child.getName() + "[" + idx + "]/", issues);
         }
+    }
+
+    private String expectedRoots(java.util.List<RootExpectation> expectations) {
+        return expectations.stream()
+                .map(e -> "'" + e.rootElement + "'")
+                .distinct()
+                .collect(java.util.stream.Collectors.joining(" or "));
+    }
+
+    private String expectedNamespaces(java.util.List<RootExpectation> expectations,
+                                      RootExpectation matchedRoot) {
+        return expectations.stream()
+                .filter(e -> matchedRoot == null || e.rootElement.equals(matchedRoot.rootElement))
+                .map(e -> "'" + e.namespace + "'")
+                .distinct()
+                .collect(java.util.stream.Collectors.joining(" or "));
     }
 
     /**

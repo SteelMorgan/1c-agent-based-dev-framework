@@ -93,4 +93,23 @@ class SubsystemExtensionVersionTask174Test {
         String cfg = Files.readString(extDir.resolve("Configuration.xml"), StandardCharsets.UTF_8);
         assertThat(cfg).contains("version=\"2.17\"");
     }
+
+    @Test
+    void extensionWriter_createsRightsXmlForDefaultRole() throws Exception {
+        Path baseDir = tempDir.resolve("baseWithRole");
+        Files.createDirectories(baseDir);
+        Files.writeString(baseDir.resolve("Configuration.xml"), CFG_220, StandardCharsets.UTF_8);
+
+        Path extDir = tempDir.resolve("extWithRole");
+        new ExtensionWriter().create(extDir, "РасшРоль", null, null,
+                null, null, null, null, baseDir, false);
+
+        Path rights = extDir.resolve("Roles/РасшРоль_ОсновнаяРоль/Ext/Rights.xml");
+        assertThat(rights).exists();
+        String xml = Files.readString(rights, StandardCharsets.UTF_8);
+        assertThat(xml).contains("<Rights");
+        assertThat(xml).contains("http://v8.1c.ru/8.2/roles");
+        assertThat(xml).contains("version=\"2.20\"");
+        assertThat(xml).contains("<setForNewObjects>false</setForNewObjects>");
+    }
 }

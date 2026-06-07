@@ -346,6 +346,10 @@ public class ExtensionValidator {
                         warn("8. Cannot parse " + dirName + "/" + objName + ".xml: " + e.getMessage());
                     }
                 }
+
+                if ("Role".equals(typeName)) {
+                    validateRoleRightsFile(extDir, objName, rootFormatVersion);
+                }
             }
         }
 
@@ -404,6 +408,34 @@ public class ExtensionValidator {
         }
 
         return messages;
+    }
+
+    private void validateRoleRightsFile(Path extDir, String roleName, String rootFormatVersion) {
+        Path rightsFile = extDir.resolve("Roles").resolve(roleName).resolve("Ext").resolve("Rights.xml");
+        if (!Files.isRegularFile(rightsFile)) {
+            error("8. Missing role rights file: Roles/" + roleName + "/Ext/Rights.xml");
+            return;
+        }
+        try {
+            XmlDocument rightsDoc = new XmlStructureReader().parse(rightsFile);
+            XmlNode rightsRoot = rightsDoc.getRoot();
+            if (!"Rights".equals(rightsRoot.getName())) {
+                error("8. Role rights file has unexpected root <" + rightsRoot.getName()
+                        + ">: Roles/" + roleName + "/Ext/Rights.xml");
+                return;
+            }
+            if (rootFormatVersion != null && !rootFormatVersion.isEmpty()) {
+                String rightsVersion = rightsRoot.attr("version");
+                if (rightsVersion == null || rightsVersion.isEmpty()) {
+                    warn("8. Missing version on Roles/" + roleName + "/Ext/Rights.xml");
+                } else if (!rootFormatVersion.equals(rightsVersion)) {
+                    error("8. Version mismatch in Roles/" + roleName + "/Ext/Rights.xml"
+                            + ": " + rightsVersion + " (expected " + rootFormatVersion + ")");
+                }
+            }
+        } catch (Exception e) {
+            warn("8. Cannot parse Roles/" + roleName + "/Ext/Rights.xml: " + e.getMessage());
+        }
     }
 
     private void error(String msg) { messages.add(new ValidationMessage("ERROR", msg)); }

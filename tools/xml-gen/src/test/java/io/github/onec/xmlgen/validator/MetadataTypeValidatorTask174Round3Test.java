@@ -50,4 +50,46 @@ class MetadataTypeValidatorTask174Round3Test {
 
         assertThat(validator.validateType(typeNode.getText(), typeNode, "/Type")).isEmpty();
     }
+
+    @Test
+    void validatesRegistryBackedReferenceTypes() throws Exception {
+        Files.createDirectories(tempDir.resolve("ChartsOfAccounts"));
+        Files.writeString(tempDir.resolve("ChartsOfAccounts/Хозрасчетный.xml"), "<MetaDataObject/>");
+
+        MetadataTypeValidator validator = new MetadataTypeValidator(tempDir);
+        XmlNode typeNode = XmlNode.builder()
+                .name("Type")
+                .appendText("cfg:ChartOfAccountsRef.Хозрасчетный | cfg:ChartOfAccountsRef.Нет")
+                .line(11)
+                .build();
+
+        List<ValidationIssue> issues = validator.validateType(typeNode.getText(), typeNode, "/Type");
+
+        assertThat(issues).singleElement().satisfies(issue -> {
+            assertThat(issue.getCode()).isEqualTo("SEM-001");
+            assertThat(issue.getMessage()).contains("ChartOfAccountsRef.Нет");
+            assertThat(issue.getLine()).isEqualTo(11);
+        });
+    }
+
+    @Test
+    void validatesDefinedTypeReferences() throws Exception {
+        Files.createDirectories(tempDir.resolve("DefinedTypes"));
+        Files.writeString(tempDir.resolve("DefinedTypes/Цена.xml"), "<MetaDataObject/>");
+
+        MetadataTypeValidator validator = new MetadataTypeValidator(tempDir);
+        XmlNode typeNode = XmlNode.builder()
+                .name("TypeSet")
+                .appendText("cfg:DefinedType.Цена + cfg:DefinedType.Ставка")
+                .line(9)
+                .build();
+
+        List<ValidationIssue> issues = validator.validateType(typeNode.getText(), typeNode, "/Type/TypeSet");
+
+        assertThat(issues).singleElement().satisfies(issue -> {
+            assertThat(issue.getCode()).isEqualTo("SEM-001");
+            assertThat(issue.getMessage()).contains("DefinedType.Ставка");
+            assertThat(issue.getLine()).isEqualTo(9);
+        });
+    }
 }

@@ -152,6 +152,10 @@ class ExtensionEditorTest {
         assertThat(extObj).exists();
         String content = readNoBom(extObj);
         assertThat(content).contains("<Name>Артикул</Name>");
+        assertThat(content).contains("<ObjectBelonging>Adopted</ObjectBelonging>");
+        assertThat(content).contains(
+                "<ExtendedConfigurationObject>aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa</ExtendedConfigurationObject>");
+        assertThat(content).doesNotContain("<Attribute uuid=\"aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa\"");
         // Цена НЕ должна быть скопирована — на форме нет DataPath на неё
         assertThat(content).doesNotContain("<Name>Цена</Name>");
         // Табчасть не копируется в form-режиме
@@ -171,6 +175,9 @@ class ExtensionEditorTest {
         assertThat(content).contains("<Name>Артикул</Name>");
         assertThat(content).contains("<Name>Цена</Name>");
         assertThat(content).contains("<Name>Строки</Name>");
+        assertThat(content).contains(
+                "<ExtendedConfigurationObject>cccccccc-cccc-cccc-cccc-cccccccccccc</ExtendedConfigurationObject>");
+        assertThat(content).doesNotContain("<TabularSection uuid=\"cccccccc-cccc-cccc-cccc-cccccccccccc\"");
     }
 
     @Test
@@ -192,6 +199,28 @@ class ExtensionEditorTest {
         // Артикул всё ещё один раз
         int count = countOccurrences(second, "<Name>Артикул</Name>");
         assertThat(count).isEqualTo(1);
+    }
+
+    @Test
+    void testBorrowMainAttribute_FormAlreadyBorrowed_PreservesFormFiles() throws Exception {
+        Path cfg = makeBaseConfig();
+        Path ext = makeExtension("Расш1");
+
+        silent().borrow(ext, cfg, "Catalog.X.Form.ФормаЭлемента", null);
+
+        Path formXml = ext.resolve("Catalogs/X/Forms/ФормаЭлемента/Ext/Form.xml");
+        Path module = ext.resolve("Catalogs/X/Forms/ФормаЭлемента/Ext/Form/Module.bsl");
+        String customForm = readNoBom(formXml) + "\n<!-- custom extension change -->";
+        String customModule = "Процедура Расш1_СвояКоманда()\nКонецПроцедуры\n";
+        writeBom(formXml, customForm);
+        writeBom(module, customModule);
+
+        silent().borrow(ext, cfg, "Catalog.X.Form.ФормаЭлемента",
+                ExtensionEditor.MainAttributeMode.FORM);
+
+        assertThat(readNoBom(formXml)).contains("custom extension change");
+        assertThat(readNoBom(module)).isEqualTo(customModule);
+        assertThat(readNoBom(ext.resolve("Catalogs/X.xml"))).contains("<Name>Артикул</Name>");
     }
 
     @Test

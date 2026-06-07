@@ -182,6 +182,28 @@ class FormEditorTest {
         assertEquals("Field2", childItems.getChildren().get(1).attr("name"));
         assertEquals("Field3", childItems.getChildren().get(2).attr("name"));
     }
+
+    @Test
+    void addElementAfter_missingSiblingThrowsInsteadOfAppending() {
+        editor.addElement("InputField", "Field1", null, null, null);
+
+        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+                () -> editor.addElement("InputField", "Field2", null, null, "Missing"));
+
+        assertTrue(ex.getMessage().contains("after"));
+        assertEquals(1, document.getRoot().child("ChildItems").getChildren().size());
+    }
+
+    @Test
+    void addElementBefore_missingSiblingThrowsInsteadOfAppending() {
+        editor.addElement("InputField", "Field1", null, null, null);
+
+        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+                () -> editor.addElement("InputField", "Field2", null, null, null, "Missing", null));
+
+        assertTrue(ex.getMessage().contains("before"));
+        assertEquals(1, document.getRoot().child("ChildItems").getChildren().size());
+    }
     
     @Test
     void testRemoveElement() {

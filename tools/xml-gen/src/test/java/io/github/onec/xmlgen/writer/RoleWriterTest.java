@@ -280,6 +280,26 @@ class RoleWriterTest {
         assertThat(metaContent).contains("version=\"2.17\"");
     }
 
+    @Test
+    void testRoleCompileRegistersRoleInConfigurationChildObjects() throws Exception {
+        Files.writeString(tempDir.resolve("Configuration.xml"),
+                "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
+                        + "<MetaDataObject xmlns=\"http://v8.1c.ru/8.3/MDClasses\" version=\"2.20\">\n"
+                        + "\t<Configuration uuid=\"00000000-0000-0000-0000-000000000001\">\n"
+                        + "\t\t<Properties><Name>Test</Name></Properties>\n"
+                        + "\t\t<ChildObjects/>\n"
+                        + "\t</Configuration>\n"
+                        + "</MetaDataObject>\n");
+
+        RoleDsl dsl = new RoleDsl("РольВКонфиге", "Роль в конфиге", null,
+                null, null, null, null, null);
+
+        new RoleWriter(OutputFormat.DESIGNER).create(dsl, tempDir);
+
+        String configuration = Files.readString(tempDir.resolve("Configuration.xml"));
+        assertThat(configuration).contains("<Role>РольВКонфиге</Role>");
+    }
+
     /**
      * TASK-174 XG-32: строковый shorthand и русские синонимы типов/прав из role-dsl-spec.
      */

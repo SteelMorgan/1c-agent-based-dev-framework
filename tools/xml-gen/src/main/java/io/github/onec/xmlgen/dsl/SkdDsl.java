@@ -681,8 +681,8 @@ public class SkdDsl {
     @NoArgsConstructor
     @JsonInclude(JsonInclude.Include.NON_NULL)
     public static class ConditionalAppearanceItem {
-        private List<String> selection;
-        private List<String> filter;
+        private List<Object> selection;
+        private List<Object> filter;
         private FilterGroup filterGroup;
         private Map<String, Object> appearance;
         private Object presentation;
@@ -690,15 +690,15 @@ public class SkdDsl {
         private String userSettingID;
 
         @JsonCreator
-        public ConditionalAppearanceItem(@JsonProperty("selection") List<String> selection,
-                                          @JsonProperty("filter") List<String> filter,
+        public ConditionalAppearanceItem(@JsonProperty("selection") List<?> selection,
+                                          @JsonProperty("filter") List<?> filter,
                                           @JsonProperty("filterGroup") FilterGroup filterGroup,
                                           @JsonProperty("appearance") Map<String, Object> appearance,
                                           @JsonProperty("presentation") Object presentation,
                                           @JsonProperty("viewMode") String viewMode,
                                           @JsonProperty("userSettingID") String userSettingID) {
-            this.selection = selection;
-            this.filter = filter;
+            this.selection = objectList(selection);
+            this.filter = objectList(filter);
             this.filterGroup = filterGroup;
             this.appearance = appearance;
             this.presentation = presentation;
@@ -711,8 +711,8 @@ public class SkdDsl {
                                           List<String> filter,
                                           Map<String, Object> appearance,
                                           String presentation) {
-            this.selection = selection;
-            this.filter = filter;
+            this.selection = objectList(selection);
+            this.filter = objectList(filter);
             this.appearance = appearance;
             this.presentation = presentation;
         }
@@ -782,8 +782,8 @@ public class SkdDsl {
     @NoArgsConstructor
     @JsonInclude(JsonInclude.Include.NON_NULL)
     public static class Settings {
-        private List<String> selection;
-        private List<String> filter;
+        private List<Object> selection;
+        private List<Object> filter;
         private List<String> order;
         private List<ConditionalAppearanceItem> conditionalAppearance;
         private Map<String, Object> outputParameters;
@@ -792,15 +792,15 @@ public class SkdDsl {
         private Object dataParameters;
 
         @JsonCreator
-        public Settings(@JsonProperty("selection") List<String> selection,
-                        @JsonProperty("filter") List<String> filter,
+        public Settings(@JsonProperty("selection") List<?> selection,
+                        @JsonProperty("filter") List<?> filter,
                         @JsonProperty("order") List<String> order,
                         @JsonProperty("conditionalAppearance") List<ConditionalAppearanceItem> conditionalAppearance,
                         @JsonProperty("outputParameters") Map<String, Object> outputParameters,
                         @JsonProperty("structure") List<Structure> structure,
                         @JsonProperty("dataParameters") Object dataParameters) {
-            this.selection = selection;
-            this.filter = filter;
+            this.selection = objectList(selection);
+            this.filter = objectList(filter);
             this.order = order;
             this.conditionalAppearance = conditionalAppearance;
             this.outputParameters = outputParameters;
@@ -815,8 +815,8 @@ public class SkdDsl {
                         List<ConditionalAppearanceItem> conditionalAppearance,
                         Map<String, Object> outputParameters,
                         List<Structure> structure) {
-            this.selection = selection;
-            this.filter = filter;
+            this.selection = objectList(selection);
+            this.filter = objectList(filter);
             this.order = order;
             this.conditionalAppearance = conditionalAppearance;
             this.outputParameters = outputParameters;
@@ -836,9 +836,9 @@ public class SkdDsl {
         private String name;
         @JsonAlias({"groupBy", "groupFields"})
         private List<String> groupBy;
-        private List<String> selection;
+        private List<Object> selection;
         private List<String> order;
-        private List<String> filter;
+        private List<Object> filter;
         private Map<String, Object> outputParameters;
         private List<Structure> children;
 
@@ -846,17 +846,17 @@ public class SkdDsl {
                          @JsonProperty("name") String name,
                          @JsonProperty("groupBy") List<String> groupBy,
                          @JsonProperty("groupFields") List<String> groupFields,
-                         @JsonProperty("selection") List<String> selection,
+                         @JsonProperty("selection") List<?> selection,
                          @JsonProperty("order") List<String> order,
-                         @JsonProperty("filter") List<String> filter,
+                         @JsonProperty("filter") List<?> filter,
                          @JsonProperty("outputParameters") Map<String, Object> outputParameters,
                          @JsonProperty("children") List<Structure> children) {
             this.type = type;
             this.name = name;
             this.groupBy = groupBy != null ? groupBy : groupFields;
-            this.selection = selection;
+            this.selection = objectList(selection);
             this.order = order;
-            this.filter = filter;
+            this.filter = objectList(filter);
             this.outputParameters = outputParameters;
             this.children = children;
         }
@@ -865,7 +865,7 @@ public class SkdDsl {
         public Structure(String type, List<String> groupBy, List<String> selection) {
             this.type = type;
             this.groupBy = groupBy;
-            this.selection = selection;
+            this.selection = objectList(selection);
         }
 
         @JsonProperty("groupFields")
@@ -894,6 +894,13 @@ public class SkdDsl {
             raw.add(part.raw);
         }
         return String.join("|", raw);
+    }
+
+    private static List<Object> objectList(List<?> values) {
+        if (values == null) {
+            return null;
+        }
+        return new ArrayList<>(values);
     }
 
     private static ParsedCalculatedField parseCalculatedField(String shorthand) {

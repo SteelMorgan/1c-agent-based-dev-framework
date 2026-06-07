@@ -31,6 +31,9 @@ import java.util.regex.Pattern;
  *       тип объекта (ExternalReport vs ExternalDataProcessor).</li>
  *   <li>EPF-015 — версия формата дочерних XML-файлов формы/макета не совпадает с
  *       версией корневого файла.</li>
+ *   <li>EPF-016 — MainDataCompositionSchema внешнего отчёта не ссылается на объявленный
+ *       DCS-макет.</li>
+ *   <li>EPF-017 — свойства внешнего отчёта попали во внешнюю обработку.</li>
  * </ul>
  */
 public class EpfValidator implements XmlValidator {
@@ -44,6 +47,17 @@ public class EpfValidator implements XmlValidator {
     /** Идентификатор 1С: начинается с буквы (рус/англ) или {@code _}, далее буквы/цифры/{@code _}. */
     private static final Pattern IDENT_RE = Pattern.compile(
             "^[A-Za-z\u0410-\u042f\u0430-\u044f\u0401\u0451_][A-Za-z0-9\u0410-\u042f\u0430-\u044f\u0401\u0451_]*$");
+
+    private static final List<String> CHILD_OBJECT_ORDER = List.of(
+            "Attribute", "TabularSection", "Form", "Template");
+
+    private static final List<String> REPORT_ONLY_PROPERTIES = List.of(
+            "MainDataCompositionSchema",
+            "DefaultSettingsForm",
+            "AuxiliarySettingsForm",
+            "DefaultVariantForm",
+            "VariantsStorage",
+            "SettingsStorage");
 
     @Override
     public String objectType() {
@@ -197,21 +211,25 @@ public class EpfValidator implements XmlValidator {
         }
         //++agent TASK-174
 
-        // EPF-005: Forms перед Templates в ChildObjects
-        boolean foundTemplate = false;
-        boolean formAfterTemplate = false;
+        // EPF-005: полный канонический порядок ChildObjects:
+        // Attribute → TabularSection → Form → Template.
+        int lastKnownOrder = -1;
+        String lastKnownKind = null;
         for (XmlNode child : childObjects.getChildren()) {
-            if ("Template".equals(child.getName())) {
-                foundTemplate = true;
+            int order = childObjectOrder(child.getName());
+            if (order < 0) {
+                continue;
             }
-            if ("Form".equals(child.getName()) && foundTemplate) {
-                formAfterTemplate = true;
+            if (order < lastKnownOrder) {
+                issues.add(ValidationIssue.warning("EPF-005",
+                        "ChildObjects order violation: <" + child.getName()
+                                + "> appears after <" + lastKnownKind
+                                + ">. Expected order: Attribute -> TabularSection -> Form -> Template",
+                        childObjects.getLine(), "/" + elementName + "/ChildObjects"));
+                break;
             }
-        }
-        if (formAfterTemplate) {
-            issues.add(ValidationIssue.warning("EPF-005",
-                    "Forms should be declared before Templates in ChildObjects",
-                    childObjects.getLine(), "/" + elementName + "/ChildObjects"));
+            lastKnownOrder = order;
+            lastKnownKind = child.getName();
         }
 
         // EPF-006: Файлы из ChildObjects существуют (если документ — файл на диске)
@@ -508,6 +526,11 @@ public class EpfValidator implements XmlValidator {
                         props.getLine(), "/" + elementName + "/Properties/Name"));
             }
             validateExternalObjectPaths(props, elementName, name, issues);
+            if ("ExternalDataProcessor".equals(elementName)) {
+                validateNoReportOnlyProperties(props, elementName, issues);
+            } else if ("ExternalReport".equals(elementName)) {
+                validateMainDataCompositionSchema(document, epfNode, props, name, issues);
+            }
         }
     }
 
@@ -554,6 +577,102 @@ public class EpfValidator implements XmlValidator {
                                 + expectedTemplatePrefix + "' for <" + elementName + ">",
                         props.getLine(), "/" + elementName + "/Properties/MainDataCompositionSchema"));
             }
+        }
+    }
+
+    private static int childObjectOrder(String kind) {
+        return CHILD_OBJECT_ORDER.indexOf(kind);
+    }
+
+    private void validateNoReportOnlyProperties(XmlNode props, String elementName,
+                                                List<ValidationIssue> issues) {
+        for (String property : REPORT_ONLY_PROPERTIES) {
+            if (props.child(property) != null) {
+                issues.add(ValidationIssue.error("EPF-017",
+                        "Property <" + property + "> is valid for <ExternalReport> only; "
+                                + "<ExternalDataProcessor> has no report-specific properties",
+                        props.getLine(), "/" + elementName + "/Properties/" + property));
+            }
+        }
+    }
+
+    private void validateMainDataCompositionSchema(XmlDocument document, XmlNode epfNode,
+                                                   XmlNode props, String objectName,
+                                                   List<ValidationIssue> issues) {
+        String mainDcs = props.childText("MainDataCompositionSchema");
+        if (mainDcs == null || mainDcs.isBlank() || objectName == null || objectName.isBlank()) {
+            return;
+        }
+
+        String expectedPrefix = "ExternalReport." + objectName + ".Template.";
+        if (!mainDcs.startsWith(expectedPrefix)) {
+            // EPF-014 already reports the wrong prefix/type. Avoid cascading EPF-016 noise.
+            return;
+        }
+
+        String templateName = mainDcs.substring(expectedPrefix.length());
+        if (templateName.isBlank()) {
+            issues.add(ValidationIssue.error("EPF-016",
+                    "MainDataCompositionSchema '" + mainDcs
+                            + "' does not contain a template name after '" + expectedPrefix + "'",
+                    props.getLine(), "/ExternalReport/Properties/MainDataCompositionSchema"));
+            return;
+        }
+
+        XmlNode childObjects = epfNode.child("ChildObjects");
+        boolean declared = false;
+        if (childObjects != null) {
+            for (XmlNode child : childObjects.children("Template")) {
+                if (templateName.equals(child.getText() != null ? child.getText().trim() : "")) {
+                    declared = true;
+                    break;
+                }
+            }
+        }
+        if (!declared) {
+            issues.add(ValidationIssue.error("EPF-016",
+                    "MainDataCompositionSchema points to template '" + templateName
+                            + "', but <Template>" + templateName
+                            + "</Template> is not declared in <ChildObjects>",
+                    props.getLine(), "/ExternalReport/Properties/MainDataCompositionSchema"));
+            return;
+        }
+
+        Path docFile = document.getFile();
+        Path docDir = docFile != null ? docFile.getParent() : null;
+        if (docDir == null) {
+            return;
+        }
+        String fileName = docFile.getFileName().toString();
+        String externalName = fileName.endsWith(".xml")
+                ? fileName.substring(0, fileName.length() - 4)
+                : fileName;
+        Path templateMeta = docDir.resolve(externalName)
+                .resolve("Templates")
+                .resolve(templateName + ".xml");
+        if (!Files.isRegularFile(templateMeta)) {
+            // EPF-006 reports the missing metadata file for declared templates.
+            return;
+        }
+
+        String templateType = readTemplateType(templateMeta);
+        if (templateType != null && !"DataCompositionSchema".equals(templateType)) {
+            issues.add(ValidationIssue.error("EPF-016",
+                    "MainDataCompositionSchema template '" + templateName
+                            + "' has TemplateType '" + templateType
+                            + "', expected DataCompositionSchema",
+                    props.getLine(), "/ExternalReport/Properties/MainDataCompositionSchema"));
+        }
+    }
+
+    private String readTemplateType(Path templateMeta) {
+        try {
+            String content = ConfigurationXmlReader.readContent(templateMeta);
+            Matcher matcher = Pattern.compile("<TemplateType>([^<]+)</TemplateType>")
+                    .matcher(content);
+            return matcher.find() ? matcher.group(1).trim() : null;
+        } catch (java.io.IOException e) {
+            return null;
         }
     }
 }

@@ -43,6 +43,11 @@ public class ByteSafeFileHandler {
      * @param encoding "utf-8-sig" (default, BOM-aware) или "utf-8" (игнорировать BOM)
      */
     public static ByteSafeFileHandler open(Path path, String encoding) throws IOException {
+        if (!"utf-8-sig".equalsIgnoreCase(encoding) && !"utf-8".equalsIgnoreCase(encoding)) {
+            throw new IllegalArgumentException(
+                    "Unsupported encoding: " + encoding + ". Expected utf-8-sig or utf-8");
+        }
+
         byte[] raw = Files.readAllBytes(path);
         boolean hasBom = raw.length >= 3
                 && raw[0] == BOM[0]

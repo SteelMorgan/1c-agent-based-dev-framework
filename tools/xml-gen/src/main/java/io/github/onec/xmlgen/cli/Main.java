@@ -44,7 +44,7 @@ public class Main {
         try {
             Commands.execute(command, commandArgs);
         } catch (IllegalArgumentException e) {
-            System.err.println("Error: " + e.getMessage());
+            System.err.println("ERROR: " + e.getMessage());
             if (debug) {
                 e.printStackTrace(System.err);
             }

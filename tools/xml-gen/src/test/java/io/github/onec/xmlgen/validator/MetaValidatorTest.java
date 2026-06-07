@@ -1,6 +1,7 @@
 package io.github.onec.xmlgen.validator;
 
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -28,6 +29,9 @@ class MetaValidatorTest {
             Path.of("/workspaces/work/repos/1C Projects/GBIG PAM/src/xml");
 
     private final XmlStructureReader reader = new XmlStructureReader();
+
+    @TempDir
+    Path tempDir;
 
     // ==================== D1: RegisterType='Balance' ====================
 
@@ -146,6 +150,158 @@ class MetaValidatorTest {
                 .isEmpty();
     }
 
+    // ==================== TASK-174 audit: Report/DataProcessor semantic gaps ====================
+
+    @Test
+    void dataProcessorObjectAttributeWithIndexing_reported() throws Exception {
+        XmlDocument doc = reader.parse(writeXml("dp-indexing.xml",
+                "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
+                        + "<MetaDataObject xmlns=\"http://v8.1c.ru/8.3/MDClasses\"\n"
+                        + " xmlns:v8=\"http://v8.1c.ru/8.1/data/core\" version=\"2.20\">\n"
+                        + "  <DataProcessor uuid=\"11111111-1111-1111-1111-111111111111\">\n"
+                        + "    <Properties><Name>Обр</Name><Synonym/></Properties>\n"
+                        + "    <ChildObjects>\n"
+                        + "      <Attribute uuid=\"22222222-2222-2222-2222-222222222222\">\n"
+                        + "        <Properties>\n"
+                        + "          <Name>Парам</Name>\n"
+                        + "          <Type><v8:Type>xs:string</v8:Type></Type>\n"
+                        + "          <Indexing>DontIndex</Indexing>\n"
+                        + "        </Properties>\n"
+                        + "      </Attribute>\n"
+                        + "    </ChildObjects>\n"
+                        + "  </DataProcessor>\n"
+                        + "</MetaDataObject>\n"));
+
+        List<MetaValidator.ValidationMessage> msgs = new MetaValidator().validate(doc, null);
+
+        assertThat(msgs).anyMatch(m -> "ERROR".equals(m.level)
+                && m.message.contains("Attribute 'Парам'")
+                && m.message.contains("Indexing"));
+    }
+
+    @Test
+    void dataProcessorTabularSectionAttributeMissingFillValueAndWithIndexing_reported() throws Exception {
+        XmlDocument doc = reader.parse(writeXml("dp-ts.xml",
+                "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
+                        + "<MetaDataObject xmlns=\"http://v8.1c.ru/8.3/MDClasses\"\n"
+                        + " xmlns:v8=\"http://v8.1c.ru/8.1/data/core\" version=\"2.20\">\n"
+                        + "  <DataProcessor uuid=\"11111111-1111-1111-1111-111111111111\">\n"
+                        + "    <Properties><Name>Обр</Name><Synonym/></Properties>\n"
+                        + "    <ChildObjects>\n"
+                        + "      <TabularSection uuid=\"22222222-2222-2222-2222-222222222222\">\n"
+                        + "        <Properties><Name>Строки</Name></Properties>\n"
+                        + "        <ChildObjects>\n"
+                        + "          <Attribute uuid=\"33333333-3333-3333-3333-333333333333\">\n"
+                        + "            <Properties>\n"
+                        + "              <Name>Колонка</Name>\n"
+                        + "              <Type><v8:Type>xs:string</v8:Type></Type>\n"
+                        + "              <Indexing>DontIndex</Indexing>\n"
+                        + "            </Properties>\n"
+                        + "          </Attribute>\n"
+                        + "        </ChildObjects>\n"
+                        + "      </TabularSection>\n"
+                        + "    </ChildObjects>\n"
+                        + "  </DataProcessor>\n"
+                        + "</MetaDataObject>\n"));
+
+        List<MetaValidator.ValidationMessage> msgs = new MetaValidator().validate(doc, null);
+
+        assertThat(msgs).anyMatch(m -> "ERROR".equals(m.level)
+                && m.message.contains("FillFromFillingValue"));
+        assertThat(msgs).anyMatch(m -> "ERROR".equals(m.level)
+                && m.message.contains("FillValue"));
+        assertThat(msgs).anyMatch(m -> "ERROR".equals(m.level)
+                && m.message.contains("Indexing"));
+    }
+
+    @Test
+    void reportMainDcsTemplateNotDeclared_reported() throws Exception {
+        Path reportsDir = tempDir.resolve("Reports");
+        Files.createDirectories(reportsDir.resolve("Отчет"));
+        Path reportXml = reportsDir.resolve("Отчет.xml");
+        Files.writeString(reportXml,
+                "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
+                        + "<MetaDataObject xmlns=\"http://v8.1c.ru/8.3/MDClasses\" version=\"2.20\">\n"
+                        + "  <Report uuid=\"11111111-1111-1111-1111-111111111111\">\n"
+                        + "    <Properties>\n"
+                        + "      <Name>Отчет</Name>\n"
+                        + "      <Synonym/>\n"
+                        + "      <MainDataCompositionSchema>Report.Отчет.Template.Схема</MainDataCompositionSchema>\n"
+                        + "    </Properties>\n"
+                        + "    <ChildObjects/>\n"
+                        + "  </Report>\n"
+                        + "</MetaDataObject>\n",
+                StandardCharsets.UTF_8);
+
+        List<MetaValidator.ValidationMessage> msgs =
+                new MetaValidator().validate(reader.parse(reportXml), reportsDir);
+
+        assertThat(msgs).anyMatch(m -> "ERROR".equals(m.level)
+                && m.message.contains("MainDataCompositionSchema")
+                && m.message.contains("not declared"));
+    }
+
+    @Test
+    void reportMainDcsTemplateWrongType_reported() throws Exception {
+        Path reportsDir = tempDir.resolve("Reports2");
+        Files.createDirectories(reportsDir.resolve("Отчет/Templates"));
+        Files.writeString(reportsDir.resolve("Отчет/Templates/Схема.xml"),
+                "<MetaDataObject xmlns=\"http://v8.1c.ru/8.3/MDClasses\" version=\"2.20\">\n"
+                        + "  <Template uuid=\"22222222-2222-2222-2222-222222222222\">\n"
+                        + "    <Properties><Name>Схема</Name><TemplateType>SpreadsheetDocument</TemplateType></Properties>\n"
+                        + "  </Template>\n"
+                        + "</MetaDataObject>\n",
+                StandardCharsets.UTF_8);
+        Path reportXml = reportsDir.resolve("Отчет.xml");
+        Files.writeString(reportXml,
+                "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
+                        + "<MetaDataObject xmlns=\"http://v8.1c.ru/8.3/MDClasses\" version=\"2.20\">\n"
+                        + "  <Report uuid=\"11111111-1111-1111-1111-111111111111\">\n"
+                        + "    <Properties>\n"
+                        + "      <Name>Отчет</Name>\n"
+                        + "      <Synonym/>\n"
+                        + "      <MainDataCompositionSchema>Report.Отчет.Template.Схема</MainDataCompositionSchema>\n"
+                        + "    </Properties>\n"
+                        + "    <ChildObjects><Template>Схема</Template></ChildObjects>\n"
+                        + "  </Report>\n"
+                        + "</MetaDataObject>\n",
+                StandardCharsets.UTF_8);
+
+        List<MetaValidator.ValidationMessage> msgs =
+                new MetaValidator().validate(reader.parse(reportXml), reportsDir);
+
+        assertThat(msgs).anyMatch(m -> "ERROR".equals(m.level)
+                && m.message.contains("SpreadsheetDocument")
+                && m.message.contains("DataCompositionSchema"));
+    }
+
+    @Test
+    void dataProcessorLocalDefaultFormMissing_reported() throws Exception {
+        Path dpDir = tempDir.resolve("DataProcessors");
+        Files.createDirectories(dpDir.resolve("Обр"));
+        Path dpXml = dpDir.resolve("Обр.xml");
+        Files.writeString(dpXml,
+                "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
+                        + "<MetaDataObject xmlns=\"http://v8.1c.ru/8.3/MDClasses\" version=\"2.20\">\n"
+                        + "  <DataProcessor uuid=\"11111111-1111-1111-1111-111111111111\">\n"
+                        + "    <Properties>\n"
+                        + "      <Name>Обр</Name>\n"
+                        + "      <Synonym/>\n"
+                        + "      <DefaultForm>DataProcessor.Обр.Form.Форма</DefaultForm>\n"
+                        + "    </Properties>\n"
+                        + "    <ChildObjects/>\n"
+                        + "  </DataProcessor>\n"
+                        + "</MetaDataObject>\n",
+                StandardCharsets.UTF_8);
+
+        List<MetaValidator.ValidationMessage> msgs =
+                new MetaValidator().validate(reader.parse(dpXml), dpDir);
+
+        assertThat(msgs).anyMatch(m -> "ERROR".equals(m.level)
+                && m.message.contains("DefaultForm")
+                && m.message.contains("висячая ссылка"));
+    }
+
     // ==================== Helpers ====================
 
     /**
@@ -202,5 +358,11 @@ class MetaValidatorTest {
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
+    }
+
+    private Path writeXml(String filename, String content) throws Exception {
+        Path file = tempDir.resolve(filename);
+        Files.writeString(file, content, StandardCharsets.UTF_8);
+        return file;
     }
 }

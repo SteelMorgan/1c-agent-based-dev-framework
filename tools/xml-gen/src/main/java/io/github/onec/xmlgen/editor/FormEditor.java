@@ -519,7 +519,7 @@ public class FormEditor {
         if (index != -1) {
             parent.getChildren().add(index + 1, element);
         } else {
-            parent.addChild(element);
+            throw new IllegalArgumentException("Target element for after not found in parent: " + afterName);
         }
     }
 
@@ -534,7 +534,7 @@ public class FormEditor {
         if (index != -1) {
             parent.getChildren().add(index, element);
         } else {
-            parent.addChild(element);
+            throw new IllegalArgumentException("Target element for before not found in parent: " + beforeName);
         }
     }
 }

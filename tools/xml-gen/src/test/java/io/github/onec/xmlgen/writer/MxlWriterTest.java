@@ -17,6 +17,7 @@ import java.util.List;
 import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
  * Тесты для MxlWriter.
@@ -841,8 +842,9 @@ class MxlWriterTest {
     }
 
     @Test
-    void testPageWithExcessiveWidthsTriggersValidatorError() throws Exception {
-        // page=portrait (540) + columnWidths summing to 1100 → should fail MXL-206 via validator.
+    void testPageWithExcessiveWidthsFailsCompilation() throws Exception {
+        // page=portrait (540) + columnWidths summing to 1100 has no canonical pageSetup
+        // carrier in XML, so writer must reject it before producing impossible geometry.
         Map<String, Object> cw = new HashMap<>();
         cw.put("1", 500);
         cw.put("2", 600);
@@ -853,11 +855,27 @@ class MxlWriterTest {
                         ), null)))),
                 "A4-portrait");
         Path out = tempDir.resolve("Template.xml");
-        new MxlWriter(OutputFormat.DESIGNER).create(dsl, out);
-        String content = Files.readString(out);
-        assertThat(content).doesNotContain("<pageSetup>");
-        assertThat(content).contains("<width>500</width>");
-        assertThat(content).contains("<width>600</width>");
+        assertThatThrownBy(() -> new MxlWriter(OutputFormat.DESIGNER).create(dsl, out))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("MXL page width 540")
+                .hasMessageContaining("absolute column widths 1100");
+    }
+
+    @Test
+    void testPageWithNoRemainingWidthForDefaultColumnsFailsCompilation() throws Exception {
+        Map<String, Object> cw = new HashMap<>();
+        cw.put("1", 540);
+        MxlDsl dsl = new MxlDsl(2, null, cw, null, null,
+                Arrays.asList(new MxlDsl.Area("X", Arrays.asList(
+                        new MxlDsl.Row(null, null, Arrays.asList(
+                                new MxlDsl.Cell(1, null, null, null, null, null, "A", null)
+                        ), null)))),
+                "A4-portrait");
+        Path out = tempDir.resolve("Template.xml");
+        assertThatThrownBy(() -> new MxlWriter(OutputFormat.DESIGNER).create(dsl, out))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("MXL page width 540")
+                .hasMessageContaining("absolute column widths 540");
     }
 
     /**

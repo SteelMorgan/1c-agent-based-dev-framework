@@ -32,13 +32,25 @@ public class BslStubWriter {
     }
 
     /**
-     * Для формы {@code .../Forms/FormName/Ext/Form/Form.xml}
+     * Для канонической формы {@code .../Forms/FormName/Ext/Form.xml}
      * модуль находится по пути {@code .../Forms/FormName/Ext/Form/Module.bsl}.
+     *
+     * <p>Старую тестовую раскладку {@code .../Ext/Form/Form.xml} тоже поддерживаем:
+     * там модуль лежит рядом с файлом.</p>
      */
-    private static Path resolveModulePath(Path formXml) {
+    public static Path resolveModulePath(Path formXml) {
         if (formXml == null) return null;
         Path parent = formXml.getParent();
-        return parent != null ? parent.resolve("Module.bsl") : null;
+        if (parent == null) return null;
+        Path fileName = formXml.getFileName();
+        Path parentName = parent.getFileName();
+        if (fileName != null
+                && "Form.xml".equalsIgnoreCase(fileName.toString())
+                && parentName != null
+                && "Ext".equalsIgnoreCase(parentName.toString())) {
+            return parent.resolve("Form").resolve("Module.bsl");
+        }
+        return parent.resolve("Module.bsl");
     }
 
     public Path getModulePath() {

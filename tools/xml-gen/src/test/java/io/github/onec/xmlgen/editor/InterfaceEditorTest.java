@@ -229,6 +229,22 @@ class InterfaceEditorTest {
     }
 
     @Test
+    void setOrder_preservesPlacementForSameGroup() throws Exception {
+        Path file = writeCI("CI.xml", MINIMAL_CI);
+        InterfaceEditor editor = new InterfaceEditor(file);
+
+        editor.place("Report.A.Command.Y", "CommandGroup.Отчеты");
+        editor.setOrder("CommandGroup.Отчеты", new String[]{"Report.A.Command.Y"});
+        editor.save();
+
+        String result = readCI(file);
+        assertThat(result).contains("<CommandsPlacement>");
+        assertThat(result).contains("<Placement>Auto</Placement>");
+        assertThat(result).contains("<CommandsOrder>");
+        assertThat(countOccurrences(result, "name=\"Report.A.Command.Y\"")).isEqualTo(2);
+    }
+
+    @Test
     void setOrder_aliasMethodIsIdenticalToSetOrder() throws Exception {
         // Test that setOrder produces the same result as before (alias behavior verified via CLI, editor method is same)
         Path file1 = writeCI("CI1.xml", MINIMAL_CI);

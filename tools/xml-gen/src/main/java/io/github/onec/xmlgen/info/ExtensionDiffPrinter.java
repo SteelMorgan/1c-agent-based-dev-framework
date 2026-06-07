@@ -362,27 +362,33 @@ public class ExtensionDiffPrinter {
         XmlNode childObj = info.typeElement.child("ChildObjects");
         if (childObj == null) return;
 
-        int ownAttrs = 0, ownForms = 0, ownTs = 0, borrowedItems = 0;
+        int ownAttrs = 0, borrowedAttrs = 0, ownForms = 0, borrowedForms = 0, ownTs = 0, borrowedTs = 0;
         List<String> formNames = new ArrayList<>();
 
         for (XmlNode c : childObj.getChildren()) {
             String ln = c.getName();
             String text = c.getText() != null ? c.getText() : "";
-            // Check if child elements have ObjectBelonging=Adopted
-            // For simple text entries (in extension ChildObjects), they're typically references
-            if ("Attribute".equals(ln)) ownAttrs++;
-            else if ("TabularSection".equals(ln)) ownTs++;
+            if ("Attribute".equals(ln)) {
+                if (isAdoptedChild(c)) borrowedAttrs++;
+                else ownAttrs++;
+            } else if ("TabularSection".equals(ln)) {
+                if (isAdoptedChild(c)) borrowedTs++;
+                else ownTs++;
+            }
             else if ("Form".equals(ln)) {
                 formNames.add(text);
-                ownForms++;
+                if (isBorrowedForm(extDir, dirName, objName, text)) borrowedForms++;
+                else ownForms++;
             }
         }
 
         List<String> parts = new ArrayList<>();
+        if (borrowedAttrs > 0) parts.add(borrowedAttrs + " borrowed attrs");
         if (ownAttrs > 0) parts.add(ownAttrs + " own attrs");
+        if (borrowedTs > 0) parts.add(borrowedTs + " borrowed TS");
         if (ownTs > 0) parts.add(ownTs + " own TS");
+        if (borrowedForms > 0) parts.add(borrowedForms + " borrowed forms");
         if (ownForms > 0) parts.add(ownForms + " own forms");
-        if (borrowedItems > 0) parts.add(borrowedItems + " borrowed items");
         if (!parts.isEmpty()) {
             out.println("             ChildObjects: " + String.join(", ", parts));
         }
@@ -404,6 +410,40 @@ public class ExtensionDiffPrinter {
             } catch (IOException e) {
                 out.println("             Form." + fn + " (?)");
             }
+        }
+    }
+
+    private boolean isAdoptedChild(XmlNode node) {
+        XmlNode props = node.child("Properties");
+        return props != null && "Adopted".equals(props.childText("ObjectBelonging"));
+    }
+
+    private boolean isBorrowedForm(Path extDir, String dirName, String objName, String formName) {
+        Path formMetaPath = extDir.resolve(dirName).resolve(objName)
+                .resolve("Forms").resolve(formName + ".xml");
+        if (Files.isRegularFile(formMetaPath)) {
+            try {
+                XmlDocument doc = new XmlStructureReader().parse(formMetaPath);
+                XmlNode root = doc.getRoot();
+                XmlNode form = "MetaDataObject".equals(root.getName()) ? root.child("Form") : root;
+                XmlNode props = form != null ? form.child("Properties") : null;
+                if (props != null && "Adopted".equals(props.childText("ObjectBelonging"))) {
+                    return true;
+                }
+            } catch (Exception ignored) {
+                // Fallback to Form.xml below.
+            }
+        }
+
+        Path formXmlPath = extDir.resolve(dirName).resolve(objName)
+                .resolve("Forms").resolve(formName).resolve("Ext").resolve("Form.xml");
+        if (!Files.isRegularFile(formXmlPath)) {
+            return false;
+        }
+        try {
+            return readString(formXmlPath).contains("<BaseForm");
+        } catch (IOException e) {
+            return false;
         }
     }
 
