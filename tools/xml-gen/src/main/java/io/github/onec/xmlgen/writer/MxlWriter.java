@@ -110,7 +110,8 @@ public class MxlWriter extends XmlWriter {
         int defaultWidth = dsl.getDefaultWidth() != null ? dsl.getDefaultWidth() : 10;
         // TASK-171 (R8): авто-расчёт defaultWidth из page при наличии "Nx" пропорций
         // (порт mxl-compile.py:120-161). Без этого "Nx" молча терялись (возвращали null).
-        defaultWidth = computeDefaultWidth(dsl, totalColumns, defaultWidth);
+        defaultWidth = requirePositiveWidth(computeDefaultWidth(dsl, totalColumns, defaultWidth), "default column width");
+        validateColumnWidths(dsl, defaultWidth);
 
         // --- 1. Палитра шрифтов ---
         boolean hasDefaultFont = false;
@@ -790,6 +791,24 @@ public class MxlWriter extends XmlWriter {
             }
         }
         return result;
+    }
+
+    private void validateColumnWidths(MxlDsl dsl, int defaultWidth) {
+        Map<String, Object> cw = dsl.getColumnWidths();
+        if (cw == null) return;
+        for (Map.Entry<String, Object> e : cw.entrySet()) {
+            Integer width = parseWidthValue(e.getValue(), defaultWidth);
+            if (width != null) {
+                requirePositiveWidth(width, "column width for '" + e.getKey() + "'");
+            }
+        }
+    }
+
+    private int requirePositiveWidth(int width, String label) {
+        if (width <= 0) {
+            throw new IllegalArgumentException("MXL " + label + " must be > 0, got " + width);
+        }
+        return width;
     }
 
     /**

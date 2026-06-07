@@ -84,6 +84,7 @@ public class XmlStructureReader {
             int event = reader.next();
             if (event == XMLStreamConstants.START_ELEMENT) {
                 XmlNode root = parseElement(reader);
+                ensureDocumentEndsAfterRoot(reader);
                 return new XmlDocument(
                         file,
                         hasBom,
@@ -97,6 +98,21 @@ public class XmlStructureReader {
             }
         }
         throw new XMLStreamException("No root element found");
+    }
+
+    private void ensureDocumentEndsAfterRoot(XMLStreamReader reader) throws XMLStreamException {
+        while (reader.hasNext()) {
+            int event = reader.next();
+            if (event == XMLStreamConstants.START_ELEMENT) {
+                throw new XMLStreamException("Multiple root elements are not allowed",
+                        reader.getLocation());
+            }
+            if ((event == XMLStreamConstants.CHARACTERS || event == XMLStreamConstants.CDATA)
+                    && !reader.getText().isBlank()) {
+                throw new XMLStreamException("Non-whitespace content after root element",
+                        reader.getLocation());
+            }
+        }
     }
 
     private String extractXmlDeclaration(byte[] content, int offset) {

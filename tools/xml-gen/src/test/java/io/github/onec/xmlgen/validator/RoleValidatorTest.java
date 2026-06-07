@@ -232,6 +232,24 @@ class RoleValidatorTest {
                 i.getCode().equals("ROLE-102"));
     }
 
+    @Test
+    void testDuplicateObjectNameIsError() throws Exception {
+        Path file = writeXml("Rights.xml",
+                "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n" +
+                "<Rights xmlns=\"http://v8.1c.ru/8.2/roles\">\n" +
+                "\t<object><name>Catalog.Goods</name></object>\n" +
+                "\t<object><name>Catalog.Goods</name></object>\n" +
+                "</Rights>\n");
+
+        XmlDocument doc = reader.parse(file);
+        List<ValidationIssue> issues = validator.validate(doc, ValidationLevel.STRUCTURE);
+
+        assertThat(issues).anyMatch(i -> i.getCode().equals("ROLE-006")
+                && i.getSeverity() == Severity.ERROR
+                && i.getMessage().contains("duplicate object")
+                && i.getMessage().contains("Catalog.Goods"));
+    }
+
     // ==================== ROLE-103: Posting for Catalog ====================
 
     @Test

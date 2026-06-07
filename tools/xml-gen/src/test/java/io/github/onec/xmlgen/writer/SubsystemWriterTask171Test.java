@@ -93,6 +93,29 @@ class SubsystemWriterTask171Test {
     }
 
     @Test
+    void compile_configLayout_withoutConfigurationChildObjects_failsBeforeWritingSubsystemFiles() throws Exception {
+        Path configRoot = tempDir.resolve("src").resolve("xml");
+        Files.createDirectories(configRoot.resolve("Subsystems"));
+        Files.writeString(configRoot.resolve("Configuration.xml"),
+                "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
+                        + "<MetaDataObject xmlns=\"http://v8.1c.ru/8.3/MDClasses\" version=\"2.17\">\n"
+                        + "\t<Configuration uuid=\"00000000-0000-0000-0000-000000000001\">\n"
+                        + "\t\t<Properties><Name>Test</Name></Properties>\n"
+                        + "\t</Configuration>\n"
+                        + "</MetaDataObject>\n",
+                StandardCharsets.UTF_8);
+        Path json = writeSubsystemJson("");
+        Path outputDir = configRoot.resolve("Subsystems");
+
+        assertThatThrownBy(() -> new SubsystemWriter().compile(json, outputDir))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("ChildObjects");
+
+        assertThat(outputDir.resolve("ТестоваяПодсистема.xml")).doesNotExist();
+        assertThat(outputDir.resolve("ТестоваяПодсистема/Ext/CommandInterface.xml")).doesNotExist();
+    }
+
+    @Test
     void compile_extensionLayout_fallbackBehaviorPreserved() throws Exception {
         // Extension-layout: НЕТ Configuration.xml → используется прежний fallback (configRoot=outputDir).
         Path extRoot = tempDir.resolve("exts").resolve("XMLGEN_TEST");

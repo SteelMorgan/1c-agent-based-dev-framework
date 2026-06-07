@@ -310,8 +310,12 @@ public class Commands {
             } else if ("--with-skd".equals(args[i])) {
                 withSkd = true;
             //++agent TASK-171
+            } else if (args[i].startsWith("--")) {
+                throw new IllegalArgumentException("Unknown option for epf init: " + args[i]);
             } else if (outputDir == null) {
                 outputDir = Paths.get(args[i]);
+            } else {
+                throw new IllegalArgumentException("Unexpected positional argument for epf init: " + args[i]);
             }
         }
 
@@ -390,8 +394,12 @@ public class Commands {
                 formSynonym = args[++i];
             } else if ("--default".equals(args[i])) {
                 setAsDefault = true;
+            } else if (args[i].startsWith("--")) {
+                throw new IllegalArgumentException("Unknown option for epf add-form: " + args[i]);
             } else if (outputDir == null) {
                 outputDir = Paths.get(args[i]);
+            } else {
+                throw new IllegalArgumentException("Unexpected positional argument for epf add-form: " + args[i]);
             }
         }
         
@@ -404,6 +412,7 @@ public class Commands {
         if (outputDir == null) {
             throw new IllegalArgumentException("output directory is required");
         }
+        assertValidOneCName(formName, "form");
         
         //++agent TASK-155 [22.05.2026 00:00:00]
         // TASK-155 A2 iter-3: duplicate form detection (bug-T-154-epf-002 obs #1).
@@ -444,8 +453,12 @@ public class Commands {
                 templateType = args[++i];
             } else if ("--synonym".equals(args[i]) && i + 1 < args.length) {
                 templateSynonym = args[++i];
+            } else if (args[i].startsWith("--")) {
+                throw new IllegalArgumentException("Unknown option for epf add-template: " + args[i]);
             } else if (outputDir == null) {
                 outputDir = Paths.get(args[i]);
+            } else {
+                throw new IllegalArgumentException("Unexpected positional argument for epf add-template: " + args[i]);
             }
         }
         
@@ -461,6 +474,7 @@ public class Commands {
         if (outputDir == null) {
             throw new IllegalArgumentException("output directory is required");
         }
+        assertValidOneCName(templateName, "template");
         
         try {
             EpfWriter writer = new EpfWriter(format);
@@ -602,16 +616,21 @@ public class Commands {
                 synonym = args[++i];
             } else if ("--default".equals(args[i])) {
                 setAsDefault = true;
+            } else if (args[i].startsWith("--")) {
+                throw new IllegalArgumentException("Unknown option for form add: " + args[i]);
             } else if (objectXml == null) {
                 objectXml = Paths.get(args[i]);
             } else if (formName == null) {
                 formName = args[i];
+            } else {
+                throw new IllegalArgumentException("Unexpected positional argument for form add: " + args[i]);
             }
         }
 
         if (objectXml == null || formName == null) {
             throw new IllegalArgumentException("Usage: xml-gen form add <objectXml> <formName> [--synonym <syn>] [--default]");
         }
+        assertValidOneCName(formName, "form");
 
         Path formMeta = null;
         Path formDir = null;
@@ -624,6 +643,7 @@ public class Commands {
 
             String objectType = editor.detectObjectType();
             String objectName = editor.getObjectName();
+            requireKnownObjectType(objectType, objectXml);
 
             // Create scaffold
             Path baseDir = objectXml.getParent().resolve(objectName != null ? objectName : "");
@@ -1213,6 +1233,22 @@ public class Commands {
     }
     //++agent TASK-155
 
+    private static void assertValidOneCName(String name, String kind) {
+        if (name == null || !name.matches(ONEC_NAME_PATTERN)) {
+            throw new IllegalArgumentException(
+                    "Invalid 1C name for " + kind + ": '" + name + "'. "
+                            + "Names must match " + ONEC_NAME_PATTERN + " "
+                            + "(Latin or Cyrillic letters, digits, and underscores only; must not start with a digit).");
+        }
+    }
+
+    private static void requireKnownObjectType(String objectType, Path objectXml) {
+        if (objectType == null || "Unknown".equals(objectType)) {
+            throw new IllegalArgumentException("Expected a supported 1C metadata object XML, got unknown object type: "
+                    + objectXml);
+        }
+    }
+
     private static void executeMxl(String[] args) {
         if (args.length == 0) {
             throw new IllegalArgumentException("MXL subcommand required: info, compile");
@@ -1419,8 +1455,12 @@ public class Commands {
                 srcDir = args[++i];
             } else if ("--set-main-dcs".equals(a)) {
                 setMainDcs = true;
+            } else if (a.startsWith("--")) {
+                throw new IllegalArgumentException("Unknown option for template add: " + a);
             } else if (!a.startsWith("--") && configDir == null) {
                 configDir = Paths.get(a);
+            } else {
+                throw new IllegalArgumentException("Unexpected positional argument for template add: " + a);
             }
         }
 
@@ -1436,6 +1476,7 @@ public class Commands {
         if (configDir == null) {
             throw new IllegalArgumentException("configDir (positional) is required");
         }
+        assertValidOneCName(name, "template");
 
         io.github.onec.xmlgen.model.MdoPath object = io.github.onec.xmlgen.model.MdoPath.parse(objectSpec);
         try {
@@ -1462,10 +1503,14 @@ public class Commands {
                 templateType = args[++i];
             } else if ("--synonym".equals(args[i]) && i + 1 < args.length) {
                 synonym = args[++i];
+            } else if (args[i].startsWith("--")) {
+                throw new IllegalArgumentException("Unknown option for template add: " + args[i]);
             } else if (objectXml == null) {
                 objectXml = Paths.get(args[i]);
             } else if (templateName == null) {
                 templateName = args[i];
+            } else {
+                throw new IllegalArgumentException("Unexpected positional argument for template add: " + args[i]);
             }
         }
 
@@ -1474,6 +1519,7 @@ public class Commands {
                     "Usage: xml-gen template add --object Type.Name --name T --type TT [--synonym S] [--src dir] [--set-main-dcs] configDir\n"
                     + "  or (legacy): xml-gen template add <objectXml> <templateName> [--type <type>]");
         }
+        assertValidOneCName(templateName, "template");
 
         try {
             ObjectContainerEditor editor = new ObjectContainerEditor(objectXml);
@@ -1539,8 +1585,12 @@ public class Commands {
                 name = args[++i];
             } else if ("--src".equals(a) && i + 1 < args.length) {
                 srcDir = args[++i];
+            } else if (a.startsWith("--")) {
+                throw new IllegalArgumentException("Unknown option for template remove: " + a);
             } else if (!a.startsWith("--") && configDir == null) {
                 configDir = Paths.get(a);
+            } else {
+                throw new IllegalArgumentException("Unexpected positional argument for template remove: " + a);
             }
         }
 
@@ -1607,8 +1657,8 @@ public class Commands {
         try {
             ObjectContainerEditor editor = new ObjectContainerEditor(objectXml);
             if (!editor.removeTemplate(templateName)) {
-                System.out.println("Template '" + templateName + "' not found in ChildObjects");
-                return;
+                throw new IllegalArgumentException("Template '" + templateName
+                        + "' not found in ChildObjects of '" + objectXml + "'. Cannot remove a non-existing template.");
             }
             editor.save();
 
@@ -1647,8 +1697,12 @@ public class Commands {
                 lang = args[++i];
             } else if ("--src".equals(a) && i + 1 < args.length) {
                 srcDir = args[++i];
+            } else if (a.startsWith("--")) {
+                throw new IllegalArgumentException("Unknown option for template add-help: " + a);
             } else if (!a.startsWith("--") && configDir == null) {
                 configDir = Paths.get(a);
+            } else {
+                throw new IllegalArgumentException("Unexpected positional argument for template add-help: " + a);
             }
         }
 
@@ -2325,7 +2379,9 @@ public class Commands {
                                                           ValidatorFactory factory) {
         String validationType = effectiveValidationType(document, objectType);
         boolean expectBom = "designer".equals(formatStr) && isMetadataFile(validationType);
-        List<ValidationIssue> allIssues = new ArrayList<>(genValidator.validate(document, validationType, expectBom));
+        boolean validateSemanticTypes = level == ValidationLevel.SEMANTIC;
+        List<ValidationIssue> allIssues = new ArrayList<>(
+                genValidator.validate(document, validationType, expectBom, formatStr, validateSemanticTypes));
         allIssues.addAll(validateFormatSpecificShape(document, validationType, formatStr));
 
         Optional<XmlValidator> validator = factory.getValidator(validationType);
@@ -3680,6 +3736,7 @@ public class Commands {
         }
         String[] opParts = operation.split("-", 2);
         String opAction = opParts[0];
+        String opTarget = opParts[1];
         if (!opAction.equals("add") && !opAction.equals("remove") && !opAction.equals("modify")) {
             throw new IllegalArgumentException(
                 "Unknown --op value: \"" + operation + "\". "
@@ -3689,11 +3746,27 @@ public class Commands {
                 + "remove-column, remove-form, remove-template, remove-command, remove-ts-attribute, "
                 + "modify-attribute, modify-dimension, modify-resource, modify-enumValue, modify-column.");
         }
+        validateMetaEditTarget(opAction, opTarget);
 
         try {
             new MetaEditor().edit(objectPath, operation, value);
         } catch (IOException e) {
             throw new RuntimeException("Failed to edit metadata: " + e.getMessage(), e);
+        }
+    }
+
+    private static void validateMetaEditTarget(String action, String target) {
+        Set<String> supported = switch (action) {
+            case "add" -> Set.of("attribute", "ts", "dimension", "resource", "enumValue",
+                    "predefined", "column", "form", "template", "command", "ts-attribute", "property");
+            case "remove" -> Set.of("attribute", "ts", "dimension", "resource", "enumValue",
+                    "column", "form", "template", "command", "ts-attribute");
+            case "modify" -> Set.of("attribute", "dimension", "resource", "enumValue", "column", "property");
+            default -> Set.of();
+        };
+        if (!supported.contains(target)) {
+            throw new IllegalArgumentException("Unknown --op target: \"" + target
+                    + "\" for action \"" + action + "\".");
         }
     }
 

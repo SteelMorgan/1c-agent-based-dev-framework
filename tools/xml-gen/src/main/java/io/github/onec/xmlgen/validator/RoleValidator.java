@@ -215,6 +215,7 @@ public class RoleValidator implements XmlValidator {
 
         // Проверяем каждый <object>
         List<XmlNode> objects = root.children("object");
+        Set<String> objectNames = new HashSet<>();
         for (int i = 0; i < objects.size(); i++) {
             XmlNode obj = objects.get(i);
             String objPath = "/Rights/object[" + (i + 1) + "]";
@@ -225,6 +226,10 @@ public class RoleValidator implements XmlValidator {
                 issues.add(ValidationIssue.error("ROLE-003",
                         "Object element missing <name>",
                         obj.getLine(), objPath));
+            } else if (!objectNames.add(objName)) {
+                issues.add(ValidationIssue.error("ROLE-006",
+                        "duplicate object name '" + objName + "'",
+                        obj.getLine(), objPath + "/name"));
             }
 
             // Проверяем каждый <right> внутри <object>

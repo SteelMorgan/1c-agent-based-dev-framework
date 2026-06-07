@@ -56,6 +56,7 @@ public class RoleWriter extends XmlWriter {
         // outputDir — корень конфигурации (тут же лежит Configuration.xml и сюда пишутся Roles/).
         String formatVersion = ConfigurationXmlReader.readFormatVersion(
                 outputDir.resolve("Configuration.xml"));
+        preflightRegistration(outputDir.resolve("Configuration.xml"), name);
 
         // Создать структуру каталогов
         Path roleDir = outputDir.resolve("Roles").resolve(name);
@@ -180,6 +181,20 @@ public class RoleWriter extends XmlWriter {
         } catch (IOException e) {
             throw new RuntimeException("Failed to register Role." + name
                     + " in Configuration.xml: " + e.getMessage(), e);
+        }
+    }
+
+    private void preflightRegistration(Path configurationXml, String name) {
+        if (!Files.isRegularFile(configurationXml)) {
+            return;
+        }
+        try {
+            ConfigEditor editor = new ConfigEditor(configurationXml);
+            editor.setSkipFileCheck(true);
+            editor.addChildObject("Role." + name);
+        } catch (IOException e) {
+            throw new RuntimeException("Failed to preflight Role." + name
+                    + " registration in Configuration.xml: " + e.getMessage(), e);
         }
     }
     

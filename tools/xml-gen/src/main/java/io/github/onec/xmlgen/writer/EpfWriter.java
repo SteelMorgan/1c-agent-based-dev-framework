@@ -293,6 +293,7 @@ public class EpfWriter extends XmlWriter {
     private void addFormDesigner(String epfName, String formName, String formSynonym, Path outputDir, boolean setAsDefault) throws IOException, XMLStreamException {
         Path epfXmlPath = outputDir.resolve(epfName + ".xml");
         ObjectContainerEditor editor = new ObjectContainerEditor(epfXmlPath);
+        requireEpfRoot(editor, epfXmlPath);
         boolean targetIsReport = targetIsReport(editor);
         String formatVersion = ConfigurationXmlReader.readFormatVersion(epfXmlPath);
         if (editor.hasForm(formName)) {
@@ -467,6 +468,7 @@ public class EpfWriter extends XmlWriter {
 
         Path epfXmlPath = outputDir.resolve(epfName + ".xml");
         ObjectContainerEditor editor = new ObjectContainerEditor(epfXmlPath);
+        requireEpfRoot(editor, epfXmlPath);
         boolean targetIsReport = targetIsReport(editor);
         String formatVersion = ConfigurationXmlReader.readFormatVersion(epfXmlPath);
         if (editor.hasTemplate(templateName)) {
@@ -590,6 +592,14 @@ public class EpfWriter extends XmlWriter {
         // Канон Designer (_Демо): тела макетов Template.xml — BOM + CRLF (TASK-172 добавил CRLF).
         Files.write(path, io.github.onec.xmlgen.io.Crlf.withBom(content));
         //++agent TASK-172
+    }
+
+    private static void requireEpfRoot(ObjectContainerEditor editor, Path epfXmlPath) {
+        String objectType = editor.detectObjectType();
+        if (!"ExternalDataProcessor".equals(objectType) && !"ExternalReport".equals(objectType)) {
+            throw new IllegalArgumentException("Expected ExternalDataProcessor or ExternalReport XML, got "
+                    + objectType + ": " + epfXmlPath);
+        }
     }
     
     // TASK-171 D1/W5: getTemplateExtension (Designer) удалён — расширение теперь берётся из

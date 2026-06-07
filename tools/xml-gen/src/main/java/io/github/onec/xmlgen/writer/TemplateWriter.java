@@ -70,6 +70,12 @@ public class TemplateWriter {
 
         // Create the template scaffold under <src>/<Type>/<Name>/
         Path baseDir = src.resolve(object.getRelativeDir());
+        Path templateMeta = baseDir.resolve("Templates").resolve(name + ".xml");
+        Path templateDir = baseDir.resolve("Templates").resolve(name);
+        if (Files.exists(templateMeta) || Files.exists(templateDir)) {
+            throw new IllegalArgumentException("Template '" + name
+                    + "' already exists on disk in " + baseDir.resolve("Templates"));
+        }
         String formatVersion = ConfigurationXmlReader.readFormatVersion(objectXml);
         ObjectContainerEditor.createTemplateScaffold(baseDir, name, synonym, typeStr, formatVersion);
 
@@ -288,6 +294,20 @@ public class TemplateWriter {
         if (!Files.exists(objectXml)) {
             throw new IllegalArgumentException(
                     "Object '" + object + "' not found. Expected XML at: " + objectXml.toAbsolutePath());
+        }
+        try {
+            ObjectContainerEditor editor = new ObjectContainerEditor(objectXml);
+            String actualType = editor.detectObjectType();
+            if ("Unknown".equals(actualType)) {
+                throw new IllegalArgumentException("Expected a supported 1C metadata object XML, got unknown object type: "
+                        + objectXml);
+            }
+            if (!object.getType().equals(actualType)) {
+                throw new IllegalArgumentException("Object '" + object + "' type mismatch. Expected "
+                        + object.getType() + ", got " + actualType + " in " + objectXml);
+            }
+        } catch (IOException e) {
+            throw new IllegalArgumentException("Cannot read object XML: " + objectXml + " — " + e.getMessage(), e);
         }
     }
 

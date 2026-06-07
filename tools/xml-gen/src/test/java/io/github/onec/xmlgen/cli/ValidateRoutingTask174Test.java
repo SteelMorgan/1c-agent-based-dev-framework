@@ -161,6 +161,78 @@ class ValidateRoutingTask174Test {
         assertThat(Commands.validationExitCode(0, 2)).isEqualTo(2);
     }
 
+    @Test
+    void validateEdtFormNamespaceDoesNotUseDesignerExpectation() throws Exception {
+        Path file = write("Form.form",
+                "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
+                        + "<Form xmlns=\"http://g5.1c.ru/v8/dt/form\" version=\"2.20\">\n"
+                        + "\t<ChildItems/>\n"
+                        + "</Form>\n");
+        XmlDocument document = reader.parse(file);
+
+        List<ValidationIssue> issues = Commands.validateDocumentForType(
+                document,
+                "form",
+                file,
+                "edt",
+                ValidationLevel.STRUCTURE,
+                new GenValidator(),
+                new ValidatorFactory());
+
+        assertThat(issues).noneMatch(i -> i.getCode().equals("GEN-005"));
+    }
+
+    @Test
+    void structureLevelDoesNotRunSemanticTypeChecks() throws Exception {
+        Path srcRoot = tempDir.resolve("src");
+        Files.createDirectories(srcRoot);
+        Path file = write("Form.xml",
+                "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
+                        + "<Form xmlns=\"http://v8.1c.ru/8.3/xcf/logform\" "
+                        + "xmlns:v8=\"http://v8.1c.ru/8.1/data/core\" "
+                        + "xmlns:cfg=\"http://v8.1c.ru/8.1/data/enterprise/current-config\">\n"
+                        + "\t<Attributes><Attribute name=\"Ref\"><Type><v8:Type>cfg:CatalogRef.Missing</v8:Type></Type></Attribute></Attributes>\n"
+                        + "\t<ChildItems/>\n"
+                        + "</Form>\n");
+        XmlDocument document = reader.parse(file);
+
+        List<ValidationIssue> issues = Commands.validateDocumentForType(
+                document,
+                "form",
+                file,
+                "designer",
+                ValidationLevel.STRUCTURE,
+                new GenValidator(new io.github.onec.xmlgen.validator.MetadataTypeValidator(srcRoot)),
+                new ValidatorFactory());
+
+        assertThat(issues).noneMatch(i -> i.getCode().equals("SEM-001"));
+    }
+
+    @Test
+    void validateConfigWrongNamespaceIsGen005Error() throws Exception {
+        Path file = write("Configuration.xml",
+                "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
+                        + "<MetaDataObject xmlns=\"http://wrong.namespace\" version=\"2.20\">\n"
+                        + "\t<Configuration uuid=\"00000000-0000-0000-0000-000000000001\">\n"
+                        + "\t\t<Properties><Name>AuditCfg</Name></Properties>\n"
+                        + "\t\t<ChildObjects/>\n"
+                        + "\t</Configuration>\n"
+                        + "</MetaDataObject>\n");
+        XmlDocument document = reader.parse(file);
+
+        List<ValidationIssue> issues = Commands.validateDocumentForType(
+                document,
+                "config",
+                file,
+                "designer",
+                ValidationLevel.STRUCTURE,
+                new GenValidator(),
+                new ValidatorFactory());
+
+        assertThat(issues).anyMatch(i -> i.getCode().equals("GEN-005")
+                && i.getSeverity() == Severity.ERROR);
+    }
+
     private List<ValidationIssue> validate(Path file, String type) throws Exception {
         XmlDocument document = reader.parse(file);
         return Commands.validateDocumentForType(

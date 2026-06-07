@@ -144,6 +144,7 @@ public class MetaWriter {
         // что и конфигурация, иначе full-load падает «Версия формата ... отличается».
         Path configurationXml = outputDir.resolve("Configuration.xml");
         String formatVersion = ConfigurationXmlReader.readFormatVersion(configurationXml);
+        preflightConfigurationRegistration(configurationXml, td.xmlElement(), name);
 
         // Generate UUIDs
         String objectUuid = UuidGenerator.generate();
@@ -185,6 +186,20 @@ public class MetaWriter {
             editor.save();
         } catch (IOException e) {
             throw new RuntimeException("Не удалось зарегистрировать " + xmlElement + "." + name
+                    + " в Configuration.xml: " + e.getMessage(), e);
+        }
+    }
+
+    private void preflightConfigurationRegistration(Path configurationXml, String xmlElement, String name) {
+        if (!Files.isRegularFile(configurationXml)) {
+            return;
+        }
+        try {
+            ConfigEditor editor = new ConfigEditor(configurationXml);
+            editor.setSkipFileCheck(true);
+            editor.addChildObject(xmlElement + "." + name);
+        } catch (IOException e) {
+            throw new RuntimeException("Не удалось проверить регистрацию " + xmlElement + "." + name
                     + " в Configuration.xml: " + e.getMessage(), e);
         }
     }

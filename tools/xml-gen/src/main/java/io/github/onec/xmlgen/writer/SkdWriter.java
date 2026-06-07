@@ -59,6 +59,8 @@ public class SkdWriter extends XmlWriter {
     }
 
     private void createDesigner(SkdDsl dsl, Path outputPath) throws IOException, XMLStreamException {
+        validateDataSetTypes(dsl);
+
         // TASK-171 (Р-4): Designer-вывод СКД обязан содержать UTF-8 BOM. Все платформенные
         // Template.xml СКД начинаются с ef bb bf; без BOM наш файл байтово расходится с каноном
         // Конфигуратора. Эталон — RoleWriter/FormWriter Designer (createWriter(..., true, ...)).
@@ -261,8 +263,25 @@ public class SkdWriter extends XmlWriter {
         if ("DataSetQuery".equals(xsiType)) return DataSetType.DATA_SET_QUERY;
         if ("DataSetObject".equals(xsiType)) return DataSetType.DATA_SET_OBJECT;
         if ("DataSetUnion".equals(xsiType)) return DataSetType.DATA_SET_UNION;
-        // unknown — оставляем строку как есть, валидатор пометит.
-        return DataSetType.UNKNOWN;
+        throw new IllegalArgumentException("Unknown DataSet type '" + xsiType
+                + "'. Supported types: query, object, union, DataSetQuery, DataSetObject, DataSetUnion.");
+    }
+
+    private static void validateDataSetTypes(SkdDsl dsl) {
+        if (dsl == null || dsl.getDataSets() == null) return;
+        for (SkdDsl.DataSet ds : dsl.getDataSets()) {
+            validateDataSetType(ds);
+        }
+    }
+
+    private static void validateDataSetType(SkdDsl.DataSet ds) {
+        if (ds == null) return;
+        normalizeDataSetType(ds.getXsiType());
+        if (ds.getItems() != null) {
+            for (SkdDsl.DataSet item : ds.getItems()) {
+                validateDataSetType(item);
+            }
+        }
     }
 
     // ============================================================

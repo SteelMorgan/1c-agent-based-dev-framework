@@ -240,7 +240,9 @@ class RoleWriterTest {
                 + "<MetaDataObject xmlns=\"http://v8.1c.ru/8.3/MDClasses\"\n"
                 + "\txmlns:v8=\"http://v8.1c.ru/8.1/data/core\"\n"
                 + "\tversion=\"2.20\">\n"
-                + "\t<Configuration uuid=\"00000000-0000-0000-0000-000000000001\"/>\n"
+                + "\t<Configuration uuid=\"00000000-0000-0000-0000-000000000001\">\n"
+                + "\t\t<ChildObjects/>\n"
+                + "\t</Configuration>\n"
                 + "</MetaDataObject>\n";
         byte[] bom = {(byte) 0xEF, (byte) 0xBB, (byte) 0xBF};
         byte[] body = configXml.getBytes(java.nio.charset.StandardCharsets.UTF_8);
@@ -262,6 +264,26 @@ class RoleWriterTest {
         assertThat(metaContent).doesNotContain("version=\"2.17\"");
         assertThat(rightsContent).contains("version=\"2.20\"");
         assertThat(rightsContent).doesNotContain("version=\"2.17\"");
+    }
+
+    @Test
+    void createInvalidConfigurationWithoutChildObjectsFailsBeforeWritingRoleFiles() throws Exception {
+        Files.writeString(tempDir.resolve("Configuration.xml"),
+                "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
+                        + "<MetaDataObject xmlns=\"http://v8.1c.ru/8.3/MDClasses\" version=\"2.20\">\n"
+                        + "\t<Configuration uuid=\"00000000-0000-0000-0000-000000000001\">\n"
+                        + "\t\t<Properties><Name>Test</Name></Properties>\n"
+                        + "\t</Configuration>\n"
+                        + "</MetaDataObject>\n");
+        RoleDsl dsl = new RoleDsl("РольБезChildObjects", "Роль без ChildObjects", null,
+                null, null, null, null, null);
+
+        assertThatThrownBy(() -> new RoleWriter(OutputFormat.DESIGNER).create(dsl, tempDir))
+                .isInstanceOf(RuntimeException.class)
+                .hasMessageContaining("ChildObjects");
+
+        assertThat(tempDir.resolve("Roles/РольБезChildObjects.xml")).doesNotExist();
+        assertThat(tempDir.resolve("Roles/РольБезChildObjects/Ext/Rights.xml")).doesNotExist();
     }
 
     /**

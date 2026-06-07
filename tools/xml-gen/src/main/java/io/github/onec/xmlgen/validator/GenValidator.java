@@ -34,6 +34,7 @@ public class GenValidator {
             "form", java.util.List.of(new RootExpectation("Form", "http://v8.1c.ru/8.3/xcf/logform")),
             "skd", java.util.List.of(new RootExpectation("DataCompositionSchema", "http://v8.1c.ru/8.1/data-composition-system/schema")),
             "mxl", java.util.List.of(new RootExpectation("document", "http://v8.1c.ru/8.2/data/spreadsheet")),
+            "config", java.util.List.of(new RootExpectation("MetaDataObject", "http://v8.1c.ru/8.3/MDClasses")),
             "epf", java.util.List.of(
                     new RootExpectation("MetaDataObject", "http://v8.1c.ru/8.3/MDClasses"),
                     new RootExpectation("ExternalDataProcessor", "http://v8.1c.ru/8.3/MDClasses"),
@@ -59,6 +60,11 @@ public class GenValidator {
      * @return список проблем
      */
     public List<ValidationIssue> validate(XmlDocument document, String objectType, boolean expectBom) {
+        return validate(document, objectType, expectBom, "designer", true);
+    }
+
+    public List<ValidationIssue> validate(XmlDocument document, String objectType, boolean expectBom,
+                                          String format, boolean validateSemanticTypes) {
         List<ValidationIssue> issues = new ArrayList<>();
 
         // GEN-001: XML well-formed — уже проверено при парсинге (XmlStructureReader бросит XmlParseException)
@@ -79,7 +85,7 @@ public class GenValidator {
         }
 
         // GEN-004 + GEN-005: Root element и namespace
-        java.util.List<RootExpectation> expected = TYPE_EXPECTATIONS.get(objectType);
+        java.util.List<RootExpectation> expected = expectationsFor(objectType, format);
         if (expected != null) {
             RootExpectation matchedRoot = expected.stream()
                     .filter(e -> e.rootElement.equals(document.getRootElement()))
@@ -107,11 +113,18 @@ public class GenValidator {
         checkUuids(document.getRoot(), "/", issues);
 
         // SEM-001: Проверка типов (если включено)
-        if (metadataValidator != null) {
+        if (metadataValidator != null && validateSemanticTypes) {
             checkTypes(document.getRoot(), "/", issues);
         }
 
         return issues;
+    }
+
+    private java.util.List<RootExpectation> expectationsFor(String objectType, String format) {
+        if ("form".equals(objectType) && "edt".equals(format)) {
+            return java.util.List.of(new RootExpectation("Form", "http://g5.1c.ru/v8/dt/form"));
+        }
+        return TYPE_EXPECTATIONS.get(objectType);
     }
 
     private void validateXmlDeclaration(XmlDocument document, List<ValidationIssue> issues) {

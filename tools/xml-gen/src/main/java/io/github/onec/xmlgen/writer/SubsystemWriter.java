@@ -75,6 +75,18 @@ public class SubsystemWriter {
                 : ConfigurationXmlReader.DEFAULT_FORMAT_VERSION;
         //++agent TASK-174
 
+        if (writeStubs) {
+            Path configRoot = outputDir;
+            for (String item : content) {
+                ensureContentStub(configRoot, item);
+            }
+        }
+        if (parentPath != null) {
+            preflightChildInParent(parentPath, name);
+        } else {
+            preflightTopLevelInConfiguration(cfgRoot, outputDir, name);
+        }
+
         // 1. Write <Name>.xml
         writeSubsystemXml(outputDir, name, synonym, comment, includeInCI,
                 useOneCommand, explanation, picture, content, children, uuid, formatVersion);
@@ -99,10 +111,6 @@ public class SubsystemWriter {
             // Старый вариант (outputDir.getParent()) ошибочно поднимался на уровень выше
             // (например, exts/ вместо exts/XMLGEN_TEST/), что вызывало запись за пределы расширения.
             // TASK-155 A3: используем outputDir напрямую как корень расширения.
-            Path configRoot = outputDir;
-            for (String item : content) {
-                ensureContentStub(configRoot, item);
-            }
             // Children: <ChildName> внутри ChildObjects → Subsystems/ChildName.xml рядом с собой
             Path childrenDir = subsystemDir.resolve("Subsystems");
             for (String childName : children) {
@@ -364,6 +372,36 @@ public class SubsystemWriter {
         ConfigEditor editor = new ConfigEditor(configRoot.resolve("Configuration.xml"));
         editor.addChildObject("Subsystem." + name);
         editor.save();
+    }
+
+    private void preflightTopLevelInConfiguration(Path configRoot, Path outputDir, String name) throws IOException {
+        if (configRoot == null) {
+            return;
+        }
+        Path expectedTopLevelDir = configRoot.resolve("Subsystems").toAbsolutePath().normalize();
+        Path actualOutputDir = outputDir.toAbsolutePath().normalize();
+        if (!actualOutputDir.equals(expectedTopLevelDir)) {
+            return;
+        }
+        ConfigEditor editor = new ConfigEditor(configRoot.resolve("Configuration.xml"));
+        editor.setSkipFileCheck(true);
+        editor.addChildObject("Subsystem." + name);
+    }
+
+    private void preflightChildInParent(Path parentPath, String childName) throws IOException {
+        if (!Files.exists(parentPath)) {
+            throw new IOException("Parent subsystem file not found: " + parentPath);
+        }
+        byte[] raw = Files.readAllBytes(parentPath);
+        String content = raw.length >= 3 && raw[0] == BOM[0] && raw[1] == BOM[1] && raw[2] == BOM[2]
+                ? new String(raw, 3, raw.length - 3, StandardCharsets.UTF_8)
+                : new String(raw, StandardCharsets.UTF_8);
+        String entry = "<Subsystem>" + escapeXml(childName) + "</Subsystem>";
+        if (!content.contains(entry)
+                && !content.contains("<ChildObjects/>")
+                && !content.contains("</ChildObjects>")) {
+            throw new IOException("Parent subsystem has no ChildObjects section: " + parentPath);
+        }
     }
 
     private static String resolveDirectoryForType(String type) {
