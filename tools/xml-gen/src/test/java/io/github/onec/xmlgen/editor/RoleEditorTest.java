@@ -37,6 +37,18 @@ class RoleEditorTest {
     }
 
     @Test
+    void testAddObjectInsertsBeforeRestrictionTemplates() {
+        XmlNode template = XmlNode.createElement("restrictionTemplate", Map.of());
+        document.getRoot().addChild(template);
+
+        editor.addObject("Catalog.Items", List.of("Read"));
+
+        List<XmlNode> children = document.getRoot().getChildren();
+        assertEquals("object", children.get(0).getName());
+        assertEquals("restrictionTemplate", children.get(1).getName());
+    }
+
+    @Test
     void testAddRight() {
         editor.addObject("Catalog.Items", List.of("Read"));
         editor.addRight("Catalog.Items", "Update", "true");

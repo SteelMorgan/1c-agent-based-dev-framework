@@ -25,6 +25,8 @@ import java.util.*;
  */
 public class SubsystemValidator {
 
+    private static final String NS_MD_CLASSES = "http://v8.1c.ru/8.3/MDClasses";
+
     /** Допустимые типы объектов в Content. */
     private static final Set<String> VALID_CONTENT_TYPES = Set.of(
             "Catalog", "Document", "Report", "DataProcessor", "CommonModule",
@@ -44,12 +46,20 @@ public class SubsystemValidator {
     private final List<ValidationMessage> messages = new ArrayList<>();
 
     public List<ValidationMessage> validate(XmlDocument document, Path subsystemDir) {
+        return validate(document, subsystemDir, null);
+    }
+
+    public List<ValidationMessage> validate(XmlDocument document, Path configRoot, Path subsystemXmlPath) {
         messages.clear();
         XmlNode root = document.getRoot();
 
         // Check 1: Structure + version
         XmlNode subsystem = root;
         if ("MetaDataObject".equals(root.getName())) {
+            if (!NS_MD_CLASSES.equals(root.getNamespace())) {
+                error("Structure: MetaDataObject namespace must be '" + NS_MD_CLASSES
+                        + "', got '" + (root.getNamespace() != null ? root.getNamespace() : "(none)") + "'");
+            }
             String version = root.attr("version");
             if (version == null || version.isEmpty()) {
                 error("Structure: version attribute missing on <MetaDataObject>");
@@ -120,13 +130,13 @@ public class SubsystemValidator {
                 String objName = item.substring(dotIdx + 1);
                 if (!VALID_CONTENT_TYPES.contains(type)) {
                     warn("Content: unknown type '" + type + "' in '" + item + "'");
-                } else if (subsystemDir != null) {
+                } else if (configRoot != null) {
                     // Check that the referenced object actually exists in the config directory.
-                    // subsystemDir is the config root (parent of the Subsystem XML file).
+                    // configRoot is the configuration root with Catalogs/, Documents/, etc.
                     MetadataTypeRegistry.TypeDescriptor td = MetadataTypeRegistry.get(type);
                     if (td != null) {
-                        Path objFile = subsystemDir.resolve(td.directory()).resolve(objName + ".xml");
-                        Path objDir = subsystemDir.resolve(td.directory()).resolve(objName);
+                        Path objFile = configRoot.resolve(td.directory()).resolve(objName + ".xml");
+                        Path objDir = configRoot.resolve(td.directory()).resolve(objName);
                         if (!Files.exists(objFile) && !Files.isDirectory(objDir)) {
                             error("Content: object '" + item + "' not found in configuration "
                                 + "(expected " + td.directory() + "/" + objName + ".xml)");
@@ -170,11 +180,12 @@ public class SubsystemValidator {
         }
 
         // File existence checks (9-11)
-        if (subsystemDir != null && name != null) {
+        Path subsystemFilesDir = subsystemXmlPath != null ? subsystemXmlPath.getParent() : configRoot;
+        if (subsystemFilesDir != null && name != null) {
             List<String> children = getChildNames(co);
 
             // Check 9: Directory exists if needed
-            Path subsystemDirPath = subsystemDir.resolve(name);
+            Path subsystemDirPath = subsystemFilesDir.resolve(name);
             if (!children.isEmpty()) {
                 if (!Files.isDirectory(subsystemDirPath)) {
                     warn("File missing: directory " + name + "/ expected (has child subsystems)");

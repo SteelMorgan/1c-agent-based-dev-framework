@@ -129,6 +129,7 @@ public class RoleValidator implements XmlValidator {
         checkGlobalFlag(root, "setForNewObjects", issues);
         checkGlobalFlag(root, "setForAttributesByDefault", issues);
         checkGlobalFlag(root, "independentRightsOfChildObjects", issues);
+        checkObjectTemplateOrder(root, issues);
 
         // Проверяем каждый <object>
         List<XmlNode> objects = root.children("object");
@@ -203,6 +204,23 @@ public class RoleValidator implements XmlValidator {
             issues.add(ValidationIssue.warning("ROLE-002",
                     "Missing global flag <" + flagName + ">",
                     root.getLine(), "/Rights"));
+        }
+    }
+
+    private void checkObjectTemplateOrder(XmlNode root, List<ValidationIssue> issues) {
+        boolean templateSeen = false;
+        int objectIndex = 0;
+        for (XmlNode child : root.getChildren()) {
+            if ("object".equals(child.getName())) {
+                objectIndex++;
+                if (templateSeen) {
+                    issues.add(ValidationIssue.warning("ROLE-108",
+                            "<object> must appear before all <restrictionTemplate> elements",
+                            child.getLine(), "/Rights/object[" + objectIndex + "]"));
+                }
+            } else if ("restrictionTemplate".equals(child.getName())) {
+                templateSeen = true;
+            }
         }
     }
 

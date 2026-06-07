@@ -21,6 +21,8 @@ import java.util.regex.Pattern;
  */
 public class ExtensionValidator {
 
+    private static final String NS_MD_CLASSES = "http://v8.1c.ru/8.3/MDClasses";
+
     private static final Pattern UUID_PATTERN = Pattern.compile(
             "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$");
 
@@ -114,16 +116,22 @@ public class ExtensionValidator {
     public List<ValidationMessage> validate(XmlDocument document, Path extDir) {
         messages.clear();
         XmlNode root = document.getRoot();
+        String rootFormatVersion = null;
 
         // ── Check 1: Root structure ─────────────────────────────────────
         XmlNode config = root;
         if ("MetaDataObject".equals(root.getName())) {
+            if (!NS_MD_CLASSES.equals(root.getNamespace())) {
+                error("1. MetaDataObject namespace must be '" + NS_MD_CLASSES
+                        + "', got '" + (root.getNamespace() != null ? root.getNamespace() : "(none)") + "'");
+            }
             String version = root.attr("version");
             if (version == null || version.isEmpty()) {
                 warn("1. Missing version attribute on <MetaDataObject>");
             } else if (!"2.17".equals(version) && !"2.20".equals(version)) {
                 warn("1. Unusual version '" + version + "' (expected 2.17 or 2.20)");
             }
+            rootFormatVersion = version;
             config = root.child("Configuration");
             if (config == null) {
                 error("1. No <Configuration> element found inside MetaDataObject");
@@ -303,6 +311,40 @@ public class ExtensionValidator {
                         warn("8. Missing directory: " + dirName);
                     }
                     checkedDirs.add(dirName);
+                }
+            }
+        }
+
+        // ── Check 8b: Object files exist and use root format version ────
+        if (extDir != null && childObjects != null) {
+            for (XmlNode child : childEntries) {
+                String typeName = child.getName();
+                String objName = child.getText() != null ? child.getText() : "";
+                String dirName = TYPE_TO_DIR.get(typeName);
+                if (dirName == null) continue;
+
+                Path objFile = extDir.resolve(dirName).resolve(objName + ".xml");
+                if (!Files.isRegularFile(objFile)) {
+                    error("8. Missing object file: " + dirName + "/" + objName + ".xml");
+                    continue;
+                }
+
+                if (rootFormatVersion != null && !rootFormatVersion.isEmpty()) {
+                    try {
+                        XmlDocument objDoc = new XmlStructureReader().parse(objFile);
+                        XmlNode objRoot = objDoc.getRoot();
+                        if ("MetaDataObject".equals(objRoot.getName())) {
+                            String objVersion = objRoot.attr("version");
+                            if (objVersion == null || objVersion.isEmpty()) {
+                                warn("8. Missing version on " + dirName + "/" + objName + ".xml");
+                            } else if (!rootFormatVersion.equals(objVersion)) {
+                                error("8. Version mismatch in " + dirName + "/" + objName + ".xml"
+                                        + ": " + objVersion + " (expected " + rootFormatVersion + ")");
+                            }
+                        }
+                    } catch (Exception e) {
+                        warn("8. Cannot parse " + dirName + "/" + objName + ".xml: " + e.getMessage());
+                    }
                 }
             }
         }

@@ -250,6 +250,7 @@ public class ExtensionEditor {
 
         // Read extension Configuration.xml
         String extCfgContent = readString(extCfgFile);
+        String formatVersion = ConfigurationXmlReader.readFormatVersion(extCfgFile);
 
         // Parse object specs
         List<BorrowItem> items = parseObjectSpec(objectSpec);
@@ -283,9 +284,9 @@ public class ExtensionEditor {
                     out.println("[INFO] Parent " + item.typeName + "." + item.objName
                             + " not yet borrowed — borrowing first...");
                     extCfgContent = borrowObject(extDir, configDir, item.typeName,
-                            item.objName, dirName, extCfgContent);
+                            item.objName, dirName, extCfgContent, formatVersion);
                 }
-                borrowForm(extDir, configDir, item.typeName, item.objName, item.formName, dirName);
+                borrowForm(extDir, configDir, item.typeName, item.objName, item.formName, dirName, formatVersion);
                 if (mainAttributeMode != null) {
                     borrowMainAttributeInto(extDir, configDir, item.typeName, item.objName,
                             item.formName, dirName, mainAttributeMode);
@@ -294,7 +295,7 @@ public class ExtensionEditor {
             } else {
                 // Object borrowing
                 extCfgContent = borrowObject(extDir, configDir, item.typeName,
-                        item.objName, dirName, extCfgContent);
+                        item.objName, dirName, extCfgContent, formatVersion);
                 borrowedCount++;
             }
         }
@@ -316,7 +317,8 @@ public class ExtensionEditor {
     // ─── Object borrowing ─────────────────────────────────────────────
 
     private String borrowObject(Path extDir, Path configDir, String typeName,
-                                String objName, String dirName, String extCfgContent) throws IOException {
+                                String objName, String dirName, String extCfgContent,
+                                String formatVersion) throws IOException {
         out.println("[INFO] Borrowing " + typeName + "." + objName + "...");
 
         // Read source object UUID
@@ -330,7 +332,7 @@ public class ExtensionEditor {
         }
 
         // Generate borrowed object XML
-        String borrowedXml = buildBorrowedObjectXml(typeName, objName, sourceUuid, sourceProps);
+        String borrowedXml = buildBorrowedObjectXml(typeName, objName, sourceUuid, sourceProps, formatVersion);
 
         // Write to extension directory
         Path targetDir = extDir.resolve(dirName);
@@ -349,7 +351,8 @@ public class ExtensionEditor {
     // ─── Form borrowing ───────────────────────────────────────────────
 
     private void borrowForm(Path extDir, Path configDir, String typeName,
-                            String objName, String formName, String dirName) throws IOException {
+                            String objName, String formName, String dirName,
+                            String formatVersion) throws IOException {
         out.println("[INFO] Borrowing form " + typeName + "." + objName + ".Form." + formName + "...");
 
         // 1. Read source form UUID
@@ -366,7 +369,7 @@ public class ExtensionEditor {
 
         // 3. Generate form metadata XML
         String newFormUuid = UuidGenerator.generate();
-        String formMetaXml = buildFormMetadataXml(formName, newFormUuid, sourceFormUuid);
+        String formMetaXml = buildFormMetadataXml(formName, newFormUuid, sourceFormUuid, formatVersion);
 
         // 4. Write form metadata
         Path formMetaDir = extDir.resolve(dirName).resolve(objName).resolve("Forms");
@@ -446,11 +449,12 @@ public class ExtensionEditor {
     // ─── XML generation ───────────────────────────────────────────────
 
     private String buildBorrowedObjectXml(String typeName, String objName,
-                                          String sourceUuid, Map<String, String> sourceProps) {
+                                          String sourceUuid, Map<String, String> sourceProps,
+                                          String formatVersion) {
         String newUuid = UuidGenerator.generate();
         StringBuilder sb = new StringBuilder();
         sb.append("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n");
-        sb.append("<MetaDataObject ").append(XMLNS).append(" version=\"2.17\">\n");
+        sb.append("<MetaDataObject ").append(XMLNS).append(" version=\"").append(formatVersion).append("\">\n");
         sb.append("\t<").append(typeName).append(" uuid=\"").append(newUuid).append("\">\n");
 
         // InternalInfo with GeneratedTypes
@@ -512,10 +516,11 @@ public class ExtensionEditor {
         return sb.toString();
     }
 
-    private String buildFormMetadataXml(String formName, String newFormUuid, String sourceFormUuid) {
+    private String buildFormMetadataXml(String formName, String newFormUuid, String sourceFormUuid,
+                                        String formatVersion) {
         StringBuilder sb = new StringBuilder();
         sb.append("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n");
-        sb.append("<MetaDataObject ").append(XMLNS).append(" version=\"2.17\">\n");
+        sb.append("<MetaDataObject ").append(XMLNS).append(" version=\"").append(formatVersion).append("\">\n");
         sb.append("\t<Form uuid=\"").append(newFormUuid).append("\">\n");
         sb.append("\t\t<InternalInfo/>\n");
         sb.append("\t\t<Properties>\n");

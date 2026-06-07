@@ -34,6 +34,7 @@ import io.github.onec.xmlgen.validator.ExtensionValidator;
 import io.github.onec.xmlgen.info.SubsystemInfoPrinter;
 import io.github.onec.xmlgen.info.MetaInfoPrinter;
 import io.github.onec.xmlgen.info.ExtensionDiffPrinter;
+import io.github.onec.xmlgen.model.ConfigurationXmlReader;
 
 import io.github.onec.xmlgen.editor.ReplaceTextEditor;
 
@@ -617,7 +618,9 @@ public class Commands {
 
             // Create scaffold
             Path baseDir = objectXml.getParent().resolve(objectName != null ? objectName : "");
-            ObjectContainerEditor.createFormScaffold(baseDir, formName, synonym, objectType, objectName);
+            String formatVersion = ConfigurationXmlReader.readFormatVersion(objectXml);
+            ObjectContainerEditor.createFormScaffold(baseDir, formName, synonym, objectType, objectName,
+                    formatVersion);
 
             // Update ChildObjects
             boolean isFirstForm = !editor.hasAnyForm();
@@ -1348,7 +1351,9 @@ public class Commands {
 
             String objectName = editor.getObjectName();
             Path baseDir = objectXml.getParent().resolve(objectName != null ? objectName : "");
-            ObjectContainerEditor.createTemplateScaffold(baseDir, templateName, synonym, templateType);
+            String formatVersion = ConfigurationXmlReader.readFormatVersion(objectXml);
+            ObjectContainerEditor.createTemplateScaffold(baseDir, templateName, synonym, templateType,
+                    formatVersion);
 
             editor.addTemplate(templateName);
 
@@ -1594,7 +1599,8 @@ public class Commands {
             ObjectContainerEditor editor = new ObjectContainerEditor(objectXml);
             String objectName = editor.getObjectName();
             Path baseDir = objectXml.getParent().resolve(objectName != null ? objectName : "");
-            ObjectContainerEditor.createHelpScaffold(baseDir, lang);
+            String formatVersion = ConfigurationXmlReader.readFormatVersion(objectXml);
+            ObjectContainerEditor.createHelpScaffold(baseDir, lang, formatVersion);
 
             System.out.println("Added help for: " + objectName);
             System.out.println("  Help.xml: " + baseDir.resolve("Ext").resolve("Help.xml"));
@@ -2054,15 +2060,8 @@ public class Commands {
                 objectType = detected.map(XmlValidator::objectType).orElse(detectTypeByRoot(document));
             }
 
-            boolean expectBom = "designer".equals(formatStr) && isMetadataFile(objectType);
-            List<ValidationIssue> allIssues = new ArrayList<>(genValidator.validate(document, objectType, expectBom));
-
-            Optional<XmlValidator> validator = type != null
-                    ? factory.getValidator(type)
-                    : factory.detectValidator(document);
-            if (validator.isPresent()) {
-                allIssues.addAll(validator.get().validate(document, level));
-            }
+            List<ValidationIssue> allIssues = validateDocumentForType(
+                    document, objectType, file, formatStr, level, genValidator, factory);
 
             ValidationResult result = new ValidationResult(file, objectType, formatStr, allIssues);
 
@@ -2095,13 +2094,87 @@ public class Commands {
         }
     }
 
+    static List<ValidationIssue> validateDocumentForType(XmlDocument document, String objectType, Path file,
+                                                          String formatStr, ValidationLevel level,
+                                                          GenValidator genValidator,
+                                                          ValidatorFactory factory) {
+        boolean expectBom = "designer".equals(formatStr) && isMetadataFile(objectType);
+        List<ValidationIssue> allIssues = new ArrayList<>(genValidator.validate(document, objectType, expectBom));
+
+        Optional<XmlValidator> validator = factory.getValidator(objectType);
+        if (validator.isPresent()) {
+            allIssues.addAll(validator.get().validate(document, level));
+            return allIssues;
+        }
+
+        Path contextDir = validationContextDir(objectType, file);
+        switch (objectType) {
+            case "config" -> allIssues.addAll(convertMessages("CONFIG",
+                    new ConfigValidator().validate(document, contextDir)));
+            case "meta", "template" -> allIssues.addAll(convertMessages("META",
+                    new MetaValidator().validate(document, contextDir)));
+            case "subsystem" -> allIssues.addAll(convertMessages("SUBSYSTEM",
+                    new SubsystemValidator().validate(document, contextDir, file)));
+            case "interface" -> allIssues.addAll(convertMessages("INTERFACE",
+                    new InterfaceValidator().validate(document, contextDir)));
+            case "extension" -> allIssues.addAll(convertMessages("EXTENSION",
+                    new ExtensionValidator().validate(document, contextDir)));
+            default -> {
+                // Unknown and schema-less types intentionally get only GEN checks.
+            }
+        }
+        return allIssues;
+    }
+
+    private static Path validationContextDir(String objectType, Path file) {
+        if (file == null) return null;
+        if ("subsystem".equals(objectType) || "interface".equals(objectType)) {
+            Path root = locateConfigRoot(file);
+            if (root != null) return root;
+        }
+        if ("config".equals(objectType) || "extension".equals(objectType)) {
+            return Files.isDirectory(file) ? file : file.getParent();
+        }
+        return file.getParent();
+    }
+
+    private static List<ValidationIssue> convertMessages(String codePrefix,
+                                                         List<?> messages) {
+        List<ValidationIssue> issues = new ArrayList<>();
+        int idx = 0;
+        for (Object message : messages) {
+            idx++;
+            String level = readMessageField(message, "level");
+            String text = readMessageField(message, "message");
+            Severity severity = "ERROR".equals(level) ? Severity.ERROR : Severity.WARNING;
+            issues.add(new ValidationIssue(
+                    severity,
+                    codePrefix + "-" + String.format("%03d", idx),
+                    text,
+                    0,
+                    "/"));
+        }
+        return issues;
+    }
+
+    private static String readMessageField(Object message, String fieldName) {
+        try {
+            Object value = message.getClass().getField(fieldName).get(message);
+            return value != null ? value.toString() : "";
+        } catch (ReflectiveOperationException e) {
+            return message != null ? message.toString() : "";
+        }
+    }
+
     private static boolean isMetadataFile(String type) {
         // TASK-171: добавлены skd и mxl. Все платформенные Template.xml для СКД и MXL
         // Конфигуратор пишет С UTF-8 BOM (грунт-труф: все 7 _Демо СКД и ПФ_MXL — ef bb bf).
         // Раньше skd/mxl не входили в metadata-файлы → GEN-003 их не проверял на BOM,
         // и одновременно ложно ворнил «Unexpected UTF-8 BOM» на каноничных файлах.
         return "role".equals(type) || "form".equals(type) || "epf".equals(type)
-                || "skd".equals(type) || "mxl".equals(type);
+                || "skd".equals(type) || "mxl".equals(type)
+                || "meta".equals(type) || "config".equals(type) || "extension".equals(type)
+                || "subsystem".equals(type) || "interface".equals(type);
     }
 
     /**
@@ -2737,7 +2810,8 @@ public class Commands {
         try {
             XmlDocument doc = new XmlStructureReader().parse(subsystemXml);
             SubsystemValidator validator = new SubsystemValidator();
-            List<SubsystemValidator.ValidationMessage> messages = validator.validate(doc, subsystemDir);
+            List<SubsystemValidator.ValidationMessage> messages =
+                    validator.validate(doc, subsystemDir, subsystemXml);
 
             if (messages.isEmpty()) {
                 System.out.println("OK: Subsystem is valid");

@@ -105,10 +105,17 @@ class ExtensionEditorTest {
 
     /** Создать минимальное расширение с NamePrefix. */
     private Path makeExtension(String namePrefix) throws Exception {
+        return makeExtension(namePrefix, null);
+    }
+
+    /** Создать минимальное расширение с NamePrefix и опциональной версией формата. */
+    private Path makeExtension(String namePrefix, String formatVersion) throws Exception {
         Path ext = tempDir.resolve("ext");
         writeBom(ext.resolve("Configuration.xml"),
                 "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
-                        + "<MetaDataObject xmlns=\"http://v8.1c.ru/8.3/MDClasses\">\n"
+                        + "<MetaDataObject xmlns=\"http://v8.1c.ru/8.3/MDClasses\""
+                        + (formatVersion != null ? " version=\"" + formatVersion + "\"" : "")
+                        + ">\n"
                         + "\t<Configuration uuid=\"00000000-0000-0000-0000-000000000099\">\n"
                         + "\t\t<Properties>\n"
                         + "\t\t\t<Name>Ext1</Name>\n"
@@ -196,6 +203,22 @@ class ExtensionEditorTest {
                 ExtensionEditor.MainAttributeMode.FORM))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("--borrow-main-attribute");
+    }
+
+    @Test
+    void testBorrow_UsesExtensionFormatVersionForBorrowedMetadata() throws Exception {
+        Path cfg = makeBaseConfig();
+        Path ext = makeExtension("Расш1", "2.20");
+
+        silent().borrow(ext, cfg, "Catalog.X.Form.ФормаЭлемента", null);
+
+        String objectXml = readNoBom(ext.resolve("Catalogs/X.xml"));
+        String formMetaXml = readNoBom(ext.resolve("Catalogs/X/Forms/ФормаЭлемента.xml"));
+
+        assertThat(objectXml).contains("version=\"2.20\"");
+        assertThat(objectXml).doesNotContain("version=\"2.17\"");
+        assertThat(formMetaXml).contains("version=\"2.20\"");
+        assertThat(formMetaXml).doesNotContain("version=\"2.17\"");
     }
 
     // ═══════════════════════════════════════════════════════════════════

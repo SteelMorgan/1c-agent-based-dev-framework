@@ -25,6 +25,8 @@ import java.util.*;
  */
 public class InterfaceValidator {
 
+    private static final String NS_COMMAND_INTERFACE = "http://v8.1c.ru/8.3/xcf/extrnprops";
+
     /** Standard panel groups. */
     private static final Set<String> STANDARD_GROUPS = Set.of(
             "NavigationPanelImportant", "NavigationPanelOrdinary", "NavigationPanelSeeAlso",
@@ -59,6 +61,11 @@ public class InterfaceValidator {
             error("Structure: root element must be <CommandInterface>, got <" + root.getName() + ">");
             return messages;
         }
+        if (!NS_COMMAND_INTERFACE.equals(root.getNamespace())) {
+            error("Structure: CommandInterface namespace must be '" + NS_COMMAND_INTERFACE
+                    + "', got '" + (root.getNamespace() != null ? root.getNamespace() : "(none)") + "'");
+        }
+        warnExtraAttributes(root, Set.of("version"), "CommandInterface");
 
         // Check 2: Version
         String version = root.attr("version");
@@ -74,6 +81,8 @@ public class InterfaceValidator {
             String name = child.getName();
             if (SECTION_ORDER.contains(name)) {
                 presentSections.add(name);
+            } else {
+                error("Structure: unexpected section <" + name + "> in CommandInterface");
             }
         }
         for (int i = 0; i < presentSections.size() - 1; i++) {
@@ -91,6 +100,7 @@ public class InterfaceValidator {
         if (visibility != null) {
             Set<String> seenCmds = new HashSet<>();
             for (XmlNode cmd : visibility.children("Command")) {
+                warnExtraAttributes(cmd, Set.of("name"), "CommandsVisibility/Command");
                 // Check 4: name attribute
                 String cmdName = cmd.attr("name");
                 if (cmdName == null || cmdName.isEmpty()) {
@@ -125,6 +135,7 @@ public class InterfaceValidator {
         if (placement != null) {
             Set<String> seenCmds = new HashSet<>();
             for (XmlNode cmd : placement.children("Command")) {
+                warnExtraAttributes(cmd, Set.of("name"), "CommandsPlacement/Command");
                 String cmdName = cmd.attr("name");
                 if (cmdName == null || cmdName.isEmpty()) {
                     error("CommandsPlacement: Command missing 'name' attribute");
@@ -169,6 +180,7 @@ public class InterfaceValidator {
         XmlNode order = root.child("CommandsOrder");
         if (order != null) {
             for (XmlNode cmd : order.children("Command")) {
+                warnExtraAttributes(cmd, Set.of("name"), "CommandsOrder/Command");
                 String cmdName = cmd.attr("name");
                 if (cmdName == null || cmdName.isEmpty()) {
                     error("CommandsOrder: Command missing 'name' attribute");
@@ -202,9 +214,11 @@ public class InterfaceValidator {
                 if (subPath == null || subPath.isEmpty()) continue;
 
                 // Check 10: format
-                if (!subPath.startsWith("Subsystem.")) {
+                if (!isValidSubsystemPath(subPath)) {
                     warn("SubsystemsOrder: '" + subPath
-                            + "' does not start with 'Subsystem.' prefix");
+                            + "' must match Subsystem.<Name>[.Subsystem.<Name>...]");
+                } else {
+                    validateSubsystemRef(subPath);
                 }
 
                 // Check 11: duplicates
@@ -225,6 +239,7 @@ public class InterfaceValidator {
                 if (!seenGroups.add(groupName)) {
                     error("GroupsOrder: duplicate group '" + groupName + "'");
                 }
+                validateGroupRef(groupName, "GroupsOrder", null);
             }
         }
 
@@ -262,49 +277,120 @@ public class InterfaceValidator {
 
         // Pattern 2: CommonCommand.Name
         if (ref.startsWith("CommonCommand.")) {
-            if (ref.split("\\.").length != 2) {
+            String[] parts = ref.split("\\.", -1);
+            if (parts.length != 2 || parts[1].isEmpty()) {
                 warn(section + ": CommonCommand reference '" + ref
                         + "' should have format CommonCommand.<Name>");
+            } else {
+                validateCommonCommandExists(ref, parts[1], section);
             }
             return;
         }
 
         // Patterns 3 & 4: Type.Object.StandardCommand.Op or Type.Object.Command.Name
-        String[] parts = ref.split("\\.");
-        if (parts.length == 4) {
-            if (!COMMAND_REF_TYPES.contains(parts[0])) {
-                warn(section + ": command reference '" + ref
-                        + "' has unknown type prefix '" + parts[0] + "'");
-            }
-            if (!"StandardCommand".equals(parts[2]) && !"Command".equals(parts[2])) {
-                warn(section + ": command reference '" + ref
-                        + "' segment 3 should be 'StandardCommand' or 'Command', got '" + parts[2] + "'");
-            }
-            // TASK-155 A2 iter-2: when configRoot is available, verify that the referenced
-            // object actually exists in the configuration. A missing object is an ERROR because
-            // the CommandInterface will reference a non-existent command at runtime.
-            if (configRootForCheck != null && COMMAND_REF_TYPES.contains(parts[0])) {
-                MetadataTypeRegistry.TypeDescriptor td = MetadataTypeRegistry.get(parts[0]);
-                if (td != null) {
-                    Path objFile = configRootForCheck.resolve(td.directory()).resolve(parts[1] + ".xml");
-                    Path objDir = configRootForCheck.resolve(td.directory()).resolve(parts[1]);
-                    if (!Files.exists(objFile) && !Files.isDirectory(objDir)) {
-                        error(section + ": command reference '" + ref
-                            + "' refers to a non-existent object " + parts[0] + "." + parts[1]
-                            + " (not found in " + td.directory() + "/)");
-                    }
-                }
-            }
-        } else if (parts.length < 3) {
+        String[] parts = ref.split("\\.", -1);
+        if (parts.length != 4) {
             warn(section + ": command reference '" + ref
                     + "' has unexpected format (expected Type.Object.Command.Name or CommonCommand.Name)");
+            return;
+        }
+        if (parts[1].isEmpty() || parts[3].isEmpty()) {
+            warn(section + ": command reference '" + ref + "' contains an empty object or command segment");
+        }
+        if (!COMMAND_REF_TYPES.contains(parts[0])) {
+            warn(section + ": command reference '" + ref
+                    + "' has unknown type prefix '" + parts[0] + "'");
+        }
+        if (!"StandardCommand".equals(parts[2]) && !"Command".equals(parts[2])) {
+            warn(section + ": command reference '" + ref
+                    + "' segment 3 should be 'StandardCommand' or 'Command', got '" + parts[2] + "'");
+        }
+        // TASK-155 A2 iter-2: when configRoot is available, verify that the referenced
+        // object actually exists in the configuration. A missing object is an ERROR because
+        // the CommandInterface will reference a non-existent command at runtime.
+        if (configRootForCheck != null && COMMAND_REF_TYPES.contains(parts[0])) {
+            MetadataTypeRegistry.TypeDescriptor td = MetadataTypeRegistry.get(parts[0]);
+            if (td != null) {
+                Path objFile = configRootForCheck.resolve(td.directory()).resolve(parts[1] + ".xml");
+                Path objDir = configRootForCheck.resolve(td.directory()).resolve(parts[1]);
+                if (!Files.exists(objFile) && !Files.isDirectory(objDir)) {
+                    error(section + ": command reference '" + ref
+                        + "' refers to a non-existent object " + parts[0] + "." + parts[1]
+                        + " (not found in " + td.directory() + "/)");
+                }
+            }
         }
     }
 
     private void validateGroupRef(String group, String section, String cmdName) {
         if (STANDARD_GROUPS.contains(group)) return;
-        if (group.startsWith("CommandGroup.")) return;
-        warn(section + ": Command '" + cmdName + "' references unknown group '" + group + "'");
+        if (group.startsWith("CommandGroup.")) {
+            String groupName = group.substring("CommandGroup.".length());
+            if (groupName.isEmpty()) {
+                warn(section + ": group reference '" + group + "' should have format CommandGroup.<Name>");
+                return;
+            }
+            if (configRootForCheck != null) {
+                Path groupFile = configRootForCheck.resolve("CommandGroups").resolve(groupName + ".xml");
+                if (!Files.isRegularFile(groupFile)) {
+                    error(section + ": group reference '" + group
+                            + "' refers to a non-existent CommandGroup (not found in CommandGroups/)");
+                }
+            }
+            return;
+        }
+        if (cmdName == null) {
+            warn(section + ": unknown group '" + group + "'");
+        } else {
+            warn(section + ": Command '" + cmdName + "' references unknown group '" + group + "'");
+        }
+    }
+
+    private void validateCommonCommandExists(String ref, String commandName, String section) {
+        if (configRootForCheck == null) return;
+        Path commandFile = configRootForCheck.resolve("CommonCommands").resolve(commandName + ".xml");
+        Path commandDir = configRootForCheck.resolve("CommonCommands").resolve(commandName);
+        if (!Files.isRegularFile(commandFile) && !Files.isDirectory(commandDir)) {
+            error(section + ": command reference '" + ref
+                    + "' refers to a non-existent CommonCommand (not found in CommonCommands/)");
+        }
+    }
+
+    private boolean isValidSubsystemPath(String subPath) {
+        String[] parts = subPath.split("\\.", -1);
+        if (parts.length < 2 || parts.length % 2 != 0) return false;
+        for (int i = 0; i < parts.length; i += 2) {
+            if (!"Subsystem".equals(parts[i])) return false;
+            if (parts[i + 1].isEmpty()) return false;
+        }
+        return true;
+    }
+
+    private void validateSubsystemRef(String subPath) {
+        if (configRootForCheck == null) return;
+
+        String[] parts = subPath.split("\\.", -1);
+        Path currentDir = configRootForCheck.resolve("Subsystems");
+        for (int i = 0; i < parts.length; i += 2) {
+            String name = parts[i + 1];
+            Path subsystemFile = currentDir.resolve(name + ".xml");
+            if (!Files.isRegularFile(subsystemFile)) {
+                error("SubsystemsOrder: subsystem reference '" + subPath
+                        + "' refers to a non-existent subsystem "
+                        + "(not found: " + configRootForCheck.relativize(subsystemFile) + ")");
+                return;
+            }
+            currentDir = currentDir.resolve(name).resolve("Subsystems");
+        }
+    }
+
+    private void warnExtraAttributes(XmlNode node, Set<String> allowed, String context) {
+        for (String attr : node.getAttributes().keySet()) {
+            if (attr.equals("xmlns") || attr.startsWith("xmlns:")) continue;
+            if (!allowed.contains(attr)) {
+                warn(context + ": unexpected attribute '" + attr + "'");
+            }
+        }
     }
 
     private String getChildText(XmlNode node, String childLocalName) {
