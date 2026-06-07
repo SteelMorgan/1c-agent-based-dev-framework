@@ -1,5 +1,6 @@
 package io.github.onec.xmlgen.editor;
 
+import io.github.onec.xmlgen.model.ConfigurationXmlReader;
 import io.github.onec.xmlgen.model.UuidGenerator;
 
 import java.io.IOException;
@@ -215,16 +216,24 @@ public class ObjectContainerEditor {
      */
     public static void createFormScaffold(Path baseDir, String formName, String synonym,
                                           String objectType, String objectName) throws IOException {
+        createFormScaffold(baseDir, formName, synonym, objectType, objectName,
+                ConfigurationXmlReader.DEFAULT_FORMAT_VERSION);
+    }
+
+    public static void createFormScaffold(Path baseDir, String formName, String synonym,
+                                          String objectType, String objectName,
+                                          String formatVersion) throws IOException {
         Path formsDir = baseDir.resolve("Forms");
         Files.createDirectories(formsDir);
 
         String formUuid = UuidGenerator.generate();
         String syn = synonym != null ? synonym : formName;
         String generatedType = objectType + "Object." + objectName;
+        String fmt = effectiveFormatVersion(formatVersion);
 
         // 1. Form metadata: Forms/<formName>.xml
         String metaXml = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
-                + "<MetaDataObject xmlns=\"http://v8.1c.ru/8.3/MDClasses\" xmlns:v8=\"http://v8.1c.ru/8.1/data/core\" version=\"2.17\">\n"
+                + "<MetaDataObject xmlns=\"http://v8.1c.ru/8.3/MDClasses\" xmlns:v8=\"http://v8.1c.ru/8.1/data/core\" version=\"" + escapeXml(fmt) + "\">\n"
                 + "\t<Form uuid=\"" + formUuid + "\">\n"
                 + "\t\t<Properties>\n"
                 + "\t\t\t<Name>" + escapeXml(formName) + "</Name>\n"
@@ -251,7 +260,8 @@ public class ObjectContainerEditor {
                 + "\txmlns:v8=\"http://v8.1c.ru/8.1/data/core\"\n"
                 + "\txmlns:v8ui=\"http://v8.1c.ru/8.1/data/ui\"\n"
                 + "\txmlns:xs=\"http://www.w3.org/2001/XMLSchema\"\n"
-                + "\txmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\">\n"
+                + "\txmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\"\n"
+                + "\tversion=\"" + escapeXml(fmt) + "\">\n"
                 + "\t<AutoCommandBar>\n"
                 + "\t\t<name>АвтоКоманднаяПанель</name>\n"
                 + "\t</AutoCommandBar>\n"
@@ -296,15 +306,22 @@ public class ObjectContainerEditor {
      */
     public static void createTemplateScaffold(Path baseDir, String templateName, String synonym,
                                               String templateType) throws IOException {
+        createTemplateScaffold(baseDir, templateName, synonym, templateType,
+                ConfigurationXmlReader.DEFAULT_FORMAT_VERSION);
+    }
+
+    public static void createTemplateScaffold(Path baseDir, String templateName, String synonym,
+                                              String templateType, String formatVersion) throws IOException {
         Path templatesDir = baseDir.resolve("Templates");
         Files.createDirectories(templatesDir);
 
         String uuid = UuidGenerator.generate();
         String syn = synonym != null ? synonym : templateName;
+        String fmt = effectiveFormatVersion(formatVersion);
 
         // 1. Template metadata
         String metaXml = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
-                + "<MetaDataObject xmlns=\"http://v8.1c.ru/8.3/MDClasses\" xmlns:v8=\"http://v8.1c.ru/8.1/data/core\" version=\"2.17\">\n"
+                + "<MetaDataObject xmlns=\"http://v8.1c.ru/8.3/MDClasses\" xmlns:v8=\"http://v8.1c.ru/8.1/data/core\" version=\"" + escapeXml(fmt) + "\">\n"
                 + "\t<Template uuid=\"" + uuid + "\">\n"
                 + "\t\t<Properties>\n"
                 + "\t\t\t<Name>" + escapeXml(templateName) + "</Name>\n"
@@ -341,15 +358,20 @@ public class ObjectContainerEditor {
      * @param lang    язык (по умолчанию "ru")
      */
     public static void createHelpScaffold(Path baseDir, String lang) throws IOException {
+        createHelpScaffold(baseDir, lang, ConfigurationXmlReader.DEFAULT_FORMAT_VERSION);
+    }
+
+    public static void createHelpScaffold(Path baseDir, String lang, String formatVersion) throws IOException {
         Path extDir = baseDir.resolve("Ext");
         Files.createDirectories(extDir);
+        String fmt = effectiveFormatVersion(formatVersion);
 
         // Help.xml
         String helpXml = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
                 + "<Help xmlns=\"http://v8.1c.ru/8.3/xcf/extrnprops\"\n"
                 + "\txmlns:xs=\"http://www.w3.org/2001/XMLSchema\"\n"
                 + "\txmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\"\n"
-                + "\tversion=\"2.17\">\n"
+                + "\tversion=\"" + escapeXml(fmt) + "\">\n"
                 + "\t<Page>" + escapeXml(lang) + "</Page>\n"
                 + "</Help>\n";
         writeWithBom(extDir.resolve("Help.xml"), helpXml);
@@ -441,6 +463,12 @@ public class ObjectContainerEditor {
         if (s == null) return "";
         return s.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
                 .replace("\"", "&quot;").replace("'", "&apos;");
+    }
+
+    private static String effectiveFormatVersion(String formatVersion) {
+        return formatVersion == null || formatVersion.isBlank()
+                ? ConfigurationXmlReader.DEFAULT_FORMAT_VERSION
+                : formatVersion;
     }
 
     private static void writeWithBom(Path path, String content) throws IOException {

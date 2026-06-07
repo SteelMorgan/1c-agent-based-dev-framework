@@ -216,9 +216,38 @@ class SkdEditorTest {
         editor.setFieldRole(d, null);
         XmlNode role = findField("СуммаНач").child("role");
         assertNotNull(role);
+        assertEquals("http://v8.1c.ru/8.1/data-composition-system/common",
+                role.attr("xmlns:dcscom"));
         assertEquals("true", role.childText("balance"));
         assertEquals("Сумма", role.childText("balanceGroupName"));
         assertEquals("OpeningBalance", role.childText("balanceType"));
+        assertEquals("dcscom", role.child("balance").getPrefix());
+        assertEquals("dcscom", role.child("balanceGroupName").getPrefix());
+    }
+
+    @Test
+    void testSetFieldRole_PeriodUsesDcsCommonPeriodNodes() {
+        editor.addField(SkdShorthandParser.parseField("Период: date"), null, null, true);
+        var d = SkdShorthandParser.parseFieldRole("Период @period");
+        editor.setFieldRole(d, null);
+        XmlNode role = findField("Период").child("role");
+        assertNotNull(role);
+        assertEquals("1", role.childText("periodNumber"));
+        assertEquals("Main", role.childText("periodType"));
+        assertEquals("dcscom", role.child("periodNumber").getPrefix());
+        assertEquals("dcscom", role.child("periodType").getPrefix());
+    }
+
+    @Test
+    void testAddFieldWithInlineRoleDeclaresDcsCommonNamespace() {
+        editor.addField(SkdShorthandParser.parseField("Организация: CatalogRef.Организации @dimension"),
+                null, null, true);
+        XmlNode role = findField("Организация").child("role");
+        assertNotNull(role);
+        assertEquals("http://v8.1c.ru/8.1/data-composition-system/common",
+                role.attr("xmlns:dcscom"));
+        assertEquals("true", role.childText("dimension"));
+        assertEquals("dcscom", role.child("dimension").getPrefix());
     }
 
     @Test

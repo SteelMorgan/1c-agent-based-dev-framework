@@ -24,7 +24,7 @@ public class ConfigEditor {
             "Language", "Subsystem", "StyleItem", "Style", "CommonPicture",
             "SessionParameter", "Role", "CommonTemplate", "FilterCriterion",
             "CommonModule", "CommonAttribute", "ExchangePlan", "XDTOPackage",
-            "WebService", "HTTPService", "WSReference", "EventSubscription",
+            "WebService", "HTTPService", "WebSocketClient", "WSReference", "EventSubscription",
             "ScheduledJob", "SettingsStorage", "FunctionalOption",
             "FunctionalOptionsParameter", "DefinedType", "CommonCommand",
             "CommandGroup", "Constant", "CommonForm", "Catalog", "Document",

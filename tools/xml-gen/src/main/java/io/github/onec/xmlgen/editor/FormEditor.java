@@ -87,6 +87,16 @@ public class FormEditor {
      */
     public void addAttribute(String name, String titleText, String type, Boolean main,
                              Boolean savedData, List<FormDsl.Column> columns) {
+        addAttribute(name, titleText, type, main, savedData, columns, null, null);
+    }
+
+    /**
+     * Full form attribute emission used by {@code form edit --json}. Mirrors the
+     * compile path for flags shared by {@link FormDsl.Attribute}.
+     */
+    public void addAttribute(String name, String titleText, String type, Boolean main,
+                             Boolean savedData, List<FormDsl.Column> columns,
+                             String fillChecking, String useAlwaysField) {
         XmlNode attributes = findOrCreateChild(document.getRoot(), "Attributes");
 
         XmlNode attr = createNode("Attribute");
@@ -106,13 +116,26 @@ public class FormEditor {
             flag.setText("true");
             attr.addChild(flag);
         }
+        if (fillChecking != null && !fillChecking.isBlank()) {
+            XmlNode flag = createNode("FillChecking");
+            flag.setText(fillChecking);
+            attr.addChild(flag);
+        }
+        if (useAlwaysField != null && !useAlwaysField.isBlank()) {
+            XmlNode useAlways = createNode("UseAlways");
+            XmlNode field = createNode("Field");
+            field.setText(useAlwaysField);
+            useAlways.addChild(field);
+            attr.addChild(useAlways);
+        }
 
         if (columns != null && !columns.isEmpty()) {
             XmlNode columnsNode = createNode("Columns");
+            int columnId = 1;
             for (FormDsl.Column col : columns) {
                 XmlNode c = createNode("Column");
                 c.setAttribute("name", col.getName());
-                c.setAttribute("id", attributeIds.nextId());
+                c.setAttribute("id", String.valueOf(columnId++));
                 c.addChild(multilingualTitle(col.getTitle() != null ? col.getTitle() : col.getName()));
                 c.addChild(emitType(col.getType()));
                 columnsNode.addChild(c);
@@ -158,6 +181,11 @@ public class FormEditor {
     // --- Commands ---
 
     public void addCommand(String name, String titleText, String action) {
+        addCommand(name, titleText, action, null, null, null, null);
+    }
+
+    public void addCommand(String name, String titleText, String action, String tooltip,
+                           String shortcut, String picture, String representation) {
         XmlNode commands = findOrCreateChild(document.getRoot(), "Commands");
 
         XmlNode cmd = createNode("Command");
@@ -176,13 +204,57 @@ public class FormEditor {
         title.addChild(v8Item);
         cmd.addChild(title);
 
+        if (tooltip != null) {
+            cmd.addChild(multilingual("ToolTip", tooltip));
+        }
+
+        if (picture != null && !picture.isBlank()) {
+            cmd.addChild(pictureRef(picture));
+        }
+
         if (action != null) {
             XmlNode actionNode = createNode("Action");
             actionNode.setText(action);
             cmd.addChild(actionNode);
         }
 
+        if (shortcut != null && !shortcut.isBlank()) {
+            XmlNode shortcutNode = createNode("Shortcut");
+            shortcutNode.setText(shortcut);
+            cmd.addChild(shortcutNode);
+        }
+
+        if (representation != null && !representation.isBlank()) {
+            XmlNode representationNode = createNode("Representation");
+            representationNode.setText(representation);
+            cmd.addChild(representationNode);
+        }
+
         commands.addChild(cmd);
+    }
+
+    private XmlNode multilingual(String elementName, String text) {
+        XmlNode node = createNode(elementName);
+        XmlNode v8Item = createNode("v8:item");
+        XmlNode v8Lang = createNode("v8:lang");
+        v8Lang.setText("ru");
+        XmlNode v8Content = createNode("v8:content");
+        v8Content.setText(text);
+        v8Item.addChild(v8Lang);
+        v8Item.addChild(v8Content);
+        node.addChild(v8Item);
+        return node;
+    }
+
+    private XmlNode pictureRef(String ref) {
+        XmlNode picture = createNode("Picture");
+        XmlNode xrRef = createNode("xr:Ref");
+        xrRef.setText(ref);
+        XmlNode transparent = createNode("xr:LoadTransparent");
+        transparent.setText("true");
+        picture.addChild(xrRef);
+        picture.addChild(transparent);
+        return picture;
     }
 
     // --- Elements ---
@@ -265,15 +337,20 @@ public class FormEditor {
         }
         //++agent TASK-174
 
-        // Companion-элементы согласно типу; для неизвестного kind — минимальный набор.
-        List<CompanionKind> companions = kind != null
-                ? kind.getCompanions()
-                : List.of(CompanionKind.CONTEXT_MENU, CompanionKind.EXTENDED_TOOLTIP);
-        for (CompanionKind c : companions) {
-            XmlNode companion = createNode(c.getXmlTag());
-            companion.setAttribute("name", c.nameFor(name));
-            companion.setAttribute("id", elementIds.nextId());
-            element.addChild(companion);
+        if (kind == FormElementKind.TABLE) {
+            addTableCompanions(element, name);
+        } else {
+            // Companion-элементы согласно типу; для неизвестного kind — минимальный набор.
+            List<CompanionKind> companions = kind != null
+                    ? kind.getCompanions()
+                    : List.of(CompanionKind.CONTEXT_MENU, CompanionKind.EXTENDED_TOOLTIP);
+            for (CompanionKind c : companions) {
+                element.addChild(simpleCompanion(c, name));
+            }
+        }
+
+        if (isContainerElement(element)) {
+            findOrCreateChild(element, "ChildItems");
         }
 
         if (afterName != null) {
@@ -297,6 +374,44 @@ public class FormEditor {
     private static boolean isContainerElement(XmlNode node) {
         return CONTAINER_XML_TAGS.contains(node.getName());
     }
+
+    private XmlNode simpleCompanion(CompanionKind kind, String ownerName) {
+        XmlNode companion = createNode(kind.getXmlTag());
+        companion.setAttribute("name", kind.nameFor(ownerName));
+        companion.setAttribute("id", elementIds.nextId());
+        return companion;
+    }
+
+    private void addTableCompanions(XmlNode table, String tableName) {
+        table.addChild(simpleCompanion(CompanionKind.CONTEXT_MENU, tableName));
+        table.addChild(simpleCompanion(CompanionKind.AUTO_COMMAND_BAR, tableName));
+        table.addChild(simpleCompanion(CompanionKind.EXTENDED_TOOLTIP, tableName));
+        table.addChild(tableAddition("SearchStringAddition", tableName,
+                tableName + "СтрокаПоиска", "SearchStringRepresentation"));
+        table.addChild(tableAddition("ViewStatusAddition", tableName,
+                tableName + "СостояниеПросмотра", "ViewStatusRepresentation"));
+        table.addChild(tableAddition("SearchControlAddition", tableName,
+                tableName + "УправлениеПоиском", "SearchControl"));
+    }
+
+    private XmlNode tableAddition(String tag, String tableName, String additionName, String type) {
+        XmlNode addition = createNode(tag);
+        addition.setAttribute("name", additionName);
+        addition.setAttribute("id", elementIds.nextId());
+
+        XmlNode source = createNode("AdditionSource");
+        XmlNode item = createNode("Item");
+        item.setText(tableName);
+        XmlNode sourceType = createNode("Type");
+        sourceType.setText(type);
+        source.addChild(item);
+        source.addChild(sourceType);
+        addition.addChild(source);
+
+        addition.addChild(simpleCompanion(CompanionKind.CONTEXT_MENU, additionName));
+        addition.addChild(simpleCompanion(CompanionKind.EXTENDED_TOOLTIP, additionName));
+        return addition;
+    }
     //++agent TASK-174
 
     public void removeElement(String name) {
@@ -319,7 +434,10 @@ public class FormEditor {
             XmlNode newParent = findElement(intoName);
             if (newParent == null) throw new IllegalArgumentException("Target parent not found: " + intoName);
             oldParent.getChildren().remove(element);
-            newParent.addChild(element);
+            XmlNode insertionParent = isContainerElement(newParent)
+                    ? findOrCreateChild(newParent, "ChildItems")
+                    : newParent;
+            insertionParent.addChild(element);
         } else if (afterName != null) {
             XmlNode sibling = findElement(afterName);
             if (sibling == null) throw new IllegalArgumentException("Target sibling not found: " + afterName);

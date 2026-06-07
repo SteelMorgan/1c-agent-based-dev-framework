@@ -476,7 +476,7 @@ class SkdWriterTest {
         assertThat(content).contains("<cell type=\"param\" name=\"Сумма\">");
         // drilldown
         assertThat(content).contains("DetailsAreaTemplateParameter");
-        assertThat(content).contains("<name>Расшифровка_Сумма</name>");
+        assertThat(content).contains("<dcsat:name>Расшифровка_Сумма</dcsat:name>");
         // groupTemplate
         assertThat(content).contains("<groupTemplate>");
         assertThat(content).contains("<groupField>Счет</groupField>");
@@ -504,11 +504,17 @@ class SkdWriterTest {
         String content = Files.readString(out);
         assertThat(content).contains("<role>");
         // resource → ignoreNullValues
-        assertThat(content).contains("<ignoreNullValues>true</ignoreNullValues>");
+        assertThat(content).contains("<dcscom:ignoreNullValues");
+        assertThat(content).contains(">true</dcscom:ignoreNullValues>");
         // period
-        assertThat(content).contains("<periodNumber>1</periodNumber>");
+        assertThat(content).contains("<dcscom:periodNumber");
+        assertThat(content).contains(">1</dcscom:periodNumber>");
+        assertThat(content).contains("<dcscom:periodType");
+        assertThat(content).contains(">Main</dcscom:periodType>");
         // balance + kv
-        assertThat(content).contains("<balanceGroupName>ОстаткиСчета</balanceGroupName>");
+        assertThat(content).contains("<dcscom:balance");
+        assertThat(content).contains(">true</dcscom:balance>");
+        assertThat(content).contains("<dcscom:balanceGroupName>ОстаткиСчета</dcscom:balanceGroupName>");
     }
 
     /** Тест 13: флаги параметров — @hidden + valueListAllowed + use=Always. */
@@ -534,6 +540,22 @@ class SkdWriterTest {
         assertThat(content).contains("<availableAsField>false</availableAsField>");
         assertThat(content).contains("<valueListAllowed>true</valueListAllowed>");
         assertThat(content).contains("<use>Always</use>");
+    }
+
+    @Test
+    void testStandardPeriodParameterValueUsesStructuredVariant() throws Exception {
+        String json = """
+                {
+                  "dataSets": [{ "type": "query", "name": "Н", "query": "ВЫБРАТЬ 1" }],
+                  "parameters": [
+                    { "name": "Период", "type": "StandardPeriod", "value": "LastMonth" }
+                  ]
+                }
+                """;
+        Path out = compile(json);
+        String content = Files.readString(out);
+        assertThat(content).contains("<value xsi:type=\"v8:StandardPeriod\">");
+        assertThat(content).contains("<v8:variant xsi:type=\"v8:StandardPeriodVariant\">LastMonth</v8:variant>");
     }
 
     /** Тест 14: availableValues с representation. */
@@ -695,6 +717,49 @@ class SkdWriterTest {
         // Оба типа отрисованы в одном valueType.
         assertThat(content).contains("CatalogRef.А");
         assertThat(content).contains("CatalogRef.Б");
+        assertThat(content).contains("xmlns:d5p1=\"http://v8.1c.ru/8.1/data/enterprise/current-config\"");
+    }
+
+    @Test
+    void testRawTemplateDslEmitsAreaTemplateSubtree() throws Exception {
+        String json = """
+                {
+                  "dataSets": [{ "type": "query", "name": "Н", "query": "ВЫБРАТЬ 1" }],
+                  "templates": [{
+                    "name": "Макет1",
+                    "template": "<template xmlns:dcsat=\\"http://v8.1c.ru/8.1/data-composition-system/area-template\\" xmlns:dcscor=\\"http://v8.1c.ru/8.1/data-composition-system/core\\" xsi:type=\\"dcsat:AreaTemplate\\"><dcsat:item xsi:type=\\"dcsat:TableRow\\"><dcsat:tableCell><dcsat:item xsi:type=\\"dcsat:Field\\"><dcsat:value xsi:type=\\"dcscor:Parameter\\">Сумма</dcsat:value></dcsat:item></dcsat:tableCell></dcsat:item></template>",
+                    "parameters": [
+                      { "name": "Сумма", "expression": "Представление(Сумма)" }
+                    ]
+                  }]
+                }
+                """;
+        Path out = compile(json);
+        String content = Files.readString(out);
+        assertThat(content).doesNotContain("<rawTemplate>");
+        assertThat(content).doesNotContain("&lt;template");
+        assertThat(content).contains("xsi:type=\"dcsat:AreaTemplate\"");
+        assertThat(content).contains("<dcsat:item");
+        assertThat(content).contains("xsi:type=\"dcsat:TableRow\"");
+        assertThat(content).contains("<dcsat:name>Сумма</dcsat:name>");
+        assertThat(content).contains("<dcsat:expression>Представление(Сумма)</dcsat:expression>");
+    }
+
+    @Test
+    void testGroupHeaderTemplateUsesCanonicalGroupTemplateElement() throws Exception {
+        String json = """
+                {
+                  "dataSets": [{ "type": "query", "name": "Н", "query": "ВЫБРАТЬ 1" }],
+                  "groupTemplates": [
+                    { "groupField": "Счет", "templateType": "GroupHeader", "template": "Макет1" }
+                  ]
+                }
+                """;
+        Path out = compile(json);
+        String content = Files.readString(out);
+        assertThat(content).contains("<groupTemplate>");
+        assertThat(content).contains("<templateType>GroupHeader</templateType>");
+        assertThat(content).doesNotContain("<groupHeaderTemplate>");
     }
 
     /** Тест 20: NonNegative qualifier применяется. */
@@ -870,7 +935,8 @@ class SkdWriterTest {
         String content = Files.readString(out);
         assertThat(content).contains("<dataPath>Количество</dataPath>");
         assertThat(content).contains("<v8:content>Кол-во</v8:content>");
-        assertThat(content).contains("<ignoreNullValues>true</ignoreNullValues>");
+        assertThat(content).contains("<dcscom:ignoreNullValues");
+        assertThat(content).contains(">true</dcscom:ignoreNullValues>");
         assertThat(content).contains("<order>false</order>");
         assertThat(content).contains("<dataPath>Маржа</dataPath>");
         assertThat(content).contains("<expression>Цена - Закупка</expression>");

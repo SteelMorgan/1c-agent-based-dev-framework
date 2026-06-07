@@ -15,6 +15,9 @@ import java.util.Map;
  */
 public final class SkdFieldRoleWriter {
 
+    private static final String DCS_COMMON_NS =
+            "http://v8.1c.ru/8.1/data-composition-system/common";
+
     private SkdFieldRoleWriter() {
     }
 
@@ -57,23 +60,23 @@ public final class SkdFieldRoleWriter {
             throws XMLStreamException {
         switch (roleName.toLowerCase()) {
             case "dimension":
-                writeSimple(writer, "dimension", "true", indent);
+                writeSimple(writer, "dcscom:dimension", "true", indent);
                 break;
             case "resource":
-                writeSimple(writer, "ignoreNullValues", "true", indent);
+                writeSimple(writer, "dcscom:ignoreNullValues", "true", indent);
                 break;
             case "account":
-                writeSimple(writer, "accountFieldName", "Счет", indent);
+                writeSimple(writer, "dcscom:account", "true", indent);
                 break;
             case "balance":
-                writeSimple(writer, "balance", "true", indent);
+                writeSimple(writer, "dcscom:balance", "true", indent);
                 break;
             case "period":
-                writeSimple(writer, "periodNumber", "1", indent);
-                writeSimple(writer, "periodType", "Main", indent);
+                writeSimple(writer, "dcscom:periodNumber", "1", indent);
+                writeSimple(writer, "dcscom:periodType", "Main", indent);
                 break;
             default:
-                writeSimple(writer, "name", roleName, indent);
+                writeSimple(writer, "dcscom:name", roleName, indent);
                 break;
         }
     }
@@ -81,7 +84,7 @@ public final class SkdFieldRoleWriter {
     private static void writeKvElement(XMLStreamWriter writer, String key, Object value, String indent)
             throws XMLStreamException {
         writer.writeCharacters(indent);
-        writer.writeStartElement(key);
+        writer.writeStartElement(prefixDcsCommon(key));
         if (value != null) {
             writer.writeCharacters(value.toString());
         }
@@ -93,8 +96,18 @@ public final class SkdFieldRoleWriter {
             throws XMLStreamException {
         writer.writeCharacters(indent);
         writer.writeStartElement(name);
+        if (name.startsWith("dcscom:")) {
+            writer.writeNamespace("dcscom", DCS_COMMON_NS);
+        }
         writer.writeCharacters(text);
         writer.writeEndElement();
         writer.writeCharacters("\n");
+    }
+
+    private static String prefixDcsCommon(String name) {
+        if (name == null || name.isEmpty() || name.contains(":")) {
+            return name;
+        }
+        return "dcscom:" + name;
     }
 }

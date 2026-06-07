@@ -154,4 +154,20 @@ class ConfigValidatorTest {
 
         assertThat(messages).noneMatch(m -> m.message.contains("unknown ClassId"));
     }
+
+    @Test
+    void configWriterPropagatesFormatVersionToDumpInfoAndLanguage() throws Exception {
+        // TASK-174 config audit: --format-version must apply to the full Designer dump
+        // scaffold, not only Configuration.xml. Mixed 2.20/2.17 files fail full-load.
+        Path outDir = tempDir.resolve("cfg220");
+        new ConfigWriter().create(outDir, "ТестКонфиг", null, null, null, null, null,
+                "Version8_3_27", "2.20");
+
+        assertThat(Files.readString(outDir.resolve("Configuration.xml"), StandardCharsets.UTF_8))
+                .contains("version=\"2.20\"");
+        assertThat(Files.readString(outDir.resolve("ConfigDumpInfo.xml"), StandardCharsets.UTF_8))
+                .contains("format=\"Hierarchical\" version=\"2.20\"");
+        assertThat(Files.readString(outDir.resolve("Languages/Русский.xml"), StandardCharsets.UTF_8))
+                .contains("version=\"2.20\"");
+    }
 }

@@ -324,6 +324,25 @@ class MxlValidatorTest {
         assertThat(issues).anyMatch(i -> i.getCode().equals("MXL-205"));
     }
 
+    @Test
+    void mxl205_failsForCanonicalNumericFormatOnTextCell() throws Exception {
+        Path file = writeMxlBody(
+                "\t<format>\n" +
+                "\t\t<format xmlns:v8=\"http://v8.1c.ru/8.1/data/core\">\n" +
+                "\t\t\t<v8:item><v8:lang>ru</v8:lang><v8:content>ЧДЦ=2</v8:content></v8:item>\n" +
+                "\t\t</format>\n" +
+                "\t</format>\n" +
+                "\t<columns><size>1</size></columns>\n" +
+                "\t<height>1</height>\n" +
+                "\t<rowsItem><index>0</index><row>\n" +
+                "\t\t<c><i>0</i><c><f>1</f><tl xmlns:v8=\"http://v8.1c.ru/8.1/data/core\">" +
+                "<v8:item><v8:lang>ru</v8:lang><v8:content>HelloText</v8:content></v8:item></tl>" +
+                "</c></c>\n" +
+                "\t</row></rowsItem>\n");
+        List<ValidationIssue> issues = validator.validate(reader.parse(file), ValidationLevel.SEMANTIC);
+        assertThat(issues).anyMatch(i -> i.getCode().equals("MXL-205"));
+    }
+
     // --- MXL-206/MXL-208: page size impossible and non-canonical pageSetup ---
 
     @Test
@@ -400,6 +419,61 @@ class MxlValidatorTest {
                 "\t</row></rowsItem>\n");
         List<ValidationIssue> issues = validator.validate(reader.parse(file), ValidationLevel.SEMANTIC);
         assertThat(issues).anyMatch(i -> i.getCode().equals("MXL-207"));
+    }
+
+    @Test
+    void mxl207_failsOnUnknownLegacyColumnWidthStyleIdInCell() throws Exception {
+        Path file = writeMxlBody(
+                "\t<format>\n" +
+                "\t\t<id>defined</id>\n" +
+                "\t</format>\n" +
+                "\t<columns><size>1</size></columns>\n" +
+                "\t<height>1</height>\n" +
+                "\t<rowsItem><index>0</index><row>\n" +
+                "\t\t<c><i>0</i><c><f>__cw_missing</f></c></c>\n" +
+                "\t</row></rowsItem>\n");
+        List<ValidationIssue> issues = validator.validate(reader.parse(file), ValidationLevel.SEMANTIC);
+        assertThat(issues).anyMatch(i -> i.getCode().equals("MXL-207"));
+    }
+
+    @Test
+    void mxl207_failsOnNumericFormatIndexPastPalette() throws Exception {
+        Path file = writeMxlBody(
+                "\t<format/>\n" +
+                "\t<columns><size>1</size></columns>\n" +
+                "\t<height>1</height>\n" +
+                "\t<rowsItem><index>0</index><row>\n" +
+                "\t\t<c><i>0</i><c><f>2</f></c></c>\n" +
+                "\t</row></rowsItem>\n");
+        List<ValidationIssue> issues = validator.validate(reader.parse(file), ValidationLevel.SEMANTIC);
+        assertThat(issues).anyMatch(i -> i.getCode().equals("MXL-207"));
+    }
+
+    @Test
+    void mxl101_failsOnInvalidHorizontalAlignmentInFormatPalette() throws Exception {
+        Path file = writeMxlBody(
+                "\t<format>\n" +
+                "\t\t<horizontalAlignment>Diagonal</horizontalAlignment>\n" +
+                "\t</format>\n" +
+                "\t<columns><size>1</size></columns>\n" +
+                "\t<height>1</height>\n" +
+                "\t<rowsItem><index>0</index><row>\n" +
+                "\t\t<c><i>0</i><c><f>1</f></c></c>\n" +
+                "\t</row></rowsItem>\n");
+        List<ValidationIssue> issues = validator.validate(reader.parse(file), ValidationLevel.SEMANTIC);
+        assertThat(issues).anyMatch(i ->
+                i.getCode().equals("MXL-101") && i.getElement().contains("/document/format[1]"));
+    }
+
+    @Test
+    void mxl106_warnsOnCanonicalFontHeightAttribute() throws Exception {
+        Path file = writeMxlBody(
+                "\t<font faceName=\"Arial\" height=\"0\" bold=\"false\" italic=\"false\"\n" +
+                "\t      underline=\"false\" strikeout=\"false\" kind=\"Absolute\" scale=\"100\"/>\n" +
+                "\t<columns><size>1</size></columns>\n" +
+                "\t<height>0</height>\n");
+        List<ValidationIssue> issues = validator.validate(reader.parse(file), ValidationLevel.SEMANTIC);
+        assertThat(issues).anyMatch(i -> i.getCode().equals("MXL-106"));
     }
 
     private Path writeMxlBody(String body) throws Exception {

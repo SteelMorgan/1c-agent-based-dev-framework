@@ -2,6 +2,7 @@ package io.github.onec.xmlgen.writer;
 
 import com.github._1c_syntax.bsl.mdo.support.TemplateType;
 import io.github.onec.xmlgen.editor.ObjectContainerEditor;
+import io.github.onec.xmlgen.model.ConfigurationXmlReader;
 import io.github.onec.xmlgen.model.MdoPath;
 import io.github.onec.xmlgen.model.UuidGenerator;
 
@@ -63,7 +64,8 @@ public class TemplateWriter {
 
         // Create the template scaffold under <src>/<Type>/<Name>/
         Path baseDir = src.resolve(object.getRelativeDir());
-        ObjectContainerEditor.createTemplateScaffold(baseDir, name, synonym, typeStr);
+        String formatVersion = ConfigurationXmlReader.readFormatVersion(objectXml);
+        ObjectContainerEditor.createTemplateScaffold(baseDir, name, synonym, typeStr, formatVersion);
 
         // Register in ChildObjects
         editor.addTemplate(name);
@@ -164,11 +166,12 @@ public class TemplateWriter {
         // Create Help.xml (only if not exists or add lang)
         Path helpXmlPath = extDir.resolve("Help.xml");
         if (!Files.exists(helpXmlPath)) {
+            String formatVersion = ConfigurationXmlReader.readFormatVersion(objectXml);
             String helpXml = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
                     + "<Help xmlns=\"http://v8.1c.ru/8.3/xcf/extrnprops\"\n"
                     + "\txmlns:xs=\"http://www.w3.org/2001/XMLSchema\"\n"
                     + "\txmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\"\n"
-                    + "\tversion=\"2.17\">\n"
+                    + "\tversion=\"" + escapeXml(formatVersion) + "\">\n"
                     + "\t<Page>" + escapeXml(lang) + "</Page>\n"
                     + "</Help>\n";
             writeWithBom(helpXmlPath, helpXml);

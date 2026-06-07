@@ -465,6 +465,30 @@ class EpfValidatorTest {
                 && i.getMessage().contains("ClassId"));
     }
 
+    @Test
+    void epf014_externalReportWithProcessorDefaultForm_reported() throws Exception {
+        Path file = writeXml("Report.xml",
+                "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n" +
+                "<MetaDataObject xmlns=\"http://v8.1c.ru/8.3/MDClasses\">\n" +
+                "  <ExternalReport uuid=\"a1b2c3d4-e5f6-4789-abcd-0123456789ab\">\n" +
+                "    <Properties>\n" +
+                "      <Name>Отчет</Name>\n" +
+                "      <DefaultForm>ExternalDataProcessor.Отчет.Form.Форма</DefaultForm>\n" +
+                "      <MainDataCompositionSchema>ExternalDataProcessor.Отчет.Template.Схема</MainDataCompositionSchema>\n" +
+                "    </Properties>\n" +
+                "    <ChildObjects/>\n" +
+                "  </ExternalReport>\n" +
+                "</MetaDataObject>\n");
+
+        XmlDocument doc = reader.parse(file);
+        List<ValidationIssue> issues = validator.validate(doc, ValidationLevel.SEMANTIC);
+
+        assertThat(issues).anyMatch(i -> i.getCode().equals("EPF-014")
+                && i.getMessage().contains("DefaultForm"));
+        assertThat(issues).anyMatch(i -> i.getCode().equals("EPF-014")
+                && i.getMessage().contains("MainDataCompositionSchema"));
+    }
+
     // ==================== TASK-171: init --type report --with-skd ====================
 
     @Test

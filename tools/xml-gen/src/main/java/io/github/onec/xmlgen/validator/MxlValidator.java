@@ -182,6 +182,8 @@ public class MxlValidator implements XmlValidator {
             }
         }
 
+        validateFormatPalette(root, issues);
+
         // MXL-103 (канон): document-level <merge> — r/c обязательны и >= -1, w/h >= 0.
         // TASK-171: это основной механизм объединений в формате платформы.
         List<XmlNode> mergeNodes = root.children("merge");
@@ -205,19 +207,34 @@ public class MxlValidator implements XmlValidator {
             XmlNode font = fontsList.get(i);
             String fontPath = "/document/font[" + (i + 1) + "]";
 
-            String heightStr = font.childText("height");
+            String heightStr = font.attr("height");
+            String heightPath = fontPath + "/@height";
+            if (heightStr == null) {
+                heightStr = font.childText("height");
+                heightPath = fontPath + "/height";
+            }
             if (heightStr != null && !heightStr.isEmpty()) {
                 try {
                     int height = Integer.parseInt(heightStr);
                     if (height <= 0) {
                         issues.add(ValidationIssue.warning("MXL-106",
                                 "Font height should be > 0, found " + height,
-                                font.getLine(), fontPath + "/height"));
+                                font.getLine(), heightPath));
                     }
                 } catch (NumberFormatException ignored) {
                     // Нечисловое — это ошибка, но обычно такого не бывает
                 }
             }
+        }
+    }
+
+    private void validateFormatPalette(XmlNode root, List<ValidationIssue> issues) {
+        List<XmlNode> formats = root.children("format");
+        for (int i = 0; i < formats.size(); i++) {
+            XmlNode format = formats.get(i);
+            String formatPath = "/document/format[" + (i + 1) + "]";
+            checkAlignment(format, "horizontalAlignment", KNOWN_H_ALIGNMENTS, "MXL-101", formatPath, issues);
+            checkAlignment(format, "verticalAlignment", KNOWN_V_ALIGNMENTS, "MXL-102", formatPath, issues);
         }
     }
 
@@ -258,6 +275,7 @@ public class MxlValidator implements XmlValidator {
      */
     private void validateCanonBorrowed(XmlDocument document, List<ValidationIssue> issues) {
         XmlNode root = document.getRoot();
+        List<XmlNode> formatPalette = root.children("format");
 
         // Read columns size
         int columnsSize = 0;
@@ -271,7 +289,7 @@ public class MxlValidator implements XmlValidator {
 
         // Collect defined format IDs (styles + width formats)
         Set<String> definedFormatIds = new HashSet<>();
-        for (XmlNode fmt : root.children("format")) {
+        for (XmlNode fmt : formatPalette) {
             String id = fmt.childText("id");
             if (id != null && !id.isEmpty()) definedFormatIds.add(id);
         }
@@ -374,8 +392,8 @@ public class MxlValidator implements XmlValidator {
 
                 // MXL-207: style reference broken
                 String f = cInner.childText("f");
-                if (f != null && !f.isEmpty() && !definedFormatIds.contains(f)
-                        && !looksLikeNumericIndex(f) && !f.startsWith("__cw_")) {
+                if (f != null && !f.isEmpty()
+                        && !isDefinedFormatReference(formatPalette, definedFormatIds, f)) {
                     issues.add(ValidationIssue.error("MXL-207",
                             "Style reference '" + f + "' is not defined in <format> palette",
                             cInner.getLine(), cellPath + "/f"));
@@ -504,14 +522,67 @@ public class MxlValidator implements XmlValidator {
         return true;
     }
 
+    private static boolean isDefinedFormatReference(List<XmlNode> formats, Set<String> definedFormatIds, String formatRef) {
+        if ("0".equals(formatRef)) {
+            return true;
+        }
+        if (looksLikeNumericIndex(formatRef)) {
+            try {
+                int idx = Integer.parseInt(formatRef);
+                return idx >= 1 && idx <= formats.size();
+            } catch (NumberFormatException e) {
+                return false;
+            }
+        }
+        return definedFormatIds.contains(formatRef);
+    }
+
     private static String lookupFormatString(XmlNode root, String formatId) {
-        for (XmlNode fmt : root.children("format")) {
+        XmlNode formatNode = findFormatNode(root, formatId);
+        if (formatNode == null) {
+            return null;
+        }
+        XmlNode formatString = formatNode.child("format");
+        return localizedText(formatString);
+    }
+
+    private static XmlNode findFormatNode(XmlNode root, String formatId) {
+        List<XmlNode> formats = root.children("format");
+        if (looksLikeNumericIndex(formatId)) {
+            try {
+                int idx = Integer.parseInt(formatId);
+                if (idx >= 1 && idx <= formats.size()) {
+                    return formats.get(idx - 1);
+                }
+            } catch (NumberFormatException ignored) {
+                return null;
+            }
+        }
+        for (XmlNode fmt : formats) {
             String id = fmt.childText("id");
             if (formatId.equals(id)) {
-                return fmt.childText("format");
+                return fmt;
             }
         }
         return null;
+    }
+
+    private static String localizedText(XmlNode node) {
+        if (node == null) {
+            return null;
+        }
+        for (XmlNode item : node.children("item")) {
+            String content = item.childText("content");
+            if (content != null && !content.isEmpty()) {
+                return content;
+            }
+        }
+        String content = node.childText("content");
+        if (content != null && !content.isEmpty()) {
+            return content;
+        }
+        String text = node.getText();
+        return text != null && !text.isEmpty() ? text : null;
     }
 
     private static boolean isNumericFormat(String fmt) {

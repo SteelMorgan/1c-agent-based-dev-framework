@@ -765,9 +765,12 @@ public class FormWriter extends XmlWriter {
         int oldIndent = indentLevel;
         indentLevel = depth + 1;
         
-        // DataPath
-        if (element.containsKey("path")) {
-            writeElement("DataPath", element.get("path").toString());
+        // DataPath. Both "path" (root reference spec) and "dataPath" (tooling docs)
+        // are accepted; emit explicitly so it stays in the schema sequence before
+        // flags/properties instead of falling through the generic property dumper.
+        String dataPath = dataPath(element);
+        if (dataPath != null) {
+            writeElement("DataPath", dataPath);
         }
 
         // Title
@@ -1001,9 +1004,10 @@ public class FormWriter extends XmlWriter {
             writeMultilingualString("Title", element.get("title").toString());
         }
         
-        // DataPath
-        if (element.containsKey("path")) {
-            writeElement("DataPath", element.get("path").toString());
+        // DataPath (supports both "path" and "dataPath")
+        String dataPath = dataPath(element);
+        if (dataPath != null) {
+            writeElement("DataPath", dataPath);
         }
 
         //++agent TASK-174 [07.06.2026 11:30:00]
@@ -1216,9 +1220,10 @@ public class FormWriter extends XmlWriter {
         int oldIndent = indentLevel;
         indentLevel = depth + 1;
         
-        // DataPath
-        if (element.containsKey("path")) {
-            writeElement("DataPath", element.get("path").toString());
+        // DataPath (supports both "path" and "dataPath")
+        String dataPath = dataPath(element);
+        if (dataPath != null) {
+            writeElement("DataPath", dataPath);
         }
         
         // Title
@@ -1257,9 +1262,10 @@ public class FormWriter extends XmlWriter {
         int oldIndent = indentLevel;
         indentLevel = depth + 1;
         
-        // DataPath
-        if (element.containsKey("path")) {
-            writeElement("DataPath", element.get("path").toString());
+        // DataPath (supports both "path" and "dataPath")
+        String dataPath = dataPath(element);
+        if (dataPath != null) {
+            writeElement("DataPath", dataPath);
         }
         
         // Title
@@ -1303,8 +1309,9 @@ public class FormWriter extends XmlWriter {
         int oldIndent = indentLevel;
         indentLevel = depth + 1;
 
-        if (element.containsKey("path")) {
-            writeElement("DataPath", element.get("path").toString());
+        String dataPath = dataPath(element);
+        if (dataPath != null) {
+            writeElement("DataPath", dataPath);
         }
         if (element.containsKey("title")) {
             writeMultilingualString("Title", element.get("title").toString());
@@ -1558,9 +1565,10 @@ public class FormWriter extends XmlWriter {
         int oldIndent = indentLevel;
         indentLevel = depth + 1;
         
-        // DataPath
-        if (element.containsKey("path")) {
-            writeElement("DataPath", element.get("path").toString());
+        // DataPath (supports both "path" and "dataPath")
+        String dataPath = dataPath(element);
+        if (dataPath != null) {
+            writeElement("DataPath", dataPath);
         }
         
         // Свойства
@@ -1594,9 +1602,10 @@ public class FormWriter extends XmlWriter {
         int oldIndent = indentLevel;
         indentLevel = depth + 1;
         
-        // DataPath
-        if (element.containsKey("path")) {
-            writeElement("DataPath", element.get("path").toString());
+        // DataPath (supports both "path" and "dataPath")
+        String dataPath = dataPath(element);
+        if (dataPath != null) {
+            writeElement("DataPath", dataPath);
         }
         
         // Свойства
@@ -1747,6 +1756,19 @@ public class FormWriter extends XmlWriter {
     }
 
     /**
+     * Data binding alias used by form compile. The root reference spec documents "path",
+     * while operational xml-gen docs and older tests use "dataPath"; both mean
+     * {@code <DataPath>...}. Prefer "path" when both are present.
+     */
+    private static String dataPath(Map<String, Object> element) {
+        Object path = element.get("path");
+        if (path == null) {
+            path = element.get("dataPath");
+        }
+        return path != null ? path.toString() : null;
+    }
+
+    /**
      * Generic-дамп остаточных (НЕ порядок-критичных) свойств элемента.
      *
      * Порядок-значимые свойства (Representation, ShowTitle, United, TitleLocation и т.п.) схема logform
@@ -1761,7 +1783,7 @@ public class FormWriter extends XmlWriter {
         for (Map.Entry<String, Object> entry : element.entrySet()) {
             String key = entry.getKey();
             if (isElementType(key) || key.equals("name") || key.equals("title") ||
-                key.equals("path") || key.equals("children") || key.equals("columns") ||
+                key.equals("path") || key.equals("dataPath") || key.equals("children") || key.equals("columns") ||
                 key.equals("command") || key.equals("stdCommand") || key.equals("src")
                 //**agent TASK-174 [07.06.2026 11:20:00]
                 // Аудит порта (форм): "on"/"handlers" — DSL-ключи событий (form-dsl-spec.md
@@ -2114,13 +2136,14 @@ public class FormWriter extends XmlWriter {
         writeElement("id", String.valueOf(id));
         
         // DataPath
-        if (element.containsKey("path")) {
+        String dataPath = dataPath(element);
+        if (dataPath != null) {
             writer.writeCharacters("\t".repeat(indentLevel));
             writer.writeStartElement("dataPath");
             writer.writeAttribute("http://www.w3.org/2001/XMLSchema-instance", "type", "form:DataPath");
             writer.writeCharacters("\n");
             indentLevel++;
-            writeElement("segments", element.get("path").toString());
+            writeElement("segments", dataPath);
             indentLevel--;
             writer.writeCharacters("\t".repeat(indentLevel));
             writer.writeEndElement(); // dataPath

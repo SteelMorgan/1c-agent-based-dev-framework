@@ -64,19 +64,19 @@ class SkdTypeParserTest {
     @Test
     void testParseCatalogRef() {
         List<SkdTypeParser.TypePart> p = SkdTypeParser.parse("CatalogRef.Контрагенты");
-        assertThat(p.get(0).xmlType).isEqualTo("cfg:CatalogRef.Контрагенты");
+        assertThat(p.get(0).xmlType).isEqualTo("d5p1:CatalogRef.Контрагенты");
     }
 
     @Test
     void testParseDocumentRef() {
         List<SkdTypeParser.TypePart> p = SkdTypeParser.parse("DocumentRef.ЗаказКлиента");
-        assertThat(p.get(0).xmlType).isEqualTo("cfg:DocumentRef.ЗаказКлиента");
+        assertThat(p.get(0).xmlType).isEqualTo("d5p1:DocumentRef.ЗаказКлиента");
     }
 
     @Test
     void testParseRefAlias() {
         List<SkdTypeParser.TypePart> p = SkdTypeParser.parse("ref:Catalog.Контрагенты");
-        assertThat(p.get(0).xmlType).isEqualTo("cfg:CatalogRef.Контрагенты");
+        assertThat(p.get(0).xmlType).isEqualTo("d5p1:CatalogRef.Контрагенты");
     }
 
     @Test

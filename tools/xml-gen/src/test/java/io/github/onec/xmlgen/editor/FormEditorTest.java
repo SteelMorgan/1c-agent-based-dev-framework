@@ -43,6 +43,34 @@ class FormEditorTest {
     }
 
     @Test
+    void addAttribute_valueTableColumnsUseLocalIdsAndDoNotConsumeAttributePool() {
+        editor.addAttribute("Таблица", null, "ValueTable", null, null,
+                List.of(
+                        new io.github.onec.xmlgen.dsl.FormDsl.Column("Колонка1", null, "string"),
+                        new io.github.onec.xmlgen.dsl.FormDsl.Column("Колонка2", null, "boolean")
+                ));
+        editor.addAttribute("Следующий", "string");
+
+        XmlNode attrs = document.getRoot().child("Attributes");
+        XmlNode tableAttr = attrs.getChildren().get(0);
+        XmlNode columns = tableAttr.child("Columns");
+        assertEquals("1", tableAttr.attr("id"));
+        assertEquals("1", columns.getChildren().get(0).attr("id"));
+        assertEquals("2", columns.getChildren().get(1).attr("id"));
+        assertEquals("2", attrs.getChildren().get(1).attr("id"));
+    }
+
+    @Test
+    void addAttribute_preservesFillCheckingAndUseAlways() {
+        editor.addAttribute("Объект", null, "DocumentObject.Заказ", true, true,
+                null, "Show", "Объект.RegisterRecords");
+
+        XmlNode attr = document.getRoot().child("Attributes").getChildren().get(0);
+        assertEquals("Show", attr.child("FillChecking").getText());
+        assertEquals("Объект.RegisterRecords", attr.child("UseAlways").child("Field").getText());
+    }
+
+    @Test
     void testAddElement() {
         editor.addElement("InputField", "MyField", "MyAttr", null, null);
         XmlNode childItems = document.getRoot().child("ChildItems");
@@ -51,6 +79,45 @@ class FormEditorTest {
         assertEquals("MyField", field.attr("name"));
         assertTrue(field.hasChild("ContextMenu"));
         assertTrue(field.hasChild("ExtendedTooltip"));
+    }
+
+    @Test
+    void addTable_createsCanonicalCompanionsAdditionsAndChildItems() {
+        editor.addElement("table", "Товары", "Товары", null, null);
+
+        XmlNode table = document.getRoot().child("ChildItems").child("Table");
+        assertNotNull(table.child("ContextMenu"));
+        assertNotNull(table.child("AutoCommandBar"));
+        assertNotNull(table.child("ExtendedTooltip"));
+        assertNotNull(table.child("ChildItems"));
+
+        XmlNode search = table.child("SearchStringAddition");
+        assertNotNull(search);
+        assertEquals("Товары", search.child("AdditionSource").child("Item").getText());
+        assertEquals("SearchStringRepresentation", search.child("AdditionSource").child("Type").getText());
+        assertNotNull(search.child("ContextMenu"));
+        assertNotNull(search.child("ExtendedTooltip"));
+
+        XmlNode status = table.child("ViewStatusAddition");
+        assertEquals("ViewStatusRepresentation", status.child("AdditionSource").child("Type").getText());
+        XmlNode control = table.child("SearchControlAddition");
+        assertEquals("SearchControl", control.child("AdditionSource").child("Type").getText());
+    }
+
+    @Test
+    void addEmptyContainers_createChildItemsWrapper() {
+        editor.addElement("group", "Группа", null, null, null);
+        editor.addElement("pages", "Страницы", null, null, null);
+        editor.addElement("page", "Страница", null, null, null);
+        editor.addElement("cmdBar", "КоманднаяПанель", null, null, null);
+        editor.addElement("popup", "Подменю", null, null, null);
+
+        XmlNode rootItems = document.getRoot().child("ChildItems");
+        assertNotNull(rootItems.child("UsualGroup").child("ChildItems"));
+        assertNotNull(rootItems.child("Pages").child("ChildItems"));
+        assertNotNull(rootItems.child("Page").child("ChildItems"));
+        assertNotNull(rootItems.child("CommandBar").child("ChildItems"));
+        assertNotNull(rootItems.child("Popup").child("ChildItems"));
     }
 
     // TASK-174 XG-02: edit-путь привязывает кнопку к команде (CommandName).
@@ -73,6 +140,19 @@ class FormEditorTest {
         editor.addElement("Button", "Кнопка2", null, null, null, "Form.Command.КомандаПример");
         XmlNode button = document.getRoot().child("ChildItems").child("Button");
         assertEquals("Form.Command.КомандаПример", button.child("CommandName").getText());
+    }
+
+    @Test
+    void addCommand_preservesTooltipPictureShortcutAndRepresentation() {
+        editor.addCommand("Печать", "Печать", "ПечатьОбработка",
+                "Напечатать", "Ctrl+P", "StdPicture.Print", "PictureAndText");
+
+        XmlNode command = document.getRoot().child("Commands").child("Command");
+        assertEquals("Напечатать", command.child("ToolTip").child("item").child("content").getText());
+        assertEquals("StdPicture.Print", command.child("Picture").child("Ref").getText());
+        assertEquals("true", command.child("Picture").child("LoadTransparent").getText());
+        assertEquals("Ctrl+P", command.child("Shortcut").getText());
+        assertEquals("PictureAndText", command.child("Representation").getText());
     }
     
     @Test
@@ -162,6 +242,20 @@ class FormEditorTest {
         XmlNode typeNode = button.child("Type");
         assertNotNull(typeNode);
         assertEquals("UsualButton", typeNode.getText());
+    }
+
+    @Test
+    void moveElementIntoContainer_usesChildItemsWrapper() {
+        editor.addElement("InputField", "Поле", "Реквизит", null, null);
+        editor.addElement("group", "ГруппаНазначения", null, null, null);
+
+        editor.moveElement("Поле", null, null, "ГруппаНазначения");
+
+        XmlNode group = document.getRoot().child("ChildItems").child("UsualGroup");
+        XmlNode groupChildItems = group.child("ChildItems");
+        assertNotNull(groupChildItems);
+        assertNotNull(groupChildItems.child("InputField"));
+        assertNull(group.child("InputField"));
     }
 
     // TASK-174 XG-31: edit-путь принимает короткий kind "radio" без правки FormElementKind.

@@ -317,4 +317,48 @@ class FormWriterFormsAuditTest {
         assertThat(content).contains("<v8:Type>cfg:ConstantsSet</v8:Type>");
         assertThat(content).contains("<v8:Type>cfg:InformationRegisterRecordManager.Настройки</v8:Type>");
     }
+
+    /** F13: dataPath alias is emitted in canonical DataPath position, not by generic property dump. */
+    @Test
+    void testDataPathAliasEmittedBeforeInputProperties() throws Exception {
+        Map<String, Object> input = new LinkedHashMap<>();
+        input.put("type", "input");
+        input.put("name", "Поле");
+        input.put("dataPath", "Объект.Поле");
+        input.put("titleLocation", "top");
+
+        FormDsl dsl = new FormDsl("Форма", null, null, null, List.of(input), null, null, null);
+        String content = generate(dsl);
+
+        int inputIdx = content.indexOf("<InputField name=\"Поле\"");
+        int dataPathIdx = content.indexOf("<DataPath>Объект.Поле</DataPath>", inputIdx);
+        int titleLocationIdx = content.indexOf("<TitleLocation>Top</TitleLocation>", inputIdx);
+        assertThat(dataPathIdx).isGreaterThan(inputIdx);
+        assertThat(titleLocationIdx).isGreaterThan(dataPathIdx);
+        assertThat(content.indexOf("<DataPath>Объект.Поле</DataPath>", dataPathIdx + 1))
+                .as("dataPath alias must not be emitted a second time by the generic property pass")
+                .isEqualTo(-1);
+    }
+
+    @Test
+    void testDataPathAliasWorksForTableAndColumns() throws Exception {
+        Map<String, Object> column = new LinkedHashMap<>();
+        column.put("type", "check");
+        column.put("name", "ТоварыАктивен");
+        column.put("dataPath", "Товары.Активен");
+
+        Map<String, Object> table = new LinkedHashMap<>();
+        table.put("type", "table");
+        table.put("name", "Товары");
+        table.put("dataPath", "Товары");
+        table.put("columns", List.of(column));
+
+        FormDsl dsl = new FormDsl("Форма", null, null, null, List.of(table), null, null, null);
+        String content = generate(dsl);
+
+        assertThat(content).contains("<Table name=\"Товары\"");
+        assertThat(content).contains("<DataPath>Товары</DataPath>");
+        assertThat(content).contains("<CheckBoxField name=\"ТоварыАктивен\"");
+        assertThat(content).contains("<DataPath>Товары.Активен</DataPath>");
+    }
 }

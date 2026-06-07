@@ -3,6 +3,9 @@ package io.github.onec.xmlgen.writer;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.github.onec.xmlgen.dsl.MxlDsl;
 import io.github.onec.xmlgen.format.OutputFormat;
+import io.github.onec.xmlgen.validator.MxlValidator;
+import io.github.onec.xmlgen.validator.ValidationLevel;
+import io.github.onec.xmlgen.validator.XmlStructureReader;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -401,6 +404,39 @@ class MxlWriterTest {
         new io.github.onec.xmlgen.info.MxlDecompiler().decompile(doc, json2);
         String rt = Files.readString(json2);
         assertThat(rt).contains("\"border\"");
+    }
+
+    @Test
+    void testRowStyleSkipsColumnsOccupiedByPreviousRowspan() throws Exception {
+        String json = """
+                {
+                  "columns": 2,
+                  "defaultWidth": 50,
+                  "styles": {"bordered": {"border": "all"}},
+                  "areas": [{"name": "Строка", "rows": [
+                    {"rowStyle": "bordered", "cells": [
+                      {"col": 1, "rowspan": 2, "text": "A"}
+                    ]},
+                    {"rowStyle": "bordered", "cells": [
+                      {"col": 2, "text": "B"}
+                    ]}
+                  ]}]
+                }
+                """;
+        MxlDsl dsl = new ObjectMapper().readValue(json, MxlDsl.class);
+        Path outputXml = tempDir.resolve("Template.xml");
+        new MxlWriter(OutputFormat.DESIGNER).create(dsl, outputXml);
+
+        var doc = new XmlStructureReader().parse(outputXml);
+        var issues = new MxlValidator().validate(doc, ValidationLevel.SEMANTIC);
+        assertThat(issues).noneMatch(i -> i.getCode().equals("MXL-202"));
+
+        String content = Files.readString(outputXml);
+        int secondRowStart = content.indexOf("<index>1</index>");
+        assertThat(secondRowStart).isGreaterThan(0);
+        String secondRowBlock = content.substring(secondRowStart, content.indexOf("</rowsItem>", secondRowStart));
+        assertThat(secondRowBlock).doesNotContain("<i>0</i>");
+        assertThat(secondRowBlock).contains("<i>1</i>");
     }
 
     /**

@@ -24,6 +24,8 @@ import java.util.regex.Pattern;
  *       ChildObjects (фантомное объявление наоборот; прецедент runaway-памяти; XG-04).</li>
  *   <li>EPF-013 — объектные реквизиты/табличные части ошибочно помещены в контейнеры
  *       Attributes/TabularSections вместо ChildObjects (XG-25).</li>
+ *   <li>EPF-014 — пути Default*Form/MainDataCompositionSchema используют не тот внешний
+ *       тип объекта (ExternalReport vs ExternalDataProcessor).</li>
  * </ul>
  */
 public class EpfValidator implements XmlValidator {
@@ -416,6 +418,40 @@ public class EpfValidator implements XmlValidator {
                 issues.add(ValidationIssue.error("EPF-008",
                         "Object Name '" + name + "' is not a valid 1C identifier",
                         props.getLine(), "/" + elementName + "/Properties/Name"));
+            }
+            validateExternalObjectPaths(props, elementName, name, issues);
+        }
+    }
+
+    private void validateExternalObjectPaths(XmlNode props, String elementName, String objectName,
+                                             List<ValidationIssue> issues) {
+        if (objectName == null || objectName.isEmpty()) {
+            return;
+        }
+
+        String expectedFormPrefix = elementName + "." + objectName + ".Form.";
+        for (String tag : List.of("DefaultForm", "AuxiliaryForm",
+                "DefaultSettingsForm", "AuxiliarySettingsForm", "DefaultVariantForm")) {
+            String value = props.childText(tag);
+            if (value == null || value.isEmpty()) {
+                continue;
+            }
+            if (!value.startsWith(expectedFormPrefix)) {
+                issues.add(ValidationIssue.error("EPF-014",
+                        tag + " '" + value + "' must start with '" + expectedFormPrefix
+                                + "' for <" + elementName + ">",
+                        props.getLine(), "/" + elementName + "/Properties/" + tag));
+            }
+        }
+
+        String mainDcs = props.childText("MainDataCompositionSchema");
+        if (mainDcs != null && !mainDcs.isEmpty()) {
+            String expectedTemplatePrefix = elementName + "." + objectName + ".Template.";
+            if (!mainDcs.startsWith(expectedTemplatePrefix)) {
+                issues.add(ValidationIssue.error("EPF-014",
+                        "MainDataCompositionSchema '" + mainDcs + "' must start with '"
+                                + expectedTemplatePrefix + "' for <" + elementName + ">",
+                        props.getLine(), "/" + elementName + "/Properties/MainDataCompositionSchema"));
             }
         }
     }

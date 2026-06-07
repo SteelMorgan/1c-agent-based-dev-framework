@@ -103,6 +103,16 @@ class FormValidatorButtonsContainersTask174Test {
     }
 
     @Test
+    void form124_popupWithoutChildItems_isWarning() throws Exception {
+        List<ValidationIssue> issues = validate(
+                "\t\t<Popup name=\"Подменю\" id=\"7\"/>\n");
+
+        assertThat(issues).anyMatch(i -> "FORM-124".equals(i.getCode())
+                && i.getSeverity() == Severity.WARNING
+                && i.getMessage().contains("Подменю"));
+    }
+
+    @Test
     void form124_filledGroup_noIssue() throws Exception {
         List<ValidationIssue> issues = validate(
                 "\t\t<UsualGroup name=\"Группа\" id=\"3\">\n"

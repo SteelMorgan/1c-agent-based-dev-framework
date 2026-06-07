@@ -30,6 +30,8 @@ public class SkdWriter extends XmlWriter {
     private SkdInclude include = new SkdInclude(null);
 
     private static final Map<String, String> DCS_NAMESPACES = new HashMap<>();
+    private static final String CURRENT_CONFIG_NS =
+            "http://v8.1c.ru/8.1/data/enterprise/current-config";
     static {
         DCS_NAMESPACES.put("", "http://v8.1c.ru/8.1/data-composition-system/schema");
         DCS_NAMESPACES.put("dcscom", "http://v8.1c.ru/8.1/data-composition-system/common");
@@ -396,6 +398,9 @@ public class SkdWriter extends XmlWriter {
     private void writeTypeComponent(SkdTypeSpec.Component c) throws XMLStreamException {
         writer.writeCharacters("\t".repeat(indentLevel));
         writer.writeStartElement("v8:Type");
+        if (c.isReference() && c.getXmlType().startsWith("d5p1:")) {
+            writer.writeNamespace("d5p1", CURRENT_CONFIG_NS);
+        }
         writer.writeCharacters(c.getXmlType());
         writer.writeEndElement();
         writer.writeCharacters("\n");
@@ -558,13 +563,27 @@ public class SkdWriter extends XmlWriter {
 
         String xsiType = "xs:string";
         if (type != null) {
-            if (type.contains("date")) xsiType = "xs:dateTime";
+            if ("StandardPeriod".equals(type) || "v8:StandardPeriod".equals(type)) xsiType = "v8:StandardPeriod";
+            else if (type.contains("date")) xsiType = "xs:dateTime";
             else if (type.contains("boolean")) xsiType = "xs:boolean";
             else if (type.contains("decimal") || type.contains("number")) xsiType = "xs:decimal";
         }
 
         writer.writeAttribute("xsi:type", xsiType);
-        writer.writeCharacters(value.toString());
+        if ("v8:StandardPeriod".equals(xsiType)) {
+            writer.writeCharacters("\n");
+            indentLevel++;
+            writer.writeCharacters("\t".repeat(indentLevel));
+            writer.writeStartElement("v8:variant");
+            writer.writeAttribute("xsi:type", "v8:StandardPeriodVariant");
+            writer.writeCharacters(value.toString());
+            writer.writeEndElement();
+            writer.writeCharacters("\n");
+            indentLevel--;
+            writer.writeCharacters("\t".repeat(indentLevel));
+        } else {
+            writer.writeCharacters(value.toString());
+        }
         writer.writeEndElement();
         writer.writeCharacters("\n");
     }

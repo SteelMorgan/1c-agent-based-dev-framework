@@ -237,7 +237,7 @@ public class FormValidator implements XmlValidator {
      * разрешает пустую командную панель («Может быть пустым (самозакрывающийся тег)»).
      */
     private static final Set<String> CONTAINER_ELEMENT_TYPES = Set.of(
-            "UsualGroup", "Pages", "Page", "PopupGroup", "ButtonGroup", "ColumnGroup");
+            "UsualGroup", "Pages", "Page", "Popup", "PopupGroup", "ButtonGroup", "ColumnGroup");
 
     /**
      * FORM-123 + FORM-124: обход UI-дерева.
@@ -437,6 +437,11 @@ public class FormValidator implements XmlValidator {
         // FORM-117: Companions для UI-элементов
         if (childItems != null) {
             validateElementCompanions(childItems, "/Form/ChildItems", issues);
+        }
+
+        // FORM-125: Table addition elements must carry AdditionSource(Item/Type)
+        if (childItems != null) {
+            validateTableAdditions(childItems, "/Form/ChildItems", issues);
         }
 
         // FORM-119: MainAttribute должен быть только у одного Attribute
@@ -1055,7 +1060,7 @@ public class FormValidator implements XmlValidator {
             Map.entry("PictureField", List.of("ContextMenu", "ExtendedTooltip")),
             Map.entry("CalendarField", List.of("ContextMenu", "ExtendedTooltip")),
             Map.entry("PictureDecoration", List.of("ContextMenu", "ExtendedTooltip")),
-            Map.entry("Table", List.of("ContextMenu", "AutoCommandBar",
+            Map.entry("Table", List.of("ContextMenu", "AutoCommandBar", "ExtendedTooltip",
                     "SearchStringAddition", "ViewStatusAddition", "SearchControlAddition")),
             Map.entry("Button", List.of("ExtendedTooltip")),
             Map.entry("UsualGroup", List.of("ExtendedTooltip")),
@@ -1081,6 +1086,48 @@ public class FormValidator implements XmlValidator {
             XmlNode innerChildItems = elem.child("ChildItems");
             if (innerChildItems != null) {
                 validateElementCompanions(innerChildItems, elemPath + "/ChildItems", issues);
+            }
+        }
+    }
+
+    private static final Map<String, String> TABLE_ADDITION_TYPES = Map.of(
+            "SearchStringAddition", "SearchStringRepresentation",
+            "ViewStatusAddition", "ViewStatusRepresentation",
+            "SearchControlAddition", "SearchControl"
+    );
+
+    private void validateTableAdditions(XmlNode parent, String parentPath, List<ValidationIssue> issues) {
+        for (XmlNode elem : parent.getChildren()) {
+            String elemPath = parentPath + "/" + elem.getName();
+            if ("Table".equals(elem.getName())) {
+                String tableName = elem.attr("name");
+                for (Map.Entry<String, String> expected : TABLE_ADDITION_TYPES.entrySet()) {
+                    XmlNode addition = elem.child(expected.getKey());
+                    if (addition == null) {
+                        continue;
+                    }
+                    XmlNode source = addition.child("AdditionSource");
+                    String item = source != null ? source.childText("Item") : null;
+                    String type = source != null ? source.childText("Type") : null;
+                    if (source == null
+                            || item == null || item.isBlank()
+                            || type == null || type.isBlank()) {
+                        issues.add(ValidationIssue.warning("FORM-125",
+                                expected.getKey() + " for Table '" + tableName
+                                        + "' has no complete <AdditionSource><Item>...</Item><Type>...</Type></AdditionSource>",
+                                addition.getLine(), elemPath + "/" + expected.getKey() + "/AdditionSource"));
+                    } else if (!expected.getValue().equals(type)) {
+                        issues.add(ValidationIssue.warning("FORM-125",
+                                expected.getKey() + " for Table '" + tableName
+                                        + "' has unexpected AdditionSource Type '" + type
+                                        + "', expected '" + expected.getValue() + "'",
+                                addition.getLine(), elemPath + "/" + expected.getKey() + "/AdditionSource/Type"));
+                    }
+                }
+            }
+            XmlNode innerChildItems = elem.child("ChildItems");
+            if (innerChildItems != null) {
+                validateTableAdditions(innerChildItems, elemPath + "/ChildItems", issues);
             }
         }
     }

@@ -149,6 +149,22 @@ class FormEditApplierTest {
     }
 
     @Test
+    void applyJsonSpec_preservesFillCheckingAndUseAlwaysField() throws Exception {
+        String json = "{\"attributes\":[{"
+                + "\"name\":\"Объект\","
+                + "\"type\":\"DocumentObject.Заказ\","
+                + "\"fillChecking\":\"Show\","
+                + "\"useAlwaysField\":\"Объект.RegisterRecords\""
+                + "}]}";
+        FormEditDsl spec = mapper.readValue(json, FormEditDsl.class);
+        new FormEditApplier(editor).apply(spec);
+
+        XmlNode attr = document.getRoot().child("Attributes").getChildren().get(0);
+        assertEquals("Show", attr.child("FillChecking").getText());
+        assertEquals("Объект.RegisterRecords", attr.child("UseAlways").child("Field").getText());
+    }
+
+    @Test
     void applyJsonSpec_tableKind_fullCompanionSet() throws Exception {
         String json = "{\"elements\":[{\"kind\":\"table\",\"name\":\"Состав\",\"dataPath\":\"Товары\"}]}";
         FormEditDsl spec = mapper.readValue(json, FormEditDsl.class);
@@ -159,11 +175,17 @@ class FormEditApplierTest {
         assertEquals("Состав", table.attr("name"));
         assertNotNull(table.child("ContextMenu"));
         assertNotNull(table.child("AutoCommandBar"));
+        assertNotNull(table.child("ExtendedTooltip"));
         assertNotNull(table.child("SearchStringAddition"));
         assertNotNull(table.child("ViewStatusAddition"));
         assertNotNull(table.child("SearchControlAddition"));
+        assertNotNull(table.child("ChildItems"));
         assertEquals("СоставКоманднаяПанель", table.child("AutoCommandBar").attr("name"));
         assertEquals("СоставСтрокаПоиска", table.child("SearchStringAddition").attr("name"));
+        assertEquals("Состав", table.child("SearchStringAddition")
+                .child("AdditionSource").child("Item").getText());
+        assertEquals("SearchStringRepresentation", table.child("SearchStringAddition")
+                .child("AdditionSource").child("Type").getText());
     }
 
     @Test
@@ -188,6 +210,7 @@ class FormEditApplierTest {
         assertEquals("UsualGroup", group.getName());
         assertNull(group.child("ContextMenu"));
         assertNotNull(group.child("ExtendedTooltip"));
+        assertNotNull(group.child("ChildItems"));
     }
 
     @Test
@@ -199,7 +222,29 @@ class FormEditApplierTest {
         XmlNode bar = document.getRoot().child("ChildItems").getChildren().get(0);
         assertEquals("CommandBar", bar.getName());
         // Никаких companion'ов — CommandBar самодостаточен
-        assertEquals(0, bar.getChildren().size());
+        assertEquals(1, bar.getChildren().size());
+        assertNotNull(bar.child("ChildItems"));
+    }
+
+    @Test
+    void applyJsonSpec_preservesCommandPictureShortcutRepresentation() throws Exception {
+        String json = "{\"commands\":[{"
+                + "\"name\":\"Печать\","
+                + "\"title\":\"Печать\","
+                + "\"action\":\"ПечатьОбработка\","
+                + "\"tooltip\":\"Напечатать\","
+                + "\"picture\":\"StdPicture.Print\","
+                + "\"shortcut\":\"Ctrl+P\","
+                + "\"representation\":\"PictureAndText\""
+                + "}]}";
+        FormEditDsl spec = mapper.readValue(json, FormEditDsl.class);
+        new FormEditApplier(editor).apply(spec);
+
+        XmlNode command = document.getRoot().child("Commands").getChildren().get(0);
+        assertEquals("StdPicture.Print", command.child("Picture").child("Ref").getText());
+        assertEquals("Ctrl+P", command.child("Shortcut").getText());
+        assertEquals("PictureAndText", command.child("Representation").getText());
+        assertEquals("Напечатать", command.child("ToolTip").child("item").child("content").getText());
     }
 
     @Test
@@ -270,6 +315,26 @@ class FormEditApplierTest {
         XmlNode evt = events.getChildren().get(0);
         assertEquals("OnCreateAtServer", evt.attr("name"));
         assertEquals("\u041f\u0440\u0438\u0421\u043e\u0437\u0434\u0430\u043d\u0438\u0438\u041d\u0430\u0421\u0435\u0440\u0432\u0435\u0440\u0435", evt.getText());
+        assertTrue(document.getRoot().getChildren().indexOf(events)
+                < document.getRoot().getChildren().indexOf(document.getRoot().child("Attributes")));
+    }
+
+    @Test
+    void applyJsonSpec_containerElementEvents_insertBeforeChildItems() throws Exception {
+        String json = "{\"elements\":[{"
+                + "\"kind\":\"group\","
+                + "\"name\":\"Группа\","
+                + "\"on\":[{\"event\":\"Opening\"}]"
+                + "}]}";
+        FormEditDsl spec = mapper.readValue(json, FormEditDsl.class);
+        new FormEditApplier(editor).apply(spec);
+
+        XmlNode group = document.getRoot().child("ChildItems").child("UsualGroup");
+        XmlNode events = group.child("Events");
+        XmlNode childItems = group.child("ChildItems");
+        assertNotNull(events);
+        assertNotNull(childItems);
+        assertTrue(group.getChildren().indexOf(events) < group.getChildren().indexOf(childItems));
     }
 
     @Test

@@ -406,6 +406,7 @@ public class MxlWriter extends XmlWriter {
         if (area.getRows() == null || area.getRows().isEmpty()) return startRowIndex;
 
         int currentRow = startRowIndex;
+        Map<Integer, Integer> verticalOccupancyUntil = new HashMap<>(); // 1-based col -> last row index
         for (MxlDsl.Row row : area.getRows()) {
             // Пустые строки ({empty:N}). TASK-171: канон Широкова (mxl-compile.py:368-376)
             // эмитит ЯВНЫЙ <rowsItem><empty>true</empty> на каждую пустую строку, а не просто
@@ -450,6 +451,9 @@ public class MxlWriter extends XmlWriter {
             // Занятые колонки (1-based) для gap-fill.
             int totalColumns = dsl.getColumns() != null ? dsl.getColumns() : 1;
             java.util.Set<Integer> occupied = new java.util.HashSet<>();
+            final int rowIndex = currentRow;
+            verticalOccupancyUntil.entrySet().removeIf(e -> e.getValue() < rowIndex);
+            occupied.addAll(verticalOccupancyUntil.keySet());
 
             // Сначала пишем явные ячейки + собираем merges.
             List<CellEmit> emits = new ArrayList<>();
@@ -459,6 +463,12 @@ public class MxlWriter extends XmlWriter {
                     int span = cell.getSpan() != null && cell.getSpan() > 1 ? cell.getSpan() : 1;
                     int rowspan = cell.getRowspan() != null && cell.getRowspan() > 1 ? cell.getRowspan() : 1;
                     for (int c = colStart; c < colStart + span; c++) occupied.add(c);
+                    if (rowspan > 1) {
+                        int lastOccupiedRow = currentRow + rowspan - 1;
+                        for (int c = colStart; c < colStart + span; c++) {
+                            verticalOccupancyUntil.merge(c, lastOccupiedRow, Math::max);
+                        }
+                    }
 
                     String styleName = cell.getStyle() != null ? cell.getStyle()
                             : (row.getRowStyle() != null ? row.getRowStyle() : "default");

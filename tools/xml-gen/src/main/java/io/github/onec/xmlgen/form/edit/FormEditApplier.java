@@ -89,7 +89,9 @@ public class FormEditApplier {
                 a.getType(),
                 a.getMain(),
                 a.getSavedData(),
-                a.getColumns()
+                a.getColumns(),
+                a.getFillChecking(),
+                a.getUseAlwaysField()
         );
     }
 
@@ -97,7 +99,8 @@ public class FormEditApplier {
         if (c.getName() == null) {
             throw new IllegalArgumentException("command.name is required");
         }
-        editor.addCommand(c.getName(), c.getTitle(), c.getAction());
+        editor.addCommand(c.getName(), c.getTitle(), c.getAction(),
+                c.getTooltip(), c.getShortcut(), c.getPicture(), c.getRepresentation());
     }
 
     private void applyElement(FormEditDsl.Element e, String parentOverride) {

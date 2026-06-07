@@ -511,6 +511,78 @@ class FormValidatorTest {
                 && i.getMessage().contains("AutoCommandBar"));
     }
 
+    @Test
+    void form117_tableMissingExtendedTooltip_reported() throws Exception {
+        Path file = writeXml("Form.xml",
+                "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n" +
+                "<Form xmlns=\"http://v8.1c.ru/8.3/xcf/logform\" version=\"2.17\">\n" +
+                "\t<AutoCommandBar name=\"FormCommandBar\" id=\"-1\"/>\n" +
+                "\t<ChildItems>\n" +
+                "\t\t<Table name=\"T\" id=\"1\">\n" +
+                "\t\t\t<ContextMenu name=\"TContext\" id=\"2\"/>\n" +
+                "\t\t\t<AutoCommandBar name=\"TCmd\" id=\"3\"/>\n" +
+                "\t\t\t<SearchStringAddition name=\"TSearch\" id=\"4\"/>\n" +
+                "\t\t\t<ViewStatusAddition name=\"TStatus\" id=\"5\"/>\n" +
+                "\t\t\t<SearchControlAddition name=\"TControl\" id=\"6\"/>\n" +
+                "\t\t</Table>\n" +
+                "\t</ChildItems>\n" +
+                "</Form>\n");
+        XmlDocument doc = reader.parse(file);
+        List<ValidationIssue> issues = validator.validate(doc, ValidationLevel.SEMANTIC);
+        assertThat(issues).anyMatch(i -> i.getCode().equals("FORM-117")
+                && i.getMessage().contains("ExtendedTooltip"));
+    }
+
+    @Test
+    void form125_tableAdditionWithoutSource_reported() throws Exception {
+        Path file = writeXml("Form.xml",
+                "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n" +
+                "<Form xmlns=\"http://v8.1c.ru/8.3/xcf/logform\" version=\"2.17\">\n" +
+                "\t<AutoCommandBar name=\"FormCommandBar\" id=\"-1\"/>\n" +
+                "\t<ChildItems>\n" +
+                "\t\t<Table name=\"T\" id=\"1\">\n" +
+                "\t\t\t<ContextMenu name=\"TContext\" id=\"2\"/>\n" +
+                "\t\t\t<AutoCommandBar name=\"TCmd\" id=\"3\"/>\n" +
+                "\t\t\t<ExtendedTooltip name=\"TTooltip\" id=\"4\"/>\n" +
+                "\t\t\t<SearchStringAddition name=\"TSearch\" id=\"5\"/>\n" +
+                "\t\t\t<ViewStatusAddition name=\"TStatus\" id=\"6\"/>\n" +
+                "\t\t\t<SearchControlAddition name=\"TControl\" id=\"7\"/>\n" +
+                "\t\t\t<ChildItems/>\n" +
+                "\t\t</Table>\n" +
+                "\t</ChildItems>\n" +
+                "</Form>\n");
+        XmlDocument doc = reader.parse(file);
+        List<ValidationIssue> issues = validator.validate(doc, ValidationLevel.SEMANTIC);
+        assertThat(issues).anyMatch(i -> i.getCode().equals("FORM-125")
+                && i.getMessage().contains("SearchStringAddition"));
+    }
+
+    @Test
+    void form125_tableAdditionWithWrongType_reported() throws Exception {
+        Path file = writeXml("Form.xml",
+                "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n" +
+                "<Form xmlns=\"http://v8.1c.ru/8.3/xcf/logform\" version=\"2.17\">\n" +
+                "\t<AutoCommandBar name=\"FormCommandBar\" id=\"-1\"/>\n" +
+                "\t<ChildItems>\n" +
+                "\t\t<Table name=\"T\" id=\"1\">\n" +
+                "\t\t\t<ContextMenu name=\"TContext\" id=\"2\"/>\n" +
+                "\t\t\t<AutoCommandBar name=\"TCmd\" id=\"3\"/>\n" +
+                "\t\t\t<ExtendedTooltip name=\"TTooltip\" id=\"4\"/>\n" +
+                "\t\t\t<SearchStringAddition name=\"TSearch\" id=\"5\">\n" +
+                "\t\t\t\t<AdditionSource><Item>T</Item><Type>Wrong</Type></AdditionSource>\n" +
+                "\t\t\t</SearchStringAddition>\n" +
+                "\t\t\t<ViewStatusAddition name=\"TStatus\" id=\"6\"/>\n" +
+                "\t\t\t<SearchControlAddition name=\"TControl\" id=\"7\"/>\n" +
+                "\t\t\t<ChildItems/>\n" +
+                "\t\t</Table>\n" +
+                "\t</ChildItems>\n" +
+                "</Form>\n");
+        XmlDocument doc = reader.parse(file);
+        List<ValidationIssue> issues = validator.validate(doc, ValidationLevel.SEMANTIC);
+        assertThat(issues).anyMatch(i -> i.getCode().equals("FORM-125")
+                && i.getMessage().contains("Wrong"));
+    }
+
     // ==================== FORM-118: Event handler non-empty ====================
 
     @Test

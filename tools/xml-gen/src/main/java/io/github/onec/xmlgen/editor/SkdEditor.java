@@ -37,6 +37,11 @@ import static io.github.onec.xmlgen.editor.EditorUtils.findOrCreateChild;
  * изменён, и false для noop-кейсов.
  */
 public class SkdEditor {
+    private static final String DCS_COMMON_NS =
+            "http://v8.1c.ru/8.1/data-composition-system/common";
+    private static final String CURRENT_CONFIG_NS =
+            "http://v8.1c.ru/8.1/data/enterprise/current-config";
+
     private final XmlDocument document;
     private final List<String> warnings = new ArrayList<>();
 
@@ -223,7 +228,8 @@ public class SkdEditor {
         }
         if (fd.role != null) {
             XmlNode role = createNode("role");
-            role.addChild(simpleTextNode(roleFlagToTag(fd.role), "true"));
+            role.setAttribute("xmlns:dcscom", DCS_COMMON_NS);
+            addRoleFlag(role, fd.role);
             field.addChild(role);
         }
         if (!fd.restrictions.isEmpty()) {
@@ -343,13 +349,14 @@ public class SkdEditor {
             return null;
         }
         XmlNode role = createNode("role");
+        role.setAttribute("xmlns:dcscom", DCS_COMMON_NS);
         // Flags become boolean children
         for (String flag : d.flags) {
-            role.addChild(simpleTextNode(roleFlagToTag(flag), "true"));
+            addRoleFlag(role, flag);
         }
         // kv become children with text
         for (Map.Entry<String, String> e : d.kv.entrySet()) {
-            role.addChild(simpleTextNode(e.getKey(), e.getValue()));
+            role.addChild(simpleTextNode(prefixDcsCommon(e.getKey()), e.getValue()));
         }
         return role;
     }
@@ -365,9 +372,34 @@ public class SkdEditor {
         return ma.equals(mb);
     }
 
-    private String roleFlagToTag(String flag) {
-        // нормализация: balance → balance (XML тэг), autoOrder → autoOrder
-        return flag;
+    private void addRoleFlag(XmlNode role, String flag) {
+        String normalized = flag.startsWith("@") ? flag.substring(1) : flag;
+        switch (normalized) {
+            case "period":
+                role.addChild(simpleTextNode("dcscom:periodNumber", "1"));
+                role.addChild(simpleTextNode("dcscom:periodType", "Main"));
+                break;
+            case "account":
+                role.addChild(simpleTextNode("dcscom:account", "true"));
+                break;
+            case "dimension":
+            case "balance":
+                role.addChild(simpleTextNode("dcscom:" + normalized, "true"));
+                break;
+            case "resource":
+                role.addChild(simpleTextNode("dcscom:ignoreNullValues", "true"));
+                break;
+            default:
+                role.addChild(simpleTextNode(prefixDcsCommon(normalized), "true"));
+                break;
+        }
+    }
+
+    private String prefixDcsCommon(String name) {
+        if (name == null || name.isEmpty() || name.contains(":")) {
+            return name;
+        }
+        return "dcscom:" + name;
     }
 
     // ====================================================================
@@ -818,7 +850,11 @@ public class SkdEditor {
     private XmlNode buildValueType(List<SkdTypeParser.TypePart> parts) {
         XmlNode vt = createNode("valueType");
         for (SkdTypeParser.TypePart tp : parts) {
-            vt.addChild(simpleTextNode("v8:Type", tp.xmlType));
+            XmlNode type = simpleTextNode("v8:Type", tp.xmlType);
+            if (tp.xmlType.startsWith("d5p1:")) {
+                type.setAttribute("xmlns:d5p1", CURRENT_CONFIG_NS);
+            }
+            vt.addChild(type);
             if (tp.stringLength != null) {
                 XmlNode sq = createNode("v8:StringQualifiers");
                 sq.addChild(simpleTextNode("v8:Length", tp.stringLength.toString()));

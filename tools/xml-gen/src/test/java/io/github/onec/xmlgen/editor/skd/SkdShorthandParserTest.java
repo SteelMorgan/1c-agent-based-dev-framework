@@ -27,7 +27,7 @@ class SkdShorthandParserTest {
         assertThat(fd.name).isEqualTo("Организация");
         assertThat(fd.title).isEqualTo("Орг-ция");
         assertThat(fd.role).isEqualTo("dimension");
-        assertThat(fd.type.get(0).xmlType).isEqualTo("cfg:CatalogRef.Организации");
+        assertThat(fd.type.get(0).xmlType).isEqualTo("d5p1:CatalogRef.Организации");
     }
 
     @Test
