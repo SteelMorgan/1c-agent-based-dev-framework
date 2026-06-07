@@ -11,7 +11,10 @@ import javax.xml.stream.XMLStreamException;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -159,11 +162,14 @@ public class RoleWriter extends XmlWriter {
      * Записать права объекта.
      */
     private void writeObjectRights(RoleDsl.ObjectRights obj) throws XMLStreamException {
+        String objectName = RoleDsl.normalizeObjectName(obj.getName());
+        Map<String, String> rls = normalizeRls(obj.getRls());
+
         startElement("object");
-        writeElement("name", obj.getName());
+        writeElement("name", objectName);
         
         // Получить список прав
-        Map<String, Boolean> rights = resolveRights(obj);
+        Map<String, Boolean> rights = resolveRights(objectName, obj);
         
         // Записать права
         for (Map.Entry<String, Boolean> right : rights.entrySet()) {
@@ -172,9 +178,9 @@ public class RoleWriter extends XmlWriter {
             writeElement("value", String.valueOf(right.getValue()));
             
             // RLS (если есть)
-            if (obj.getRls() != null && obj.getRls().containsKey(right.getKey())) {
+            if (rls != null && rls.containsKey(right.getKey())) {
                 startElement("restrictionByCondition");
-                writeElement("condition", obj.getRls().get(right.getKey()));
+                writeElement("condition", rls.get(right.getKey()));
                 endElement(); // restrictionByCondition
             }
             
@@ -187,12 +193,12 @@ public class RoleWriter extends XmlWriter {
     /**
      * Разрешить права объекта (применить пресет + переопределения).
      */
-    private Map<String, Boolean> resolveRights(RoleDsl.ObjectRights obj) {
-        Map<String, Boolean> result = new HashMap<>();
+    private Map<String, Boolean> resolveRights(String objectName, RoleDsl.ObjectRights obj) {
+        Map<String, Boolean> result = new LinkedHashMap<>();
         
         // Применить пресет
         if (obj.getPreset() != null) {
-            result.putAll(getPresetRights(obj.getName(), obj.getPreset()));
+            result.putAll(getPresetRights(objectName, obj.getPreset()));
         }
         
         // Применить переопределения
@@ -200,14 +206,18 @@ public class RoleWriter extends XmlWriter {
             if (obj.getRights() instanceof Map) {
                 @SuppressWarnings("unchecked")
                 Map<String, Object> rightsMap = (Map<String, Object>) obj.getRights();
-                for (Map.Entry<String, Object> entry : rightsMap.entrySet()) {
-                    result.put(entry.getKey(), Boolean.valueOf(entry.getValue().toString()));
+                List<Map.Entry<String, Object>> entries = new ArrayList<>(rightsMap.entrySet());
+                entries.sort(Comparator.comparingInt(e ->
+                        roleRightOrder(RoleDsl.normalizeRightNameStrict(e.getKey()))));
+                for (Map.Entry<String, Object> entry : entries) {
+                    result.put(RoleDsl.normalizeRightNameStrict(entry.getKey()),
+                            Boolean.valueOf(entry.getValue().toString()));
                 }
             } else if (obj.getRights() instanceof List) {
                 @SuppressWarnings("unchecked")
                 List<String> rightsList = (List<String>) obj.getRights();
                 for (String right : rightsList) {
-                    result.put(right, true);
+                    result.put(RoleDsl.normalizeRightNameStrict(right), true);
                 }
             }
         }
@@ -233,32 +243,56 @@ public class RoleWriter extends XmlWriter {
      * Использует enum-ы RoleRight и MDOType из mdclasses.
      */
     private Map<String, Boolean> getPresetRights(String objectName, String preset) {
-        Map<String, Boolean> rights = new HashMap<>();
+        Map<String, Boolean> rights = new LinkedHashMap<>();
         MDOType mdoType = resolveObjectType(objectName);
         
+        //**agent TASK-174 [07.06.2026 13:40:00]
+        // Пресеты учитывают каталог прав по типам из спеки 1c-role-spec. Раньше view
+        // безусловно давал Read+View — для DataProcessor/Report это эмиссия НЕВАЛИДНЫХ
+        // прав (у них только Use, View), а edit на регистрах давал Insert/Delete/Interactive*
+        // (у регистров только Read/Update/View/Edit/TotalsControl). Designer такие
+        // Rights.xml отвергает или молча режет; валидатор ловит теперь это как ROLE-103.
+        boolean useViewOnly = (mdoType == MDOType.DATA_PROCESSOR || mdoType == MDOType.REPORT);
+        boolean isRegister = (mdoType == MDOType.INFORMATION_REGISTER
+                || mdoType == MDOType.ACCUMULATION_REGISTER
+                || mdoType == MDOType.ACCOUNTING_REGISTER
+                || mdoType == MDOType.CALCULATION_REGISTER);
+
         switch (preset.toLowerCase()) {
             case "view":
+                if (useViewOnly) {
+                    // Спека: DataProcessor/Report — только Use, View (Read не существует).
+                    grant(rights, RoleRight.USE, RoleRight.VIEW);
+                    break;
+                }
                 grant(rights, RoleRight.READ, RoleRight.VIEW);
                 if (mdoType == MDOType.CATALOG || mdoType == MDOType.DOCUMENT) {
                     grant(rights, RoleRight.INPUT_BY_STRING);
                 }
-                if (mdoType == MDOType.DATA_PROCESSOR || mdoType == MDOType.REPORT) {
-                    grant(rights, RoleRight.USE);
-                }
                 break;
-                
+
             case "edit":
+                if (useViewOnly) {
+                    // У DataProcessor/Report нет CRUD-прав — edit вырождается в Use+View.
+                    grant(rights, RoleRight.USE, RoleRight.VIEW);
+                    break;
+                }
+                if (isRegister) {
+                    // Регистры: без Insert/Delete/Interactive* (их не существует).
+                    grant(rights, RoleRight.READ, RoleRight.UPDATE, RoleRight.VIEW, RoleRight.EDIT);
+                    break;
+                }
                 grant(rights,
                     RoleRight.READ, RoleRight.INSERT, RoleRight.UPDATE, RoleRight.DELETE,
                     RoleRight.VIEW, RoleRight.EDIT,
                     RoleRight.INTERACTIVE_INSERT, RoleRight.INTERACTIVE_DELETE,
                     RoleRight.INTERACTIVE_SET_DELETION_MARK, RoleRight.INTERACTIVE_CLEAR_DELETION_MARK
                 );
-                
+
                 if (mdoType == MDOType.CATALOG || mdoType == MDOType.DOCUMENT) {
                     grant(rights, RoleRight.INPUT_BY_STRING, RoleRight.INTERACTIVE_DELETE_MARKED);
                 }
-                
+
                 if (mdoType == MDOType.DOCUMENT) {
                     grant(rights,
                         RoleRight.POSTING, RoleRight.UNDO_POSTING,
@@ -267,6 +301,7 @@ public class RoleWriter extends XmlWriter {
                     );
                 }
                 break;
+        //**agent TASK-174
                 
             case "full":
                 rights.putAll(getPresetRights(objectName, "edit"));
@@ -274,6 +309,27 @@ public class RoleWriter extends XmlWriter {
         }
         
         return rights;
+    }
+
+    private static Map<String, String> normalizeRls(Map<String, String> rls) {
+        if (rls == null) {
+            return null;
+        }
+        Map<String, String> result = new LinkedHashMap<>();
+        for (Map.Entry<String, String> entry : rls.entrySet()) {
+            result.put(RoleDsl.normalizeRightNameStrict(entry.getKey()), entry.getValue());
+        }
+        return result;
+    }
+
+    private static int roleRightOrder(String rightName) {
+        RoleRight[] values = RoleRight.values();
+        for (int i = 0; i < values.length; i++) {
+            if (values[i] != RoleRight.UNKNOWN && values[i].fullName().getEn().equals(rightName)) {
+                return i;
+            }
+        }
+        return Integer.MAX_VALUE;
     }
     
     /**

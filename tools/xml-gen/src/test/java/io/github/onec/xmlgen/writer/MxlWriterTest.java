@@ -754,6 +754,9 @@ class MxlWriterTest {
      */
     @Test
     void testPageA4Landscape() throws Exception {
+        Map<String, Object> widths = new HashMap<>();
+        widths.put("1", "1x");
+        widths.put("2", "1x");
         MxlDsl dsl = new MxlDsl(1, 40, null, null, null,
                 Arrays.asList(new MxlDsl.Area("X", Arrays.asList(
                         new MxlDsl.Row(null, null, Arrays.asList(
@@ -761,16 +764,20 @@ class MxlWriterTest {
                         ), null)))),
                 "A4-landscape");
         Path out = tempDir.resolve("Template.xml");
-        new MxlWriter(OutputFormat.DESIGNER).create(dsl, out);
+        new MxlWriter(OutputFormat.DESIGNER).create(
+                new MxlDsl(2, null, widths, null, null, dsl.getAreas(), "A4-landscape"), out);
         String content = Files.readString(out);
-        assertThat(content).contains("<pageSetup>");
-        assertThat(content).contains("<orientation>Landscape</orientation>");
-        assertThat(content).contains("<pageWidth>780</pageWidth>");
+        assertThat(content).doesNotContain("<pageSetup>");
+        assertThat(content).doesNotContain("<orientation>Landscape</orientation>");
+        assertThat(content).contains("<width>390</width>");
     }
 
     @Test
     void testPageA4Portrait() throws Exception {
-        MxlDsl dsl = new MxlDsl(1, 40, null, null, null,
+        Map<String, Object> widths = new HashMap<>();
+        widths.put("1", "1x");
+        widths.put("2", "1x");
+        MxlDsl dsl = new MxlDsl(2, null, widths, null, null,
                 Arrays.asList(new MxlDsl.Area("X", Arrays.asList(
                         new MxlDsl.Row(null, null, Arrays.asList(
                                 new MxlDsl.Cell(1, null, null, null, null, null, "A", null)
@@ -779,8 +786,9 @@ class MxlWriterTest {
         Path out = tempDir.resolve("Template.xml");
         new MxlWriter(OutputFormat.DESIGNER).create(dsl, out);
         String content = Files.readString(out);
-        assertThat(content).contains("<orientation>Portrait</orientation>");
-        assertThat(content).contains("<pageWidth>540</pageWidth>");
+        assertThat(content).doesNotContain("<pageSetup>");
+        assertThat(content).doesNotContain("<orientation>Portrait</orientation>");
+        assertThat(content).contains("<width>270</width>");
     }
 
     @Test
@@ -811,8 +819,7 @@ class MxlWriterTest {
         Path out = tempDir.resolve("Template.xml");
         new MxlWriter(OutputFormat.DESIGNER).create(dsl, out);
         String content = Files.readString(out);
-        // The XML must include the pageSetup with width 540 and per-column formats summing > 540.
-        assertThat(content).contains("<pageWidth>540</pageWidth>");
+        assertThat(content).doesNotContain("<pageSetup>");
         assertThat(content).contains("<width>500</width>");
         assertThat(content).contains("<width>600</width>");
     }

@@ -228,7 +228,7 @@ public class MetaEditor {
         sb.append(indent).append("<").append(xmlTag).append(" uuid=\"").append(uuid()).append("\">\n");
         sb.append(indent).append("\t<Properties>\n");
         sb.append(indent).append("\t\t<Name>").append(esc(def.name)).append("</Name>\n");
-        writeSynonym(sb, indent + "\t\t", splitCamelCase(def.name));
+        writeSynonym(sb, indent + "\t\t", def.synonym != null ? def.synonym : splitCamelCase(def.name)); //**agent TASK-174 [05.06.2026 12:42:00] XG-09: синоним из пайп-токена
         sb.append(indent).append("\t\t<Comment/>\n");
 
         // Type
@@ -276,6 +276,13 @@ public class MetaEditor {
         String fillChecking = def.flags.contains("req") ? "ShowError" : "DontCheck";
         sb.append(indent).append("\t\t<FillChecking>").append(fillChecking).append("</FillChecking>\n");
 
+        //++agent TASK-174 [07.06.2026 12:00:00]
+        // Порт-аудит: ChoiceFoldersAndItems был опущен при переносе — спека (1c-config-objects-spec §6.1)
+        // и грунт-труф Designer 2.20 пишут его МЕЖДУ FillChecking и ChoiceParameterLinks
+        // для ВСЕХ реквизитов/измерений/ресурсов (даже примитивных типов).
+        sb.append(indent).append("\t\t<ChoiceFoldersAndItems>Items</ChoiceFoldersAndItems>\n");
+        //++agent TASK-174
+
         // ChoiceParameterLinks etc
         sb.append(indent).append("\t\t<ChoiceParameterLinks/>\n");
         sb.append(indent).append("\t\t<ChoiceParameters/>\n");
@@ -295,6 +302,23 @@ public class MetaEditor {
             if ("AccumulationRegister".equals(objType)) {
                 sb.append(indent).append("\t\t<DenyIncompleteValues>").append(def.flags.contains("denyincomplete")).append("</DenyIncompleteValues>\n");
             }
+            //++agent TASK-174 [07.06.2026 12:00:00]
+            // Порт-аудит: для бух./расчётных регистров измерения имеют СВОИ специфичные
+            // узлы (грунт-труф _ДемоЖурналПроводок*/_ДемоОсновныеНачисления):
+            // AcctReg: Balance → AccountingFlag → DenyIncompleteValues;
+            // CalcReg: DenyIncompleteValues → BaseDimension → ScheduleLink.
+            // Раньше эти узлы не эмитились вовсе.
+            if ("AccountingRegister".equals(objType)) {
+                sb.append(indent).append("\t\t<Balance>").append(def.flags.contains("balance")).append("</Balance>\n");
+                sb.append(indent).append("\t\t<AccountingFlag/>\n");
+                sb.append(indent).append("\t\t<DenyIncompleteValues>").append(def.flags.contains("denyincomplete")).append("</DenyIncompleteValues>\n");
+            }
+            if ("CalculationRegister".equals(objType)) {
+                sb.append(indent).append("\t\t<DenyIncompleteValues>").append(def.flags.contains("denyincomplete")).append("</DenyIncompleteValues>\n");
+                sb.append(indent).append("\t\t<BaseDimension>").append(def.flags.contains("base")).append("</BaseDimension>\n");
+                sb.append(indent).append("\t\t<ScheduleLink/>\n");
+            }
+            //++agent TASK-174
         }
 
         // Indexing
@@ -310,8 +334,16 @@ public class MetaEditor {
             sb.append(indent).append("\t\t<UseInTotals>").append(useInTotals).append("</UseInTotals>\n");
         }
 
-        // DataHistory
-        sb.append(indent).append("\t\t<DataHistory>Use</DataHistory>\n");
+        //**agent TASK-174 [07.06.2026 12:00:00]
+        // Порт-аудит: DataHistory писался безусловно, но по грунт-труфу 2.20 у измерений/
+        // ресурсов Accumulation/Accounting/CalculationRegister элемента DataHistory НЕТ
+        // (есть только у InformationRegister и нерегистровых объектов). Лишний узел —
+        // риск XSD-отказа при full-load (тот же класс, что Master/MainFilter у AccumReg).
+        //sb.append(indent).append("\t\t<DataHistory>Use</DataHistory>\n");
+        if (!isRegister || "InformationRegister".equals(objType)) {
+            sb.append(indent).append("\t\t<DataHistory>Use</DataHistory>\n");
+        }
+        //**agent TASK-174
 
         sb.append(indent).append("\t</Properties>\n");
         sb.append(indent).append("</").append(xmlTag).append(">");
@@ -1074,7 +1106,7 @@ public class MetaEditor {
         sb.append(indent).append("<Attribute uuid=\"").append(uuid()).append("\">\n");
         sb.append(indent).append("\t<Properties>\n");
         sb.append(indent).append("\t\t<Name>").append(esc(def.name)).append("</Name>\n");
-        writeSynonym(sb, indent + "\t\t", splitCamelCase(def.name));
+        writeSynonym(sb, indent + "\t\t", def.synonym != null ? def.synonym : splitCamelCase(def.name)); //**agent TASK-174 [05.06.2026 12:42:00] XG-09: синоним из пайп-токена
         sb.append(indent).append("\t\t<Comment/>\n");
         writeTypeBlock(sb, indent + "\t\t", def.types);
         sb.append(indent).append("\t\t<PasswordMode>false</PasswordMode>\n");
@@ -1091,6 +1123,10 @@ public class MetaEditor {
         String fillChecking = def.flags.contains("req") ? "ShowError" : "DontCheck";
         sb.append(indent).append("\t\t<FillChecking>").append(fillChecking).append("</FillChecking>\n");
 
+        //++agent TASK-174 [07.06.2026 12:00:00]
+        // Порт-аудит: ChoiceFoldersAndItems был опущен (спека §6.1 + грунт-труф 2.20).
+        sb.append(indent).append("\t\t<ChoiceFoldersAndItems>Items</ChoiceFoldersAndItems>\n");
+        //++agent TASK-174
         sb.append(indent).append("\t\t<ChoiceParameterLinks/>\n");
         sb.append(indent).append("\t\t<ChoiceParameters/>\n");
         sb.append(indent).append("\t\t<QuickChoice>Auto</QuickChoice>\n");
@@ -1506,6 +1542,14 @@ public class MetaEditor {
             sb.append(indent).append("<v8:DateQualifiers>\n");
             sb.append(indent).append("\t<v8:DateFractions>DateTime</v8:DateFractions>\n");
             sb.append(indent).append("</v8:DateQualifiers>\n");
+        //++agent TASK-174 [07.06.2026 12:00:00]
+        // XG-13: ветка Time (ЧастиДаты=Время) — раньше отсутствовала, Date(Time) уходил в литерал.
+        } else if ("Time".equals(type)) {
+            sb.append(indent).append("<v8:Type>xs:dateTime</v8:Type>\n");
+            sb.append(indent).append("<v8:DateQualifiers>\n");
+            sb.append(indent).append("\t<v8:DateFractions>Time</v8:DateFractions>\n");
+            sb.append(indent).append("</v8:DateQualifiers>\n");
+        //++agent TASK-174
         } else if (type.startsWith("DefinedType.")) {
             sb.append(indent).append("<v8:TypeSet>cfg:").append(type).append("</v8:TypeSet>\n");
         } else if (type.contains(".")) {
@@ -1567,45 +1611,140 @@ public class MetaEditor {
         }
 
         // Split by | for flags
-        String[] pipeparts = shorthand.split("\\|", 2);
+        //**agent TASK-174 [05.06.2026 12:40:00]
+        // XG-09: прежний разбор считал ВСЁ после первого "|" флагами. Популярная
+        // у агентов форма --value "Имя|Синоним|Date" (стиль add-predefined) молча
+        // теряла и синоним, и тип — реквизит всегда получал xs:string (TASK-173).
+        // Теперь каждый пайп-токен классифицируется: известный флаг → флаг;
+        // распознанный тип (если тип ещё не задан через "Имя: Тип") → тип;
+        // иначе → синоним. Канонический синтаксис "Имя: Тип | req" не меняется.
+        String[] pipeparts = shorthand.split("\\|");
         String main = pipeparts[0].trim();
-        if (pipeparts.length > 1) {
-            for (String f : pipeparts[1].split(",")) {
-                String flag = f.trim().toLowerCase();
-                if (!flag.isEmpty()) def.flags.add(flag);
+        for (int pi = 1; pi < pipeparts.length; pi++) {
+            String segment = pipeparts[pi].trim();
+            if (segment.isEmpty()) continue;
+            // Сегмент классифицируется ЦЕЛИКОМ: тип "Number(15,2)" содержит запятую
+            // внутри скобок — рвать сегмент по запятой до классификации нельзя.
+            java.util.List<String> tokens = new ArrayList<>();
+            boolean allFlags = true;
+            for (String f : segment.split(",")) {
+                String token = f.trim().toLowerCase();
+                if (token.isEmpty()) continue;
+                tokens.add(token);
+                if (!KNOWN_FLAGS.contains(token)) allFlags = false;
+            }
+            if (allFlags && !tokens.isEmpty()) {
+                def.flags.addAll(tokens);
+            } else if (def.types.isEmpty() && isRecognizedType(segment)) {
+                for (String part : CompositeType.splitCompositeTypes(segment)) {
+                    if (!part.trim().isEmpty()) def.types.add(resolveType(part.trim()));
+                }
+            } else if (def.synonym == null) {
+                def.synonym = segment;
+            } else {
+                warn("Unrecognized shorthand token '" + segment + "' (not a flag/type/synonym slot)");
             }
         }
+        //**agent TASK-174
 
         // Split by : for name and type
         int colonIdx = main.indexOf(':');
         if (colonIdx > 0) {
             def.name = main.substring(0, colonIdx).trim();
             String typeStr = main.substring(colonIdx + 1).trim();
-            // Composite types: Type1 + Type2
-            if (typeStr.contains(" + ")) {
-                for (String part : typeStr.split("\\+")) {
-                    def.types.add(resolveType(part.trim()));
-                }
-            } else {
-                def.types.add(resolveType(typeStr));
+            //**agent TASK-174 [05.06.2026 12:40:00]
+            // XG-09: тип из "Имя: Тип" имеет приоритет над типом, угаданным из
+            // пайп-токенов; составной тип — через paren-aware сплиттер ("+" и "|"
+            // внутри скобок не рвутся).
+            //--agent TASK-174 (прежний код)
+            //// Composite types: Type1 + Type2
+            //if (typeStr.contains(" + ")) {
+            //    for (String part : typeStr.split("\\+")) {
+            //        def.types.add(resolveType(part.trim()));
+            //    }
+            //} else {
+            //    def.types.add(resolveType(typeStr));
+            //}
+            List<String> colonTypes = new ArrayList<>();
+            for (String part : CompositeType.splitCompositeTypes(typeStr)) {
+                if (!part.trim().isEmpty()) colonTypes.add(resolveType(part.trim()));
             }
+            if (!colonTypes.isEmpty()) {
+                def.types.clear();
+                def.types.addAll(colonTypes);
+            }
+            //**agent TASK-174
         } else {
             def.name = main;
+        }
+        //++agent TASK-174 [05.06.2026 12:40:00]
+        // Default только если тип не пришёл ни из ":", ни из пайп-токена.
+        if (def.types.isEmpty()) {
             def.types.add("String"); // default — String(10)
         }
+        //++agent TASK-174
 
         return def;
     }
+
+    //++agent TASK-174 [05.06.2026 12:40:00]
+    /** Флаги shorthand-нотации (всё, что реально читается из def.flags). */
+    private static final Set<String> KNOWN_FLAGS = Set.of(
+            "req", "nonneg", "master", "mainfilter", "denyincomplete",
+            "index", "indexadditional", "nouseintotals",
+            //++agent TASK-174 [07.06.2026 12:00:00] порт-аудит: флаги измерений бух./расчётного регистра
+            "balance", "base");
+            //++agent TASK-174
+
+    /**
+     * XG-09: распознаваем ли токен как тип (для классификации пайп-токенов).
+     * Консервативно: только то, что resolveType() переводит в известную форму —
+     * параметризованный тип, известный простой тип (рус/англ) или dotted-ссылка.
+     */
+    private boolean isRecognizedType(String token) {
+        String first = CompositeType.splitCompositeTypes(token).get(0).trim();
+        if (first.isEmpty()) return false;
+        Matcher m = Pattern.compile("^([^(]+)\\((.+)\\)$").matcher(first);
+        String base = m.matches() ? m.group(1).trim() : first;
+        if (base.contains(".")) {
+            // dotted: CatalogRef.X / СправочникСсылка.X / DefinedType.X и т.п.
+            return true;
+        }
+        for (String known : RU_TYPE_SYNONYMS.keySet()) {
+            if (base.equalsIgnoreCase(known)) return true;
+        }
+        return base.equalsIgnoreCase("Number") || base.equalsIgnoreCase("String")
+                || base.equalsIgnoreCase("Boolean") || base.equalsIgnoreCase("Date")
+                || base.equalsIgnoreCase("DateTime") || base.equalsIgnoreCase("ValueStorage");
+    }
+    //++agent TASK-174
 
     private static class AttrDef {
         String name = "";
         List<String> types = new ArrayList<>();
         Set<String> flags = new LinkedHashSet<>();
+        //++agent TASK-174 [05.06.2026 12:40:00]
+        String synonym; // XG-09: синоним из пайп-токена ("Имя|Синоним|Тип")
+        //++agent TASK-174
         String after;
         String before;
     }
 
     // ─── Type resolution ────────────────────────────────────────────────
+
+    //++agent TASK-174 [07.06.2026 12:00:00]
+    /**
+     * XG-13: нормализация параметра ЧастиДаты из формы Date(X) / Дата(X)
+     * в канонический простой тип (Date | Time | DateTime).
+     */
+    private static String normalizeDateFraction(String fraction) {
+        if (fraction.equalsIgnoreCase("Date") || fraction.equalsIgnoreCase("Дата")) return "Date";
+        if (fraction.equalsIgnoreCase("Time") || fraction.equalsIgnoreCase("Время")) return "Time";
+        if (fraction.equalsIgnoreCase("DateTime") || fraction.equalsIgnoreCase("ДатаВремя")) return "DateTime";
+        throw new IllegalArgumentException("Unknown date fraction '" + fraction
+                + "' in Date(...) shorthand. Valid: Date|Time|DateTime (Дата|Время|ДатаВремя)");
+    }
+    //++agent TASK-174
 
     private String resolveType(String type) {
         if (type == null || type.isEmpty()) return "String";
@@ -1615,6 +1754,16 @@ public class MetaEditor {
         if (m.matches()) {
             String base = m.group(1).trim();
             String params = m.group(2);
+            //**agent TASK-174 [07.06.2026 12:00:00]
+            // XG-13: параметр Date(...) — это КВАЛИФИКАТОР ЧастиДаты, а не параметризованный
+            // тип. Раньше resolveType возвращал "Date(DateTime)" как есть, writeTypeValue
+            // не имел ветки для скобочной формы и молча писал литерал
+            // <v8:Type>Date(DateTime)</v8:Type> — битый тип в выгрузке. Теперь Date(X)
+            // нормализуется в канонический простой тип Date/Time/DateTime.
+            if (base.equalsIgnoreCase("Date") || base.equalsIgnoreCase("Дата")) {
+                return normalizeDateFraction(params.trim());
+            }
+            //**agent TASK-174
             // Russian synonyms
             for (Map.Entry<String, String> entry : RU_TYPE_SYNONYMS.entrySet()) {
                 if (base.equalsIgnoreCase(entry.getKey())) {
@@ -1624,7 +1773,6 @@ public class MetaEditor {
             // English canonical names — normalize case
             if (base.equalsIgnoreCase("String"))  return "String("  + params + ")";
             if (base.equalsIgnoreCase("Number"))  return "Number("  + params + ")";
-            if (base.equalsIgnoreCase("Date"))    return "Date("    + params + ")";
             return type;
         }
 

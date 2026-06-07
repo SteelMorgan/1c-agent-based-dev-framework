@@ -1,5 +1,6 @@
 package io.github.onec.xmlgen.writer;
 
+import io.github.onec.xmlgen.model.ConfigurationXmlReader;
 import io.github.onec.xmlgen.model.UuidGenerator;
 
 import java.io.IOException;
@@ -87,6 +88,13 @@ public class ExtensionWriter {
         String ver = version != null ? version : "";
         String vnd = vendor != null ? vendor : "";
         String baseLangUuid = "00000000-0000-0000-0000-000000000000";
+        //++agent TASK-174 [07.06.2026 13:50:00]
+        // Версия формата сериализации: при наличии --config-path берём из Configuration.xml
+        // базовой конфигурации (расширение выгружается той же платформой, что и база),
+        // иначе дефолт 2.17. Раньше — безусловный хардкод 2.17; на платформе 8.3.27
+        // (формат 2.20) это рассинхрон версии расширения с базой.
+        String formatVersion = ConfigurationXmlReader.DEFAULT_FORMAT_VERSION;
+        //++agent TASK-174
 
         // Auto-resolve from base config
         if (configPath != null) {
@@ -102,6 +110,10 @@ public class ExtensionWriter {
                     baseLangUuid = resolvedLangUuid;
                     out.println("[INFO] Base config Language UUID: " + baseLangUuid);
                 }
+                //++agent TASK-174 [07.06.2026 13:50:00]
+                formatVersion = ConfigurationXmlReader.readFormatVersion(cfgFile);
+                out.println("[INFO] Base config format version: " + formatVersion);
+                //++agent TASK-174
             }
         } else {
             out.println("[WARN] Language ExtendedConfigurationObject set to zeros. "
@@ -112,14 +124,14 @@ public class ExtensionWriter {
 
         // 1. Configuration.xml
         writeConfigurationXml(outputDir, name, syn, pfx, purp, cmp, ver, vnd,
-                baseLangUuid, roleName, noRole);
+                baseLangUuid, roleName, noRole, formatVersion);
 
         // 2. Languages/Русский.xml
-        writeLanguageXml(outputDir, baseLangUuid);
+        writeLanguageXml(outputDir, baseLangUuid, formatVersion);
 
         // 3. Role (optional)
         if (!noRole) {
-            writeRoleXml(outputDir, roleName);
+            writeRoleXml(outputDir, roleName, formatVersion);
         }
 
         // Summary
@@ -135,12 +147,14 @@ public class ExtensionWriter {
     private void writeConfigurationXml(Path outputDir, String name, String synonym,
                                        String prefix, String purpose, String compat,
                                        String version, String vendor, String baseLangUuid,
-                                       String roleName, boolean noRole) throws IOException {
+                                       String roleName, boolean noRole,
+                                       String formatVersion) throws IOException {
         String cfgUuid = UuidGenerator.generate();
 
         StringBuilder sb = new StringBuilder();
         sb.append("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n");
-        sb.append("<MetaDataObject ").append(XMLNS).append(" version=\"2.17\">\n");
+        // TASK-174: версия формата из базовой конфигурации (раньше хардкод 2.17)
+        sb.append("<MetaDataObject ").append(XMLNS).append(" version=\"").append(formatVersion).append("\">\n");
         sb.append("\t<Configuration uuid=\"").append(cfgUuid).append("\">\n");
 
         // InternalInfo — 7 ContainedObjects
@@ -210,14 +224,15 @@ public class ExtensionWriter {
 
     // ─── Languages/Русский.xml ──────────────────────────────────────────
 
-    private void writeLanguageXml(Path outputDir, String baseLangUuid) throws IOException {
+    private void writeLanguageXml(Path outputDir, String baseLangUuid, String formatVersion) throws IOException {
         Path langDir = outputDir.resolve("Languages");
         Files.createDirectories(langDir);
 
         String langUuid = UuidGenerator.generate();
         StringBuilder sb = new StringBuilder();
         sb.append("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n");
-        sb.append("<MetaDataObject ").append(XMLNS).append(" version=\"2.17\">\n");
+        // TASK-174: версия формата из базовой конфигурации (раньше хардкод 2.17)
+        sb.append("<MetaDataObject ").append(XMLNS).append(" version=\"").append(formatVersion).append("\">\n");
         sb.append("\t<Language uuid=\"").append(langUuid).append("\">\n");
         sb.append("\t\t<InternalInfo/>\n");
         sb.append("\t\t<Properties>\n");
@@ -235,14 +250,15 @@ public class ExtensionWriter {
 
     // ─── Role ───────────────────────────────────────────────────────────
 
-    private void writeRoleXml(Path outputDir, String roleName) throws IOException {
+    private void writeRoleXml(Path outputDir, String roleName, String formatVersion) throws IOException {
         Path roleDir = outputDir.resolve("Roles");
         Files.createDirectories(roleDir);
 
         String roleUuid = UuidGenerator.generate();
         StringBuilder sb = new StringBuilder();
         sb.append("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n");
-        sb.append("<MetaDataObject ").append(XMLNS).append(" version=\"2.17\">\n");
+        // TASK-174: версия формата из базовой конфигурации (раньше хардкод 2.17)
+        sb.append("<MetaDataObject ").append(XMLNS).append(" version=\"").append(formatVersion).append("\">\n");
         sb.append("\t<Role uuid=\"").append(roleUuid).append("\">\n");
         sb.append("\t\t<Properties>\n");
         sb.append("\t\t\t<Name>").append(esc(roleName)).append("</Name>\n");

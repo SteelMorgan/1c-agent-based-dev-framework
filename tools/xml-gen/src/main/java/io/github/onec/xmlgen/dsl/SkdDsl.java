@@ -7,6 +7,8 @@ import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
+import io.github.onec.xmlgen.editor.skd.SkdShorthandParser;
+import io.github.onec.xmlgen.editor.skd.SkdTypeParser;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
@@ -216,7 +218,6 @@ public class SkdDsl {
         private List<String> restrict;
         private List<Object> availableValues;
 
-        @JsonCreator
         public Field(@JsonProperty("dataPath") String dataPath,
                      @JsonProperty("field") String field,
                      @JsonProperty("title") Object title,
@@ -247,6 +248,17 @@ public class SkdDsl {
             this.field = field;
             this.title = title;
             this.type = type;
+        }
+
+        @JsonCreator(mode = JsonCreator.Mode.DELEGATING)
+        public Field(String shorthand) {
+            SkdShorthandParser.FieldDescriptor parsed = SkdShorthandParser.parseField(shorthand);
+            this.dataPath = parsed.name;
+            this.field = parsed.name;
+            this.title = parsed.title;
+            this.type = rawType(parsed.type);
+            this.role = parsed.role;
+            this.restrict = parsed.restrictions;
         }
 
         /** Удобный геттер — возвращает title как простую строку (или ru-вариант). */
@@ -301,7 +313,6 @@ public class SkdDsl {
         private Map<String, Object> roleAttributes;
         private Object useRestriction;
 
-        @JsonCreator
         public CalculatedField(@JsonProperty("name") String name,
                                @JsonProperty("title") Object title,
                                @JsonProperty("expression") String expression,
@@ -316,6 +327,16 @@ public class SkdDsl {
             this.role = role;
             this.roleAttributes = roleAttributes;
             this.useRestriction = useRestriction;
+        }
+
+        @JsonCreator(mode = JsonCreator.Mode.DELEGATING)
+        public CalculatedField(String shorthand) {
+            ParsedCalculatedField parsed = parseCalculatedField(shorthand);
+            this.name = parsed.name;
+            this.title = parsed.title;
+            this.expression = parsed.expression;
+            this.type = parsed.type;
+            this.useRestriction = parsed.useRestriction;
         }
 
         @JsonIgnore
@@ -350,7 +371,6 @@ public class SkdDsl {
         private String use;
         private List<Object> availableValues;
 
-        @JsonCreator
         public Parameter(@JsonProperty("name") String name,
                          @JsonProperty("title") Object title,
                          @JsonProperty("type") String type,
@@ -383,6 +403,19 @@ public class SkdDsl {
             this.value = value;
         }
 
+        @JsonCreator(mode = JsonCreator.Mode.DELEGATING)
+        public Parameter(String shorthand) {
+            SkdShorthandParser.ParameterDescriptor parsed = SkdShorthandParser.parseParameter(shorthand);
+            this.name = parsed.name;
+            this.title = parsed.title;
+            this.type = rawType(parsed.type);
+            this.value = parsed.value;
+            this.hidden = parsed.flags.contains("hidden") ? true : null;
+            this.valueListAllowed = parsed.flags.contains("valueList") ? true : null;
+            this.autoDates = parsed.flags.contains("autoDates") ? true : null;
+            this.use = parsed.flags.contains("always") ? "Always" : null;
+        }
+
         @JsonIgnore
         public String getTitleString() {
             if (title == null) return null;
@@ -407,7 +440,6 @@ public class SkdDsl {
         private String expression;
         private List<String> group;
 
-        @JsonCreator
         public TotalField(@JsonProperty("dataPath") String dataPath,
                           @JsonProperty("expression") String expression,
                           @JsonProperty("group") List<String> group) {
@@ -420,6 +452,13 @@ public class SkdDsl {
         public TotalField(String dataPath, String expression) {
             this.dataPath = dataPath;
             this.expression = expression;
+        }
+
+        @JsonCreator(mode = JsonCreator.Mode.DELEGATING)
+        public TotalField(String shorthand) {
+            SkdShorthandParser.TotalDescriptor parsed = SkdShorthandParser.parseTotal(shorthand);
+            this.dataPath = parsed.dataPath;
+            this.expression = parsed.expression;
         }
     }
 
@@ -542,21 +581,27 @@ public class SkdDsl {
         private String source;
         @JsonAlias({"dest", "target", "destDataSet"})
         private String dest;
+        @JsonAlias("sourceExpr")
         private String sourceExpression;
-        @JsonAlias({"destExpression", "targetExpression"})
+        @JsonAlias({"destExpr", "targetExpr", "destExpression", "targetExpression"})
         private String destExpression;
+        private String parameter;
+        private Boolean parameterListAllowed;
         private List<DataSetLinkItem> items;
 
-        @JsonCreator
         public DataSetLink(@JsonProperty("source") String source,
                            @JsonProperty("dest") String dest,
                            @JsonProperty("sourceExpression") String sourceExpression,
                            @JsonProperty("destExpression") String destExpression,
+                           @JsonProperty("parameter") String parameter,
+                           @JsonProperty("parameterListAllowed") Boolean parameterListAllowed,
                            @JsonProperty("items") List<DataSetLinkItem> items) {
             this.source = source;
             this.dest = dest;
             this.sourceExpression = sourceExpression;
             this.destExpression = destExpression;
+            this.parameter = parameter;
+            this.parameterListAllowed = parameterListAllowed;
             this.items = items;
         }
     }
@@ -565,15 +610,21 @@ public class SkdDsl {
     @NoArgsConstructor
     @JsonInclude(JsonInclude.Include.NON_NULL)
     public static class DataSetLinkItem {
+        @JsonAlias("sourceExpr")
         private String sourceExpression;
-        @JsonAlias({"destExpression", "targetExpression"})
+        @JsonAlias({"destExpr", "targetExpr", "destExpression", "targetExpression"})
         private String destExpression;
+        private String parameter;
+        private Boolean parameterListAllowed;
 
-        @JsonCreator
         public DataSetLinkItem(@JsonProperty("sourceExpression") String sourceExpression,
-                               @JsonProperty("destExpression") String destExpression) {
+                               @JsonProperty("destExpression") String destExpression,
+                               @JsonProperty("parameter") String parameter,
+                               @JsonProperty("parameterListAllowed") Boolean parameterListAllowed) {
             this.sourceExpression = sourceExpression;
             this.destExpression = destExpression;
+            this.parameter = parameter;
+            this.parameterListAllowed = parameterListAllowed;
         }
     }
 
@@ -791,7 +842,6 @@ public class SkdDsl {
         private Map<String, Object> outputParameters;
         private List<Structure> children;
 
-        @JsonCreator
         public Structure(@JsonProperty("type") String type,
                          @JsonProperty("name") String name,
                          @JsonProperty("groupBy") List<String> groupBy,
@@ -817,5 +867,139 @@ public class SkdDsl {
             this.groupBy = groupBy;
             this.selection = selection;
         }
+
+        @JsonProperty("groupFields")
+        public void setGroupFields(List<String> groupFields) {
+            this.groupBy = groupFields;
+        }
+
+        @JsonCreator(mode = JsonCreator.Mode.DELEGATING)
+        public Structure(String shorthand) {
+            Structure parsed = parseStructureShorthand(shorthand);
+            this.type = parsed.type;
+            this.name = parsed.name;
+            this.groupBy = parsed.groupBy;
+            this.selection = parsed.selection;
+            this.order = parsed.order;
+            this.filter = parsed.filter;
+            this.outputParameters = parsed.outputParameters;
+            this.children = parsed.children;
+        }
+    }
+
+    private static String rawType(List<SkdTypeParser.TypePart> parts) {
+        if (parts == null || parts.isEmpty()) return null;
+        List<String> raw = new ArrayList<>();
+        for (SkdTypeParser.TypePart part : parts) {
+            raw.add(part.raw);
+        }
+        return String.join("|", raw);
+    }
+
+    private static ParsedCalculatedField parseCalculatedField(String shorthand) {
+        String rest = shorthand == null ? "" : shorthand.trim();
+        ParsedCalculatedField parsed = new ParsedCalculatedField();
+        int nameEnd = findNameEnd(rest);
+        if (nameEnd <= 0) {
+            throw new IllegalArgumentException("calculatedField shorthand: expected name");
+        }
+        parsed.name = rest.substring(0, nameEnd).trim();
+        rest = rest.substring(nameEnd).trim();
+
+        if (rest.startsWith("[")) {
+            int close = rest.indexOf(']');
+            if (close < 0) {
+                throw new IllegalArgumentException("calculatedField shorthand: unmatched '['");
+            }
+            parsed.title = rest.substring(1, close);
+            rest = rest.substring(close + 1).trim();
+        }
+
+        int equals = rest.indexOf('=');
+        String beforeExpr = equals >= 0 ? rest.substring(0, equals).trim() : rest;
+        parsed.expression = equals >= 0 ? rest.substring(equals + 1).trim() : null;
+        if (beforeExpr.startsWith(":")) {
+            parsed.type = beforeExpr.substring(1).trim();
+        }
+        parsed.useRestriction = parseRestrictFlags(parsed.type);
+        if (parsed.type instanceof String) {
+            String type = (String) parsed.type;
+            int hash = type.indexOf('#');
+            if (hash >= 0) {
+                parsed.type = type.substring(0, hash).trim();
+            }
+        }
+        if (parsed.expression != null) {
+            int hash = parsed.expression.indexOf('#');
+            if (hash >= 0) {
+                parsed.useRestriction = parseRestrictFlags(parsed.expression.substring(hash));
+                parsed.expression = parsed.expression.substring(0, hash).trim();
+            }
+        }
+        return parsed;
+    }
+
+    private static int findNameEnd(String value) {
+        int end = 0;
+        while (end < value.length()) {
+            char ch = value.charAt(end);
+            if (Character.isWhitespace(ch) || ch == '[' || ch == ':' || ch == '=') break;
+            end++;
+        }
+        return end;
+    }
+
+    private static Map<String, Boolean> parseRestrictFlags(Object value) {
+        if (!(value instanceof String)) return null;
+        String text = (String) value;
+        if (!text.contains("#")) return null;
+        Map<String, Boolean> out = new LinkedHashMap<>();
+        for (String token : text.split("\\s+")) {
+            if (!token.startsWith("#")) continue;
+            switch (token.substring(1)) {
+                case "noField": out.put("field", false); break;
+                case "noFilter":
+                case "noCondition": out.put("condition", false); break;
+                case "noGroup": out.put("group", false); break;
+                case "noOrder": out.put("order", false); break;
+                default: break;
+            }
+        }
+        return out.isEmpty() ? null : out;
+    }
+
+    private static Structure parseStructureShorthand(String shorthand) {
+        String spec = shorthand == null ? "" : shorthand.trim();
+        if (spec.isEmpty()) {
+            throw new IllegalArgumentException("structure shorthand is empty");
+        }
+        String[] parts = spec.split(">");
+        Structure root = null;
+        Structure current = null;
+        for (String part : parts) {
+            String token = part.trim();
+            if (token.isEmpty()) continue;
+            Structure item = new Structure();
+            item.type = "group";
+            item.groupBy = "details".equalsIgnoreCase(token) ? List.of() : List.of(token);
+            if (root == null) {
+                root = item;
+            } else {
+                current.children = List.of(item);
+            }
+            current = item;
+        }
+        if (root == null) {
+            throw new IllegalArgumentException("structure shorthand has no items");
+        }
+        return root;
+    }
+
+    private static final class ParsedCalculatedField {
+        String name;
+        Object title;
+        String expression;
+        Object type;
+        Object useRestriction;
     }
 }

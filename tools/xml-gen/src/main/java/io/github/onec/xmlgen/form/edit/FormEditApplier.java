@@ -109,7 +109,10 @@ public class FormEditApplier {
                 "element.kind is required (e.g. input, table, button, group, pages, или XML-тег InputField)");
         }
         String parent = parentOverride != null ? parentOverride : e.getInto();
-        editor.addElement(e.getKind(), e.getName(), e.getDataPath(), parent, e.getAfter());
+        //**agent TASK-174 [05.06.2026 00:00:00]
+        // XG-02: пробрасываем command в FormEditor (раньше терялся → кнопка без CommandName).
+        editor.addElement(e.getKind(), e.getName(), e.getDataPath(), parent, e.getAfter(), e.getCommand());
+        //**agent TASK-174
 
         // Привязать события к только что созданному элементу
         if (e.getOn() != null && !e.getOn().isEmpty()) {

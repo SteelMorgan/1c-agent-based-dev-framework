@@ -167,7 +167,140 @@ public class FormValidator implements XmlValidator {
 
         // FORM-005: ID последовательные ≥ 1 (только предупреждение)
         // Пропускаем для MVP — это soft-check
+
+        //++agent TASK-174 [05.06.2026 12:50:00]
+        // FORM-121 (XG-11): корневой <Title> формы. Прецеденты TASK-173/память
+        // project_form_xdto_root_title_multilang: форма без корневого Title (или с
+        // Title-плоским-текстом без v8:item) отвергалась Designer-batch XDTO-ошибкой
+        // «при чтении файла», а validate давал PASS (класс XG-04 — слепой валидатор).
+        validateRootTitle(root, issues);
+
+        // FORM-122 (XG-10): пайп внутри ОДНОГО <v8:Type> — признак невалидной
+        // сериализации составного типа («cfg:CatalogRef.A | CatalogRef.B» одной
+        // строкой). Платформа падает: «Ошибка отображения типов ... QName».
+        // Канон — отдельные соседние <v8:Type>.
+        validateNoPipeInV8Types(root, "/Form", issues);
+
+        // FORM-123 (XG-14): <Button> без дочернего <Type> — Designer молча обрезает
+        // такую кнопку при загрузке (validate раньше давал PASS — класс XG-04).
+        // FORM-124 (XG-15): контейнерный элемент без <ChildItems> — Designer молча
+        // обрезает контейнер. Проверяем оба инварианта одним обходом UI-дерева.
+        if (autoCmd != null) {
+            validateButtonsAndContainers(autoCmd, "/Form/AutoCommandBar", issues);
+        }
+        if (childItems != null) {
+            validateButtonsAndContainers(childItems, "/Form/ChildItems", issues);
+        }
+        //++agent TASK-174
     }
+
+    //++agent TASK-174 [05.06.2026 12:50:00]
+    /**
+     * FORM-121: корневой Title.
+     * <ul>
+     *   <li>Отсутствие Title — WARNING, не ERROR: реальные загружаемые формы без
+     *       корневого Title существуют массово (177/200 форм боевой конфигурации,
+     *       плюс real-form тест testRealFormIfAvailable) — ERROR давал бы false
+     *       positive на валидных рукописных формах. form compile теперь пишет
+     *       Title всегда, так что для сгенерированных форм warning не появляется.</li>
+     *   <li>Title-плоский-текст (без v8:item) — ERROR: подтверждённо негрузимый
+     *       класс (XDTO-отказ «при чтении файла», память
+     *       project_form_xdto_root_title_multilang).</li>
+     * </ul>
+     */
+    private void validateRootTitle(XmlNode root, List<ValidationIssue> issues) {
+        XmlNode title = root.child("Title");
+        if (title == null) {
+            issues.add(ValidationIssue.warning("FORM-121",
+                    "Missing root <Title> on <Form>. Generated forms should carry a multilingual "
+                            + "root title: <Title><v8:item><v8:lang>ru</v8:lang>"
+                            + "<v8:content>...</v8:content></v8:item></Title>",
+                    root.getLine(), "/Form/Title"));
+            return;
+        }
+        boolean hasItem = title.getChildren().stream()
+                .anyMatch(c -> "item".equals(c.getName()) && V8_PREFIX.equals(c.getPrefix()));
+        if (!hasItem) {
+            String rawText = title.getText();
+            String detail = (rawText != null && !rawText.trim().isEmpty())
+                    ? "is plain text" : "has no <v8:item> children";
+            issues.add(ValidationIssue.error("FORM-121",
+                    "Root <Title> " + detail + "; expected multilingual "
+                            + "<Title><v8:item><v8:lang>ru</v8:lang><v8:content>...</v8:content></v8:item></Title>",
+                    title.getLine(), "/Form/Title"));
+        }
+    }
+
+    /**
+     * Контейнерные UI-элементы, для которых отсутствие {@code <ChildItems>} подозрительно
+     * (FORM-124). AutoCommandBar и CommandBar сюда НЕ входят: спека 1c-form-spec §6 прямо
+     * разрешает пустую командную панель («Может быть пустым (самозакрывающийся тег)»).
+     */
+    private static final Set<String> CONTAINER_ELEMENT_TYPES = Set.of(
+            "UsualGroup", "Pages", "Page", "PopupGroup", "ButtonGroup", "ColumnGroup");
+
+    /**
+     * FORM-123 + FORM-124: обход UI-дерева.
+     * <ul>
+     *   <li>FORM-123 (ERROR) — {@code <Button>} без дочернего {@code <Type>}: спека
+     *       1c-form-spec §8.3 объявляет Type первым элементом кнопки
+     *       (CommandBarButton | UsualButton | Hyperlink); Designer молча удаляет кнопку
+     *       без Type при загрузке (прецедент XG-14, домен форм, TASK-174).</li>
+     *   <li>FORM-124 (WARNING) — контейнер (UsualGroup/Pages/Page/PopupGroup/ButtonGroup/
+     *       ColumnGroup) без {@code <ChildItems>} или с пустым: Designer молча обрезает
+     *       такой контейнер (прецедент XG-15). WARNING, не ERROR — пустая страница/группа
+     *       формально загружаема, но почти всегда признак бага генератора.</li>
+     * </ul>
+     */
+    private void validateButtonsAndContainers(XmlNode parent, String parentPath,
+                                              List<ValidationIssue> issues) {
+        for (XmlNode elem : parent.getChildren()) {
+            String elemName = elem.getName();
+            String name = elem.attr("name");
+            String label = name != null ? "'" + name + "'" : "(unnamed)";
+            String elemPath = parentPath + "/" + elemName;
+
+            if ("Button".equals(elemName) && elem.child("Type") == null) {
+                issues.add(ValidationIssue.error("FORM-123",
+                        "Button " + label + " has no <Type> child. Designer silently drops such "
+                                + "buttons on load; expected <Type>CommandBarButton|UsualButton|Hyperlink</Type>",
+                        elem.getLine(), elemPath));
+            }
+
+            XmlNode innerChildItems = elem.child("ChildItems");
+            if (CONTAINER_ELEMENT_TYPES.contains(elemName)) {
+                boolean empty = innerChildItems == null || innerChildItems.getChildren().isEmpty();
+                if (empty) {
+                    issues.add(ValidationIssue.warning("FORM-124",
+                            elemName + " " + label + " has no (or empty) <ChildItems>. Designer "
+                                    + "silently trims empty containers on load",
+                            elem.getLine(), elemPath));
+                }
+            }
+
+            if (innerChildItems != null) {
+                validateButtonsAndContainers(innerChildItems, elemPath + "/ChildItems", issues);
+            }
+        }
+    }
+
+    /** FORM-122: ни один <v8:Type> в документе не должен содержать "|" в тексте. */
+    private void validateNoPipeInV8Types(XmlNode node, String path, List<ValidationIssue> issues) {
+        if ("Type".equals(node.getName()) && V8_PREFIX.equals(node.getPrefix())) {
+            String text = node.getText();
+            if (text != null && text.contains("|")) {
+                issues.add(ValidationIssue.error("FORM-122",
+                        "Composite type serialized as single <v8:Type> with '|': '" + text.trim()
+                                + "'. Platform rejects this (QName mapping error); emit separate "
+                                + "adjacent <v8:Type> elements instead",
+                        node.getLine(), path + "/v8:Type"));
+            }
+        }
+        for (XmlNode child : node.getChildren()) {
+            validateNoPipeInV8Types(child, path + "/" + child.getName(), issues);
+        }
+    }
+    //++agent TASK-174
 
     private void validateNameAndId(XmlNode node, String path, Set<String> allIds,
                                     List<String> duplicateIds, String code, List<ValidationIssue> issues) {

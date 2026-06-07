@@ -159,7 +159,12 @@ class SkdWriterTest {
         assertThat(content).contains("<dcsset:selection>");
         assertThat(content).contains("<dcsset:item xsi:type=\"dcsset:SelectedItemField\">");
         assertThat(content).contains("<dcsset:field>Наименование</dcsset:field>");
-        assertThat(content).contains("<dcsset:structure>");
+        //**agent TASK-174 [07.06.2026 11:40:00]
+        //assertThat(content).contains("<dcsset:structure>");
+        // Канон платформы: structure items лежат прямо под dcsset:settings,
+        // обёртки <dcsset:structure> в сериализации НЕТ (1c-dcs-spec.md §11.1).
+        assertThat(content).doesNotContain("<dcsset:structure>");
+        //**agent TASK-174
         assertThat(content).contains("<dcsset:item xsi:type=\"dcsset:StructureItemGroup\">");
         assertThat(content).contains("<dcsset:groupItems>");
         assertThat(content).contains("<dcsset:item xsi:type=\"dcsset:GroupItemField\">");
@@ -417,6 +422,11 @@ class SkdWriterTest {
         assertThat(content).contains("<calculatedField>");
         assertThat(content).contains("<expression>Цена - Закупка</expression>");
         assertThat(content).contains("<dataPath>Маржа</dataPath>");
+        //++agent TASK-174 [07.06.2026 11:40:00]
+        // У calculatedField нет дочернего <field> (1c-dcs-spec.md §6; 53 канон-схемы GBIG PAM
+        // без единого <field> внутри calculatedField).
+        assertThat(content).doesNotContain("<field>Маржа</field>");
+        //++agent TASK-174
     }
 
     /** Тест 11: templates DSL — rows/widths/parameters/drilldown. */
@@ -424,7 +434,12 @@ class SkdWriterTest {
     void testTemplatesDsl() throws Exception {
         String json = """
                 {
-                  "dataSets": [{ "type": "query", "name": "Н", "query": "ВЫБРАТЬ 1" }],
+                  "dataSets": [{
+                    "type": "query",
+                    "name": "Н",
+                    "query": "ВЫБРАТЬ 1",
+                    "fields": [{ "field": "Сумма", "appearance": { "Формат": "ЧДЦ=2" } }]
+                  }],
                   "templates": [{
                     "name": "Макет1",
                     "type": "group",
@@ -501,7 +516,12 @@ class SkdWriterTest {
     void testParameterFlags() throws Exception {
         String json = """
                 {
-                  "dataSets": [{ "type": "query", "name": "Н", "query": "ВЫБРАТЬ 1" }],
+                  "dataSets": [{
+                    "type": "query",
+                    "name": "Н",
+                    "query": "ВЫБРАТЬ 1",
+                    "fields": [{ "field": "Сумма", "appearance": { "Формат": "ЧДЦ=2" } }]
+                  }],
                   "parameters": [
                     { "name": "Скрытый", "type": "string(50)", "hidden": true },
                     { "name": "Список", "type": "string(50)", "valueListAllowed": true },
@@ -592,6 +612,15 @@ class SkdWriterTest {
         // TASK-171 (Р-5): платформенный элемент — destinationDataSet, а не destDataSet.
         assertThat(content).contains("<destinationDataSet>Доп</destinationDataSet>");
         assertThat(content).contains("<sourceExpression>Контрагент</sourceExpression>");
+        //++agent TASK-174 [07.06.2026 11:40:00]
+        // Платформенный элемент — destinationExpression (44 вхождения в каноне GBIG PAM),
+        // а не destExpression (имя ключа DSL не равно имени XML-узла).
+        assertThat(content).contains("<destinationExpression>Контрагент</destinationExpression>");
+        assertThat(content).doesNotContain("<destExpression>");
+        // Порядок верхнего уровня (1c-dcs-spec.md §2): dataSetLink идёт сразу после dataSet,
+        // ДО settingsVariant.
+        assertThat(content.indexOf("<dataSetLink>")).isLessThan(content.indexOf("<settingsVariant>"));
+        //++agent TASK-174
     }
 
     /** Тест 17: presentationExpression. */
@@ -728,10 +757,151 @@ class SkdWriterTest {
         assertThat(content).contains("<role>");
         assertThat(content).contains("<totalField>");
         assertThat(content).contains("<parameter>");
-        // autoDates → производные параметры.
-        assertThat(content).contains("ДатаНачала_Период");
-        assertThat(content).contains("ДатаОкончания_Период");
+        //**agent TASK-174 [07.06.2026 11:40:00]
+        //// autoDates → производные параметры.
+        //assertThat(content).contains("ДатаНачала_Период");
+        //assertThat(content).contains("ДатаОкончания_Период");
+        // autoDates → производные параметры ПО КАНОНУ (skd-dsl-spec.md §6 + _ДемоФайлы):
+        // имена ДатаНачала/ДатаОкончания, вычисление через expression, без <dataPath>.
+        assertThat(content).contains("<name>ДатаНачала</name>");
+        assertThat(content).contains("<name>ДатаОкончания</name>");
+        assertThat(content).contains("<expression>&amp;Период.ДатаНачала</expression>");
+        assertThat(content).contains("<expression>&amp;Период.ДатаОкончания</expression>");
+        assertThat(content).doesNotContain("<dataPath>Период.НачалоПериода</dataPath>");
+        //**agent TASK-174
         assertThat(content).contains("<settingsVariant>");
+    }
+
+    @Test
+    void task174_xg27_dataSetLinkParameterAndCalculatedFieldTypeIsOptional() throws Exception {
+        String json = """
+                {
+                  "dataSets": [
+                    { "type": "query", "name": "Периоды", "query": "ВЫБРАТЬ 1" },
+                    { "type": "query", "name": "Данные", "query": "ВЫБРАТЬ 2" }
+                  ],
+                  "dataSetLinks": [
+                    { "source": "Периоды", "dest": "Данные",
+                      "sourceExpr": "Месяц", "destExpr": "Месяц",
+                      "parameter": "НачалоМесяца", "parameterListAllowed": false }
+                  ],
+                  "calculatedFields": [
+                    { "name": "Маржа", "expression": "Цена - Закупка" }
+                  ]
+                }
+                """;
+        Path out = compile(json);
+        String content = Files.readString(out);
+        assertThat(content).contains("<parameter>НачалоМесяца</parameter>");
+        assertThat(content).contains("<parameterListAllowed>false</parameterListAllowed>");
+
+        int calcStart = content.indexOf("<calculatedField>");
+        int calcEnd = content.indexOf("</calculatedField>", calcStart);
+        assertThat(content.substring(calcStart, calcEnd)).doesNotContain("<valueType>");
+    }
+
+    @Test
+    void task174_xg27_settingsAndStructureKeysAreNotSilentlyDropped() throws Exception {
+        String json = """
+                {
+                  "dataSets": [{
+                    "type": "query",
+                    "name": "Н",
+                    "query": "ВЫБРАТЬ 1",
+                    "fields": [{ "field": "Сумма", "appearance": { "Формат": "ЧДЦ=2" } }]
+                  }],
+                  "settingsVariants": [{
+                    "name": "Основной",
+                    "settings": {
+                      "selection": ["Auto"],
+                      "order": ["Auto"],
+                      "outputParameters": { "Заголовок": "Отчет" },
+                      "dataParameters": ["Период = LastMonth @user"],
+                      "structure": [{
+                        "name": "ГруппаОрг",
+                        "groupFields": ["Организация"],
+                        "selection": ["Auto"],
+                        "order": ["Auto"],
+                        "filter": ["Сумма > 0"],
+                        "outputParameters": { "ВыводитьЗаголовок": "Auto" }
+                      }]
+                    }
+                  }]
+                }
+                """;
+        Path out = compile(json);
+        String content = Files.readString(out);
+        assertThat(content).contains("xsi:type=\"dcsset:SelectedItemAuto\"");
+        assertThat(content).contains("xsi:type=\"dcsset:OrderItemAuto\"");
+        assertThat(content).contains("<appearance>");
+        assertThat(content).contains("<dcscor:value xsi:type=\"xs:string\">ЧДЦ=2</dcscor:value>");
+        assertThat(content).contains("<dcsset:outputParameters>");
+        assertThat(content).contains("<dcscor:parameter>Заголовок</dcscor:parameter>");
+        assertThat(content).contains("<dcsset:dataParameters>");
+        assertThat(content).contains("<dcscor:parameter>Период</dcscor:parameter>");
+        assertThat(content).contains("<v8:variant xsi:type=\"v8:StandardPeriodVariant\">LastMonth</v8:variant>");
+        assertThat(content).contains("<dcsset:name>ГруппаОрг</dcsset:name>");
+        assertThat(content).contains("<dcsset:comparisonType>Greater</dcsset:comparisonType>");
+        assertThat(content).contains("<dcscor:parameter>ВыводитьЗаголовок</dcscor:parameter>");
+    }
+
+    @Test
+    void task174_xg27_shorthandStringsCompile() throws Exception {
+        String json = """
+                {
+                  "dataSets": [{
+                    "type": "query",
+                    "name": "Продажи",
+                    "query": "ВЫБРАТЬ 1",
+                    "fields": ["Количество [Кол-во]: decimal(15,3) @resource #noOrder"]
+                  }],
+                  "calculatedFields": ["Маржа [Маржа]: decimal(15,2) = Цена - Закупка #noFilter"],
+                  "totalFields": ["Количество: Сумма"],
+                  "parameters": ["Период [Период]: StandardPeriod = LastMonth @autoDates"],
+                  "settingsVariants": [{
+                    "name": "Основной",
+                    "settings": {
+                      "structure": ["Организация > details"]
+                    }
+                  }]
+                }
+                """;
+        Path out = compile(json);
+        String content = Files.readString(out);
+        assertThat(content).contains("<dataPath>Количество</dataPath>");
+        assertThat(content).contains("<v8:content>Кол-во</v8:content>");
+        assertThat(content).contains("<ignoreNullValues>true</ignoreNullValues>");
+        assertThat(content).contains("<order>false</order>");
+        assertThat(content).contains("<dataPath>Маржа</dataPath>");
+        assertThat(content).contains("<expression>Цена - Закупка</expression>");
+        assertThat(content).contains("<condition>false</condition>");
+        assertThat(content).contains("<expression>Сумма(Количество)</expression>");
+        assertThat(content).contains("<name>Период</name>");
+        assertThat(content).contains("<name>ДатаНачала</name>");
+        assertThat(content).contains("<dcsset:field>Организация</dcsset:field>");
+    }
+
+    @Test
+    void task174_xg27_formatAppearanceUsesStringType() throws Exception {
+        String json = """
+                {
+                  "dataSets": [{ "type": "query", "name": "Н", "query": "ВЫБРАТЬ 1" }],
+                  "settingsVariants": [{
+                    "name": "Основной",
+                    "settings": {
+                      "conditionalAppearance": [{
+                        "appearance": { "Формат": "ЧДЦ=2", "Текст": "Не указано" }
+                      }]
+                    }
+                  }]
+                }
+                """;
+        Path out = compile(json);
+        String content = Files.readString(out);
+        int format = content.indexOf("<dcscor:parameter>Формат</dcscor:parameter>");
+        int text = content.indexOf("<dcscor:parameter>Текст</dcscor:parameter>");
+        assertThat(content.substring(format, text)).contains("<dcscor:value xsi:type=\"xs:string\">ЧДЦ=2</dcscor:value>");
+        assertThat(content.substring(text)).contains("<dcscor:value xsi:type=\"v8:LocalStringType\">");
     }
 
     // ---- helpers ---------------------------------------------------------

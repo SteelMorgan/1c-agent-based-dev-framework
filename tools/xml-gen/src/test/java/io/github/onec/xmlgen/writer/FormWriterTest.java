@@ -328,6 +328,52 @@ class FormWriterTest {
     }
     
     /**
+     * TASK-174 XG-01: DSL c дискриминатором "type" в значении (каноничная форма из
+     * form-dsl/SKILL.md и из fixtures). Прежняя детекция искала ключ-как-тип и для
+     * {"type":"input",...} не находила тип → молча роняла сиблинг после первой группы
+     * и любой вложенный child. Проверяем, что:
+     *   - сиблинг-input ПОСЛЕ группы не теряется;
+     *   - вложенный child внутри группы не теряется.
+     */
+    @Test
+    void task174_xg01_typeAsValueDiscriminator_keepsSiblingsAndChildren() throws Exception {
+        String json = """
+                {
+                  "title": "Frm_OP006_001",
+                  "attributes": [
+                    {"name": "Реквизит1", "type": "string(100)"}
+                  ],
+                  "elements": [
+                    {
+                      "type": "group",
+                      "name": "ГруппаШапка",
+                      "group": "Vertical",
+                      "children": [
+                        {"type": "input", "name": "ВложенноеПоле", "dataPath": "Реквизит1"}
+                      ]
+                    },
+                    {"type": "input", "name": "Поле1", "dataPath": "Реквизит1"}
+                  ]
+                }
+                """;
+
+        ObjectMapper mapper = new ObjectMapper();
+        FormDsl dsl = mapper.readValue(json, FormDsl.class);
+
+        Path outputXml = tempDir.resolve("Form.xml");
+        new FormWriter(OutputFormat.DESIGNER).create(dsl, outputXml);
+
+        String content = Files.readString(outputXml);
+        assertThat(content).contains("<UsualGroup name=\"ГруппаШапка\"");
+        // Сиблинг-input после группы (главный симптом XG-01) — больше не теряется.
+        assertThat(content).as("сиблинг Поле1 после группы должен присутствовать")
+                .contains("<InputField name=\"Поле1\"");
+        // Вложенный child внутри группы — тоже не теряется.
+        assertThat(content).as("вложенный child ВложенноеПоле должен присутствовать")
+                .contains("<InputField name=\"ВложенноеПоле\"");
+    }
+
+    /**
      * Тест 8: JSON DSL roundtrip.
      */
     @Test

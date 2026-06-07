@@ -663,12 +663,21 @@ public class SkdEditor {
         if (settings == null) {
             throw new IllegalArgumentException("modify-structure: variant has no settings");
         }
+        //**agent TASK-174 [07.06.2026 11:10:00]
+        //XmlNode structure = findChildLocal(settings, "structure");
+        //if (structure == null) {
+        //    throw new IllegalArgumentException("modify-structure: variant has no structure");
+        //}
+        // Канон платформы: элементы структуры — прямые <dcsset:item xsi:type="...StructureItem*">
+        // под dcsset:settings; обёртки <dcsset:structure> в сериализации НЕТ (1c-dcs-spec.md §11.1).
+        // Прежний код требовал обёртку → на любой реальной (канонической) схеме падал
+        // "variant has no structure". Fallback на <structure> оставлен для файлов,
+        // сгенерированных старым writer'ом до фикса TASK-174.
         XmlNode structure = findChildLocal(settings, "structure");
-        if (structure == null) {
-            throw new IllegalArgumentException("modify-structure: variant has no structure");
-        }
+        XmlNode container = structure != null ? structure : settings;
+        //**agent TASK-174
         // Find group with matching @name via dcsset:name
-        XmlNode group = findStructureGroup(structure, s.groupName);
+        XmlNode group = findStructureGroup(container, s.groupName);
         if (group == null) {
             throw new IllegalArgumentException("modify-structure: group '" + s.groupName + "' not found");
         }
@@ -711,6 +720,18 @@ public class SkdEditor {
                     XmlNode found = findStructureGroup(nested, groupName);
                     if (found != null) return found;
                 }
+                //++agent TASK-174 [07.06.2026 11:10:00]
+                // Канон: вложенная группировка — прямой дочерний <dcsset:item
+                // xsi:type="...StructureItem*"> родительской группировки (1c-dcs-spec.md §11.8).
+                // Без спуска в item вложенные группы канонических схем не находились.
+                if ("item".equals(ln) && nested.attr("xsi:type") != null
+                        && nested.attr("xsi:type").contains("StructureItem")) {
+                    String nestedName = childTextLocal(nested, "name");
+                    if (groupName.equals(nestedName)) return nested;
+                    XmlNode found = findStructureGroup(nested, groupName);
+                    if (found != null) return found;
+                }
+                //++agent TASK-174
             }
         }
         return null;

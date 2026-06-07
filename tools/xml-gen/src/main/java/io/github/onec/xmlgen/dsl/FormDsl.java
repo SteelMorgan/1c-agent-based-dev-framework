@@ -113,6 +113,15 @@ public class FormDsl {
          */
         Boolean savedData;
 
+        //++agent TASK-174 [07.06.2026 11:10:00]
+        // Аудит порта (форм): form-dsl-spec.md §5 объявляет ключ fillChecking
+        // (Show | DontShow), порт его молча терял — поле не было объявлено в DSL.
+        /**
+         * Проверка заполнения: {@code Show} | {@code DontShow} → {@code <FillChecking>}.
+         */
+        String fillChecking;
+        //++agent TASK-174
+
         /**
          * Поле для секции {@code <UseAlways><Field>…</Field></UseAlways>}.
          * Для форм объектов с движениями (документы) платформа требует
@@ -131,7 +140,8 @@ public class FormDsl {
                 @JsonProperty("columns") List<Column> columns,
                 @JsonProperty("settings") Map<String, Object> settings,
                 @JsonProperty("savedData") Boolean savedData,
-                @JsonProperty("useAlwaysField") String useAlwaysField) {
+                @JsonProperty("useAlwaysField") String useAlwaysField,
+                @JsonProperty("fillChecking") String fillChecking) {
             this.name = name;
             this.title = title;
             this.type = type;
@@ -140,12 +150,20 @@ public class FormDsl {
             this.settings = settings;
             this.savedData = savedData;
             this.useAlwaysField = useAlwaysField;
+            this.fillChecking = fillChecking;
+        }
+
+        /** Обратно-совместимый 8-аргументный конструктор (без fillChecking). */
+        public Attribute(String name, String title, String type, Boolean main,
+                         List<Column> columns, Map<String, Object> settings, Boolean savedData,
+                         String useAlwaysField) {
+            this(name, title, type, main, columns, settings, savedData, useAlwaysField, null);
         }
 
         /** Обратно-совместимый 7-аргументный конструктор (без useAlwaysField). */
         public Attribute(String name, String title, String type, Boolean main,
                          List<Column> columns, Map<String, Object> settings, Boolean savedData) {
-            this(name, title, type, main, columns, settings, savedData, null);
+            this(name, title, type, main, columns, settings, savedData, null, null);
         }
 
         /** Обратно-совместимый 5-аргументный конструктор. */
@@ -182,16 +200,30 @@ public class FormDsl {
         String name;
         String title;
         String type;
-        
+
+        //++agent TASK-174 [07.06.2026 11:10:00]
+        // Аудит порта (форм): form-dsl-spec.md §6 объявляет ключ key (→ <KeyParameter>),
+        // порт его молча терял — поле не было объявлено в DSL.
+        /** Ключевой параметр формы → {@code <KeyParameter>true</KeyParameter>}. */
+        Boolean key;
+
         @JsonCreator
         public Parameter(
                 @JsonProperty("name") String name,
                 @JsonProperty("title") String title,
-                @JsonProperty("type") String type) {
+                @JsonProperty("type") String type,
+                @JsonProperty("key") Boolean key) {
             this.name = name;
             this.title = title;
             this.type = type;
+            this.key = key;
         }
+
+        /** Обратно-совместимый 3-аргументный конструктор (без key). */
+        public Parameter(String name, String title, String type) {
+            this(name, title, type, null);
+        }
+        //++agent TASK-174
     }
     
     /**
@@ -203,17 +235,39 @@ public class FormDsl {
         String title;
         String action;
         String tooltip;
-        
+
+        //++agent TASK-174 [07.06.2026 11:10:00]
+        // Аудит порта (форм): form-dsl-spec.md §7 объявляет ключи shortcut, picture,
+        // representation — порт их молча терял (полей не было в DSL).
+        /** Клавиатурное сочетание → {@code <Shortcut>} (например {@code Ctrl+S}). */
+        String shortcut;
+        /** Ссылка на картинку ({@code StdPicture.Name}) → {@code <Picture><xr:Ref>}. */
+        String picture;
+        /** Представление: Auto | Picture | Text | PictureAndText → {@code <Representation>}. */
+        String representation;
+        //++agent TASK-174
+
         @JsonCreator
         public Command(
                 @JsonProperty("name") String name,
                 @JsonProperty("title") String title,
                 @JsonProperty("action") String action,
-                @JsonProperty("tooltip") String tooltip) {
+                @JsonProperty("tooltip") String tooltip,
+                @JsonProperty("shortcut") String shortcut,
+                @JsonProperty("picture") String picture,
+                @JsonProperty("representation") String representation) {
             this.name = name;
             this.title = title;
             this.action = action;
             this.tooltip = tooltip;
+            this.shortcut = shortcut;
+            this.picture = picture;
+            this.representation = representation;
+        }
+
+        /** Обратно-совместимый 4-аргументный конструктор. */
+        public Command(String name, String title, String action, String tooltip) {
+            this(name, title, action, tooltip, null, null, null);
         }
     }
 }

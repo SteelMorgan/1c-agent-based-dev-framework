@@ -304,11 +304,6 @@ public class MxlWriter extends XmlWriter {
             }
         }
 
-        // Page setup (наше расширение для валидации ширин/ориентации).
-        if (dsl.getPage() != null && !dsl.getPage().isEmpty()) {
-            writePageSetup(dsl.getPage());
-        }
-
         writer.writeEndElement(); // document
         close();
 
@@ -738,33 +733,6 @@ public class MxlWriter extends XmlWriter {
         writeElement("v8:content", text);
         endElement(); // v8:item
         endElement(); // tl
-    }
-
-    private void writePageSetup(String page) throws XMLStreamException {
-        String orientation;
-        Integer width;
-        if ("A4-landscape".equalsIgnoreCase(page)) {
-            orientation = "Landscape";
-            width = 780;
-        } else if ("A4-portrait".equalsIgnoreCase(page)) {
-            orientation = "Portrait";
-            width = 540;
-        } else {
-            try {
-                width = Integer.parseInt(page.trim());
-                orientation = width >= 600 ? "Landscape" : "Portrait";
-            } catch (NumberFormatException e) {
-                orientation = page;
-                width = null;
-            }
-        }
-        startElement("pageSetup");
-        writeElement("orientation", orientation);
-        if (width != null) {
-            writeElement("pageWidth", String.valueOf(width));
-            writeElement("paperKind", "A4");
-        }
-        endElement(); // pageSetup
     }
 
     public static Integer pageWidth(String page) {

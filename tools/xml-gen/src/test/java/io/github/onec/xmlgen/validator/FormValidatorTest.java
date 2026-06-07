@@ -287,6 +287,12 @@ class FormValidatorTest {
                 "\t\t\t<DataPath>StringAttr</DataPath>\n" +
                 "\t\t</InputField>\n" +
                 "\t\t<Button name=\"Btn1\" id=\"4\">\n" +
+                //**agent TASK-174 [07.06.2026 14:20:00]
+                // Фикстура «валидной полной формы» не несла <Type> у кнопки — класс XG-14
+                // (Designer молча обрезает кнопку без Type), теперь ловится новым FORM-123.
+                // Приводим фикстуру к канону спеки 1c-form-spec §8.3 (Type — первый элемент кнопки).
+                "\t\t\t<Type>UsualButton</Type>\n" +
+                //**agent TASK-174
                 "\t\t\t<CommandName>Form.Command.DoAction</CommandName>\n" +
                 "\t\t</Button>\n" +
                 "\t</ChildItems>\n" +

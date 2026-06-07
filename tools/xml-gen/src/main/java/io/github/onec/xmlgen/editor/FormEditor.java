@@ -196,28 +196,74 @@ public class FormEditor {
      * минимальный набор companion'ов (ContextMenu + ExtendedTooltip) для совместимости.</p>
      */
     public void addElement(String type, String name, String dataPath, String parentName, String afterName) {
+        addElement(type, name, dataPath, parentName, afterName, null);
+    }
+
+    //++agent TASK-174 [05.06.2026 00:00:00]
+    // XG-02: перегрузка с привязкой команды. Прежде CommandName умел писать только
+    // compile-путь (FormWriter.writeButton), а edit-путь (FormEditor) игнорировал
+    // command → кнопка, добавленная через `form edit`, оставалась без CommandName и не
+    // вызывала команду. Формат значения совпадает с compile-путём: Form.Command.<имя>.
+    public void addElement(String type, String name, String dataPath, String parentName,
+                           String afterName, String command) {
+        String normalizedType = "radio".equalsIgnoreCase(type) ? "RadioButtonField" : type;
+        FormElementKind kind = FormElementKind.resolve(normalizedType);
+
+        // XG-15: контейнеры (UsualGroup, Pages, Page, CommandBar, Popup, Table) обязаны
+        // хранить дочерние элементы в <ChildItems>, а не непосредственно в своём узле.
+        // При parentName != null ищем родительский элемент и добавляем в его <ChildItems>.
+        // Аналогично compile-пути (FormWriter.writeUsualGroup/writePages/...) и канону
+        // дизайнера (биг_УборщикТестовыхДанных/Forms/Форма/Ext/Form.xml, строки 14-40).
         XmlNode parent;
         if (parentName != null) {
-            parent = findElement(parentName);
-            if (parent == null) {
-                 throw new IllegalArgumentException("Parent element not found: " + parentName);
+            XmlNode parentElement = findElement(parentName);
+            if (parentElement == null) {
+                throw new IllegalArgumentException("Parent element not found: " + parentName);
+            }
+            // Для контейнерных типов добавляем в <ChildItems>; иначе напрямую в родителя
+            if (isContainerElement(parentElement)) {
+                parent = findOrCreateChild(parentElement, "ChildItems");
+            } else {
+                parent = parentElement;
             }
         } else {
             parent = findOrCreateChild(document.getRoot(), "ChildItems");
         }
 
-        FormElementKind kind = FormElementKind.resolve(type);
-        String xmlTag = kind != null ? kind.getXmlTag() : type;
+        String xmlTag = kind != null ? kind.getXmlTag() : normalizedType;
 
         XmlNode element = createNode(xmlTag);
         element.setAttribute("name", name);
         element.setAttribute("id", elementIds.nextId());
+
+        // XG-14: Button должен иметь <Type>UsualButton</Type> как ПЕРВЫЙ дочерний тег.
+        // Без него Designer-batch при /LoadExternalDataProcessorOrReportFromFiles молча
+        // отбрасывает кнопку → Элементы.ИмяКнопки не существует в модуле формы.
+        // Канон: биг_УборщикТестовыхДанных/Forms/Форма/Ext/Form.xml строки 45-54.
+        if (kind == FormElementKind.BUTTON) {
+            XmlNode typeNode = createNode("Type");
+            typeNode.setText("UsualButton");
+            element.addChild(typeNode);
+        }
 
         if (dataPath != null) {
             XmlNode dataPathNode = createNode("DataPath");
             dataPathNode.setText(dataPath);
             element.addChild(dataPathNode);
         }
+
+        // XG-02: CommandName для кнопки. Порядок как в compile-пути: до companion-элементов.
+        // Принимаем как короткое имя команды, так и уже полную ссылку Form.Command.X /
+        // Form.StandardCommand.X — не дублируем префикс.
+        if (command != null && !command.isEmpty()) {
+            String commandRef = command.startsWith("Form.")
+                    ? command
+                    : "Form.Command." + command;
+            XmlNode commandNode = createNode("CommandName");
+            commandNode.setText(commandRef);
+            element.addChild(commandNode);
+        }
+        //++agent TASK-174
 
         // Companion-элементы согласно типу; для неизвестного kind — минимальный набор.
         List<CompanionKind> companions = kind != null
@@ -236,6 +282,22 @@ public class FormEditor {
              parent.addChild(element);
         }
     }
+
+    //++agent TASK-174 [07.06.2026 10:00:00]
+    // XG-14/XG-15: контейнерные типы элементов формы — те, что требуют обёртки <ChildItems>
+    // для дочерних элементов. Определяется по XML-тегу узла (не по kind enum, т.к.
+    // это может быть существующий узел из загруженного Form.xml).
+    private static final java.util.Set<String> CONTAINER_XML_TAGS = java.util.Set.of(
+            "UsualGroup", "Pages", "Page", "CommandBar", "Popup", "Table"
+    );
+
+    /**
+     * Проверяет, является ли элемент контейнерным (требует <ChildItems> для детей).
+     */
+    private static boolean isContainerElement(XmlNode node) {
+        return CONTAINER_XML_TAGS.contains(node.getName());
+    }
+    //++agent TASK-174
 
     public void removeElement(String name) {
         XmlNode childItems = document.getRoot().child("ChildItems");

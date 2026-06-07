@@ -2,6 +2,7 @@ package io.github.onec.xmlgen.writer;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import io.github.onec.xmlgen.model.ConfigurationXmlReader;
 import io.github.onec.xmlgen.model.MetadataTypeRegistry;
 import io.github.onec.xmlgen.model.UuidGenerator;
 
@@ -62,16 +63,27 @@ public class SubsystemWriter {
 
         String uuid = UuidGenerator.generate();
 
+        //++agent TASK-174 [07.06.2026 13:45:00]
+        // Версия формата сериализации — из Configuration.xml конфигурации/расширения
+        // (walk-up как в ensureContentStub), а не хардкод 2.17. RoleWriter/FormWriter
+        // переведены на этот резолв в TASK-171; SubsystemWriter был пропущен —
+        // на конфигурации 2.20 подсистемы выгружались с version="2.17".
+        Path cfgRoot = locateConfigRoot(outputDir);
+        String formatVersion = cfgRoot != null
+                ? ConfigurationXmlReader.readFormatVersion(cfgRoot.resolve("Configuration.xml"))
+                : ConfigurationXmlReader.DEFAULT_FORMAT_VERSION;
+        //++agent TASK-174
+
         // 1. Write <Name>.xml
         writeSubsystemXml(outputDir, name, synonym, comment, includeInCI,
-                useOneCommand, explanation, picture, content, children, uuid);
+                useOneCommand, explanation, picture, content, children, uuid, formatVersion);
 
         // 2. Create directory structure if needed
         Path subsystemDir = outputDir.resolve(name);
         if (!children.isEmpty() || includeInCI) {
             Path extDir = subsystemDir.resolve("Ext");
             Files.createDirectories(extDir);
-            writeEmptyCommandInterface(extDir.resolve("CommandInterface.xml"));
+            writeEmptyCommandInterface(extDir.resolve("CommandInterface.xml"), formatVersion);
 
             if (!children.isEmpty()) {
                 Files.createDirectories(subsystemDir.resolve("Subsystems"));
@@ -96,7 +108,7 @@ public class SubsystemWriter {
                 Path childFile = childrenDir.resolve(childName + ".xml");
                 if (!Files.exists(childFile)) {
                     Files.createDirectories(childrenDir);
-                    writeSubsystemStub(childFile, childName);
+                    writeSubsystemStub(childFile, childName, formatVersion);
                 }
             }
         }
@@ -111,7 +123,8 @@ public class SubsystemWriter {
                                     String comment, boolean includeInCI,
                                     boolean useOneCommand, String explanation,
                                     String picture, List<String> content,
-                                    List<String> children, String uuid) throws IOException {
+                                    List<String> children, String uuid,
+                                    String formatVersion) throws IOException {
         StringBuilder sb = new StringBuilder();
         sb.append("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n");
         sb.append("<MetaDataObject xmlns=\"http://v8.1c.ru/8.3/MDClasses\"\n");
@@ -119,7 +132,8 @@ public class SubsystemWriter {
         sb.append("\txmlns:xr=\"http://v8.1c.ru/8.3/xcf/readable\"\n");
         sb.append("\txmlns:xs=\"http://www.w3.org/2001/XMLSchema\"\n");
         sb.append("\txmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\"\n");
-        sb.append("\tversion=\"2.17\">\n");
+        // TASK-174: версия формата из Configuration.xml (раньше хардкод 2.17)
+        sb.append("\tversion=\"").append(formatVersion).append("\">\n");
         sb.append("\t<Subsystem uuid=\"").append(uuid).append("\">\n");
 
         // Properties
@@ -198,14 +212,15 @@ public class SubsystemWriter {
         writeWithBom(outputDir.resolve(name + ".xml"), sb.toString());
     }
 
-    private void writeEmptyCommandInterface(Path path) throws IOException {
+    private void writeEmptyCommandInterface(Path path, String formatVersion) throws IOException {
         StringBuilder sb = new StringBuilder();
         sb.append("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n");
         sb.append("<CommandInterface xmlns=\"http://v8.1c.ru/8.3/xcf/extrnprops\"\n");
         sb.append("\txmlns:xr=\"http://v8.1c.ru/8.3/xcf/readable\"\n");
         sb.append("\txmlns:xs=\"http://www.w3.org/2001/XMLSchema\"\n");
         sb.append("\txmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\"\n");
-        sb.append("\tversion=\"2.17\"/>\n");
+        // TASK-174: версия формата из Configuration.xml (раньше хардкод 2.17)
+        sb.append("\tversion=\"").append(formatVersion).append("\"/>\n");
 
         writeWithBom(path, sb.toString());
     }
@@ -352,7 +367,7 @@ public class SubsystemWriter {
         };
     }
 
-    private void writeSubsystemStub(Path file, String name) throws IOException {
+    private void writeSubsystemStub(Path file, String name, String formatVersion) throws IOException {
         String uuid = UuidGenerator.generate();
         StringBuilder sb = new StringBuilder();
         sb.append("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n");
@@ -361,7 +376,8 @@ public class SubsystemWriter {
         sb.append("\txmlns:xr=\"http://v8.1c.ru/8.3/xcf/readable\"\n");
         sb.append("\txmlns:xs=\"http://www.w3.org/2001/XMLSchema\"\n");
         sb.append("\txmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\"\n");
-        sb.append("\tversion=\"2.17\">\n");
+        // TASK-174: версия формата из Configuration.xml (раньше хардкод 2.17)
+        sb.append("\tversion=\"").append(formatVersion).append("\">\n");
         sb.append("\t<Subsystem uuid=\"").append(uuid).append("\">\n");
         sb.append("\t\t<Properties>\n");
         sb.append("\t\t\t<Name>").append(escapeXml(name)).append("</Name>\n");

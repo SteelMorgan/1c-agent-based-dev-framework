@@ -473,7 +473,14 @@ public class SkdInfoPrinter {
             lines.add(entry.getKey() + " :");
             for (XmlNode lnk : entry.getValue()) {
                 String srcExpr = safeText(lnk.childText("sourceExpression"));
-                String dstExpr = safeText(lnk.childText("destExpression"));
+                //**agent TASK-174 [07.06.2026 11:38:00]
+                //String dstExpr = safeText(lnk.childText("destExpression"));
+                // Платформенный элемент — destinationExpression; на реальных схемах прежнее
+                // чтение destExpression всегда давало пустоту. Fallback оставлен для файлов,
+                // сгенерированных старым writer'ом до фикса.
+                String dstExpr = safeText(lnk.childText("destinationExpression"));
+                if (dstExpr.isEmpty()) dstExpr = safeText(lnk.childText("destExpression"));
+                //**agent TASK-174
                 if (!srcExpr.isEmpty() || !dstExpr.isEmpty()) {
                     // Align columns
                     lines.add("  " + padRight(srcExpr, 20) + " -> " + dstExpr);

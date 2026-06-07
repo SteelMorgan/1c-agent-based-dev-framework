@@ -183,7 +183,7 @@ public class SkdValidator implements XmlValidator {
                 }
             }
 
-            // SKD-108: calculatedField должен иметь expression + valueType.
+            // SKD-108: calculatedField должен иметь expression. valueType в 1c-dcs-spec §6 необязателен.
             List<XmlNode> calcFields = ds.children("calculatedField");
             for (int j = 0; j < calcFields.size(); j++) {
                 XmlNode cf = calcFields.get(j);
@@ -191,11 +191,6 @@ public class SkdValidator implements XmlValidator {
                 if (cf.childText("expression") == null || cf.childText("expression").isEmpty()) {
                     issues.add(ValidationIssue.error("SKD-108",
                             "calculatedField missing <expression>",
-                            cf.getLine(), cfPath));
-                }
-                if (cf.child("valueType") == null) {
-                    issues.add(ValidationIssue.error("SKD-108",
-                            "calculatedField missing <valueType> (type required for calculated fields)",
                             cf.getLine(), cfPath));
                 }
             }

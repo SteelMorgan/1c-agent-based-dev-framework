@@ -22,13 +22,63 @@ public class RoleValidator implements XmlValidator {
             "InteractiveUndoPosting", "InteractiveChangeOfPosted"
     );
 
-    // Права, применимые только к objects с подчинёнными (Catalog, ChartOfCharacteristicTypes и т.д.)
-    private static final Set<String> SUBORDINATE_ONLY_RIGHTS = Set.of(
-            "InputByString", "InteractiveDeleteMarked",
+    //**agent TASK-174 [07.06.2026 13:30:00]
+    // Прежний SUBORDINATE_ONLY_RIGHTS был объявлен, но НИГДЕ не использовался (dead code) —
+    // матрица применимости право↔тип из спеки 1c-role-spec («Полный каталог прав») не
+    // проверялась вовсе: Read на DataProcessor, Insert на InformationRegister, права на
+    // Enum/CommonModule проходили validate молча (класс XG-04). Ниже — рабочая матрица.
+
+    // Права ссылочных объектов, НЕ применимые к регистрам (у регистров только
+    // Read/Update/View/Edit/TotalsControl + права истории данных; спека 1c-role-spec
+    // §«InformationRegister/AccumulationRegister/AccountingRegister/CalculationRegister»).
+    private static final Set<String> REF_OBJECT_ONLY_RIGHTS = Set.of(
+            "Insert", "Delete",
+            "InputByString", "InteractiveInsert", "InteractiveDelete", "InteractiveDeleteMarked",
             "InteractiveClearDeletionMark", "InteractiveSetDeletionMark",
             "InteractiveDeletePredefinedData", "InteractiveSetDeletionMarkPredefinedData",
-            "InteractiveClearDeletionMarkPredefinedData"
+            "InteractiveClearDeletionMarkPredefinedData", "InteractiveDeleteMarkedPredefinedData"
     );
+
+    // Типы регистров (для проверки REF_OBJECT_ONLY_RIGHTS).
+    private static final Set<String> REGISTER_TYPES = Set.of(
+            "InformationRegister", "AccumulationRegister",
+            "AccountingRegister", "CalculationRegister");
+
+    // «Простые типы» — допустимые права целиком по таблице спеки 1c-role-spec
+    // §«Простые типы (одно-два права)».
+    private static final Map<String, Set<String>> SIMPLE_TYPE_RIGHTS = Map.ofEntries(
+            Map.entry("DataProcessor", Set.of("Use", "View")),
+            Map.entry("Report", Set.of("Use", "View")),
+            Map.entry("CommonForm", Set.of("View")),
+            Map.entry("CommonCommand", Set.of("View")),
+            Map.entry("Subsystem", Set.of("View")),
+            Map.entry("FilterCriterion", Set.of("View")),
+            Map.entry("DocumentJournal", Set.of("Read", "View")),
+            Map.entry("Sequence", Set.of("Read", "Update")),
+            Map.entry("WebService", Set.of("Use")),
+            Map.entry("HTTPService", Set.of("Use")),
+            Map.entry("IntegrationService", Set.of("Use")),
+            Map.entry("SessionParameter", Set.of("Get", "Set")),
+            Map.entry("CommonAttribute", Set.of("View", "Edit"))
+    );
+
+    // Типы объектов БЕЗ прав в ролях (спека: «не фигурируют в Rights.xml»).
+    private static final Set<String> TYPES_WITHOUT_RIGHTS = Set.of(
+            "Enum", "FunctionalOption", "DefinedType", "CommonModule",
+            "CommonPicture", "CommonTemplate", "SettingsStorage", "ExternalDataSource");
+
+    // Вложенные части объекта (предпоследний сегмент имени) → допустимые права.
+    // Спека 1c-role-spec §«Полная таблица: вложенные объекты и их права».
+    private static final Map<String, Set<String>> NESTED_KIND_RIGHTS = Map.ofEntries(
+            Map.entry("Attribute", Set.of("View", "Edit")),
+            Map.entry("StandardAttribute", Set.of("View", "Edit")),
+            Map.entry("TabularSection", Set.of("View", "Edit")),
+            Map.entry("Dimension", Set.of("View", "Edit")),
+            Map.entry("Resource", Set.of("View", "Edit")),
+            Map.entry("AddressingAttribute", Set.of("View", "Edit")),
+            Map.entry("Command", Set.of("View"))
+    );
+    //**agent TASK-174
 
     @Override
     public String objectType() {
@@ -178,13 +228,16 @@ public class RoleValidator implements XmlValidator {
             // (.Command. / .Attribute. / .Recalculation. и т.п.) — НЕ ошибка формата.
             // ERROR оставляем только для имени без единого разделителя (нет <Тип>.<Имя>),
             // кроме белого списка Configuration./Subsystem.*.
+            //**agent TASK-174 [07.06.2026 13:35:00]
+            // Прежний вложенный whitelist startsWith("Configuration.")/("Subsystem.") был
+            // недостижим (имя с точкой не попадает в ветку !contains(".")) — убран как dead code.
+            // Поведение не изменилось: ERROR только для имени без единого разделителя.
             if (!objName.contains(".")) {
-                if (!objName.startsWith("Configuration.") && !objName.startsWith("Subsystem.")) {
-                    issues.add(ValidationIssue.error("ROLE-105",
-                            "Object name must be in format '<MDOType>.<Name>', found '" + objName + "'",
-                            obj.getLine(), objPath + "/name"));
-                }
+                issues.add(ValidationIssue.error("ROLE-105",
+                        "Object name must be in format '<MDOType>.<Name>', found '" + objName + "'",
+                        obj.getLine(), objPath + "/name"));
             }
+            //**agent TASK-174
 
             // ROLE-102: Тип объекта — известный MDOType
             String typePart = objName.split("\\.")[0];
@@ -222,6 +275,7 @@ public class RoleValidator implements XmlValidator {
                 // ROLE-103: Право применимо к типу объекта
                 if (mdoType.isPresent() && mdoType.get() != MDOType.UNKNOWN) {
                     MDOType type = mdoType.get();
+                    boolean flagged103 = false;
 
                     // Posting-права только для Document
                     if (DOCUMENT_ONLY_RIGHTS.contains(rightName) && type != MDOType.DOCUMENT) {
@@ -229,7 +283,16 @@ public class RoleValidator implements XmlValidator {
                                 "Right '" + rightName + "' is only applicable to Document objects, " +
                                         "but object type is " + typePart,
                                 right.getLine(), rightPath + "/name"));
+                        flagged103 = true;
                     }
+
+                    //++agent TASK-174 [07.06.2026 13:30:00]
+                    // Матрица применимости право↔тип (раньше не проверялась — дыра XG-04).
+                    if (!flagged103) {
+                        checkRightApplicability(objName, typePart, rightName,
+                                right.getLine(), rightPath, issues);
+                    }
+                    //++agent TASK-174
                 }
 
                 // ROLE-106: restrictionByCondition.condition непустой
@@ -245,6 +308,71 @@ public class RoleValidator implements XmlValidator {
             }
         }
     }
+
+    //++agent TASK-174 [07.06.2026 13:30:00]
+    /**
+     * ROLE-103 (расширение): применимость права к типу/части объекта по спеке 1c-role-spec.
+     * Все находки — WARNING: Designer часть таких прав молча игнорирует, часть отвергает;
+     * ERROR не ставим, чтобы не валить validate на нестандартных, но загружаемых ролях.
+     * Порядок проверок:
+     * 1) вложенная часть (предпоследний сегмент имени — Attribute/Command/...) → View/Edit | View;
+     * 2) тип без прав вовсе (Enum, CommonModule, ...) → любое право подозрительно;
+     * 3) «простой» тип (DataProcessor, Report, ...) → права строго из таблицы спеки;
+     * 4) регистры → права ссылочных объектов (Insert/Delete/Interactive*) не применимы.
+     */
+    private void checkRightApplicability(String objName, String typePart, String rightName,
+                                         int line, String rightPath,
+                                         List<ValidationIssue> issues) {
+        // 1) Вложенные части: ...<Kind>.<Имя> — предпоследний сегмент.
+        String[] segments = objName.split("\\.");
+        if (segments.length >= 4) {
+            String kind = segments[segments.length - 2];
+            Set<String> allowed = NESTED_KIND_RIGHTS.get(kind);
+            if (allowed != null) {
+                if (!allowed.contains(rightName)) {
+                    issues.add(ValidationIssue.warning("ROLE-103",
+                            "Right '" + rightName + "' is not applicable to nested " + kind
+                                    + " ('" + objName + "'); allowed: " + String.join(", ", allowed),
+                            line, rightPath + "/name"));
+                }
+                return; // вложенная часть обработана — проверки типа не нужны
+            }
+            // Неизвестный вид вложенности (Recalculation, Operation, URLTemplate...) —
+            // прав по спеке не сверяем, пропускаем без предупреждения.
+            return;
+        }
+
+        // 2) Типы без прав в ролях.
+        if (TYPES_WITHOUT_RIGHTS.contains(typePart)) {
+            issues.add(ValidationIssue.warning("ROLE-103",
+                    "Object type '" + typePart + "' does not carry rights in roles "
+                            + "(per 1c-role-spec), but right '" + rightName + "' is set for '"
+                            + objName + "'",
+                    line, rightPath + "/name"));
+            return;
+        }
+
+        // 3) Простые типы — строгий whitelist.
+        Set<String> simpleAllowed = SIMPLE_TYPE_RIGHTS.get(typePart);
+        if (simpleAllowed != null) {
+            if (!simpleAllowed.contains(rightName)) {
+                issues.add(ValidationIssue.warning("ROLE-103",
+                        "Right '" + rightName + "' is not applicable to " + typePart
+                                + " objects; allowed: " + String.join(", ", simpleAllowed),
+                        line, rightPath + "/name"));
+            }
+            return;
+        }
+
+        // 4) Регистры — права ссылочных объектов не применимы.
+        if (REGISTER_TYPES.contains(typePart) && REF_OBJECT_ONLY_RIGHTS.contains(rightName)) {
+            issues.add(ValidationIssue.warning("ROLE-103",
+                    "Right '" + rightName + "' is only applicable to reference objects "
+                            + "(Catalog/Document/...), but object type is " + typePart,
+                    line, rightPath + "/name"));
+        }
+    }
+    //++agent TASK-174
 
     /**
      * Проверяет, является ли имя права известным RoleRight.

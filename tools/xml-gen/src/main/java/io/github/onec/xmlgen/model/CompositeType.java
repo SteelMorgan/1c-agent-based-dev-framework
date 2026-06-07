@@ -76,8 +76,14 @@ public class CompositeType {
             } else if (depth == 0 && ch == '|') {
                 parts.add(current.toString().trim());
                 current = new StringBuilder();
-            } else if (depth == 0 && ch == '+') {
-                // Optional: also support legacy " + " separator
+            } else if (depth == 0 && ch == '+'
+                    && !(i + 1 < typeStr.length() && typeStr.charAt(i + 1) == '(')) {
+                // Optional: also support legacy " + " separator.
+                //**agent TASK-174 [05.06.2026 12:30:00]
+                // "+" непосредственно перед "(" — это nonneg-синтаксис одного типа
+                // ("number+(15,2)", TypeResolver.NUMBER_PATTERN), а не разделитель
+                // составного типа. Без guard "number+(15,2)" рвался на "number" и "(15,2)".
+                //**agent TASK-174
                 parts.add(current.toString().trim());
                 current = new StringBuilder();
             } else {

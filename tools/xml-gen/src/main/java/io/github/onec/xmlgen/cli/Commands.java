@@ -38,8 +38,7 @@ import io.github.onec.xmlgen.info.ExtensionDiffPrinter;
 import io.github.onec.xmlgen.editor.ReplaceTextEditor;
 
 //++agent TASK-155 [22.05.2026 00:00:00]
-// TASK-155 A2 iter-3: import RoleRight for compile-path rights validation (bug-T-154-role-002).
-import com.github._1c_syntax.bsl.mdo.support.RoleRight;
+// TASK-155/TASK-174: role compile validates right names before writing Rights.xml.
 //++agent TASK-155
 
 import java.io.IOException;
@@ -70,7 +69,18 @@ public class Commands {
         "form", "role", "skd", "mxl", "epf", "erf",
         "meta", "config", "extension", "subsystem", "interface", "template"
     ));
-    
+
+    //++agent TASK-174 [05.06.2026 00:00:00]
+    // XG-03: единый шаблон допустимого имени метаданных 1С — латиница ИЛИ кириллица,
+    // далее буквы/цифры/подчёркивание, не начинается с цифры. Совпадает с EpfValidator.IDENT_RE
+    // и с регуляркой пути meta/extension. Прежняя EPF/config-регулярка [A-Za-z_][A-Za-z0-9_]*
+    // отвергала кириллицу — это была ошибочная посылка TASK-155 (bug-T-154-epf-002):
+    // 1С полностью поддерживает кириллические идентификаторы (вся конфигурация GBIG PAM —
+    // имена с префиксом биг_). Из-за этого `epf init --name биг_X` падал, а обход через
+    // латинский плейсхолдер + edit replace-text давал структурно битый корневой XML (XG-03/XG-04).
+    private static final String ONEC_NAME_PATTERN = "[A-Za-z_А-ЯЁа-яё][A-Za-z0-9_А-ЯЁа-яё]*";
+    //++agent TASK-174
+
     public static void execute(String command, String[] args) {
         switch (command.toLowerCase()) {
             case "epf":
@@ -315,17 +325,25 @@ public class Commands {
         }
         //++agent TASK-171
 
-        //++agent TASK-155 [22.05.2026 00:00:00]
-        // TASK-155 A2 iter-3: name validation for EPF init (bug-T-154-epf-002).
-        // 1C metadata names must match [A-Za-z_][A-Za-z0-9_]* (latin only, no spaces/special chars).
-        // Names with spaces or special characters produce paths invalid on some 1C Designer versions.
-        if (!name.matches("[A-Za-z_][A-Za-z0-9_]*")) {
+        //**agent TASK-174 [05.06.2026 00:00:00]
+        // XG-03: имя обработки/отчёта валидируется единым ONEC_NAME_PATTERN (латиница+кириллица).
+        // Прежняя латиница-только регулярка [A-Za-z_][A-Za-z0-9_]* блокировала кириллический init,
+        // вынуждая обход (латинский плейсхолдер + edit replace-text), ломавший корневой XML.
+        // Имя по-прежнему отвергает пробелы/спецсимволы (валидный путь Designer), но кириллицу пропускает.
+        //// TASK-155 A2 iter-3: name validation for EPF init (bug-T-154-epf-002).
+        //if (!name.matches("[A-Za-z_][A-Za-z0-9_]*")) {
+        //    throw new IllegalArgumentException(
+        //        "Invalid 1C name: '" + name + "'. " +
+        //        "EPF/ERF names must match [A-Za-z_][A-Za-z0-9_]* " +
+        //        "(Latin letters, digits, and underscores only; must not start with a digit).");
+        //}
+        if (!name.matches(ONEC_NAME_PATTERN)) {
             throw new IllegalArgumentException(
                 "Invalid 1C name: '" + name + "'. " +
-                "EPF/ERF names must match [A-Za-z_][A-Za-z0-9_]* " +
-                "(Latin letters, digits, and underscores only; must not start with a digit).");
+                "EPF/ERF names must match " + ONEC_NAME_PATTERN + " " +
+                "(Latin or Cyrillic letters, digits, and underscores only; must not start with a digit).");
         }
-        //++agent TASK-155
+        //**agent TASK-174
 
         try {
             EpfWriter writer = new EpfWriter(format, isReport);
@@ -464,24 +482,18 @@ public class Commands {
                          "(e.g. --type String, --type Number, --type Boolean, --type CatalogRef.X)");
                  }
                  String attrName = getArg(args, "--name", true);
-                 // Check for duplicate attribute in the EPF XML
-                 XmlNode epfAttribs = doc.getRoot().child("ExternalDataProcessor") != null
-                     ? doc.getRoot().child("ExternalDataProcessor")
-                     : doc.getRoot();
-                 // Find Attributes section at any depth by scanning root's Attributes child
-                 XmlNode attrSection = doc.getRoot().child("Attributes");
-                 if (attrSection == null) {
-                     // Try nested ExternalDataProcessor / ExternalReport root pattern
-                     for (String childName : new String[]{"ExternalDataProcessor", "ExternalReport"}) {
-                         XmlNode container = doc.getRoot().child(childName);
-                         if (container != null) {
-                             attrSection = container.child("Attributes");
-                             break;
-                         }
+                 // Check for duplicate attribute in the canonical EPF ChildObjects section.
+                 XmlNode epfRoot = doc.getRoot();
+                 for (String childName : new String[]{"ExternalDataProcessor", "ExternalReport"}) {
+                     XmlNode container = doc.getRoot().child(childName);
+                     if (container != null) {
+                         epfRoot = container;
+                         break;
                      }
                  }
-                 if (attrSection != null) {
-                     for (XmlNode existingAttr : attrSection.children("Attribute")) {
+                 XmlNode childObjects = epfRoot.child("ChildObjects");
+                 if (childObjects != null) {
+                     for (XmlNode existingAttr : childObjects.children("Attribute")) {
                          XmlNode props = existingAttr.child("Properties");
                          if (props != null) {
                              XmlNode nameNode = props.child("Name");
@@ -742,6 +754,12 @@ public class Commands {
         Path file = getFileArg(args);
         try {
             XmlDocument doc = new XmlStructureReader().parse(file);
+            //++agent TASK-174 [05.06.2026 12:55:00]
+            // Diff-gate (как в formEditJson): pre-existing ошибки валидации (включая
+            // новый FORM-121 на рукописных формах без корневого Title) НЕ блокируют
+            // точечную правку — блокируются только НОВЫЕ ошибки, внесённые правкой.
+            Set<String> preEditErrors = snapshotErrors(doc, "form", args);
+            //++agent TASK-174
             FormEditor editor = new FormEditor(doc);
             String cmd = args[0];
             
@@ -765,13 +783,19 @@ public class Commands {
                  //++agent TASK-155
                  editor.addAttribute(addAttrName, getArg(args, "--type", true));
             } else if ("add-element".equals(cmd)) {
+                 //**agent TASK-174 [05.06.2026 00:00:00]
+                 // XG-02: добавлен --command для привязки кнопки к команде формы через edit-путь
+                 // (раньше CommandName умел только compile). Значение — короткое имя команды
+                 // или полная ссылка Form.Command.X.
                  editor.addElement(
                      getArg(args, "--type", true),
                      getArg(args, "--name", true),
                      getArg(args, "--path", false),
                      getArg(args, "--parent", false),
-                     getArg(args, "--after", false)
+                     getArg(args, "--after", false),
+                     getArg(args, "--command", false)
                  );
+                 //**agent TASK-174
             } else if ("add-command".equals(cmd)) {
                  //++agent TASK-155 [22.05.2026 00:00:00]
                  // TASK-155 A2 iter-3: --action is required for form add-command (bug-T-154-form-002 obs #1).
@@ -835,7 +859,9 @@ public class Commands {
                      moveInto
                  );
             }
-            saveAndValidate(doc, file, "form", args);
+            //**agent TASK-174 [05.06.2026 12:55:00] diff-gate вместо строгого gate
+            saveAndValidate(doc, file, "form", args, preEditErrors);
+            //**agent TASK-174
         } catch (Exception e) {
             throw new RuntimeException("Form editor failed: " + e.getMessage(), e);
         }
@@ -980,6 +1006,27 @@ public class Commands {
                                     "Posting, UndoPosting). Got: '" + right + "'.");
                             }
                         }
+                    } else if (obj.getRights() instanceof Map) {
+                        @SuppressWarnings("unchecked")
+                        Map<String, Object> rightsMap = (Map<String, Object>) obj.getRights();
+                        for (String right : rightsMap.keySet()) {
+                            if (!isValidRoleRightName(right)) {
+                                throw new IllegalArgumentException(
+                                    "Invalid right name '" + right + "' for object '" + obj.getName() + "'. " +
+                                    "Right names are case-sensitive XML identifiers (e.g. Read, View, Insert, " +
+                                    "Update, Delete, Edit, InteractiveInsert, InteractiveDelete, " +
+                                    "Posting, UndoPosting). Got: '" + right + "'.");
+                            }
+                        }
+                    }
+                    if (obj.getRls() != null) {
+                        for (String right : obj.getRls().keySet()) {
+                            if (!isValidRoleRightName(right)) {
+                                throw new IllegalArgumentException(
+                                    "Invalid RLS right name '" + right + "' for object '" + obj.getName() + "'. " +
+                                    "Right names are case-sensitive XML identifiers (e.g. Read, Update, Insert, Delete).");
+                            }
+                        }
                     }
                 }
             }
@@ -1023,12 +1070,7 @@ public class Commands {
      */
     private static boolean isValidRoleRightName(String name) {
         try {
-            for (RoleRight rr : RoleRight.values()) {
-                if (rr.fullName().getEn().equals(name)) {
-                    return true;
-                }
-            }
-            return false;
+            return RoleDsl.isKnownRightName(name);
         } catch (Exception e) {
             // If enum not available, do not block compilation
             return true;
@@ -2276,14 +2318,23 @@ public class Commands {
                     + "[--vendor <vendor>] [--compat <Version8_3_NN>] [--format-version <2.NN>]");
         }
 
-        //++agent TASK-155 [22.05.2026 00:00:00]
-        // TASK-155 A2 iter-3: config init validations (bug-T-154-config-002).
-        // (1) Name validation — same pattern as epf init and extension init.
-        if (!name.matches("[A-Za-z_][A-Za-z0-9_]*")) {
+        //**agent TASK-174 [05.06.2026 00:00:00]
+        // XG-03 (родственное): имя конфигурации тоже валидируем единым ONEC_NAME_PATTERN
+        // (латиница+кириллица). Прежняя латиница-только регулярка — та же ошибочная посылка
+        // TASK-155, что 1С-имена только латинские. Комментарий «same pattern as epf init»
+        // теперь снова верен — оба пути используют ONEC_NAME_PATTERN.
+        //// TASK-155 A2 iter-3: config init validations (bug-T-154-config-002).
+        //if (!name.matches("[A-Za-z_][A-Za-z0-9_]*")) {
+        //    throw new IllegalArgumentException(
+        //        "Invalid configuration name: '" + name + "'. " +
+        //        "Configuration names must match [A-Za-z_][A-Za-z0-9_]* " +
+        //        "(Latin letters, digits, and underscores only; must not start with a digit).");
+        //}
+        if (!name.matches(ONEC_NAME_PATTERN)) {
             throw new IllegalArgumentException(
                 "Invalid configuration name: '" + name + "'. " +
-                "Configuration names must match [A-Za-z_][A-Za-z0-9_]* " +
-                "(Latin letters, digits, and underscores only; must not start with a digit).");
+                "Configuration names must match " + ONEC_NAME_PATTERN + " " +
+                "(Latin or Cyrillic letters, digits, and underscores only; must not start with a digit).");
         }
         // (2) Existing-dir guard — refuse to silently overwrite an existing Configuration.xml.
         // Use --force flag to allow overwrite (currently not implemented, fail by default).

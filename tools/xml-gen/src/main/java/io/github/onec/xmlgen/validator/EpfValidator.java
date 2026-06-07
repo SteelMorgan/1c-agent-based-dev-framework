@@ -18,6 +18,12 @@ import java.util.regex.Pattern;
  *   <li>EPF-008 — identifier pattern (латиница+кириллица+цифры+underscore, не начинается с цифры).</li>
  *   <li>EPF-009 — Form.xml существует для declared Form.</li>
  *   <li>EPF-010 — uuid / ClassId имеет формат GUID (8-4-4-4-12 hex).</li>
+ *   <li>EPF-011 — посторонний прямой потомок MetaDataObject кроме
+ *       ExternalDataProcessor/ExternalReport (блок вне объекта; XG-04).</li>
+ *   <li>EPF-012 — каталог формы/макета лежит на диске, но объект НЕ объявлен в
+ *       ChildObjects (фантомное объявление наоборот; прецедент runaway-памяти; XG-04).</li>
+ *   <li>EPF-013 — объектные реквизиты/табличные части ошибочно помещены в контейнеры
+ *       Attributes/TabularSections вместо ChildObjects (XG-25).</li>
  * </ul>
  */
 public class EpfValidator implements XmlValidator {
@@ -80,6 +86,24 @@ public class EpfValidator implements XmlValidator {
                         root.getLine(), "/MetaDataObject"));
                 return;
             }
+            //++agent TASK-174 [05.06.2026 00:00:00]
+            // EPF-011 (XG-04): валидный корневой XML обработки/отчёта имеет РОВНО одного прямого
+            // потомка MetaDataObject — сам ExternalDataProcessor/ExternalReport. Обход «латинский
+            // плейсхолдер + edit replace-text» (XG-03) порождал блок <Attributes> (и другие)
+            // СНАРУЖИ </ExternalDataProcessor> — это прямой потомок MetaDataObject, на котором
+            // Designer-batch падает XDTO-ошибкой "anyType не соответствует ExternalDataProcessor",
+            // а старый валидатор давал PASS. Ловим любой посторонний прямой потомок.
+            for (XmlNode sibling : root.getChildren()) {
+                String sName = sibling.getName();
+                if (!"ExternalDataProcessor".equals(sName) && !"ExternalReport".equals(sName)) {
+                    issues.add(ValidationIssue.error("EPF-011",
+                            "Unexpected element <" + sName + "> directly under MetaDataObject; only "
+                                    + "<ExternalDataProcessor> or <ExternalReport> is allowed at this level "
+                                    + "(a block placed outside the object will fail Designer with an XDTO error)",
+                            sibling.getLine(), "/MetaDataObject/" + sName));
+                }
+            }
+            //++agent TASK-174
         } else if ("ExternalDataProcessor".equals(root.getName())) {
             epfNode = root;
             isReport = false;
@@ -148,6 +172,23 @@ public class EpfValidator implements XmlValidator {
             return;
         }
 
+        //++agent TASK-174 [07.06.2026 16:20:00]
+        // XG-25: старый epf edit создавал синтетические контейнеры <Attributes> и
+        // <TabularSections> прямо внутри ExternalDataProcessor/ExternalReport. В формате
+        // Designer реквизиты объекта и ТЧ являются детьми <ChildObjects>, иначе структура
+        // расходится с MDClasses-схемой и ломает загрузку из файлов.
+        for (String invalidContainer : List.of("Attributes", "TabularSections")) {
+            XmlNode invalid = epfNode.child(invalidContainer);
+            if (invalid != null) {
+                issues.add(ValidationIssue.error("EPF-013",
+                        "Unexpected <" + invalidContainer + "> container inside " + elementName
+                                + "; EPF/ERF attributes and tabular sections must be declared as "
+                                + "<Attribute>/<TabularSection> children of <ChildObjects>",
+                        invalid.getLine(), "/" + elementName + "/" + invalidContainer));
+            }
+        }
+        //++agent TASK-174
+
         // EPF-005: Forms перед Templates в ChildObjects
         boolean foundTemplate = false;
         boolean formAfterTemplate = false;
@@ -181,9 +222,68 @@ public class EpfValidator implements XmlValidator {
                     : fileName;
             Path childBase = docDir.resolve(objectName);
             validateChildFiles(childObjects, childBase, elementName, issues);
+            //++agent TASK-174 [05.06.2026 00:00:00]
+            // EPF-012 (XG-04): обратная проверка — каталог формы/макета лежит на диске под
+            // <objectName>/Forms|Templates, но объект НЕ объявлен в <ChildObjects>. Designer при
+            // загрузке из файлов наталкивается на форму без записи в метаданных → известный
+            // прецедент runaway-памяти (memory project_phantom_form_load_runaway). EPF-006/009
+            // ловят обратное (объявлено, файла нет) — здесь закрываем зеркальную дыру.
+            validateUndeclaredChildDirs(childObjects, childBase, elementName, issues);
         }
         //++agent TASK-171
     }
+
+    //++agent TASK-174 [05.06.2026 00:00:00]
+    /**
+     * EPF-012: каталоги форм/макетов на диске, не объявленные в ChildObjects.
+     *
+     * <p>Сканируем {@code <objectName>/Forms/*} и {@code <objectName>/Templates/*}; каждый
+     * подкаталог (= потенциальная форма/макет) должен иметь соответствующую запись
+     * {@code <Form>}/{@code <Template>} в ChildObjects. Незаявленный каталог — структурный
+     * дефект (фантом).
+     */
+    private void validateUndeclaredChildDirs(XmlNode childObjects, Path baseDir, String elementName,
+                                             List<ValidationIssue> issues) {
+        Set<String> declaredForms = new HashSet<>();
+        Set<String> declaredTemplates = new HashSet<>();
+        for (XmlNode child : childObjects.getChildren()) {
+            String objName = child.getText();
+            if (objName == null || objName.isEmpty()) continue;
+            if ("Form".equals(child.getName())) {
+                declaredForms.add(objName);
+            } else if ("Template".equals(child.getName())) {
+                declaredTemplates.add(objName);
+            }
+        }
+        checkUndeclaredDirs(baseDir.resolve("Forms"), declaredForms, "Form",
+                childObjects, elementName, issues);
+        checkUndeclaredDirs(baseDir.resolve("Templates"), declaredTemplates, "Template",
+                childObjects, elementName, issues);
+    }
+
+    private void checkUndeclaredDirs(Path dir, Set<String> declared, String kind,
+                                     XmlNode childObjects, String elementName,
+                                     List<ValidationIssue> issues) {
+        if (!Files.isDirectory(dir)) {
+            return;
+        }
+        try (var stream = Files.list(dir)) {
+            stream.filter(Files::isDirectory).forEach(sub -> {
+                String dirName = sub.getFileName().toString();
+                if (!declared.contains(dirName)) {
+                    issues.add(ValidationIssue.error("EPF-012",
+                            kind + " directory '" + dirName + "' exists on disk (" + sub
+                                    + ") but is not declared in <ChildObjects> (phantom; will break "
+                                    + "Designer load from files)",
+                            childObjects.getLine(),
+                            "/" + elementName + "/ChildObjects"));
+                }
+            });
+        } catch (java.io.IOException e) {
+            // Каталог нечитаем — не структурный дефект EPF, молча пропускаем (диск/права).
+        }
+    }
+    //++agent TASK-174
 
     private String findClassId(XmlNode internalInfo) {
         // TASK-171: ищем (xr:)ClassId рекурсивно — в реальной структуре он лежит на уровень
@@ -225,12 +325,21 @@ public class EpfValidator implements XmlValidator {
 
             // EPF-009: для Form — также проверим наличие Form.xml внутри каталога
             if ("Form".equals(childName) && Files.exists(childDir)) {
-                Path formXml = childDir.resolve("Ext").resolve("Form").resolve("Form.xml");
+                //**agent TASK-174 [05.06.2026 00:00:00]
+                // XG-04: канон Designer — описание формы лежит в <Имя>/Ext/Form.xml, а НЕ в
+                // <Имя>/Ext/Form/Form.xml (проверено на src/xml/DataProcessors/**/Forms/*/Ext/Form.xml
+                // и на выводе самого epf add-form). Прежний путь Ext/Form/Form.xml давал ложный
+                // EPF-009 на КАЖДОЙ корректно сгенерированной обработке с формой — из-за этого
+                // приёмочный validate для XG-03 не мог дать PASS. В Ext/Form/ лежит Module.bsl, а
+                // не Form.xml.
+                //Path formXml = childDir.resolve("Ext").resolve("Form").resolve("Form.xml");
+                Path formXml = childDir.resolve("Ext").resolve("Form.xml");
                 if (!Files.exists(formXml)) {
                     issues.add(ValidationIssue.error("EPF-009",
                             "Form '" + objName + "' declared but Form.xml not found: " + formXml,
                             child.getLine(), "/" + elementName + "/ChildObjects/Form"));
                 }
+                //**agent TASK-174
             }
         }
     }

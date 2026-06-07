@@ -14,6 +14,7 @@ import java.util.List;
 import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
  * Тесты для RoleWriter.
@@ -277,5 +278,85 @@ class RoleWriterTest {
 
         String metaContent = Files.readString(tempDir.resolve("Roles/РольБезКонфига.xml"));
         assertThat(metaContent).contains("version=\"2.17\"");
+    }
+
+    /**
+     * TASK-174 XG-32: строковый shorthand и русские синонимы типов/прав из role-dsl-spec.
+     */
+    @Test
+    void task174_xg32_jsonShorthandAndRussianAliases_areNormalized() throws Exception {
+        String json = """
+                {
+                  "name": "РольXG32",
+                  "objects": [
+                    "Справочник.Контрагенты: @view",
+                    "Документ.ЗаказКлиента: Чтение, Просмотр",
+                    {
+                      "name": "Справочник.Номенклатура.Реквизит.Артикул",
+                      "rights": {"Просмотр": true, "Редактирование": false},
+                      "rls": {"Просмотр": "ГДЕ Истина"}
+                    }
+                  ]
+                }
+                """;
+
+        RoleDsl dsl = new ObjectMapper().readValue(json, RoleDsl.class);
+        new RoleWriter(OutputFormat.DESIGNER).create(dsl, tempDir);
+
+        String rights = Files.readString(tempDir.resolve("Roles/РольXG32/Ext/Rights.xml"));
+        assertThat(rights)
+                .contains("<name>Catalog.Контрагенты</name>")
+                .contains("<name>Document.ЗаказКлиента</name>")
+                .contains("<name>Catalog.Номенклатура.Attribute.Артикул</name>")
+                .contains("<name>Read</name>")
+                .contains("<name>View</name>")
+                .contains("<name>Edit</name>")
+                .contains("<condition>ГДЕ Истина</condition>");
+        assertThat(rights)
+                .doesNotContain("Справочник")
+                .doesNotContain("Документ")
+                .doesNotContain("Чтение")
+                .doesNotContain("Просмотр");
+    }
+
+    /**
+     * TASK-174 XG-32: Map-форма с неверным именем права должна падать до записи XML.
+     */
+    @Test
+    void task174_xg32_invalidMapRight_failsFast() {
+        String json = """
+                {
+                  "name": "РольBadRight",
+                  "objects": [
+                    {
+                      "name": "Catalog.Товары",
+                      "rights": {"view": true}
+                    }
+                  ]
+                }
+                """;
+
+        assertThatThrownBy(() -> new ObjectMapper().readValue(json, RoleDsl.class))
+                .hasMessageContaining("Invalid right name 'view'");
+    }
+
+    /**
+     * TASK-174 XG-32: программный HashMap больше не определяет порядок прав в Rights.xml.
+     */
+    @Test
+    void task174_xg32_mapRightsOrder_isDeterministic() throws Exception {
+        Map<String, Object> explicitRights = new HashMap<>();
+        explicitRights.put("View", true);
+        explicitRights.put("Use", true);
+
+        RoleDsl dsl = new RoleDsl("РольПорядок", null, null, null, null, null,
+                List.of(new RoleDsl.ObjectRights("DataProcessor.Загрузка", null, explicitRights, null)),
+                null);
+
+        new RoleWriter(OutputFormat.DESIGNER).create(dsl, tempDir);
+
+        String rights = Files.readString(tempDir.resolve("Roles/РольПорядок/Ext/Rights.xml"));
+        assertThat(rights.indexOf("<name>Use</name>"))
+                .isLessThan(rights.indexOf("<name>View</name>"));
     }
 }

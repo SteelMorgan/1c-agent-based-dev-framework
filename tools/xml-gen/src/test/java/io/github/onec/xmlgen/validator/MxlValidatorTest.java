@@ -324,7 +324,7 @@ class MxlValidatorTest {
         assertThat(issues).anyMatch(i -> i.getCode().equals("MXL-205"));
     }
 
-    // --- MXL-206: page size impossible ---
+    // --- MXL-206/MXL-208: page size impossible and non-canonical pageSetup ---
 
     @Test
     void mxl206_happyPathWidthsFitPage() throws Exception {
@@ -345,6 +345,7 @@ class MxlValidatorTest {
                 "\t</pageSetup>\n");
         List<ValidationIssue> issues = validator.validate(reader.parse(file), ValidationLevel.SEMANTIC);
         assertThat(issues).noneMatch(i -> i.getCode().equals("MXL-206"));
+        assertThat(issues).anyMatch(i -> i.getCode().equals("MXL-208"));
     }
 
     @Test
@@ -366,6 +367,7 @@ class MxlValidatorTest {
                 "\t</pageSetup>\n");
         List<ValidationIssue> issues = validator.validate(reader.parse(file), ValidationLevel.SEMANTIC);
         assertThat(issues).anyMatch(i -> i.getCode().equals("MXL-206"));
+        assertThat(issues).anyMatch(i -> i.getCode().equals("MXL-208"));
     }
 
     // --- MXL-207: style reference broken ---

@@ -15,6 +15,7 @@ import java.util.*;
  *   MXL-205 Format mismatch (numeric format on non-numeric cell)
  *   MXL-206 Page size impossible (sum of widths exceeds page)
  *   MXL-207 Style reference broken
+ *   MXL-208 Non-canonical pageSetup extension
  */
 public class MxlValidator implements XmlValidator {
 
@@ -88,6 +89,13 @@ public class MxlValidator implements XmlValidator {
             issues.add(ValidationIssue.warning("MXL-003",
                     "Missing <columns> element",
                     root.getLine(), "/document"));
+        }
+
+        XmlNode pageSetup = root.child("pageSetup");
+        if (pageSetup != null) {
+            issues.add(ValidationIssue.error("MXL-208",
+                    "<pageSetup> is not part of the 1C SpreadsheetDocument Template.xml schema; use canonical <printSettings> when print settings are needed",
+                    pageSetup.getLine(), "/document/pageSetup"));
         }
 
         // MXL-004 + MXL-005: height и rowsItem

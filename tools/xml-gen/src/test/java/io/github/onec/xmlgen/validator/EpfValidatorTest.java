@@ -189,6 +189,46 @@ class EpfValidatorTest {
         assertThat(issues).anyMatch(i -> i.getCode().equals("EPF-005"));
     }
 
+    @Test
+    void epf013_attributesContainerInsideObject_reported() throws Exception {
+        Path file = writeXml("Test.xml",
+                "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n" +
+                "<MetaDataObject xmlns=\"http://v8.1c.ru/8.3/MDClasses\">\n" +
+                "\t<ExternalDataProcessor uuid=\"11111111-1111-1111-1111-111111111111\">\n" +
+                "\t\t<Properties><Name>Test</Name></Properties>\n" +
+                "\t\t<ChildObjects/>\n" +
+                "\t\t<Attributes>\n" +
+                "\t\t\t<Attribute uuid=\"22222222-2222-2222-2222-222222222222\"/>\n" +
+                "\t\t</Attributes>\n" +
+                "\t</ExternalDataProcessor>\n" +
+                "</MetaDataObject>\n");
+
+        XmlDocument doc = reader.parse(file);
+        List<ValidationIssue> issues = validator.validate(doc, ValidationLevel.STRUCTURE);
+
+        assertThat(issues).anyMatch(i -> i.getCode().equals("EPF-013")
+                && i.getMessage().contains("Attributes"));
+    }
+
+    @Test
+    void epf013_attributeInChildObjects_noFalsePositive() throws Exception {
+        Path file = writeXml("Test.xml",
+                "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n" +
+                "<MetaDataObject xmlns=\"http://v8.1c.ru/8.3/MDClasses\">\n" +
+                "\t<ExternalDataProcessor uuid=\"11111111-1111-1111-1111-111111111111\">\n" +
+                "\t\t<Properties><Name>Test</Name></Properties>\n" +
+                "\t\t<ChildObjects>\n" +
+                "\t\t\t<Attribute uuid=\"22222222-2222-2222-2222-222222222222\"/>\n" +
+                "\t\t</ChildObjects>\n" +
+                "\t</ExternalDataProcessor>\n" +
+                "</MetaDataObject>\n");
+
+        XmlDocument doc = reader.parse(file);
+        List<ValidationIssue> issues = validator.validate(doc, ValidationLevel.STRUCTURE);
+
+        assertThat(issues).noneMatch(i -> i.getCode().equals("EPF-013"));
+    }
+
     // ==================== EPF-006: Child file not exists ====================
 
     @Test
@@ -221,6 +261,110 @@ class EpfValidatorTest {
         Path file = tempDir.resolve(filename);
         Files.writeString(file, content, StandardCharsets.UTF_8);
         return file;
+    }
+
+    // ==================== EPF-011: посторонний потомок вне объекта (XG-04) ====================
+
+    @Test
+    void epf011_attributesBlockOutsideObject_reported() throws Exception {
+        // XG-04 класс (а): блок <Attributes> стоит СНАРУЖИ </ExternalDataProcessor> — прямой
+        // потомок MetaDataObject. Designer-batch падает XDTO-ошибкой, а старый валидатор давал
+        // PASS. Воспроизводит структуру битого корневого XML из обхода XG-03.
+        Path file = writeXml("Test.xml",
+                "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n" +
+                "<MetaDataObject xmlns=\"http://v8.1c.ru/8.3/MDClasses\" xmlns:xr=\"http://v8.1c.ru/8.3/xcf/readable\">\n" +
+                "\t<ExternalDataProcessor uuid=\"c629f0b1-84ab-4581-8b0f-8a0180ceb530\">\n" +
+                "\t\t<InternalInfo>\n" +
+                "\t\t\t<xr:ContainedObject>\n" +
+                "\t\t\t\t<xr:ClassId>c3831ec8-d8d5-4f93-8a22-f9bfae07327f</xr:ClassId>\n" +
+                "\t\t\t\t<xr:ObjectId>c629f0b1-84ab-4581-8b0f-8a0180ceb530</xr:ObjectId>\n" +
+                "\t\t\t</xr:ContainedObject>\n" +
+                "\t\t</InternalInfo>\n" +
+                "\t\t<Properties><Name>биг_Тест</Name></Properties>\n" +
+                "\t\t<ChildObjects/>\n" +
+                "\t</ExternalDataProcessor>\n" +
+                "\t<Attributes>\n" +
+                "\t\t<Attribute uuid=\"04b197d6-6065-40db-99f2-d255ace7a449\">\n" +
+                "\t\t\t<Properties><Name>НачалоПериода</Name></Properties>\n" +
+                "\t\t</Attribute>\n" +
+                "\t</Attributes>\n" +
+                "</MetaDataObject>\n");
+
+        XmlDocument doc = reader.parse(file);
+        List<ValidationIssue> issues = validator.validate(doc, ValidationLevel.STRUCTURE);
+        assertThat(issues).anyMatch(i -> i.getCode().equals("EPF-011")
+                && i.getMessage().contains("Attributes"));
+    }
+
+    @Test
+    void epf011_validRoot_noFalsePositive() throws Exception {
+        // Регресс: корректный корневой XML (РОВНО один потомок ExternalDataProcessor) —
+        // EPF-011 НЕ срабатывает. <Attribute> ВНУТРИ ChildObjects (валидно для обработки)
+        // тоже не должен триггерить EPF-011, т.к. он не прямой потомок MetaDataObject.
+        Path file = writeXml("Test.xml",
+                "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n" +
+                "<MetaDataObject xmlns=\"http://v8.1c.ru/8.3/MDClasses\">\n" +
+                "\t<ExternalDataProcessor uuid=\"a1b2c3d4-e5f6-4789-abcd-0123456789ab\">\n" +
+                "\t\t<Properties><Name>МояОбработка</Name></Properties>\n" +
+                "\t\t<ChildObjects>\n" +
+                "\t\t\t<Attribute uuid=\"7efb0bf4-d40c-417b-b9bc-f4a5af66ec09\">\n" +
+                "\t\t\t\t<Properties><Name>Реквизит1</Name></Properties>\n" +
+                "\t\t\t</Attribute>\n" +
+                "\t\t</ChildObjects>\n" +
+                "\t</ExternalDataProcessor>\n" +
+                "</MetaDataObject>\n");
+
+        XmlDocument doc = reader.parse(file);
+        List<ValidationIssue> issues = validator.validate(doc, ValidationLevel.STRUCTURE);
+        assertThat(issues).noneMatch(i -> i.getCode().equals("EPF-011"));
+    }
+
+    // ==================== EPF-012: фантомный каталог формы на диске (XG-04) ====================
+
+    @Test
+    void epf012_formDirOnDiskNotDeclared_reported() throws Exception {
+        // XG-04 класс (б): на диске лежит каталог формы <obj>/Forms/Форма, но <Form> НЕ объявлен
+        // в ChildObjects. Designer при загрузке из файлов натыкается на необъявленную форму →
+        // прецедент runaway-памяти. Старый валидатор такую дыру не ловил.
+        Path sub = tempDir.resolve("sub");
+        Files.createDirectories(sub);
+        // Каталог формы на диске
+        Files.createDirectories(sub.resolve("Test/Forms/Форма/Ext/Form"));
+        Path file = sub.resolve("Test.xml");
+        Files.writeString(file,
+                "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n" +
+                "<MetaDataObject xmlns=\"http://v8.1c.ru/8.3/MDClasses\">\n" +
+                "\t<ExternalDataProcessor uuid=\"a1b2c3d4-e5f6-4789-abcd-0123456789ab\">\n" +
+                "\t\t<Properties><Name>Test</Name></Properties>\n" +
+                "\t\t<ChildObjects/>\n" +
+                "\t</ExternalDataProcessor>\n" +
+                "</MetaDataObject>\n", StandardCharsets.UTF_8);
+
+        XmlDocument doc = reader.parse(file);
+        List<ValidationIssue> issues = validator.validate(doc, ValidationLevel.STRUCTURE);
+        assertThat(issues).anyMatch(i -> i.getCode().equals("EPF-012")
+                && i.getMessage().contains("Форма"));
+    }
+
+    @Test
+    void epf012_declaredFormWithDir_noFalsePositive() throws Exception {
+        // Регресс: каталог формы на диске И объявлен в ChildObjects — EPF-012 НЕ срабатывает.
+        Path sub = tempDir.resolve("sub2");
+        Files.createDirectories(sub);
+        Files.createDirectories(sub.resolve("Test/Forms/Форма/Ext/Form"));
+        Path file = sub.resolve("Test.xml");
+        Files.writeString(file,
+                "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n" +
+                "<MetaDataObject xmlns=\"http://v8.1c.ru/8.3/MDClasses\">\n" +
+                "\t<ExternalDataProcessor uuid=\"a1b2c3d4-e5f6-4789-abcd-0123456789ab\">\n" +
+                "\t\t<Properties><Name>Test</Name></Properties>\n" +
+                "\t\t<ChildObjects><Form>Форма</Form></ChildObjects>\n" +
+                "\t</ExternalDataProcessor>\n" +
+                "</MetaDataObject>\n", StandardCharsets.UTF_8);
+
+        XmlDocument doc = reader.parse(file);
+        List<ValidationIssue> issues = validator.validate(doc, ValidationLevel.STRUCTURE);
+        assertThat(issues).noneMatch(i -> i.getCode().equals("EPF-012"));
     }
 
     // ==================== EPF-007: Duplicate child names ====================
