@@ -375,9 +375,19 @@ public class FormEditor {
     // XG-14/XG-15: контейнерные типы элементов формы — те, что требуют обёртки <ChildItems>
     // для дочерних элементов. Определяется по XML-тегу узла (не по kind enum, т.к.
     // это может быть существующий узел из загруженного Form.xml).
+    //**agent TASK-174 [08.06.2026 00:30:00]
+    //private static final java.util.Set<String> CONTAINER_XML_TAGS = java.util.Set.of(
+    //        "UsualGroup", "Pages", "Page", "CommandBar", "Popup", "Table"
+    //);
+    // XG-41: набор XG-15 был неполным. Канон Designer-выгрузок (GBIG PAM, 956 форм):
+    // родителями <ChildItems> бывают также AutoCommandBar (540), ButtonGroup (404),
+    // ColumnGroup (347), ContextMenu (197). Без них дети добавлялись бы напрямую в
+    // узел контейнера, и Designer молча отбрасывал бы их при загрузке.
     private static final java.util.Set<String> CONTAINER_XML_TAGS = java.util.Set.of(
-            "UsualGroup", "Pages", "Page", "CommandBar", "Popup", "Table"
+            "UsualGroup", "Pages", "Page", "CommandBar", "Popup", "Table",
+            "AutoCommandBar", "ButtonGroup", "ColumnGroup", "ContextMenu"
     );
+    //**agent TASK-174
 
     /**
      * Проверяет, является ли элемент контейнерным (требует <ChildItems> для детей).
@@ -426,10 +436,17 @@ public class FormEditor {
     //++agent TASK-174
 
     public void removeElement(String name) {
-        XmlNode childItems = document.getRoot().child("ChildItems");
-        if (childItems != null) {
-            removeElementRecursive(childItems, name);
+        //**agent TASK-174 [08.06.2026 00:30:00]
+        //XmlNode childItems = document.getRoot().child("ChildItems");
+        //if (childItems != null) {
+        //    removeElementRecursive(childItems, name);
+        //}
+        // XG-41: элементы формы живут не только в корневом <ChildItems>, но и в
+        // form-level <AutoCommandBar> (прямой ребёнок <Form>) — обходим оба корня.
+        for (XmlNode rootContainer : elementSearchRoots()) {
+            removeElementRecursive(rootContainer, name);
         }
+        //**agent TASK-174
     }
 
     public void moveElement(String name, String afterName, String beforeName, String intoName) {
@@ -476,11 +493,39 @@ public class FormEditor {
 
     // --- Helpers ---
 
+    //**agent TASK-174 [08.06.2026 00:30:00]
+    //private XmlNode findElement(String name) {
+    //     XmlNode childItems = document.getRoot().child("ChildItems");
+    //     if (childItems == null) return null;
+    //     return findElementRecursive(childItems, name);
+    //}
+    // XG-41: командная панель формы (AutoCommandBar name="ФормаКоманднаяПанель") —
+    // прямой ребёнок <Form> ВНЕ корневого <ChildItems>; поиск только от ChildItems
+    // делал её принципиально недостижимой как into/after/before-цель
+    // («Parent element not found»). Ищем по всем корням UI-элементов.
     private XmlNode findElement(String name) {
-         XmlNode childItems = document.getRoot().child("ChildItems");
-         if (childItems == null) return null;
-         return findElementRecursive(childItems, name);
+        for (XmlNode rootContainer : elementSearchRoots()) {
+            XmlNode found = findElementRecursive(rootContainer, name);
+            if (found != null) return found;
+        }
+        return null;
     }
+
+    /**
+     * Корни поддеревьев UI-элементов формы. По канону Designer-выгрузки прямым
+     * ребёнком <Form> кроме <ChildItems> бывает только <AutoCommandBar> (968 форм
+     * GBIG PAM); Attributes/Commands/Parameters сюда не входят намеренно — их
+     * name-атрибуты не являются именами элементов формы.
+     */
+    private List<XmlNode> elementSearchRoots() {
+        List<XmlNode> roots = new ArrayList<>(2);
+        XmlNode childItems = document.getRoot().child("ChildItems");
+        if (childItems != null) roots.add(childItems);
+        XmlNode autoCommandBar = document.getRoot().child("AutoCommandBar");
+        if (autoCommandBar != null) roots.add(autoCommandBar);
+        return roots;
+    }
+    //**agent TASK-174
     
     private XmlNode findElementRecursive(XmlNode root, String name) {
         if (name.equals(root.attr("name"))) return root;

@@ -305,4 +305,95 @@ class FormEditorTest {
         assertTrue(radio.hasChild("ContextMenu"));
         assertTrue(radio.hasChild("ExtendedTooltip"));
     }
+
+    // ------------------------------------------------------------------
+    // TASK-174 XG-41: командная панель формы (AutoCommandBar) — прямой ребёнок
+    // <Form> ВНЕ корневого <ChildItems>, поэтому findElement её не видел и
+    // `form edit --json {into: "ФормаКоманднаяПанель"}` падал
+    // «Parent element not found». Канон Designer-выгрузок GBIG PAM: 968 форм
+    // имеют form-level AutoCommandBar, 381 — с непустым <ChildItems>.
+    // ------------------------------------------------------------------
+
+    /** Документ с form-level AutoCommandBar (как в реальной Designer-выгрузке). */
+    private FormEditor editorWithFormCommandBar() {
+        XmlNode autoBar = XmlNode.builder()
+                .name("AutoCommandBar")
+                .attribute("name", "ФормаКоманднаяПанель")
+                .attribute("id", "-1")
+                .build();
+        XmlNode root = XmlNode.builder()
+                .name("Form")
+                .addChild(XmlNode.builder().name("Attributes").build())
+                .addChild(XmlNode.builder().name("Commands").build())
+                .addChild(XmlNode.builder().name("ChildItems").build())
+                .addChild(autoBar)
+                .build();
+        document = new XmlDocument(null, false, null, "Form", "", Map.of(), root.getChildren(), root);
+        return new FormEditor(document);
+    }
+
+    @Test
+    void task174_xg41_addButtonIntoFormAutoCommandBar() {
+        FormEditor barEditor = editorWithFormCommandBar();
+
+        barEditor.addElement("Button", "ФормаВыполнитьВозврат", null,
+                "ФормаКоманднаяПанель", null, "ВыполнитьВозврат");
+
+        XmlNode autoBar = document.getRoot().child("AutoCommandBar");
+        assertNotNull(autoBar, "form-level AutoCommandBar должен сохраниться");
+        // XG-15-класс: дети контейнера — внутри <ChildItems>, не напрямую
+        XmlNode barChildItems = autoBar.child("ChildItems");
+        assertNotNull(barChildItems, "AutoCommandBar должен иметь <ChildItems>");
+        XmlNode button = barChildItems.child("Button");
+        assertNotNull(button, "Button должен быть в ChildItems командной панели");
+        assertEquals("ФормаВыполнитьВозврат", button.attr("name"));
+        // XG-14: Type=UsualButton первым дочерним тегом
+        assertEquals("Type", button.getChildren().get(0).getName());
+        assertEquals("UsualButton", button.child("Type").getText());
+        // XG-02: CommandName с полным префиксом
+        assertEquals("Form.Command.ВыполнитьВозврат", button.child("CommandName").getText());
+        // Кнопка НЕ должна попасть в корневой ChildItems
+        assertNull(document.getRoot().child("ChildItems").child("Button"));
+    }
+
+    @Test
+    void task174_xg41_moveElementIntoFormAutoCommandBar() {
+        FormEditor barEditor = editorWithFormCommandBar();
+        barEditor.addElement("Button", "Кнопка", null, null, null, "Команда");
+
+        barEditor.moveElement("Кнопка", null, null, "ФормаКоманднаяПанель");
+
+        XmlNode autoBar = document.getRoot().child("AutoCommandBar");
+        assertNotNull(autoBar.child("ChildItems"));
+        assertNotNull(autoBar.child("ChildItems").child("Button"));
+        assertNull(document.getRoot().child("ChildItems").child("Button"));
+    }
+
+    @Test
+    void task174_xg41_removeElementFromFormAutoCommandBar() {
+        FormEditor barEditor = editorWithFormCommandBar();
+        barEditor.addElement("Button", "Кнопка", null, "ФормаКоманднаяПанель", null, "Команда");
+        assertNotNull(document.getRoot().child("AutoCommandBar").child("ChildItems").child("Button"));
+
+        barEditor.removeElement("Кнопка");
+
+        assertNull(document.getRoot().child("AutoCommandBar").child("ChildItems").child("Button"),
+                "removeElement должен находить элементы внутри form-level AutoCommandBar");
+    }
+
+    // TASK-174 XG-41 (класс): по канону Designer <ChildItems> легитимен также у
+    // ButtonGroup, ColumnGroup и ContextMenu (404/347/197 вхождений в выгрузках
+    // GBIG PAM) — они тоже контейнеры, дети обязаны оборачиваться в <ChildItems>.
+    @Test
+    void task174_xg41_buttonGroupAndContextMenu_areContainers() {
+        editor.addElement("ButtonGroup", "ГруппаКнопок", null, null, null);
+        XmlNode group = document.getRoot().child("ChildItems").child("ButtonGroup");
+        assertNotNull(group);
+
+        editor.addElement("Button", "КнопкаВГруппе", null, "ГруппаКнопок", null, "Команда");
+        XmlNode groupChildItems = group.child("ChildItems");
+        assertNotNull(groupChildItems, "ButtonGroup должна иметь <ChildItems>");
+        assertNotNull(groupChildItems.child("Button"), "Button должен быть в ChildItems группы кнопок");
+        assertNull(group.child("Button"), "Button не должен лежать напрямую в ButtonGroup");
+    }
 }
