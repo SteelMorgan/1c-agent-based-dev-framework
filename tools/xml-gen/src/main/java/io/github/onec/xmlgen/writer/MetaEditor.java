@@ -1,6 +1,7 @@
 package io.github.onec.xmlgen.writer;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.JsonNode;
 import io.github.onec.xmlgen.dsl.FormDsl;
 import io.github.onec.xmlgen.dsl.MetaBatchDsl;
 import io.github.onec.xmlgen.dsl.MetaBatchDsl.Operation;
@@ -109,6 +110,10 @@ public class MetaEditor {
         // отдельном Ext/Predefined.xml — обрабатываем до общего content-конвейера.
         if ("add-predefined".equals(operation)) {
             addPredefinedItems(xmlPath, objType, value);
+            return;
+        }
+        if ("add-exchange-content".equals(operation)) {
+            addExchangePlanContent(xmlPath, objType, value);
             return;
         }
 
@@ -398,25 +403,10 @@ public class MetaEditor {
                 : PredefinedXmlWriter.DEFAULT_CODE_WIDTH;
         int nextCode = exists ? PredefinedXmlWriter.nextCodeNumber(content) : 1;
 
-        List<PredefinedXmlWriter.Item> newItems = new ArrayList<>();
-        for (String raw : value.split(";;")) {
-            String item = raw.trim();
-            if (item.isEmpty()) continue;
-            String[] parts = item.split("\\|", -1);
-            String name = parts[0].trim();
-            if (name.isEmpty()) continue;
-            if (exists && findPredefinedByName(content, name)) {
-                warn("Predefined '" + name + "' already exists, skipping");
-                continue;
-            }
-            String description = parts.length > 1 && !parts[1].trim().isEmpty()
-                    ? parts[1].trim() : name;
-            String code = parts.length > 2 && !parts[2].trim().isEmpty()
-                    ? parts[2].trim() : PredefinedXmlWriter.formatCode(nextCode++, codeWidth);
-            boolean isFolder = parts.length > 3 && "folder".equalsIgnoreCase(parts[3].trim());
-            newItems.add(new PredefinedXmlWriter.Item(name, code, description, isFolder));
-            addCount++;
-        }
+        List<PredefinedXmlWriter.Item> newItems = value.startsWith("@")
+                ? readPredefinedItemsJson(value.substring(1))
+                : readPredefinedItemsShorthand(value, exists, content, nextCode, codeWidth);
+        addCount += newItems.size();
 
         if (newItems.isEmpty()) {
             out.println("[INFO] No predefined items added (all duplicates or empty).");
@@ -440,6 +430,126 @@ public class MetaEditor {
         out.println("  Predefined added: " + addCount);
     }
 
+    private List<PredefinedXmlWriter.Item> readPredefinedItemsShorthand(String value, boolean exists,
+                                                                        String content, int nextCode, int codeWidth) {
+        List<PredefinedXmlWriter.Item> items = new ArrayList<>();
+        for (String raw : value.split(";;")) {
+            String item = raw.trim();
+            if (item.isEmpty()) continue;
+            String[] parts = item.split("\\|", -1);
+            String name = parts[0].trim();
+            if (name.isEmpty()) continue;
+            if (exists && findPredefinedByName(content, name)) {
+                warn("Predefined '" + name + "' already exists, skipping");
+                continue;
+            }
+            String description = parts.length > 1 && !parts[1].trim().isEmpty()
+                    ? parts[1].trim() : name;
+            String code = parts.length > 2
+                    ? parts[2].trim() : PredefinedXmlWriter.formatCode(nextCode++, codeWidth);
+            boolean isFolder = parts.length > 3 && "folder".equalsIgnoreCase(parts[3].trim());
+            items.add(new PredefinedXmlWriter.Item(name, code, description, isFolder));
+        }
+        return items;
+    }
+
+    private List<PredefinedXmlWriter.Item> readPredefinedItemsJson(String fileName) throws IOException {
+        Path jsonPath = Paths.get(fileName);
+        if (!Files.isRegularFile(jsonPath)) {
+            throw new IllegalArgumentException("Predefined JSON file not found: " + jsonPath);
+        }
+        JsonNode root = new ObjectMapper().readTree(jsonPath.toFile());
+        JsonNode itemsNode = root.isArray() ? root : root.get("items");
+        if (itemsNode == null || !itemsNode.isArray()) {
+            throw new IllegalArgumentException("Predefined JSON must be an array or object with items[]: " + jsonPath);
+        }
+        List<PredefinedXmlWriter.Item> items = new ArrayList<>();
+        for (JsonNode itemNode : itemsNode) {
+            items.add(readPredefinedItemJson(itemNode));
+        }
+        return items;
+    }
+
+    private PredefinedXmlWriter.Item readPredefinedItemJson(JsonNode node) {
+        String name = text(node, "name", "");
+        if (name.isBlank()) {
+            throw new IllegalArgumentException("Predefined JSON item requires non-empty name");
+        }
+        List<PredefinedXmlWriter.Item> childItems = new ArrayList<>();
+        JsonNode children = node.get("childItems");
+        if (children != null && children.isArray()) {
+            for (JsonNode child : children) {
+                childItems.add(readPredefinedItemJson(child));
+            }
+        }
+        List<String> types = stringList(node.get("types"));
+        Map<String, Boolean> accountingFlags = booleanMap(node.get("accountingFlags"));
+        List<PredefinedXmlWriter.ExtDimensionType> extDimensionTypes = new ArrayList<>();
+        JsonNode extDims = node.get("extDimensionTypes");
+        if (extDims != null && extDims.isArray()) {
+            for (JsonNode extDim : extDims) {
+                extDimensionTypes.add(new PredefinedXmlWriter.ExtDimensionType(
+                        text(extDim, "name", ""),
+                        bool(extDim, "turnover", false),
+                        booleanMap(extDim.get("accountingFlags"))));
+            }
+        }
+        return new PredefinedXmlWriter.Item(
+                name,
+                text(node, "code", ""),
+                text(node, "description", name),
+                bool(node, "isFolder", false),
+                childItems,
+                types,
+                nullableText(node, "accountType"),
+                nullableBool(node, "offBalance"),
+                nullableText(node, "order"),
+                accountingFlags,
+                extDimensionTypes,
+                nullableBool(node, "actionPeriodIsBase"),
+                stringList(node.get("displaced")));
+    }
+
+    private List<String> stringList(JsonNode node) {
+        if (node == null || !node.isArray()) {
+            return List.of();
+        }
+        List<String> values = new ArrayList<>();
+        for (JsonNode item : node) {
+            values.add(item.asText());
+        }
+        return values;
+    }
+
+    private Map<String, Boolean> booleanMap(JsonNode node) {
+        if (node == null || !node.isObject()) {
+            return Map.of();
+        }
+        Map<String, Boolean> values = new LinkedHashMap<>();
+        node.fields().forEachRemaining(entry -> values.put(entry.getKey(), entry.getValue().asBoolean()));
+        return values;
+    }
+
+    private String text(JsonNode node, String field, String fallback) {
+        JsonNode value = node.get(field);
+        return value == null || value.isNull() ? fallback : value.asText();
+    }
+
+    private String nullableText(JsonNode node, String field) {
+        JsonNode value = node.get(field);
+        return value == null || value.isNull() ? null : value.asText();
+    }
+
+    private boolean bool(JsonNode node, String field, boolean fallback) {
+        JsonNode value = node.get(field);
+        return value == null || value.isNull() ? fallback : value.asBoolean();
+    }
+
+    private Boolean nullableBool(JsonNode node, String field) {
+        JsonNode value = node.get(field);
+        return value == null || value.isNull() ? null : value.asBoolean();
+    }
+
     /** Есть ли в Predefined.xml элемент с таким {@code <Name>}. */
     private boolean findPredefinedByName(String content, String name) {
         Matcher m = Pattern.compile("<Name>([^<]*)</Name>").matcher(content);
@@ -447,6 +557,82 @@ public class MetaEditor {
             if (m.group(1).trim().equals(name)) return true;
         }
         return false;
+    }
+
+    private void addExchangePlanContent(Path xmlPath, String objType, String value) throws IOException {
+        if (!"ExchangePlan".equals(objType)) {
+            throw new IllegalArgumentException("add-exchange-content supports only ExchangePlan objects");
+        }
+
+        String fileName = xmlPath.getFileName().toString();
+        String fileBase = fileName.endsWith(".xml")
+                ? fileName.substring(0, fileName.length() - 4) : fileName;
+        Path extDir = xmlPath.getParent().resolve(fileBase).resolve("Ext");
+        Path contentFile = extDir.resolve("Content.xml");
+
+        Path configRoot = xmlPath.getParent() != null ? xmlPath.getParent().getParent() : null;
+        Path configurationXml = configRoot != null
+                ? configRoot.resolve("Configuration.xml")
+                : Paths.get("Configuration.xml");
+        String formatVersion = ConfigurationXmlReader.readFormatVersion(configurationXml);
+
+        boolean exists = Files.isRegularFile(contentFile);
+        String content = exists ? readFileContent(contentFile) : null;
+        List<ExchangePlanContentWriter.Item> items = value.startsWith("@")
+                ? readExchangeContentJson(value.substring(1))
+                : readExchangeContentShorthand(value);
+        if (items.isEmpty()) {
+            out.println("[INFO] No exchange content items added.");
+            return;
+        }
+
+        Files.createDirectories(extDir);
+        String result = exists && content.contains("</ExchangePlanContent>")
+                ? content : ExchangePlanContentWriter.buildFile(formatVersion, List.of());
+        for (ExchangePlanContentWriter.Item item : items) {
+            result = ExchangePlanContentWriter.appendItem(result, item);
+        }
+        writeFileWithBom(contentFile, result);
+        out.println("[INFO] Saved: " + contentFile);
+        out.println();
+        out.println("=== meta-edit summary ===");
+        out.println("  Exchange content added: " + items.size());
+    }
+
+    private List<ExchangePlanContentWriter.Item> readExchangeContentShorthand(String value) {
+        List<ExchangePlanContentWriter.Item> items = new ArrayList<>();
+        for (String raw : value.split(";;")) {
+            String item = raw.trim();
+            if (item.isEmpty()) continue;
+            String[] parts = item.split("\\|", -1);
+            String metadata = parts[0].trim();
+            if (metadata.isEmpty()) continue;
+            String autoRecord = parts.length > 1 && !parts[1].trim().isEmpty() ? parts[1].trim() : "Deny";
+            items.add(new ExchangePlanContentWriter.Item(metadata, autoRecord));
+        }
+        return items;
+    }
+
+    private List<ExchangePlanContentWriter.Item> readExchangeContentJson(String fileName) throws IOException {
+        Path jsonPath = Paths.get(fileName);
+        if (!Files.isRegularFile(jsonPath)) {
+            throw new IllegalArgumentException("Exchange content JSON file not found: " + jsonPath);
+        }
+        JsonNode root = new ObjectMapper().readTree(jsonPath.toFile());
+        JsonNode itemsNode = root.isArray() ? root : root.get("items");
+        if (itemsNode == null || !itemsNode.isArray()) {
+            throw new IllegalArgumentException("Exchange content JSON must be an array or object with items[]: "
+                    + jsonPath);
+        }
+        List<ExchangePlanContentWriter.Item> items = new ArrayList<>();
+        for (JsonNode item : itemsNode) {
+            String metadata = text(item, "metadata", "");
+            if (metadata.isBlank()) {
+                throw new IllegalArgumentException("Exchange content item requires non-empty metadata");
+            }
+            items.add(new ExchangePlanContentWriter.Item(metadata, text(item, "autoRecord", "Deny")));
+        }
+        return items;
     }
 
     // ─── TASK-171: каноничное добавление формы (внешние файлы) ──────────────

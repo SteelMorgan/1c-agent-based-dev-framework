@@ -69,7 +69,7 @@ class SkdValidatorTest {
     // ==================== SKD-002: Missing dataSource ====================
 
     @Test
-    void testMissingDataSource() throws Exception {
+    void missingDataSourceIsAllowedForEmptyDesignerSchema() throws Exception {
         Path file = writeXml("Template.xml",
                 "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n" +
                 "<DataCompositionSchema xmlns=\"http://v8.1c.ru/8.1/data-composition-system/schema\">\n" +
@@ -78,7 +78,7 @@ class SkdValidatorTest {
         XmlDocument doc = reader.parse(file);
         List<ValidationIssue> issues = validator.validate(doc, ValidationLevel.STRUCTURE);
 
-        assertThat(issues).anyMatch(i -> i.getCode().equals("SKD-002"));
+        assertThat(issues).noneMatch(i -> i.getCode().equals("SKD-002"));
     }
 
     // ==================== SKD-003: Missing xsi:type on dataSet ====================
@@ -265,6 +265,30 @@ class SkdValidatorTest {
         List<ValidationIssue> errors = issues.stream()
                 .filter(i -> i.getSeverity() == Severity.ERROR).toList();
         assertThat(errors).isEmpty();
+    }
+
+    @Test
+    void dataSetFieldNestedDataSetIsKnownFieldType() throws Exception {
+        Path file = writeXml("Template.xml",
+                "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n" +
+                "<DataCompositionSchema xmlns=\"http://v8.1c.ru/8.1/data-composition-system/schema\" " +
+                "xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\">\n" +
+                "\t<dataSource>\n" +
+                "\t\t<name>DS1</name>\n" +
+                "\t</dataSource>\n" +
+                "\t<dataSet xsi:type=\"DataSetQuery\">\n" +
+                "\t\t<name>DS1</name>\n" +
+                "\t\t<dataSource>DS1</dataSource>\n" +
+                "\t\t<query>SELECT 1</query>\n" +
+                "\t\t<field xsi:type=\"DataSetFieldNestedDataSet\">\n" +
+                "\t\t\t<name>Rows</name>\n" +
+                "\t\t</field>\n" +
+                "\t</dataSet>\n" +
+                "</DataCompositionSchema>\n");
+
+        List<ValidationIssue> issues = validator.validate(reader.parse(file), ValidationLevel.SEMANTIC);
+
+        assertThat(issues).noneMatch(i -> i.getCode().equals("SKD-104"));
     }
 
     // ==================== Real file ====================

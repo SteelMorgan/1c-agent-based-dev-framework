@@ -156,7 +156,7 @@ public class MetaValidator {
                 validateEnum(props, "CodeSeries",
                         "WholeCatalog", "WithinOwnerSubordination", "WithinSubordination");
                 validateEnum(props, "HierarchyType",
-                        "HierarchyFoldersAndItems", "HierarchyItemsOnly");
+                        "HierarchyFoldersAndItems", "HierarchyItemsOnly", "HierarchyOfItems");
                 validateEnum(props, "DefaultPresentation", "AsDescription", "AsCode");
                 validateEnum(props, "SubordinationUse",
                         "ToItems", "ToFolders", "ToFoldersAndItems");
@@ -404,7 +404,6 @@ public class MetaValidator {
 
         XmlNode stdAttrs = props.child("StandardAttributes");
         if (stdAttrs == null) {
-            warn(type + ": StandardAttributes section missing");
             return;
         }
 
@@ -496,7 +495,7 @@ public class MetaValidator {
         validateNamedChildren(co, "Attribute", parentType, false);
 
         // Validate Dimensions
-        validateNamedChildren(co, "Dimension");
+        validateNamedChildren(co, "Dimension", parentType, false);
 
         // Validate Resources
         validateNamedChildren(co, "Resource");
@@ -608,7 +607,10 @@ public class MetaValidator {
                     || "ExtDimensionAccountingFlag".equals(childType)
                     || "AddressingAttribute".equals(childType)) {
                 XmlNode typeNode = p.child("Type");
-                if (typeNode == null) {
+                boolean recalculationDimension = "Dimension".equals(childType)
+                        && "Recalculation".equals(parentType)
+                        && p.child("RegisterDimension") != null;
+                if (typeNode == null && !recalculationDimension) {
                     error(childType + " '" + safe(name) + "': Type is required");
                 }
             }

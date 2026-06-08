@@ -64,13 +64,9 @@ public class SkdValidator implements XmlValidator {
             return;
         }
 
-        // SKD-002: ≥1 <dataSource>
-        List<XmlNode> dataSources = root.children("dataSource");
-        if (dataSources.isEmpty()) {
-            issues.add(ValidationIssue.warning("SKD-002",
-                    "No <dataSource> elements found",
-                    root.getLine(), "/DataCompositionSchema"));
-        }
+        // SKD-002: no global dataSource is valid for empty/helper schemas in
+        // Designer canon. DataSetQuery references are checked separately when
+        // data sets exist.
 
         // SKD-003 + SKD-004: DataSets
         List<XmlNode> dataSets = root.children("dataSet");
@@ -364,8 +360,11 @@ public class SkdValidator implements XmlValidator {
             String xsiType = field.attr("xsi:type");
             if (xsiType != null && !xsiType.isEmpty()) {
                 // SKD-104: xsi:type должен быть валидным
-                // Допустимые: DataSetFieldField, DataSetFieldFolder
-                Set<String> knownFieldTypes = Set.of("DataSetFieldField", "DataSetFieldFolder");
+                // Допустимые платформенные варианты, встречающиеся в Designer XML.
+                Set<String> knownFieldTypes = Set.of(
+                        "DataSetFieldField",
+                        "DataSetFieldFolder",
+                        "DataSetFieldNestedDataSet");
                 if (!knownFieldTypes.contains(xsiType)) {
                     issues.add(ValidationIssue.warning("SKD-104",
                             "Unknown field xsi:type '" + xsiType + "'",

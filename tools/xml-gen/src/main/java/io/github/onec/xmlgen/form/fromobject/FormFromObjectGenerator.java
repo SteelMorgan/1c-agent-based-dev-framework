@@ -8,9 +8,11 @@ import io.github.onec.xmlgen.form.fromobject.generator.ChartOfCharacteristicType
 import io.github.onec.xmlgen.form.fromobject.generator.DataProcessorFormGenerator;
 import io.github.onec.xmlgen.form.fromobject.generator.DocumentFormGenerator;
 import io.github.onec.xmlgen.form.fromobject.generator.ExchangePlanFormGenerator;
+import io.github.onec.xmlgen.form.fromobject.generator.GenericFormGenerator;
 import io.github.onec.xmlgen.form.fromobject.generator.InformationRegisterFormGenerator;
 import io.github.onec.xmlgen.form.preset.FormPreset;
 import io.github.onec.xmlgen.form.preset.FormPresetLoader;
+import io.github.onec.xmlgen.model.MetadataTypeRegistry;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -69,6 +71,10 @@ public class FormFromObjectGenerator {
             case "Report":
                 return new DataProcessorFormGenerator().generate(meta, preset, purpose);
             default:
+                MetadataTypeRegistry.TypeDescriptor descriptor = MetadataTypeRegistry.get(meta.type);
+                if (descriptor != null && descriptor.hasForms()) {
+                    return new GenericFormGenerator().generate(meta, preset, purpose);
+                }
                 throw new FromObjectException("Unsupported object type: " + meta.type);
         }
     }

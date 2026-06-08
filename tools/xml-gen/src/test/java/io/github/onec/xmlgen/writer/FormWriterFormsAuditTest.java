@@ -99,6 +99,43 @@ class FormWriterFormsAuditTest {
         assertThat(content).doesNotContain("<Height>5</Height>");
     }
 
+    /** F3b: Table.UserSettingsGroup должен ссылаться на существующую служебную UsualGroup. */
+    @Test
+    void testTableUserSettingsGroupCreatesMissingPlaceholder() throws Exception {
+        Map<String, Object> table = new LinkedHashMap<>();
+        table.put("table", "Список");
+        table.put("path", "Список");
+        table.put("userSettingsGroup", "ГруппаПользовательскихНастроек");
+
+        FormDsl dsl = new FormDsl("Форма", null, null, null, List.of(table), null, null, null);
+        String content = generate(dsl);
+
+        assertThat(content).contains("<UsualGroup name=\"ГруппаПользовательскихНастроек\"");
+        assertThat(content).contains("<UserSettingsGroup>ГруппаПользовательскихНастроек</UserSettingsGroup>");
+        assertThat(content.indexOf("<UsualGroup name=\"ГруппаПользовательскихНастроек\""))
+                .isLessThan(content.indexOf("<Table name=\"Список\""));
+    }
+
+    /** F3c: Явно описанная группа пользовательских настроек не должна дублироваться. */
+    @Test
+    void testTableUserSettingsGroupDoesNotDuplicateExplicitPlaceholder() throws Exception {
+        Map<String, Object> group = new LinkedHashMap<>();
+        group.put("group", "ГруппаПользовательскихНастроек");
+        group.put("title", "Группа пользовательских настроек");
+        group.put("showTitle", false);
+
+        Map<String, Object> table = new LinkedHashMap<>();
+        table.put("table", "Список");
+        table.put("path", "Список");
+        table.put("userSettingsGroup", "ГруппаПользовательскихНастроек");
+
+        FormDsl dsl = new FormDsl("Форма", null, null, null, List.of(group, table), null, null, null);
+        String content = generate(dsl);
+
+        assertThat(content).containsOnlyOnce("<UsualGroup name=\"ГруппаПользовательскихНастроек\"");
+        assertThat(content).contains("<UserSettingsGroup>ГруппаПользовательскихНастроек</UserSettingsGroup>");
+    }
+
     /** F4: события элементов on/handlers (form-dsl-spec.md §4.1-4.2) — Events с автоименованием. */
     @Test
     void testElementEventsOnAndHandlers() throws Exception {

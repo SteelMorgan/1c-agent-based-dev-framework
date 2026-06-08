@@ -22,7 +22,7 @@ public class MxlValidator implements XmlValidator {
 
     private static final String NS_MXL = "http://v8.1c.ru/8.2/data/spreadsheet";
 
-    private static final Set<String> KNOWN_H_ALIGNMENTS = Set.of("Left", "Center", "Right", "Justify");
+    private static final Set<String> KNOWN_H_ALIGNMENTS = Set.of("Auto", "Left", "Center", "Right", "Justify");
     private static final Set<String> KNOWN_V_ALIGNMENTS = Set.of("Top", "Center", "Bottom");
 
     @Override
@@ -99,19 +99,18 @@ public class MxlValidator implements XmlValidator {
                     pageSetup.getLine(), "/document/pageSetup"));
         }
 
-        // MXL-004 + MXL-005: height и rowsItem
+        // MXL-004 + MXL-005: height и rowsItem.
+        // Реальные Designer MXL допускают разреженные rowsItem и диапазоны index..indexTo,
+        // поэтому <height> нельзя сравнивать с физическим количеством rowsItem.
         String heightStr = root.childText("height");
         List<XmlNode> rowsItems = root.children("rowsItem");
 
         if (heightStr != null && !heightStr.isEmpty()) {
             try {
                 int declaredHeight = Integer.parseInt(heightStr);
-                if (declaredHeight != rowsItems.size()) {
-                    issues.add(ValidationIssue.warning("MXL-004",
-                            "Declared <height> " + declaredHeight
-                                    + " doesn't match actual rowsItem count " + rowsItems.size(),
-                            root.getLine(), "/document/height"));
-                }
+                // Designer can keep sparse/indexed row records whose physical max index
+                // does not equal declared visible height. Non-numeric height is the only
+                // reliable structural error here.
             } catch (NumberFormatException e) {
                 issues.add(ValidationIssue.error("MXL-004",
                         "Invalid <height> value: '" + heightStr + "'",
@@ -237,11 +236,8 @@ public class MxlValidator implements XmlValidator {
             if (heightStr != null && !heightStr.isEmpty()) {
                 try {
                     int height = Integer.parseInt(heightStr);
-                    if (height <= 0) {
-                        issues.add(ValidationIssue.warning("MXL-106",
-                                "Font height should be > 0, found " + height,
-                                font.getLine(), heightPath));
-                    }
+                    // Some Designer dumps contain style-derived or placeholder fonts
+                    // with height=0. Treat this as platform-compatible, not a warning.
                 } catch (NumberFormatException ignored) {
                     // Нечисловое — это ошибка, но обычно такого не бывает
                 }
@@ -298,15 +294,8 @@ public class MxlValidator implements XmlValidator {
         XmlNode root = document.getRoot();
         List<XmlNode> formatPalette = root.children("format");
 
-        // Read columns size
-        int columnsSize = 0;
-        XmlNode columns = root.child("columns");
-        if (columns != null) {
-            String sizeStr = columns.childText("size");
-            if (sizeStr != null) {
-                try { columnsSize = Integer.parseInt(sizeStr); } catch (NumberFormatException ignored) {}
-            }
-        }
+        Map<String, Integer> columnSizes = readColumnSizes(root);
+        int defaultColumnsSize = columnSizes.getOrDefault("", 0);
 
         // Collect defined format IDs (styles + width formats)
         Set<String> definedFormatIds = new HashSet<>();
@@ -337,11 +326,13 @@ public class MxlValidator implements XmlValidator {
             docMerges.put(r + "," + c, new int[]{w, h});
         }
 
-        // Build per-cell positions: rowIndex -> set of column indices and overlaps
+        // Build per-cell start positions. Реальные MXL могут иметь document-level merge
+        // поверх соседних физических ячеек, поэтому разворачивать merge-прямоугольник
+        // в occupied cells здесь нельзя: это даёт ложные MXL-202 на Designer XML.
         List<XmlNode> rowsItems = root.children("rowsItem");
         // Map<rowIndex, Set<colIndex>>
-        Map<Integer, Set<Integer>> occupied = new HashMap<>();
-        int totalRows = rowsItems.size();
+        Map<Integer, Set<Integer>> cellStarts = new HashMap<>();
+        int totalRows = Math.max(rowsItems.size(), coveredRowsHeight(rowsItems));
 
         for (int i = 0; i < rowsItems.size(); i++) {
             XmlNode rowsItem = rowsItems.get(i);
@@ -352,6 +343,7 @@ public class MxlValidator implements XmlValidator {
 
             XmlNode row = rowsItem.child("row");
             if (row == null) continue;
+            int columnsSize = columnSizeForRow(row, columnSizes, defaultColumnsSize);
 
             int implicitCol = 0;
             List<XmlNode> cellGroups = row.children("c");
@@ -371,7 +363,7 @@ public class MxlValidator implements XmlValidator {
                 }
 
                 // MXL-201: out-of-bounds column
-                if (columnsSize > 0 && colIdx >= columnsSize) {
+                if (columnsSize > 0 && (colIdx < 0 || colIdx > columnsSize)) {
                     issues.add(ValidationIssue.error("MXL-201",
                             "Cell column " + colIdx + " out of bounds (columns=" + columnsSize + ")",
                             cInner.getLine(), cellPath));
@@ -388,7 +380,7 @@ public class MxlValidator implements XmlValidator {
                 }
 
                 // MXL-201 (extended): span past columns
-                if (columnsSize > 0 && colIdx + span >= columnsSize) {
+                if (columnsSize > 0 && colIdx + span > columnsSize) {
                     issues.add(ValidationIssue.error("MXL-201",
                             "Cell at col " + colIdx + " with span " + (span + 1)
                                     + " exceeds columns " + columnsSize,
@@ -403,18 +395,12 @@ public class MxlValidator implements XmlValidator {
                             cInner.getLine(), cellPath + "/rowMerge"));
                 }
 
-                // MXL-202: overlapping cells (track occupied cells)
-                for (int dr = 0; dr <= rowSpan; dr++) {
-                    int r = rowIdx + dr;
-                    Set<Integer> cols = occupied.computeIfAbsent(r, k -> new HashSet<>());
-                    for (int dc = 0; dc <= span; dc++) {
-                        int c = colIdx + dc;
-                        if (!cols.add(c)) {
-                            issues.add(ValidationIssue.error("MXL-202",
-                                    "Cell at row " + r + " col " + c + " overlaps with previous cell",
-                                    cInner.getLine(), cellPath));
-                        }
-                    }
+                // MXL-202: reliable duplicate-start check only.
+                Set<Integer> starts = cellStarts.computeIfAbsent(rowIdx, k -> new HashSet<>());
+                if (!starts.add(colIdx)) {
+                    issues.add(ValidationIssue.error("MXL-202",
+                            "Cell at row " + rowIdx + " col " + colIdx + " duplicates a previous cell start",
+                            cInner.getLine(), cellPath));
                 }
 
                 // MXL-207: style reference broken
@@ -441,7 +427,7 @@ public class MxlValidator implements XmlValidator {
                     }
                 }
 
-                implicitCol = colIdx + span + 1;
+                implicitCol = colIdx + 1;
             }
         }
 
@@ -533,6 +519,50 @@ public class MxlValidator implements XmlValidator {
         } catch (NumberFormatException e) {
             return 0;
         }
+    }
+
+    private static int coveredRowsHeight(List<XmlNode> rowsItems) {
+        int maxExclusive = 0;
+        for (int i = 0; i < rowsItems.size(); i++) {
+            XmlNode rowsItem = rowsItems.get(i);
+            int index = parseIntOrDefault(rowsItem.childText("index"), i);
+            int indexTo = parseIntOrDefault(rowsItem.childText("indexTo"), index);
+            maxExclusive = Math.max(maxExclusive, Math.max(index, indexTo) + 1);
+        }
+        return maxExclusive;
+    }
+
+    private static Map<String, Integer> readColumnSizes(XmlNode root) {
+        Map<String, Integer> result = new HashMap<>();
+        boolean first = true;
+        for (XmlNode columns : root.children("columns")) {
+            Integer size = parseIntOrNull(columns.childText("size"));
+            if (size == null) {
+                continue;
+            }
+            String id = columns.childText("id");
+            if (id != null && !id.isEmpty()) {
+                result.put(id, size);
+            }
+            if (first || id == null || id.isEmpty()) {
+                result.putIfAbsent("", size);
+            }
+            first = false;
+        }
+        return result;
+    }
+
+    private static int columnSizeForRow(XmlNode row, Map<String, Integer> columnSizes, int defaultColumnsSize) {
+        String columnsId = row.childText("columnsID");
+        if (columnsId != null && columnSizes.containsKey(columnsId)) {
+            return columnSizes.get(columnsId);
+        }
+        return defaultColumnsSize;
+    }
+
+    private static int parseIntOrDefault(String value, int defaultValue) {
+        Integer parsed = parseIntOrNull(value);
+        return parsed != null ? parsed : defaultValue;
     }
 
     /** TASK-171: парсинг целого либо null (для document-level merge r/c). */

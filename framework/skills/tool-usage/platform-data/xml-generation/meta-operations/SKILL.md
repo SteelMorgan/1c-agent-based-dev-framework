@@ -77,6 +77,32 @@ xml-gen meta edit <objectPath> --op <operation> "<value>"
 
 Примеры: `"Артикул: String(50)"`, `"Сумма: Number(15,2) | nonneg"`, `"Контрагент: CatalogRef.Контрагенты | indexing"`
 
+**Предопределенные данные:**
+
+```bash
+# Простой shorthand, батч через ;;
+xml-gen meta edit src/xml/Catalogs/Товары.xml --op add-predefined \
+  --value "Основной|Основной элемент|000000001;;Группа|Группа||folder"
+
+# Полное JSON-дерево элементов, включая пустой Code, ChildItems и поля планов
+xml-gen meta edit src/xml/ChartsOfAccounts/Основной.xml --op add-predefined \
+  --value @predefined-items.json
+```
+
+`add-predefined` поддерживает `Catalog`, `ChartOfAccounts`, `ChartOfCalculationTypes`, `ChartOfCharacteristicTypes`. В shorthand формат: `Имя[|Описание[|Код[|folder]]]`; явно пустое третье поле (`Имя|Описание|`) создает `<Code/>`, а отсутствующее третье поле генерирует следующий код. JSON-файл может быть массивом или объектом `{ "items": [...] }`; поля элемента: `name`, `code`, `description`, `isFolder`, `childItems`, `types`, `accountType`, `offBalance`, `order`, `accountingFlags`, `extDimensionTypes`, `actionPeriodIsBase`, `displaced`.
+
+**Состав плана обмена:**
+
+```bash
+xml-gen meta edit src/xml/ExchangePlans/РИБ.xml --op add-exchange-content \
+  --value "Catalog.Товары|Deny;;Document.Заказ|Allow"
+
+xml-gen meta edit src/xml/ExchangePlans/РИБ.xml --op add-exchange-content \
+  --value @exchange-content-items.json
+```
+
+`add-exchange-content` поддерживает только объекты `ExchangePlan`. Shorthand формат: `Metadata[|AutoRecord]`; если `AutoRecord` не указан, используется `Deny`. JSON может быть массивом или объектом `{ "items": [...] }` с полями `metadata` и `autoRecord`.
+
 ### meta validate
 
 ~40 проверок: структура XML, UUID, Properties, boolean-свойства, type-specific правила (22 типа), строгая enum-валидация (HierarchyType, SubordinationUse, ChoiceMode, EditType, CodeAllowedLength, CodeSeries, NumberAllowedLength, RegisterRecordsDeletion, RegisterRecordsWritingOnPost, Periodicity, RequireCalculationTypes и др.), файловая структура.

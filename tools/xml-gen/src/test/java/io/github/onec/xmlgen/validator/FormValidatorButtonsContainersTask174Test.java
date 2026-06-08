@@ -82,34 +82,29 @@ class FormValidatorButtonsContainersTask174Test {
     // ==================== FORM-124 (XG-15) ====================
 
     @Test
-    void form124_usualGroupWithoutChildItems_isWarning() throws Exception {
+    void form124_usualGroupWithoutChildItems_isAllowedInDesignerCanon() throws Exception {
         List<ValidationIssue> issues = validate(
                 "\t\t<UsualGroup name=\"ПустаяГруппа\" id=\"3\"/>\n");
 
-        assertThat(issues).anyMatch(i -> "FORM-124".equals(i.getCode())
-                && i.getSeverity() == Severity.WARNING
-                && i.getMessage().contains("ПустаяГруппа"));
+        assertThat(issues).noneMatch(i -> "FORM-124".equals(i.getCode()));
     }
 
     @Test
-    void form124_pagesWithEmptyChildItems_isWarning() throws Exception {
+    void form124_pagesWithEmptyChildItems_isAllowedInDesignerCanon() throws Exception {
         List<ValidationIssue> issues = validate(
                 "\t\t<Pages name=\"Страницы\" id=\"3\">\n"
                         + "\t\t\t<ChildItems/>\n"
                         + "\t\t</Pages>\n");
 
-        assertThat(issues).anyMatch(i -> "FORM-124".equals(i.getCode())
-                && i.getMessage().contains("Страницы"));
+        assertThat(issues).noneMatch(i -> "FORM-124".equals(i.getCode()));
     }
 
     @Test
-    void form124_popupWithoutChildItems_isWarning() throws Exception {
+    void form124_popupWithoutChildItems_isAllowedInDesignerCanon() throws Exception {
         List<ValidationIssue> issues = validate(
                 "\t\t<Popup name=\"Подменю\" id=\"7\"/>\n");
 
-        assertThat(issues).anyMatch(i -> "FORM-124".equals(i.getCode())
-                && i.getSeverity() == Severity.WARNING
-                && i.getMessage().contains("Подменю"));
+        assertThat(issues).noneMatch(i -> "FORM-124".equals(i.getCode()));
     }
 
     @Test

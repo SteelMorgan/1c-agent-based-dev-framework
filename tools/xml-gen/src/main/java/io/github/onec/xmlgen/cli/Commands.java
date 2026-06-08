@@ -1,6 +1,7 @@
 package io.github.onec.xmlgen.cli;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.github._1c_syntax.bsl.mdo.support.TemplateType;
 import io.github.onec.xmlgen.dsl.FormDsl;
 import io.github.onec.xmlgen.dsl.FormEditDsl;
 import io.github.onec.xmlgen.form.edit.BslStubWriter;
@@ -37,6 +38,11 @@ import io.github.onec.xmlgen.info.MetaInfoPrinter;
 import io.github.onec.xmlgen.info.ExtensionDiffPrinter;
 import io.github.onec.xmlgen.model.ConfigurationXmlReader;
 import io.github.onec.xmlgen.model.MetadataTypeRegistry;
+import io.github.onec.xmlgen.oracle.DemoOracleRunner;
+import io.github.onec.xmlgen.oracle.ExchangePlanContentOracleRunner;
+import io.github.onec.xmlgen.oracle.MxlOracleRunner;
+import io.github.onec.xmlgen.oracle.OracleOptions;
+import io.github.onec.xmlgen.oracle.PredefinedDataOracleRunner;
 
 import io.github.onec.xmlgen.editor.ReplaceTextEditor;
 
@@ -70,7 +76,7 @@ public class Commands {
     // erf is normalised to epf before the check.
     private static final Set<String> KNOWN_VALIDATE_TYPES = new HashSet<>(Arrays.asList(
         "form", "role", "skd", "mxl", "epf", "erf",
-        "meta", "config", "extension", "subsystem", "interface", "template"
+        "meta", "config", "extension", "subsystem", "interface", "template", "xcf-body"
     ));
 
     //++agent TASK-174 [05.06.2026 00:00:00]
@@ -128,11 +134,172 @@ public class Commands {
             case "validate":
                 executeValidate(args);
                 break;
+            case "oracle":
+                executeOracle(args);
+                break;
             case "--help":
             case "-h":
                 throw new IllegalArgumentException("Use without arguments to see help");
                 default:
                 throw new IllegalArgumentException("Unknown command: " + command);
+        }
+    }
+
+    private static void executeOracle(String[] args) {
+        if (args.length == 0) {
+            throw new IllegalArgumentException("Oracle subcommand required: mxl|demo|predefined-data|exchange-plan-content");
+        }
+        String subcommand = args[0].toLowerCase();
+        if ("demo".equals(subcommand)) {
+            executeDemoOracle(args);
+            return;
+        }
+        if ("predefined-data".equals(subcommand)) {
+            executePredefinedDataOracle(args);
+            return;
+        }
+        if ("exchange-plan-content".equals(subcommand)) {
+            executeExchangePlanContentOracle(args);
+            return;
+        }
+        if (!"mxl".equals(subcommand)) {
+            throw new IllegalArgumentException("Unknown oracle subcommand: " + args[0]
+                    + ". Supported: mxl, demo, predefined-data, exchange-plan-content");
+        }
+
+        Path source = null;
+        Path out = Paths.get("build/oracle");
+        String mode = "both";
+        int limit = 0;
+        Path allowlist = null;
+        Path xgRegistry = null;
+        boolean includeAll = false;
+
+        for (int i = 1; i < args.length; i++) {
+            String a = args[i];
+            if ("--source".equals(a) && i + 1 < args.length) {
+                source = Paths.get(args[++i]);
+            } else if ("--out".equals(a) && i + 1 < args.length) {
+                out = Paths.get(args[++i]);
+            } else if ("--mode".equals(a) && i + 1 < args.length) {
+                mode = args[++i].toLowerCase();
+            } else if ("--limit".equals(a) && i + 1 < args.length) {
+                limit = Integer.parseInt(args[++i]);
+            } else if ("--allowlist".equals(a) && i + 1 < args.length) {
+                allowlist = Paths.get(args[++i]);
+            } else if ("--xg-registry".equals(a) && i + 1 < args.length) {
+                xgRegistry = Paths.get(args[++i]);
+            } else if ("--include-all".equals(a)) {
+                includeAll = true;
+            } else {
+                throw new IllegalArgumentException("Unknown option for oracle mxl: " + a);
+            }
+        }
+
+        if (source == null) {
+            throw new IllegalArgumentException("--source is required");
+        }
+        if (!List.of("dsl", "cli", "both").contains(mode)) {
+            throw new IllegalArgumentException("--mode must be one of: dsl, cli, both");
+        }
+
+        try {
+            new MxlOracleRunner().run(new OracleOptions(source, out, mode, limit, allowlist, xgRegistry, includeAll));
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to run MXL oracle: " + e.getMessage(), e);
+        }
+    }
+
+    private static void executeDemoOracle(String[] args) {
+        Path source = null;
+        Path out = Paths.get("build/oracle-demo");
+        int limit = 0;
+        int threads = Math.max(1, Runtime.getRuntime().availableProcessors() / 2);
+        boolean includeMxl = false;
+
+        for (int i = 1; i < args.length; i++) {
+            String a = args[i];
+            if ("--source".equals(a) && i + 1 < args.length) {
+                source = Paths.get(args[++i]);
+            } else if ("--out".equals(a) && i + 1 < args.length) {
+                out = Paths.get(args[++i]);
+            } else if ("--limit".equals(a) && i + 1 < args.length) {
+                limit = Integer.parseInt(args[++i]);
+            } else if ("--threads".equals(a) && i + 1 < args.length) {
+                threads = Integer.parseInt(args[++i]);
+            } else if ("--include-mxl".equals(a)) {
+                includeMxl = true;
+            } else {
+                throw new IllegalArgumentException("Unknown option for oracle demo: " + a);
+            }
+        }
+
+        if (source == null) {
+            throw new IllegalArgumentException("--source is required");
+        }
+
+        try {
+            new DemoOracleRunner().run(source, out, limit, threads, includeMxl);
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to run demo oracle: " + e.getMessage(), e);
+        }
+    }
+
+    private static void executePredefinedDataOracle(String[] args) {
+        Path source = null;
+        Path out = Paths.get("build/oracle-predefined-data");
+        int limit = 0;
+
+        for (int i = 1; i < args.length; i++) {
+            String a = args[i];
+            if ("--source".equals(a) && i + 1 < args.length) {
+                source = Paths.get(args[++i]);
+            } else if ("--out".equals(a) && i + 1 < args.length) {
+                out = Paths.get(args[++i]);
+            } else if ("--limit".equals(a) && i + 1 < args.length) {
+                limit = Integer.parseInt(args[++i]);
+            } else {
+                throw new IllegalArgumentException("Unknown option for oracle predefined-data: " + a);
+            }
+        }
+
+        if (source == null) {
+            throw new IllegalArgumentException("--source is required");
+        }
+
+        try {
+            new PredefinedDataOracleRunner().run(source, out, limit);
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to run PredefinedData oracle: " + e.getMessage(), e);
+        }
+    }
+
+    private static void executeExchangePlanContentOracle(String[] args) {
+        Path source = null;
+        Path out = Paths.get("build/oracle-exchange-plan-content");
+        int limit = 0;
+
+        for (int i = 1; i < args.length; i++) {
+            String a = args[i];
+            if ("--source".equals(a) && i + 1 < args.length) {
+                source = Paths.get(args[++i]);
+            } else if ("--out".equals(a) && i + 1 < args.length) {
+                out = Paths.get(args[++i]);
+            } else if ("--limit".equals(a) && i + 1 < args.length) {
+                limit = Integer.parseInt(args[++i]);
+            } else {
+                throw new IllegalArgumentException("Unknown option for oracle exchange-plan-content: " + a);
+            }
+        }
+
+        if (source == null) {
+            throw new IllegalArgumentException("--source is required");
+        }
+
+        try {
+            new ExchangePlanContentOracleRunner().run(source, out, limit);
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to run ExchangePlanContent oracle: " + e.getMessage(), e);
         }
     }
 
@@ -1369,7 +1536,8 @@ public class Commands {
             boolean hasContent = (dsl.getAreas() != null && !dsl.getAreas().isEmpty())
                 || dsl.getColumns() != null
                 || (dsl.getColumnWidths() != null && !dsl.getColumnWidths().isEmpty())
-                || dsl.getPage() != null;
+                || dsl.getPage() != null
+                || (dsl.getLosslessXmlBase64() != null && !dsl.getLosslessXmlBase64().isBlank());
             if (!hasContent) {
                 throw new IllegalArgumentException(
                     "MXL DSL requires at least one of: areas, columns, columnWidths, page. " +
@@ -2356,6 +2524,14 @@ public class Commands {
             case "CommandInterface": return "interface";
             case "Subsystem": return "subsystem";
             case "MetaDataObject": return detectMetaDataObjectType(doc.getRoot());
+            case "ExtPicture":
+            case "ExchangePlanContent":
+            case "PredefinedData":
+            case "AccumulationRegisterAggregates":
+            case "GraphicalSchema":
+            case "AppearanceTemplate":
+            case "Help":
+                return "xcf-body";
             default: return "unknown";
         }
     }
@@ -2511,14 +2687,11 @@ public class Commands {
         }
 
         String templateType = props.childText("TemplateType");
-        Set<String> knownTypes = Set.of(
-                "SpreadsheetDocument", "HTMLDocument", "TextDocument",
-                "BinaryData", "DataCompositionSchema");
         if (templateType == null || templateType.isBlank()) {
             issues.add(ValidationIssue.error("TEMPLATE-007",
                     "Properties: TemplateType is required",
                     props.getLine(), "/MetaDataObject/Template/Properties/TemplateType"));
-        } else if (!knownTypes.contains(templateType)) {
+        } else if (!"Help".equals(templateType) && TemplateType.valueByName(templateType) == TemplateType.UNKNOWN) {
             issues.add(ValidationIssue.error("TEMPLATE-007",
                     "Properties: unknown TemplateType '" + templateType + "'",
                     props.getLine(), "/MetaDataObject/Template/Properties/TemplateType"));
@@ -2591,7 +2764,8 @@ public class Commands {
         return "role".equals(type) || "form".equals(type) || "epf".equals(type)
                 || "skd".equals(type) || "mxl".equals(type)
                 || "meta".equals(type) || "config".equals(type) || "extension".equals(type)
-                || "subsystem".equals(type) || "interface".equals(type) || "template".equals(type);
+                || "subsystem".equals(type) || "interface".equals(type) || "template".equals(type)
+                || "xcf-body".equals(type);
     }
 
     /**
@@ -3746,6 +3920,7 @@ public class Commands {
                     + "       xml-gen meta edit <objectPath> --batch <file.json>\n"
                     + "Operations: add-attribute, add-ts, add-dimension, add-resource, add-enumValue,\n"
                     + "  add-predefined (--value \"Имя[|Описание[|Код[|folder]]]\", батч через ;;),\n"
+                    + "  add-exchange-content (--value \"Metadata[|AutoRecord]\", батч через ;; или @items.json),\n"
                     + "  add-column, add-form, add-template, add-command, add-ts-attribute,\n"
                     + "  remove-attribute, remove-ts, remove-dimension, ..., remove-ts-attribute,\n"
                     + "  modify-attribute, modify-dimension, modify-resource, modify-enumValue, modify-column");
@@ -3784,7 +3959,8 @@ public class Commands {
     private static void validateMetaEditTarget(String action, String target) {
         Set<String> supported = switch (action) {
             case "add" -> Set.of("attribute", "ts", "dimension", "resource", "enumValue",
-                    "predefined", "column", "form", "template", "command", "ts-attribute", "property");
+                    "predefined", "exchange-content", "column", "form", "template", "command",
+                    "ts-attribute", "property");
             case "remove" -> Set.of("attribute", "ts", "dimension", "resource", "enumValue",
                     "column", "form", "template", "command", "ts-attribute");
             case "modify" -> Set.of("attribute", "dimension", "resource", "enumValue", "column", "property");

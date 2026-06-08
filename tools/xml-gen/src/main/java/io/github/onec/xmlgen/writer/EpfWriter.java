@@ -708,6 +708,7 @@ public class EpfWriter extends XmlWriter {
         if (tt == TemplateType.HTML_DOCUMENT) return "html";
         if (tt == TemplateType.TEXT_DOCUMENT) return "txt";
         if (tt == TemplateType.BINARY_DATA) return "bin";
+        if (tt == TemplateType.ADD_IN) return "bin";
         return "xml";
     }
 }

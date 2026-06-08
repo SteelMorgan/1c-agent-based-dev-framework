@@ -75,9 +75,9 @@
       "status": "synced"
     },
     "framework/skills/bsl-practices/test-writing/SKILL.md": {
-      "ru_hash": "sha256:451959c614145fd515d62d878641e5e64ec5b8cb7f3189cb5d1c31edcdcd030f",
-      "en_hash": "sha256:e4eb628722ff69a0c8d74403e1f89a667879204c9d7045e2613ae465c0046317",
-      "synced_at": "2026-06-05T08:14:37Z",
+      "ru_hash": "sha256:8e2f95cf2425092bd950a05851b1c13fc63b840bd6cd6fab60aa66d16acf0c83",
+      "en_hash": "sha256:eff363d57e64c0bae71b9b1c5d9fd3fc54c0ff934ecd71ab52d35894d4560445",
+      "synced_at": "2026-06-08T22:35:00Z",
       "status": "synced"
     },
     "framework/skills/bsl-practices/test-writing/references/yaxunit-cheatsheet.md": {
@@ -489,9 +489,9 @@
       "status": "synced"
     },
     "framework/skills/tool-usage/platform-data/xml-generation/meta-operations/SKILL.md": {
-      "ru_hash": "sha256:f55aaf82d20def36e367f91d98fcb5494dd908bdd6b23966952b0f0ef78806de",
-      "en_hash": "sha256:f2328a194b0a857a467c2c97ade594d261eaeaaba573796b3086a40d78c80f11",
-      "synced_at": "2026-06-04T15:56:24Z",
+      "ru_hash": "sha256:3a5e6e24fc24ae9f51439b5ab0803748a420386902a11d53ca58caca11b4bd0f",
+      "en_hash": "sha256:00a59f674184d7a127cb215cadc4c08f46cdf1401688ba1e387c7fa33a6cac39",
+      "synced_at": "2026-06-08T22:26:10Z",
       "status": "synced"
     },
     "framework/skills/tool-usage/platform-data/xml-generation/extension-operations/SKILL.md": {
@@ -1095,9 +1095,9 @@
       "status": "synced"
     },
     "framework/skills/tool-usage/platform-data/xml-generation/SKILL.md": {
-      "ru_hash": "sha256:89969697bc7a5a65569cfd2c7553355551c4ccdbdcef182eef8663aa1a2fd647",
-      "en_hash": "sha256:a91eda8a679cc8360b222377158165051f2cea99260f7349fad6a358b51079bd",
-      "synced_at": "2026-06-04T16:01:46Z",
+      "ru_hash": "sha256:0ac119b11514a8edcab589b43318744f55fcfb04f9e96ac75ea64ac9d44ec2f7",
+      "en_hash": "sha256:99e68d207b7fb4a5f39c506482bfa4e7a46f9d1831b9b11daaddfd0c5b9293f6",
+      "synced_at": "2026-06-08T22:25:02Z",
       "status": "synced"
     },
     "framework/skills/tool-usage/platform-data/xml-generation/epf-full/SKILL.md": {
@@ -1299,15 +1299,27 @@
       "status": "synced"
     },
     "framework/subagents/orchestrator.md": {
-      "ru_hash": "sha256:0fb19dbaef8ea1d4e6a246796168a49341960ad9b5c2a73c832d941af0ce0605",
-      "en_hash": "sha256:a9a63a4203eab2c7928a4fe9e8ab87f2d0273ad0255e60bf2bb463aeea14ad72",
-      "synced_at": "2026-06-04T12:11:01Z",
+      "ru_hash": "sha256:c59f3623ddd7a91fc8f4f40a2081f32745aa500ed258a2f0c1003e901ee46251",
+      "en_hash": "sha256:db4bc0d2d23de62f1a2d706a2ac466880710d91f4cfaf168b6c948c300f29a09",
+      "synced_at": "2026-06-08T22:26:15Z",
       "status": "synced"
     },
     "framework/rules/yaxunit-isolation.md": {
       "ru_hash": "sha256:61558eeeaf0b5066902d00d6c0ef67a39ef33c3e138fb100049c1b7579082abe",
       "en_hash": "sha256:764750a7dff2d6780801e67dc1c12c414839617acaa3c3d15bfed7f112411856",
       "synced_at": "2026-06-05T08:13:48Z",
+      "status": "synced"
+    },
+    "framework/rules/test-zero-residue.md": {
+      "ru_hash": "sha256:eeaae1619fd1b11cfb3e2cb912ebd3da0f28039eebac4119ba34d41ce2ad7b31",
+      "en_hash": "sha256:c428a1245cf7a0d25265601700133d4a9f9481492153381fa42b85a3eba45123",
+      "synced_at": "2026-06-08T10:56:56Z",
+      "status": "synced"
+    },
+    "framework/skills/tool-usage/platform-data/xml-generation/references/behavioral-oracles.md": {
+      "ru_hash": "sha256:151e86537c8da74b5c50e7b8f22e146cecd9a001560023ce23ce865a49e81075",
+      "en_hash": "sha256:f1e866a20da9846ca81f3896d279d67084c415f5c0e030c9748d3b243b26bb0a",
+      "synced_at": "2026-06-08T22:24:46Z",
       "status": "synced"
     }
   }

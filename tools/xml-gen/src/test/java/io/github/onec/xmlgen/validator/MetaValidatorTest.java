@@ -96,6 +96,12 @@ class MetaValidatorTest {
                 .anyMatch(m -> m.message.contains("ChoiceMode"));
     }
 
+    @Test
+    void d3_hierarchyOfItemsAccepted() {
+        assertThat(enumWarns(new MetaValidator(), "Catalog", "HierarchyType", "HierarchyOfItems"))
+                .isEmpty();
+    }
+
     // ==================== D4: ActionPeriodUse — Boolean у ВПР ====================
 
     @Test
@@ -323,8 +329,8 @@ class MetaValidatorTest {
     private List<MetaValidator.ValidationMessage> enumWarns(MetaValidator v, String type,
                                                             String propName, String value) {
         // TASK-171: фильтруем по имени проверяемого свойства — минимальный синтетический
-        // объект даёт несвязанные WARN (Synonym missing, StandardAttributes missing),
-        // которые к проверке конкретного enum-правила не относятся.
+        // объект может давать несвязанные WARN, которые к проверке конкретного
+        // enum-правила не относятся.
         return v.validate(buildMinimal(type, propName, value), null).stream()
                 .filter(m -> m.message.contains(propName))
                 .collect(java.util.stream.Collectors.toList());

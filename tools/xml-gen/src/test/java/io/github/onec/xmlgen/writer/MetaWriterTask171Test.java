@@ -151,6 +151,26 @@ class MetaWriterTask171Test {
     }
 
     @Test
+    void compile_exchangePlanContentAndFlowchartStubsInheritConfigVersionAndCanonicalRoots()
+            throws IOException {
+        writeMinimalConfig(tempDir, "2.20");
+
+        Path exchangeJson = writeJson("xp.json", "{\"type\":\"ExchangePlan\",\"name\":\"test_ПО\"}");
+        new MetaWriter().compile(exchangeJson, tempDir);
+        String content = read(tempDir.resolve("ExchangePlans/test_ПО/Ext/Content.xml"));
+        assertThat(content).contains("<ExchangePlanContent xmlns=\"http://v8.1c.ru/8.3/xcf/extrnprops\"");
+        assertThat(content).contains("version=\"2.20\"");
+
+        Path bpJson = writeJson("bp.json", "{\"type\":\"BusinessProcess\",\"name\":\"test_БП\"}");
+        new MetaWriter().compile(bpJson, tempDir);
+        String flowchart = read(tempDir.resolve("BusinessProcesses/test_БП/Ext/Flowchart.xml"));
+        assertThat(flowchart).contains("<GraphicalSchema xmlns=\"http://v8.1c.ru/8.3/xcf/scheme\"");
+        assertThat(flowchart).contains("version=\"2.20\"");
+        assertThat(flowchart).doesNotContain("<Flowchart");
+        assertThat(flowchart).doesNotContain("http://v8.1c.ru/8.3/flowchart");
+    }
+
+    @Test
     void compile_fallsBackToDefaultVersion_whenNoConfig() throws IOException {
         Path json = writeJson("nf.json", "{\"type\":\"Catalog\",\"name\":\"test_NF\"}");
         new MetaWriter().compile(json, tempDir);

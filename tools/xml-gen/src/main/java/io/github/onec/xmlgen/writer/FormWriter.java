@@ -284,9 +284,7 @@ public class FormWriter extends XmlWriter {
         // ChildItems
         if (dsl.getElements() != null && !dsl.getElements().isEmpty()) {
             startElement("ChildItems");
-            for (Map<String, Object> element : dsl.getElements()) {
-                writeElement(element, 2);
-            }
+            writeElementsWithImplicitUserSettingsGroups(dsl.getElements(), 2);
             endElement(); // ChildItems
         } else {
             // Пустой ChildItems
@@ -683,7 +681,7 @@ public class FormWriter extends XmlWriter {
      */
     private void writeElement(Map<String, Object> element, int depth) throws XMLStreamException {
         // Определяем тип элемента.
-        String type = null;
+        String type = detectElementType(element);
         Object value = null;
 
         //**agent TASK-174 [05.06.2026 00:00:00]
@@ -696,13 +694,10 @@ public class FormWriter extends XmlWriter {
         // Фикс: сначала честно читаем дискриминатор "type"; ключ-как-тип оставляем как
         // обратносовместимый фолбэк.
         Object typeField = element.get("type");
-        if (typeField != null && isElementType(typeField.toString())) {
-            type = typeField.toString();
-        } else {
+        if (type == null || typeField == null || !type.equals(typeField.toString())) {
             for (Map.Entry<String, Object> entry : element.entrySet()) {
                 String key = entry.getKey();
                 if (isElementType(key)) {
-                    type = key;
                     value = entry.getValue();
                     break;
                 }
@@ -780,6 +775,75 @@ public class FormWriter extends XmlWriter {
      */
     private boolean isElementType(String key) {
         return DSL_TO_FORM_ELEMENT_TYPE.containsKey(key);
+    }
+
+    private String detectElementType(Map<String, Object> element) {
+        Object typeField = element.get("type");
+        if (typeField != null && isElementType(typeField.toString())) {
+            return typeField.toString();
+        }
+        for (String key : element.keySet()) {
+            if (isElementType(key)) {
+                return key;
+            }
+        }
+        return null;
+    }
+
+    private String elementName(Map<String, Object> element) {
+        Object explicitName = element.get("name");
+        if (explicitName != null) {
+            return explicitName.toString();
+        }
+        String type = detectElementType(element);
+        if (type != null && element.get(type) != null) {
+            return element.get(type).toString();
+        }
+        return null;
+    }
+
+    private void writeElementsWithImplicitUserSettingsGroups(List<Map<String, Object>> elements, int depth)
+            throws XMLStreamException {
+        java.util.Set<String> existingNames = new java.util.LinkedHashSet<>();
+        for (Map<String, Object> element : elements) {
+            String name = elementName(element);
+            if (name != null && !name.isBlank()) {
+                existingNames.add(name);
+            }
+        }
+
+        java.util.Set<String> emittedImplicitGroups = new java.util.LinkedHashSet<>();
+        for (Map<String, Object> element : elements) {
+            String userSettingsGroup = referencedUserSettingsGroup(element);
+            if (userSettingsGroup != null
+                    && !existingNames.contains(userSettingsGroup)
+                    && emittedImplicitGroups.add(userSettingsGroup)) {
+                writeImplicitUserSettingsGroup(userSettingsGroup, depth);
+            }
+            writeElement(element, depth);
+        }
+    }
+
+    private String referencedUserSettingsGroup(Map<String, Object> element) {
+        if (!"table".equals(detectElementType(element))) {
+            return null;
+        }
+        Object value = element.get("userSettingsGroup");
+        if (value == null) {
+            value = element.get("UserSettingsGroup");
+        }
+        if (value == null || value.toString().isBlank()) {
+            return null;
+        }
+        return value.toString();
+    }
+
+    private void writeImplicitUserSettingsGroup(String name, int depth) throws XMLStreamException {
+        Map<String, Object> group = new LinkedHashMap<>();
+        group.put("group", name);
+        group.put("title", "Группа пользовательских настроек");
+        group.put("showTitle", false);
+        writeUsualGroup(group, name, elementIdGen.next(), depth);
     }
     
     /**
@@ -1002,9 +1066,7 @@ public class FormWriter extends XmlWriter {
         if (element.containsKey("children")) {
             @SuppressWarnings("unchecked")
             List<Map<String, Object>> children = (List<Map<String, Object>>) element.get("children");
-            for (Map<String, Object> child : children) {
-                writeElement(child, depth + 2);
-            }
+            writeElementsWithImplicitUserSettingsGroups(children, depth + 2);
         }
         writer.writeCharacters("\t".repeat(depth + 1));
         writer.writeEndElement(); // ChildItems
@@ -1457,9 +1519,7 @@ public class FormWriter extends XmlWriter {
         if (element.containsKey("children")) {
             @SuppressWarnings("unchecked")
             List<Map<String, Object>> children = (List<Map<String, Object>>) element.get("children");
-            for (Map<String, Object> child : children) {
-                writeElement(child, depth + 2);
-            }
+            writeElementsWithImplicitUserSettingsGroups(children, depth + 2);
         }
         writer.writeCharacters("\t".repeat(depth + 1));
         writer.writeEndElement(); // ChildItems
@@ -1517,9 +1577,7 @@ public class FormWriter extends XmlWriter {
         if (element.containsKey("children")) {
             @SuppressWarnings("unchecked")
             List<Map<String, Object>> children = (List<Map<String, Object>>) element.get("children");
-            for (Map<String, Object> child : children) {
-                writeElement(child, depth + 2);
-            }
+            writeElementsWithImplicitUserSettingsGroups(children, depth + 2);
         }
         writer.writeCharacters("\t".repeat(depth + 1));
         writer.writeEndElement(); // ChildItems
@@ -1694,9 +1752,7 @@ public class FormWriter extends XmlWriter {
         if (element.containsKey("children")) {
             @SuppressWarnings("unchecked")
             List<Map<String, Object>> children = (List<Map<String, Object>>) element.get("children");
-            for (Map<String, Object> child : children) {
-                writeElement(child, depth + 2);
-            }
+            writeElementsWithImplicitUserSettingsGroups(children, depth + 2);
         }
         writer.writeCharacters("\t".repeat(depth + 1));
         writer.writeEndElement(); // ChildItems
@@ -1766,9 +1822,7 @@ public class FormWriter extends XmlWriter {
         if (element.containsKey("children")) {
             @SuppressWarnings("unchecked")
             List<Map<String, Object>> children = (List<Map<String, Object>>) element.get("children");
-            for (Map<String, Object> child : children) {
-                writeElement(child, depth + 2);
-            }
+            writeElementsWithImplicitUserSettingsGroups(children, depth + 2);
         }
         writer.writeCharacters("\t".repeat(depth + 1));
         writer.writeEndElement(); // ChildItems

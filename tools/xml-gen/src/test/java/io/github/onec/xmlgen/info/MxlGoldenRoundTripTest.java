@@ -62,6 +62,24 @@ class MxlGoldenRoundTripTest {
     }
 
     @Test
+    void decompileCompileIsByteLosslessForDemoMxl() throws Exception {
+        Path orig = PROJECT_XML.resolve(
+                "Catalogs/_ДемоНоменклатура/Templates/ЗагрузкаИзФайла/Ext/Template.xml");
+        Assumptions.assumeTrue(Files.exists(orig), "Реальный макет недоступен: " + orig);
+
+        Path json = tempDir.resolve("lossless.json");
+        decompiler.decompile(reader.parse(orig), json);
+        String jsonText = Files.readString(json, StandardCharsets.UTF_8);
+        assertThat(jsonText).contains("\"losslessXmlBase64\"");
+
+        MxlDsl dsl = mapper.readValue(jsonText, MxlDsl.class);
+        Path rtXml = tempDir.resolve("Template.xml");
+        new MxlWriter(OutputFormat.DESIGNER).create(dsl, rtXml);
+
+        assertThat(Files.readAllBytes(rtXml)).isEqualTo(Files.readAllBytes(orig));
+    }
+
+    @Test
     void realizaciyaTovarov_preservesMergesBordersWidths() throws Exception {
         roundTripPreserves(
                 "Documents/_ДемоРеализацияТоваров/Templates/ПФ_MXL_РеализацияТоваров/Ext/Template.xml",

@@ -73,6 +73,21 @@ class MetadataTypeValidatorTask174Round3Test {
     }
 
     @Test
+    void acceptsGenericReferenceCategoryWithoutObjectName() throws Exception {
+        Files.createDirectories(tempDir.resolve("Catalogs"));
+        Files.writeString(tempDir.resolve("Catalogs/Контрагенты.xml"), "<MetaDataObject/>");
+
+        MetadataTypeValidator validator = new MetadataTypeValidator(tempDir);
+        XmlNode typeNode = XmlNode.builder()
+                .name("TypeSet")
+                .appendText("cfg:CatalogRef | cfg:DocumentRef | cfg:CatalogRef.Контрагенты")
+                .line(13)
+                .build();
+
+        assertThat(validator.validateType(typeNode.getText(), typeNode, "/Type/TypeSet")).isEmpty();
+    }
+
+    @Test
     void validatesDefinedTypeReferences() throws Exception {
         Files.createDirectories(tempDir.resolve("DefinedTypes"));
         Files.writeString(tempDir.resolve("DefinedTypes/Цена.xml"), "<MetaDataObject/>");

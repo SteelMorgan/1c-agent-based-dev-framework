@@ -135,6 +135,13 @@ public class MetadataTypeValidator {
         if (knownMetadata.contains(typeName)) {
             return Collections.emptyList();
         }
+
+        // Generic platform reference categories such as CatalogRef/DocumentRef without
+        // an object name are valid TypeSet members in Designer XML. Only dotted
+        // references can be checked against sourceRoot.
+        if (!typeName.contains(".") && generatedTypePrefixes.contains(typeName)) {
+            return Collections.emptyList();
+        }
         
         String prefix = typePrefix(typeName);
         if (generatedTypePrefixes.contains(prefix)) {

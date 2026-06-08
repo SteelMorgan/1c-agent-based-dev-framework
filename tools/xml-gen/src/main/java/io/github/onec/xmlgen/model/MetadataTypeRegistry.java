@@ -63,6 +63,10 @@ public class MetadataTypeRegistry {
                 children("Dimension", "Resource", "Attribute", "Form", "Template", "Command",
                         "Recalculation"));
 
+        reg("Recalculation", "Recalculations", "Recalculation",
+                cats("Record", "Manager", "RecordSet"),
+                children("Dimension"));
+
         // Processes
         reg("BusinessProcess", "BusinessProcesses", "BusinessProcess",
                 cats("Object", "Ref", "Selection", "List", "Manager", "RoutePointRef"),
@@ -94,6 +98,46 @@ public class MetadataTypeRegistry {
         reg("CommonModule", "CommonModules", "CommonModule",
                 cats(),
                 children());
+
+        reg("CommonForm", "CommonForms", "CommonForm",
+                cats(),
+                children());
+
+        reg("CommonTemplate", "CommonTemplates", "CommonTemplate",
+                cats(),
+                children());
+
+        reg("CommonCommand", "CommonCommands", "CommonCommand",
+                cats(),
+                children());
+
+        reg("CommonPicture", "CommonPictures", "CommonPicture",
+                cats(),
+                children());
+
+        reg("Role", "Roles", "Role",
+                cats(),
+                children());
+
+        reg("SessionParameter", "SessionParameters", "SessionParameter",
+                cats(),
+                children());
+
+        reg("FunctionalOption", "FunctionalOptions", "FunctionalOption",
+                cats(),
+                children());
+
+        reg("FunctionalOptionsParameter", "FunctionalOptionsParameters", "FunctionalOptionsParameter",
+                cats(),
+                children());
+
+        reg("CommandGroup", "CommandGroups", "CommandGroup",
+                cats(),
+                children());
+
+        reg("Sequence", "Sequences", "Sequence",
+                cats("Record", "Manager", "RecordSet"),
+                children("Dimension"));
 
         reg("ScheduledJob", "ScheduledJobs", "ScheduledJob",
                 cats(),

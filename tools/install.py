@@ -2568,7 +2568,7 @@ def install_xml_gen(script_dir: Path, dry_run: bool = False) -> bool:
         print(red("  ✗ tools/xml-gen/gradlew не найден — сборка невозможна."))
         return False
 
-    jar_src = gradlew.parent / "build" / "libs" / "xml-gen-0.1.0-SNAPSHOT.jar"
+    jar_src = gradlew.parent / "build" / "libs" / "xml-gen-0.1.1-SNAPSHOT.jar"
     need_build = not jar_src.exists()
 
     # Проверка устаревшего JAR: если любой .java в src новее JAR — пересобираем.

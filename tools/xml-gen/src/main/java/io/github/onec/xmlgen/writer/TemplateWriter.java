@@ -46,16 +46,16 @@ public class TemplateWriter {
         Path objectXml = src.resolve(object.getObjectXmlRelPath());
         validateObjectExists(objectXml, object);
 
-        TemplateType templateType = parseTemplateType(typeStr);
+        String canonicalType = canonicalTemplateTypeName(typeStr);
         if (setMainDcs && !object.isReport()) {
             throw new IllegalArgumentException("--set-main-dcs is only valid with Report objects");
         }
-        if (setMainDcs && templateType != TemplateType.DATA_COMPOSITION_SCHEME) {
+        if (setMainDcs && !"DataCompositionSchema".equals(canonicalType)) {
             throw new IllegalArgumentException("--set-main-dcs requires --type DataCompositionSchema");
         }
 
         // Warning for SpreadsheetDocument without ПФ_ prefix
-        if (templateType == TemplateType.SPREADSHEET_DOCUMENT && !name.startsWith("ПФ_")) {
+        if ("SpreadsheetDocument".equals(canonicalType) && !name.startsWith("ПФ_")) {
             System.err.println("[WARN] Template name '" + name
                     + "' does not start with 'ПФ_'. For print forms, the prefix ПФ_ is recommended.");
         }
@@ -77,13 +77,13 @@ public class TemplateWriter {
                     + "' already exists on disk in " + baseDir.resolve("Templates"));
         }
         String formatVersion = ConfigurationXmlReader.readFormatVersion(objectXml);
-        ObjectContainerEditor.createTemplateScaffold(baseDir, name, synonym, typeStr, formatVersion);
+        ObjectContainerEditor.createTemplateScaffold(baseDir, name, synonym, canonicalType, formatVersion);
 
         // Register in ChildObjects
         editor.addTemplate(name);
 
         // Handle MainDataCompositionSchema for Report
-        if (templateType == TemplateType.DATA_COMPOSITION_SCHEME && object.isReport()) {
+        if ("DataCompositionSchema".equals(canonicalType) && object.isReport()) {
             // TASK-171 D6: префикс берём из фактического типа объекта (Report / ExternalReport),
             // а не хардкодим "Report." — иначе для внешнего отчёта ссылка будет битой.
             String mainDcs = mainDcsValue(object, name);
@@ -260,16 +260,44 @@ public class TemplateWriter {
             case "двоичныеданные":
                 typeStr = "BinaryData";
                 break;
+            case "addin":
+            case "внешняякомпонента":
+                typeStr = "AddIn";
+                break;
+            case "datacompositionappearancetemplate":
+            case "макетоформлениякомпоновкиданных":
+                typeStr = "DataCompositionAppearanceTemplate";
+                break;
+            case "graphicalschema":
+            case "графическаясхема":
+                typeStr = "GraphicalSchema";
+                break;
+            case "activedocument":
+                typeStr = "ActiveDocument";
+                break;
+            case "geographicalschema":
+            case "географическаясхема":
+                typeStr = "GeographicalSchema";
+                break;
             case "datacompositionschema":
             case "скд":
             case "схемакомпоновкиданных":
                 typeStr = "DataCompositionSchema";
                 break;
+            case "help":
+            case "справка":
+                typeStr = "Help";
+                break;
+        }
+        if ("Help".equals(typeStr)) {
+            return typeStr;
         }
         TemplateType tt = TemplateType.valueByName(typeStr);
         if (tt == TemplateType.UNKNOWN) {
             throw new IllegalArgumentException("Unknown template type: '" + typeStr
-                    + "'. Supported: HTMLDocument, TextDocument, SpreadsheetDocument, BinaryData, DataCompositionSchema");
+                    + "'. Supported: HTMLDocument, TextDocument, SpreadsheetDocument, BinaryData, "
+                    + "DataCompositionSchema, AddIn, DataCompositionAppearanceTemplate, GraphicalSchema, "
+                    + "ActiveDocument, GeographicalSchema, Help");
         }
         return typeStr;
     }

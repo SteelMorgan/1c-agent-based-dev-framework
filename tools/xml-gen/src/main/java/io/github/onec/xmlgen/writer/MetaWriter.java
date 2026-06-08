@@ -154,7 +154,7 @@ public class MetaWriter {
         writeWithBom(typeDir.resolve(name + ".xml"), xml);
 
         // Create directory structure
-        createDirStructure(typeDir, name, type, td);
+        createDirStructure(typeDir, name, type, td, formatVersion);
 
         // Предопределённые элементы (TASK-171 D-1): Ext/Predefined.xml для
         // справочников и планов видов характеристик/счетов/расчёта.
@@ -2963,7 +2963,7 @@ public class MetaWriter {
     // ==================== Directory Structure ====================
 
     private void createDirStructure(Path typeDir, String name, String type,
-                                     TypeDescriptor td) throws IOException {
+                                     TypeDescriptor td, String formatVersion) throws IOException {
         Path objDir = typeDir.resolve(name);
         Path extDir = objDir.resolve("Ext");
         Files.createDirectories(extDir);
@@ -2994,16 +2994,16 @@ public class MetaWriter {
 
         // ExchangePlan: Content.xml stub
         if ("ExchangePlan".equals(type)) {
-            writeExchangePlanContent(extDir.resolve("Content.xml"));
+            writeExchangePlanContent(extDir.resolve("Content.xml"), formatVersion);
         }
 
         // BusinessProcess: Flowchart.xml stub
         if ("BusinessProcess".equals(type)) {
-            writeFlowchartStub(extDir.resolve("Flowchart.xml"));
+            writeFlowchartStub(extDir.resolve("Flowchart.xml"), formatVersion);
         }
     }
 
-    private void writeExchangePlanContent(Path path) throws IOException {
+    private void writeExchangePlanContent(Path path, String formatVersion) throws IOException {
         StringBuilder sb = new StringBuilder();
         sb.append("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n");
         sb.append("<ExchangePlanContent xmlns=\"http://v8.1c.ru/8.3/xcf/extrnprops\"\n");
@@ -3011,17 +3011,17 @@ public class MetaWriter {
         sb.append("\txmlns:xr=\"http://v8.1c.ru/8.3/xcf/readable\"\n");
         sb.append("\txmlns:xs=\"http://www.w3.org/2001/XMLSchema\"\n");
         sb.append("\txmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\"\n");
-        sb.append("\tversion=\"2.17\"/>\n");
+        sb.append("\tversion=\"").append(formatVersion).append("\"/>\n");
         writeWithBom(path, sb.toString());
     }
 
-    private void writeFlowchartStub(Path path) throws IOException {
+    private void writeFlowchartStub(Path path, String formatVersion) throws IOException {
         StringBuilder sb = new StringBuilder();
         sb.append("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n");
-        sb.append("<Flowchart xmlns=\"http://v8.1c.ru/8.3/flowchart\"\n");
+        sb.append("<GraphicalSchema xmlns=\"http://v8.1c.ru/8.3/xcf/scheme\"\n");
         sb.append("\txmlns:xs=\"http://www.w3.org/2001/XMLSchema\"\n");
         sb.append("\txmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\"\n");
-        sb.append("\tversion=\"2.17\"/>\n");
+        sb.append("\tversion=\"").append(formatVersion).append("\"/>\n");
         writeWithBom(path, sb.toString());
     }
 

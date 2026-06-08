@@ -5,8 +5,10 @@ import io.github.onec.xmlgen.format.OutputFormat;
 
 import javax.xml.stream.XMLStreamException;
 import java.io.IOException;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Base64;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -32,7 +34,7 @@ public class MxlWriter extends XmlWriter {
 
     private final OutputFormat format;
 
-    private static final Map<String, String> MXL_NAMESPACES = new HashMap<>();
+    private static final Map<String, String> MXL_NAMESPACES = new LinkedHashMap<>();
     static {
         MXL_NAMESPACES.put("", "http://v8.1c.ru/8.2/data/spreadsheet");
         MXL_NAMESPACES.put("style", "http://v8.1c.ru/8.1/data/ui/style");
@@ -47,10 +49,28 @@ public class MxlWriter extends XmlWriter {
     }
 
     public void create(MxlDsl dsl, Path outputPath) throws IOException, XMLStreamException {
+        if (dsl.getLosslessXmlBase64() != null && !dsl.getLosslessXmlBase64().isBlank()) {
+            writeLosslessXml(dsl, outputPath);
+            return;
+        }
         // EDT и Designer формат табличного документа идентичны побайтно
         // (см. 1c-spreadsheet-spec.md §«Совместимость версий»). Разница только в
         // расширении файла, поэтому генерация общая.
         createDesigner(dsl, outputPath);
+    }
+
+    private void writeLosslessXml(MxlDsl dsl, Path outputPath) throws IOException {
+        byte[] xml;
+        try {
+            xml = Base64.getDecoder().decode(dsl.getLosslessXmlBase64());
+        } catch (IllegalArgumentException e) {
+            throw new IOException("Invalid losslessXmlBase64 in MXL DSL", e);
+        }
+        if (outputPath.getParent() != null) {
+            Files.createDirectories(outputPath.getParent());
+        }
+        Files.write(outputPath, xml);
+        System.out.println("Created MXL template from lossless payload: " + outputPath);
     }
 
     // ==================== Палитры (канон) ====================

@@ -52,15 +52,13 @@ class FormValidatorTask174Test {
     // ==================== FORM-121 (XG-11) ====================
 
     @Test
-    void form121_missingRootTitle_isWarning() throws Exception {
-        // WARNING, не ERROR: реальные загружаемые формы без корневого Title массовы
-        // (177/200 в боевой конфигурации) — ERROR давал бы false positive.
+    void form121_missingRootTitle_isAllowedInDesignerCanon() throws Exception {
+        // Реальные Designer-формы без корневого Title массовы; валидатор
+        // не должен шуметь на каноне. Плоский Title, если он есть, всё ещё
+        // ошибка XDTO-сериализации.
         List<ValidationIssue> issues = validate("");
 
-        assertThat(issues).anyMatch(i -> i.getCode().equals("FORM-121")
-                && i.getSeverity() == Severity.WARNING);
-        assertThat(issues).noneMatch(i -> i.getCode().equals("FORM-121")
-                && i.getSeverity() == Severity.ERROR);
+        assertThat(issues).noneMatch(i -> i.getCode().equals("FORM-121"));
     }
 
     @Test

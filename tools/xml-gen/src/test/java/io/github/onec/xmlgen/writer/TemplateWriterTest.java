@@ -1,5 +1,6 @@
 package io.github.onec.xmlgen.writer;
 
+import io.github.onec.xmlgen.editor.ObjectContainerEditor;
 import io.github.onec.xmlgen.model.MdoPath;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -314,6 +315,13 @@ class TemplateWriterTest {
         assertThatCode(() -> TemplateWriter.parseTemplateType("DataCompositionSchema")).doesNotThrowAnyException();
         assertThatCode(() -> TemplateWriter.parseTemplateType("BinaryData")).doesNotThrowAnyException();
         assertThatCode(() -> TemplateWriter.parseTemplateType("TextDocument")).doesNotThrowAnyException();
+        assertThatCode(() -> TemplateWriter.parseTemplateType("AddIn")).doesNotThrowAnyException();
+        assertThatCode(() -> TemplateWriter.parseTemplateType("ВнешняяКомпонента")).doesNotThrowAnyException();
+        assertThatCode(() -> TemplateWriter.parseTemplateType("DataCompositionAppearanceTemplate")).doesNotThrowAnyException();
+        assertThatCode(() -> TemplateWriter.parseTemplateType("GraphicalSchema")).doesNotThrowAnyException();
+        assertThatCode(() -> TemplateWriter.parseTemplateType("ActiveDocument")).doesNotThrowAnyException();
+        assertThatCode(() -> TemplateWriter.parseTemplateType("GeographicalSchema")).doesNotThrowAnyException();
+        assertThat(ObjectContainerEditor.getExtension("AddIn")).isEqualTo("bin");
     }
 
     @Test

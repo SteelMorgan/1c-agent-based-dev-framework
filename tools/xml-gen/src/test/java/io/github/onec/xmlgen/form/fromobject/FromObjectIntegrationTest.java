@@ -121,6 +121,33 @@ class FromObjectIntegrationTest {
                 .hasMessageContaining("FormDataStructure");
     }
 
+    @Test
+    void registeredTypeWithFormsUsesGenericFallback() throws Exception {
+        Path objectDir = tempDir.resolve("AccountingRegisters").resolve("ЖурналПроводок");
+        Files.createDirectories(objectDir.resolve("Forms").resolve("ФормаСписка").resolve("Ext"));
+        Path objectXml = objectDir.resolve("ЖурналПроводок.xml");
+        Files.writeString(objectXml,
+                "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n" +
+                "<MetaDataObject xmlns=\"http://v8.1c.ru/8.3/MDClasses\" " +
+                        "xmlns:v8=\"http://v8.1c.ru/8.1/data/core\">\n" +
+                "  <AccountingRegister>\n" +
+                "    <Properties>\n" +
+                "      <Name>ЖурналПроводок</Name>\n" +
+                "      <Synonym><v8:item><v8:lang>ru</v8:lang><v8:content>Журнал проводок</v8:content></v8:item></Synonym>\n" +
+                "    </Properties>\n" +
+                "    <ChildObjects/>\n" +
+                "  </AccountingRegister>\n" +
+                "</MetaDataObject>\n");
+        Path outputXml = objectDir.resolve("Forms").resolve("ФормаСписка").resolve("Ext").resolve("Form.xml");
+
+        FormDsl dsl = new FormFromObjectGenerator().generate(objectXml, outputXml, "erp-standard", null);
+
+        assertThat(dsl.getTitle()).isEqualTo("Журнал проводок");
+        assertThat(dsl.getAttributes()).isEmpty();
+        new FormWriter(OutputFormat.DESIGNER).create(dsl, outputXml);
+        assertThat(Files.readString(outputXml)).contains("<Form", "Журнал проводок");
+    }
+
     @SuppressWarnings("unchecked")
     private static String flattenElementNames(FormDsl dsl) {
         StringBuilder sb = new StringBuilder();

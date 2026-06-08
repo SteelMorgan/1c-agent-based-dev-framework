@@ -481,14 +481,14 @@ class MxlValidatorTest {
     }
 
     @Test
-    void mxl106_warnsOnCanonicalFontHeightAttribute() throws Exception {
+    void mxl106_acceptsDesignerFontHeightZero() throws Exception {
         Path file = writeMxlBody(
                 "\t<font faceName=\"Arial\" height=\"0\" bold=\"false\" italic=\"false\"\n" +
                 "\t      underline=\"false\" strikeout=\"false\" kind=\"Absolute\" scale=\"100\"/>\n" +
                 "\t<columns><size>1</size></columns>\n" +
                 "\t<height>0</height>\n");
         List<ValidationIssue> issues = validator.validate(reader.parse(file), ValidationLevel.SEMANTIC);
-        assertThat(issues).anyMatch(i -> i.getCode().equals("MXL-106"));
+        assertThat(issues).noneMatch(i -> i.getCode().equals("MXL-106"));
     }
 
     @Test

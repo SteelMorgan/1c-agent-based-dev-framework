@@ -349,11 +349,14 @@ public class ObjectContainerEditor {
 
         String ext = getExtension(templateType);
         Path bodyPath = extDir.resolve("Template." + ext);
-        String body = getTemplateBody(templateType);
+        String body = getTemplateBody(templateType, fmt);
         // TASK-171 D7: тела макетов в Designer-выводе пишем с UTF-8 BOM — реальные демо-макеты
         // (src/xml/.../Templates/**/Ext/Template.xml) начинаются с ef bb bf, как и весь Designer-дамп.
         // BinaryData/TextDocument дают пустое тело — пишем только BOM (как в EPF-ветке).
         writeWithBom(bodyPath, body);
+        if ("Help".equals(templateType)) {
+            createHelpTemplateHtml(extDir, "ru");
+        }
     }
 
     /**
@@ -492,6 +495,8 @@ public class ObjectContainerEditor {
             case "HTMLDocument": return "html";
             case "TextDocument": return "txt";
             case "BinaryData": return "bin";
+            case "AddIn": return "bin";
+            case "Help": return "xml";
             default: return "xml"; // SpreadsheetDocument, DataCompositionSchema
         }
     }
@@ -503,6 +508,11 @@ public class ObjectContainerEditor {
      * (SpreadsheetDocument → корень {@code <document>}, DCS → {@code <DataCompositionSchema>}).
      */
     public static String getTemplateBody(String templateType) {
+        return getTemplateBody(templateType, ConfigurationXmlReader.DEFAULT_FORMAT_VERSION);
+    }
+
+    private static String getTemplateBody(String templateType, String formatVersion) {
+        String fmt = effectiveFormatVersion(formatVersion);
         switch (templateType) {
             case "SpreadsheetDocument":
                 return "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
@@ -526,8 +536,36 @@ public class ObjectContainerEditor {
                 return "";
             case "BinaryData":
                 return "";
+            case "AddIn":
+                return "";
+            case "Help":
+                return "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
+                        + "<Help xmlns=\"http://v8.1c.ru/8.3/xcf/extrnprops\"\n"
+                        + "\txmlns:xs=\"http://www.w3.org/2001/XMLSchema\"\n"
+                        + "\txmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\"\n"
+                        + "\tversion=\"" + escapeXml(fmt) + "\">\n"
+                        + "\t<Page>ru</Page>\n"
+                        + "</Help>\n";
             default:
                 return "";
         }
+    }
+
+    private static void createHelpTemplateHtml(Path extDir, String lang) throws IOException {
+        Path helpDir = extDir.resolve("Template");
+        Files.createDirectories(helpDir);
+        String html = "<!DOCTYPE html PUBLIC \"-//W3C//DTD HTML 4.0 Transitional//EN\">\n"
+                + "<html>\n"
+                + "<head>\n"
+                + "\t<meta http-equiv=\"Content-Type\" content=\"text/html; charset=utf-8\"/>\n"
+                + "\t<link rel=\"stylesheet\" type=\"text/css\" href=\"v8help://service_book/service_style\"/>\n"
+                + "</head>\n"
+                + "<body>\n"
+                + "\t<h1>Справка</h1>\n"
+                + "\t<p>Описание макета справки.</p>\n"
+                + "</body>\n"
+                + "</html>\n";
+        Files.writeString(helpDir.resolve(lang + ".html"),
+                io.github.onec.xmlgen.io.Crlf.normalize(html), StandardCharsets.UTF_8);
     }
 }

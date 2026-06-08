@@ -82,6 +82,42 @@ class TemplateCliContractTest {
         assertThat(tempDir.resolve("src/Reports/X/Templates/Main/Ext/Template.xml")).exists();
     }
 
+    @Test
+    @DisplayName("integr-template add Help creates wrapper, XCF body, and ru.html payload")
+    void addHelpTemplateCreatesBodyAndHtmlPayload() throws Exception {
+        createObject("DataProcessors", "DataProcessor", "X", false);
+
+        ProcessResult result = runMain(
+                "template", "add",
+                "--object", "DataProcessor.X",
+                "--name", "Инструкция",
+                "--type", "Help",
+                tempDir.toString());
+
+        assertThat(result.exitCode()).as(result.stderr()).isZero();
+        assertThat(result.stderr()).isBlank();
+
+        Path wrapper = tempDir.resolve("src/DataProcessors/X/Templates/Инструкция.xml");
+        Path body = tempDir.resolve("src/DataProcessors/X/Templates/Инструкция/Ext/Template.xml");
+        Path html = tempDir.resolve("src/DataProcessors/X/Templates/Инструкция/Ext/Template/ru.html");
+        assertThat(wrapper).exists();
+        assertThat(body).exists();
+        assertThat(html).exists();
+
+        String root = Files.readString(tempDir.resolve("src/DataProcessors/X.xml"), StandardCharsets.UTF_8);
+        assertThat(root).contains("<Template>Инструкция</Template>");
+        assertThat(Files.readString(wrapper, StandardCharsets.UTF_8))
+                .contains("<TemplateType>Help</TemplateType>");
+        assertThat(Files.readString(body, StandardCharsets.UTF_8))
+                .contains("<Help xmlns=\"http://v8.1c.ru/8.3/xcf/extrnprops\"")
+                .contains("<Page>ru</Page>");
+        assertThat(Files.readString(html, StandardCharsets.UTF_8))
+                .contains("v8help://service_book/service_style");
+
+        assertThat(runMain("validate", "--type", "template", wrapper.toString()).exitCode()).isZero();
+        assertThat(runMain("validate", body.toString()).exitCode()).isZero();
+    }
+
     private void createObject(String typePlural, String typeSingular, String name, boolean includeMainDcs)
             throws Exception {
         Path objectDir = tempDir.resolve("src").resolve(typePlural);

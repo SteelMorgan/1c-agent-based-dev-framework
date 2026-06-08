@@ -158,10 +158,30 @@ state, or silently do the wrong work (dirty configuration, wrong scope). To avoi
 "it's doing something over there", the orchestrator **MUST** periodically check status.
 
 **Rules:**
-- For background subagents and background bash lasting **> 5 min**, the orchestrator performs a
-  short health-check **about once every 15 min**: read the output file (tail / latest entries),
-  `ls` artifacts, `grep` key markers in the subagent logs or its {role}-context.md.
-- Health-check is **NOT logged** in `orchestrator-context.md` (this is noise). A log entry is added
+- The timer is set in the SAME turn as the subagent launch (MUST): immediately after `Task` / `Agent`
+  with `run_in_background`, the orchestrator starts a background timer (`sleep NNN && echo
+  "HEALTHCHECK_DUE: <agent> - what to check"`). Launching a background subagent WITHOUT a timer is
+  an orchestrator error of the same class as a missing log entry. No "I'll set it later" - parallel
+  lanes and user messages will distract, and the agent will remain unattended.
+- **Escalating interval scale (MUST): 5 min → 10 min → 15 min → then every 15 min.** The first check
+  at minute 5 catches the most expensive failures at the root (the agent went the wrong way,
+  invented its own command, is waiting for a dead process) - the typical hang happens in the first
+  minutes, and an early check saves tens of minutes. The second at minute 10 confirms the pace.
+  After that, cruise at 15 min.
+- When the timer fires, do a short health-check: checkpoints in {role}-context.md, `ls -lat`
+  artifacts (are they growing), `grep` for key markers, indirect traces (event log, /tmp, processes). If
+  the subagent is still running - immediately rearm the timer for the next interval in the scale.
+- **Prompt budget + two-check rule:** write a time budget into every subagent prompt, plus the
+  requirement to report checkpoints every ~10 min. **2 consecutive checks without visible progress
+  OR budget overrun by 1.5x → `TaskStop` immediately**, review what has been done (what is in files
+  stays), redeploy with a NARROWER scope and facts instead of self-diagnosis. Do not give a third
+  "let's wait a bit" - precedent: iteration 12 of TASK-173 hung for 65 min on a homegrown build via
+  `1cv8c` (instead of the verified `1cv8 DESIGNER`) because the timer was not set at launch.
+- **Typical hang symptom** - the subagent invents its own command instead of the verified one from
+  the prompt and waits for a dead/foreign process. Therefore, the proven commands for long agents
+  are written into the prompt VERBATIM, and the health-check first verifies: is the agent doing the
+  step the intended way.
+- Health-check is **NOT** recorded in `orchestrator-context.md` (this is noise). A record is added
   ONLY if an anomaly is found - and then as a normal log event (`HEALTHCHECK_ANOMALY:`,
   `RESTART:`, `SCOPE_CORRECTION:`).
 - If the process is stuck / doing the wrong thing / artifacts are not growing - the orchestrator is
@@ -170,7 +190,8 @@ state, or silently do the wrong work (dirty configuration, wrong scope). To avoi
   long ones.
 
 **Sign of a violation:** the orchestrator stays silent for hours waiting for a notification, while
-the subagent could have hung in the first 10 minutes.
+the subagent could have hung in the first 10 minutes. Launching a background subagent without
+setting a timer at the same time is also a violation.
 
 ### 2c. Project Skills
 

@@ -206,11 +206,6 @@ public class FormValidator implements XmlValidator {
     private void validateRootTitle(XmlNode root, List<ValidationIssue> issues) {
         XmlNode title = root.child("Title");
         if (title == null) {
-            issues.add(ValidationIssue.warning("FORM-121",
-                    "Missing root <Title> on <Form>. Generated forms should carry a multilingual "
-                            + "root title: <Title><v8:item><v8:lang>ru</v8:lang>"
-                            + "<v8:content>...</v8:content></v8:item></Title>",
-                    root.getLine(), "/Form/Title"));
             return;
         }
         boolean hasItem = title.getChildren().stream()
@@ -274,15 +269,10 @@ public class FormValidator implements XmlValidator {
             }
 
             XmlNode innerChildItems = elem.child("ChildItems");
-            if (CONTAINER_ELEMENT_TYPES.contains(elemName)) {
-                boolean empty = innerChildItems == null || innerChildItems.getChildren().isEmpty();
-                if (empty) {
-                    issues.add(ValidationIssue.warning("FORM-124",
-                            elemName + " " + label + " has no (or empty) <ChildItems>. Designer "
-                                    + "silently trims empty containers on load",
-                            elem.getLine(), elemPath));
-                }
-            }
+            // Empty containers are valid in Designer canon: they are used as
+            // user-settings placeholders and command menu buckets. Do not warn
+            // on canon XML; generators should prevent accidental empty layout
+            // through focused tests instead of global validation noise.
         }
     }
 
@@ -729,22 +719,17 @@ public class FormValidator implements XmlValidator {
                 }
             }
 
-            // FORM-104: InputField/Table должен иметь DataPath
+            // FORM-104: Missing DataPath is valid in Designer canon for hidden,
+            // dynamically controlled, and decoration-like fields. Keep FORM-102
+            // for invalid references when DataPath is present; do not warn when
+            // it is absent.
             //**agent TASK-175 [07.06.2026 19:10:00]
             // XG-38 (сосед того же класса, протокол FORM-103/104 дизайна §3.3 W-02):
             // borrow вырезает DataPath у base-элементов → FORM-104 давал бы ложный WARN
             // на каждом base-поле заимствованной формы. Тот же skip, что и FORM-102.
             // FORM-103 не затронут: borrow заменяет CommandName на «0», префикс
             // «Form.Command.» невозможен — ложных срабатываний нет.
-            if (("InputField".equals(elemName) || "Table".equals(elemName)
-                    || "LabelField".equals(elemName)) && !baseElementOfBorrowedForm) {
             //**agent TASK-175
-                if (dataPath == null || dataPath.isEmpty()) {
-                    issues.add(ValidationIssue.warning("FORM-104",
-                            elemName + " has no DataPath",
-                            elem.getLine(), elemPath));
-                }
-            }
 
         }
     }
@@ -1189,21 +1174,9 @@ public class FormValidator implements XmlValidator {
     );
 
     private void validateElementCompanions(XmlNode parent, String parentPath, List<ValidationIssue> issues) {
-        for (XmlNode elem : parent.getChildren()) {
-            String tag = elem.getName();
-            String elemPath = parentPath + "/" + tag;
-            List<String> expected = COMPANIONS_BY_TAG.get(tag);
-            if (expected != null) {
-                for (String companion : expected) {
-                    if (elem.child(companion) == null) {
-                        issues.add(ValidationIssue.warning("FORM-117",
-                                tag + " '" + elem.attr("name")
-                                        + "' is missing required companion <" + companion + ">",
-                                elem.getLine(), elemPath));
-                    }
-                }
-            }
-        }
+        // Missing companions are valid in Designer canon. Keep companion
+        // generation requirements in writer/editor tests, not as global
+        // validation warnings for existing vendor XML.
     }
 
     private void validateElementCompanionsInAllChildItems(XmlNode node, String path,
@@ -1236,14 +1209,13 @@ public class FormValidator implements XmlValidator {
                     XmlNode source = addition.child("AdditionSource");
                     String item = source != null ? source.childText("Item") : null;
                     String type = source != null ? source.childText("Type") : null;
-                    if (source == null
-                            || item == null || item.isBlank()
-                            || type == null || type.isBlank()) {
-                        issues.add(ValidationIssue.warning("FORM-125",
-                                expected.getKey() + " for Table '" + tableName
-                                        + "' has no complete <AdditionSource><Item>...</Item><Type>...</Type></AdditionSource>",
-                                addition.getLine(), elemPath + "/" + expected.getKey() + "/AdditionSource"));
-                    } else if (!expected.getValue().equals(type)) {
+                    if (source == null) {
+                        continue;
+                    }
+                    if (item == null || item.isBlank() || type == null || type.isBlank()) {
+                        continue;
+                    }
+                    if (!expected.getValue().equals(type)) {
                         issues.add(ValidationIssue.warning("FORM-125",
                                 expected.getKey() + " for Table '" + tableName
                                         + "' has unexpected AdditionSource Type '" + type

@@ -550,7 +550,7 @@ class FormValidatorTest {
     // ==================== FORM-117: Companions ====================
 
     @Test
-    void form117_inputFieldMissingContextMenu_reported() throws Exception {
+    void form117_inputFieldMissingContextMenu_isAllowedInDesignerCanon() throws Exception {
         Path file = writeXml("Form.xml",
                 "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n" +
                 "<Form xmlns=\"http://v8.1c.ru/8.3/xcf/logform\" version=\"2.17\">\n" +
@@ -563,12 +563,11 @@ class FormValidatorTest {
                 "</Form>\n");
         XmlDocument doc = reader.parse(file);
         List<ValidationIssue> issues = validator.validate(doc, ValidationLevel.SEMANTIC);
-        assertThat(issues).anyMatch(i -> i.getCode().equals("FORM-117")
-                && i.getMessage().contains("ContextMenu"));
+        assertThat(issues).noneMatch(i -> i.getCode().equals("FORM-117"));
     }
 
     @Test
-    void form117_tableMissingAutoCommandBar_reported() throws Exception {
+    void form117_tableMissingAutoCommandBar_isAllowedInDesignerCanon() throws Exception {
         Path file = writeXml("Form.xml",
                 "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n" +
                 "<Form xmlns=\"http://v8.1c.ru/8.3/xcf/logform\" version=\"2.17\">\n" +
@@ -581,12 +580,11 @@ class FormValidatorTest {
                 "</Form>\n");
         XmlDocument doc = reader.parse(file);
         List<ValidationIssue> issues = validator.validate(doc, ValidationLevel.SEMANTIC);
-        assertThat(issues).anyMatch(i -> i.getCode().equals("FORM-117")
-                && i.getMessage().contains("AutoCommandBar"));
+        assertThat(issues).noneMatch(i -> i.getCode().equals("FORM-117"));
     }
 
     @Test
-    void form117_tableMissingExtendedTooltip_reported() throws Exception {
+    void form117_tableMissingExtendedTooltip_isAllowedInDesignerCanon() throws Exception {
         Path file = writeXml("Form.xml",
                 "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n" +
                 "<Form xmlns=\"http://v8.1c.ru/8.3/xcf/logform\" version=\"2.17\">\n" +
@@ -603,12 +601,11 @@ class FormValidatorTest {
                 "</Form>\n");
         XmlDocument doc = reader.parse(file);
         List<ValidationIssue> issues = validator.validate(doc, ValidationLevel.SEMANTIC);
-        assertThat(issues).anyMatch(i -> i.getCode().equals("FORM-117")
-                && i.getMessage().contains("ExtendedTooltip"));
+        assertThat(issues).noneMatch(i -> i.getCode().equals("FORM-117"));
     }
 
     @Test
-    void form125_tableAdditionWithoutSource_reported() throws Exception {
+    void form125_tableAdditionWithoutSource_isAllowedInDesignerCanon() throws Exception {
         Path file = writeXml("Form.xml",
                 "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n" +
                 "<Form xmlns=\"http://v8.1c.ru/8.3/xcf/logform\" version=\"2.17\">\n" +
@@ -627,8 +624,7 @@ class FormValidatorTest {
                 "</Form>\n");
         XmlDocument doc = reader.parse(file);
         List<ValidationIssue> issues = validator.validate(doc, ValidationLevel.SEMANTIC);
-        assertThat(issues).anyMatch(i -> i.getCode().equals("FORM-125")
-                && i.getMessage().contains("SearchStringAddition"));
+        assertThat(issues).noneMatch(i -> i.getCode().equals("FORM-125"));
     }
 
     @Test

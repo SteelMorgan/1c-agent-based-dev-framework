@@ -222,6 +222,24 @@ class MxlDecompilerTest {
         assertThat(json).doesNotContain("\"span\"");
     }
 
+    @Test
+    void infersColumnsFromAdditionalColumnSetsAndUsedCells() throws Exception {
+        Path file = writeMxl(
+                "\t<columns><id>wide</id><size>12</size></columns>\n" +
+                "\t<rowsItem><index>0</index><row>\n" +
+                "\t\t<columnsID>wide</columnsID>\n" +
+                "\t\t<c><i>11</i><c><f>0</f>" + tl("X") + "</c></c>\n" +
+                "\t</row></rowsItem>\n" +
+                "\t<height>1</height>\n");
+
+        Path output = tempDir.resolve("dsl.json");
+        decompiler.decompile(reader.parse(file), output);
+
+        String json = Files.readString(output, StandardCharsets.UTF_8);
+        assertThat(json).contains("\"columns\" : 12");
+        assertThat(json).contains("\"col\" : 12");
+    }
+
     // --- helpers ---
 
     private String tl(String text) {

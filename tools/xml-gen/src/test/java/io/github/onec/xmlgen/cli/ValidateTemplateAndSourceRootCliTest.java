@@ -120,6 +120,36 @@ class ValidateTemplateAndSourceRootCliTest {
     }
 
     @Test
+    void validateTypeTemplateAcceptsAddInMetadataWrapper() throws Exception {
+        Path template = tempDir.resolve("AddIn.xml");
+        writeBom(template, """
+                <?xml version="1.0" encoding="UTF-8"?>
+                <MetaDataObject xmlns="http://v8.1c.ru/8.3/MDClasses"
+                                xmlns:v8="http://v8.1c.ru/8.1/data/core"
+                                version="2.20">
+                    <Template uuid="00000000-0000-0000-0000-000000000001">
+                        <Properties>
+                            <Name>КомпонентаОбмена</Name>
+                            <Synonym>
+                                <v8:item>
+                                    <v8:lang>ru</v8:lang>
+                                    <v8:content>Компонента обмена</v8:content>
+                                </v8:item>
+                            </Synonym>
+                            <Comment></Comment>
+                            <TemplateType>AddIn</TemplateType>
+                        </Properties>
+                    </Template>
+                </MetaDataObject>
+                """);
+
+        ProcessResult result = runMain("validate", "--type", "template", template.toString());
+
+        assertThat(result.exitCode()).as(result.combinedOutput()).isZero();
+        assertThat(result.combinedOutput()).doesNotContain("TEMPLATE-007");
+    }
+
+    @Test
     void validateTypeTemplateRoutesDataCompositionSchemaBodyLikeSkd() throws Exception {
         Path template = tempDir.resolve("Template.xml");
         writeBom(template, """
@@ -132,7 +162,8 @@ class ValidateTemplateAndSourceRootCliTest {
         ProcessResult result = runMain("validate", "--type", "template", template.toString());
 
         assertThat(result.exitCode()).as(result.combinedOutput()).isEqualTo(2);
-        assertThat(result.combinedOutput()).contains("SKD-002", "SKD-005");
+        assertThat(result.combinedOutput()).contains("SKD-005");
+        assertThat(result.combinedOutput()).doesNotContain("SKD-002");
         assertThat(result.combinedOutput()).doesNotContain("META-001");
     }
 
