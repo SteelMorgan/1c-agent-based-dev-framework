@@ -282,7 +282,10 @@ public class SkdEditor {
         }
         boolean changed = false;
         if (fd.title != null) {
-            replaceChild(target, "title", buildLocalStringType("title", fd.title));
+            //**agent TASK-176 [08.06.2026 12:30:00]
+            // S-04 (XG-45): патч ru-content вместо полной замены — сохраняет multi-lang title.
+            patchTitlePreservingLangs(target, fd.title);
+            //**agent TASK-176
             changed = true;
         }
         if (fd.type != null) {
@@ -322,15 +325,21 @@ public class SkdEditor {
             }
         }
         // Remove from variant selection (and any nested folders)
+        //**agent TASK-176 [08.06.2026 12:40:00]
+        // S-09 / F-01 (XG-46): учитываем фактическую мутацию selection в возврате (правдивость
+        // OpResult — предусловие changed-гейта). Поле могло отсутствовать в наборе данных
+        // (removed==false), но присутствовать в selection варианта → реальное изменение XML.
         XmlNode variant = resolveVariant(variantName);
+        boolean selectionTouched = false;
         if (variant != null) {
-            removeFromSelectionRecursive(variant, dataPath);
+            selectionTouched = removeFromSelectionRecursive(variant, dataPath);
         }
-        if (!removed) {
+        if (!removed && !selectionTouched) {
             warn("remove-field: '" + dataPath + "' not found; noop");
             return OpResult.unchanged("noop");
         }
         return OpResult.changed("removed");
+        //**agent TASK-176
     }
 
     public OpResult setFieldRole(SkdShorthandParser.FieldRoleDescriptor d, String dataSetName) {
@@ -458,7 +467,10 @@ public class SkdEditor {
         }
         boolean changed = false;
         if (p.title != null) {
-            replaceChild(target, "title", buildLocalStringType("title", p.title));
+            //**agent TASK-176 [08.06.2026 12:30:00]
+            // S-04 (XG-45): тот же класс, что modify-field — preserve multi-lang title.
+            patchTitlePreservingLangs(target, p.title);
+            //**agent TASK-176
             changed = true;
         }
         // kv: value, use, denyIncompleteValues, ...
@@ -980,6 +992,37 @@ public class SkdEditor {
         return node;
     }
 
+    //++agent TASK-176 [08.06.2026 12:30:00]
+    // S-04 (XG-45, upstream 79db5de6): preserve multi-lang <title> при modify-field/parameter.
+    // Полная замена через buildLocalStringType строила mono-ru блок и затирала en-заголовок
+    // (потеря данных round-trip на типовых ERP/БП/ЗУП-конфигурациях). Здесь патчим ТОЛЬКО
+    // ru-<v8:content> существующего <title>; прочие языки и неизвестные дети узла сохраняются.
+    // Если <title> отсутствует — создаём mono-ru (корректно: сохранять нечего, как в ADD-путях).
+    private void patchTitlePreservingLangs(XmlNode target, String content) {
+        XmlNode title = target.child("title");
+        if (title == null) {
+            target.addChild(buildLocalStringType("title", content));
+            return;
+        }
+        for (XmlNode item : title.children("item")) {
+            if ("ru".equals(item.childText("lang"))) {
+                XmlNode contentNode = item.child("content");
+                if (contentNode != null) {
+                    contentNode.setText(content);
+                } else {
+                    item.addChild(simpleTextNode("v8:content", content));
+                }
+                return;
+            }
+        }
+        // ru-элемента нет — добавляем, не трогая прочие языки.
+        XmlNode ruItem = createNode("v8:item");
+        ruItem.addChild(simpleTextNode("v8:lang", "ru"));
+        ruItem.addChild(simpleTextNode("v8:content", content));
+        title.addChild(ruItem);
+    }
+    //++agent TASK-176
+
     private XmlNode buildValueType(List<SkdTypeParser.TypePart> parts) {
         XmlNode vt = createNode("valueType");
         for (SkdTypeParser.TypePart tp : parts) {
@@ -1059,7 +1102,14 @@ public class SkdEditor {
         selection.addChild(item);
     }
 
-    private void removeFromSelectionRecursive(XmlNode node, String fieldName) {
+    //**agent TASK-176 [08.06.2026 12:40:00]
+    // S-09 / F-01 (XG-46): возвращаем признак фактического удаления. Раньше метод был void,
+    // а removeField решал возврат только по флагу removed (наличие поля в наборе данных). Если
+    // поле было ТОЛЬКО в selection варианта — helper реально удалял item (мутация XML), но
+    // removeField возвращал unchanged("noop") → под changed-гейтом S-09 правка молча терялась
+    // бы (потеря данных, risk 3a). Теперь selectionTouched агрегируется в возврат операции.
+    private boolean removeFromSelectionRecursive(XmlNode node, String fieldName) {
+        boolean touched = false;
         Iterator<XmlNode> it = node.getChildren().iterator();
         while (it.hasNext()) {
             XmlNode c = it.next();
@@ -1072,12 +1122,19 @@ public class SkdEditor {
                 while (it2.hasNext()) {
                     XmlNode item = it2.next();
                     String f = childTextLocal(item, "field");
-                    if (fieldName.equals(f)) it2.remove();
+                    if (fieldName.equals(f)) {
+                        it2.remove();
+                        touched = true;
+                    }
                 }
             }
-            removeFromSelectionRecursive(c, fieldName);
+            if (removeFromSelectionRecursive(c, fieldName)) {
+                touched = true;
+            }
         }
+        return touched;
     }
+    //**agent TASK-176
 
     /** Локально-нечувствительный поиск дочернего узла (игнорирует префикс). */
     private XmlNode findChildLocal(XmlNode parent, String localName) {

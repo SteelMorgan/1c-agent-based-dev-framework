@@ -188,11 +188,19 @@ public class SkdValidator implements XmlValidator {
             for (int j = 0; j < calcFields.size(); j++) {
                 XmlNode cf = calcFields.get(j);
                 String cfPath = dsPath + "/calculatedField[" + (j + 1) + "]";
+                //**agent TASK-176 [08.06.2026 12:20:00]
+                // S-07 (XG-47, upstream efdf5669): пустой <expression> декларативного
+                // calculatedField легитимен у vendor-схем (формулу может давать соседний
+                // totalField того же dataPath). Java здесь была СТРОЖЕ upstream (error) —
+                // ложный позитив. Понижаем до warning: коллизия всё ещё видна, но не валит
+                // валидацию. Полная totalField-twin-логика (подавление warning при наличии
+                // близнеца) — вынесена в бэклог (граница объёма A-5), здесь только downgrade.
                 if (cf.childText("expression") == null || cf.childText("expression").isEmpty()) {
-                    issues.add(ValidationIssue.error("SKD-108",
-                            "calculatedField missing <expression>",
+                    issues.add(ValidationIssue.warning("SKD-108",
+                            "calculatedField missing <expression> (declarative-only?)",
                             cf.getLine(), cfPath));
                 }
+                //**agent TASK-176
             }
 
             // Проверяем поля в settings/filter

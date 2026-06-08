@@ -285,6 +285,26 @@ public class SkdInfoPrinter {
 
     // ==================== Query ====================
 
+    //++agent TASK-176 [08.06.2026 12:50:00]
+    // S-06 (XG-48, upstream 9877fe40): raw-режим печатает текст запроса БАЙТ-В-БАЙТ — без
+    // заголовков "=== Query"/"--- Batch" и без дробления по батчам, которые добавляет
+    // printQuery. Нужно для lossless round-trip `skd info --raw | skd edit set-query`:
+    // строка-разделитель батчей //// сохраняется как есть, запрос не нормализуется.
+    public void printRawQuery(XmlNode root, String name, PrintStream out) {
+        XmlNode targetDs = findQueryDataset(root, name);
+        if (targetDs == null) {
+            out.println("No Query dataset found" + (name != null ? " with name '" + name + "'" : ""));
+            return;
+        }
+        XmlNode queryNode = targetDs.child("query");
+        if (queryNode == null) {
+            out.println("Dataset has no query element");
+            return;
+        }
+        out.println(safeText(queryNode.getText()));
+    }
+    //++agent TASK-176
+
     private void printQuery(XmlNode root, String name, List<String> lines) {
         XmlNode targetDs = findQueryDataset(root, name);
         if (targetDs == null) {

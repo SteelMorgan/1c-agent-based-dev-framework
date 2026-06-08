@@ -1824,9 +1824,15 @@ public class Commands {
         String name = null;
         int limit = 150;
         int offset = 0;
+        //++agent TASK-176 [08.06.2026 12:50:00]
+        // S-06 (XG-48): флаг --raw для печати запроса verbatim (lossless round-trip).
+        boolean raw = false;
+        //++agent TASK-176
 
         for (int i = 1; i < args.length; i++) {
-            if ("--mode".equals(args[i]) && i + 1 < args.length) {
+            if ("--raw".equals(args[i])) { //++agent TASK-176
+                raw = true;                //++agent TASK-176
+            } else if ("--mode".equals(args[i]) && i + 1 < args.length) {
                 mode = args[++i].toLowerCase();
             } else if ("--name".equals(args[i]) && i + 1 < args.length) {
                 name = args[++i];
@@ -1858,7 +1864,15 @@ public class Commands {
                     "Expected root <DataCompositionSchema>, got <" + rootEl + ">. " +
                     "The file does not appear to be a 1C data composition schema.");
             }
-            new SkdInfoPrinter().print(doc, mode, name, limit, offset, System.out);
+            //**agent TASK-176 [08.06.2026 12:50:00]
+            // S-06 (XG-48): --raw с режимом query печатает запрос байт-в-байт (verbatim),
+            // минуя пагинацию/декорации; иначе обычный режим.
+            if (raw && "query".equals(mode)) {
+                new SkdInfoPrinter().printRawQuery(doc.getRoot(), name, System.out);
+            } else {
+                new SkdInfoPrinter().print(doc, mode, name, limit, offset, System.out);
+            }
+            //**agent TASK-176
         } catch (XmlStructureReader.XmlParseException e) {
             throw new RuntimeException("Failed to parse SKD XML: " + e.getMessage(), e);
         }
@@ -2013,9 +2027,21 @@ public class Commands {
                 io.github.onec.xmlgen.editor.SkdEditor editor =
                         new io.github.onec.xmlgen.editor.SkdEditor(doc);
 
-                applySkdOperation(editor, operation, value, dataSet, variant, noSelection, schemaPath);
+                //**agent TASK-176 [08.06.2026 13:00:00]
+                // S-09 (XG-46): changed-гейт. Записываем (tmp+atomic-move в saveAndValidate)
+                // ТОЛЬКО при фактическом изменении — NO-OP edit не трогает байты файла.
+                // saveAndValidate-инвариант не нарушен: он просто не вызывается при NO-OP;
+                // rollback (внешний catch) для changed-пути сохранён. Правдивость changed
+                // обеспечена аудитом OpResult (removeField-починка — предусловие гейта).
+                boolean changed = applySkdOperation(editor, operation, value, dataSet, variant,
+                        noSelection, schemaPath);
 
-                saveAndValidate(doc, schemaPath, "skd", args);
+                if (changed) {
+                    saveAndValidate(doc, schemaPath, "skd", args);
+                } else {
+                    System.out.println("[NO-OP] No changes detected; file not rewritten.");
+                }
+                //**agent TASK-176
             } catch (Exception e) {
                 // Rollback: restore bytes
                 try {
@@ -2037,10 +2063,12 @@ public class Commands {
      * Некоторые операции batch не поддерживают (set-query, modify-structure,
      * patch-query без @once в составе spec → проверяется отдельно).
      */
-    private static void applySkdOperation(io.github.onec.xmlgen.editor.SkdEditor editor,
-                                          String operation, String value,
-                                          String dataSet, String variant, boolean noSelection,
-                                          Path schemaPath) {
+    //**agent TASK-176 [08.06.2026 13:00:00]
+    // S-09 (XG-46): агрегируем changed по batch-частям — гейт записи опирается на правду.
+    private static boolean applySkdOperation(io.github.onec.xmlgen.editor.SkdEditor editor,
+                                             String operation, String value,
+                                             String dataSet, String variant, boolean noSelection,
+                                             Path schemaPath) {
         java.util.List<String> parts;
         boolean allowBatch = !operation.equals("set-query")
                 && !operation.equals("modify-structure")
@@ -2052,72 +2080,70 @@ public class Commands {
             parts = java.util.List.of(value);
         }
 
+        boolean anyChanged = false;
         for (String spec : parts) {
-            applySingleSkdOp(editor, operation, spec, dataSet, variant, noSelection, schemaPath);
+            anyChanged |= applySingleSkdOp(editor, operation, spec, dataSet, variant, noSelection, schemaPath);
         }
+        return anyChanged;
     }
+    //**agent TASK-176
 
-    private static void applySingleSkdOp(io.github.onec.xmlgen.editor.SkdEditor editor,
-                                         String op, String spec,
-                                         String dataSet, String variant, boolean noSelection,
-                                         Path schemaPath) {
+    //**agent TASK-176 [08.06.2026 13:00:00]
+    // S-09 (XG-46): возвращаем агрегированный признак фактического изменения каждой операции
+    // (OpResult.changed editor'а). Раньше возвраты editor.*() отбрасывались (void), из-за чего
+    // вышестоящий гейт не мог отличить NO-OP от реальной правки. Правдивость OpResult по всем
+    // операциям проаудирована (см. dispositions.md): единственный «лгущий unchanged» —
+    // removeField selection-путь — починен (removeFromSelectionRecursive теперь сообщает
+    // о мутации). Прочие операции возвращают unchanged только без мутации XML.
+    private static boolean applySingleSkdOp(io.github.onec.xmlgen.editor.SkdEditor editor,
+                                            String op, String spec,
+                                            String dataSet, String variant, boolean noSelection,
+                                            Path schemaPath) {
         switch (op) {
             case "add-field": {
                 var fd = io.github.onec.xmlgen.editor.skd.SkdShorthandParser.parseField(spec);
-                editor.addField(fd, dataSet, variant, noSelection);
-                return;
+                return editor.addField(fd, dataSet, variant, noSelection).changed;
             }
             case "modify-field": {
                 var fd = io.github.onec.xmlgen.editor.skd.SkdShorthandParser.parseField(spec);
-                editor.modifyField(fd, dataSet);
-                return;
+                return editor.modifyField(fd, dataSet).changed;
             }
             case "remove-field": {
-                editor.removeField(spec.trim(), dataSet, variant);
-                return;
+                return editor.removeField(spec.trim(), dataSet, variant).changed;
             }
             case "set-field-role": {
                 var d = io.github.onec.xmlgen.editor.skd.SkdShorthandParser.parseFieldRole(spec);
-                editor.setFieldRole(d, dataSet);
-                return;
+                return editor.setFieldRole(d, dataSet).changed;
             }
             case "add-parameter": {
                 var p = io.github.onec.xmlgen.editor.skd.SkdShorthandParser.parseParameter(spec);
-                editor.addParameter(p);
-                return;
+                return editor.addParameter(p).changed;
             }
             case "modify-parameter": {
                 var p = io.github.onec.xmlgen.editor.skd.SkdShorthandParser.parseModifyParameter(spec);
-                editor.modifyParameter(p);
-                return;
+                return editor.modifyParameter(p).changed;
             }
             case "remove-parameter": {
-                editor.removeParameter(spec.trim());
-                return;
+                return editor.removeParameter(spec.trim()).changed;
             }
             case "rename-parameter": {
                 var arrow = io.github.onec.xmlgen.editor.skd.SkdShorthandParser.parseArrow(spec, false);
-                editor.renameParameter(arrow.oldText.trim(), arrow.newText.trim());
-                return;
+                return editor.renameParameter(arrow.oldText.trim(), arrow.newText.trim()).changed;
             }
             case "reorder-parameters": {
                 var order = io.github.onec.xmlgen.editor.skd.SkdShorthandParser.parseReorderParameters(spec);
-                editor.reorderParameters(order);
-                return;
+                return editor.reorderParameters(order).changed;
             }
             case "add-total": {
                 var t = io.github.onec.xmlgen.editor.skd.SkdShorthandParser.parseTotal(spec);
-                editor.addTotal(t);
-                return;
+                return editor.addTotal(t).changed;
             }
             case "remove-total": {
-                editor.removeTotal(spec.trim());
-                return;
+                return editor.removeTotal(spec.trim()).changed;
             }
             case "modify-structure": {
                 var s = io.github.onec.xmlgen.editor.skd.SkdShorthandParser.parseStructureSpec(spec);
-                editor.modifyStructure(s, variant);
-                return;
+                return editor.modifyStructure(s, variant).changed;
             }
             case "set-query": {
                 String text = spec;
@@ -2139,29 +2165,29 @@ public class Commands {
                         throw new RuntimeException("failed to read query file: " + ioe.getMessage(), ioe);
                     }
                 }
-                editor.setQuery(text, dataSet);
-                return;
+                return editor.setQuery(text, dataSet).changed;
             }
             case "patch-query": {
                 // patch-query batch via ;; is allowed (per skill query.md "batch supported").
                 java.util.List<String> patches =
                         io.github.onec.xmlgen.editor.skd.SkdShorthandParser.splitBatch(spec);
                 if (patches.isEmpty()) patches = java.util.List.of(spec);
-                for (String p : patches) editor.patchQuery(p, dataSet);
-                return;
+                boolean changed = false;
+                for (String p : patches) changed |= editor.patchQuery(p, dataSet).changed;
+                return changed;
             }
             case "clear-conditionalAppearance": {
                 if (!"*".equals(spec.trim())) {
                     throw new IllegalArgumentException(
                             "clear-conditionalAppearance: only '*' wildcard is supported");
                 }
-                editor.clearConditionalAppearance(variant);
-                return;
+                return editor.clearConditionalAppearance(variant).changed;
             }
             default:
                 throw new IllegalArgumentException("Unknown SKD edit operation: " + op);
         }
     }
+    //**agent TASK-176
 
     // ============================================================
     // validate command

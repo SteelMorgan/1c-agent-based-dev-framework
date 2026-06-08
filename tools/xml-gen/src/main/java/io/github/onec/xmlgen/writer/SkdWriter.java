@@ -808,6 +808,12 @@ public class SkdWriter extends XmlWriter {
         if ("table".equalsIgnoreCase(t)) xsi = "dcsset:StructureItemTable";
         else if ("chart".equalsIgnoreCase(t)) xsi = "dcsset:StructureItemChart";
         writer.writeAttribute("xsi:type", xsi);
+        //++agent TASK-176 [08.06.2026 12:10:00]
+        // S-02 (XG-44): авто-inject Auto-items только в группировки. Table/Chart используют
+        // осевые блоки (row/column/series) с собственными авто-элементами, которые Java не
+        // эмитит (S-03) — туда selection/order Auto класть нельзя.
+        boolean isGroup = "dcsset:StructureItemGroup".equals(xsi);
+        //++agent TASK-176
         writer.writeCharacters("\n");
         indentLevel++;
 
@@ -830,9 +836,17 @@ public class SkdWriter extends XmlWriter {
             }
             endElement();
         }
+        //**agent TASK-176 [08.06.2026 12:10:00]
+        // S-02 (XG-44, upstream 6781bb3e): группа без явной выборки всё равно получает
+        // SelectedItemAuto (канон src/xml/Reports/биг_ДетализацияОпераций Template.xml:295-297).
+        // Явная выборка — как есть, Auto не дублируется.
         if (struct.getSelection() != null && !struct.getSelection().isEmpty()) {
             startElement("dcsset:selection");
             for (Object f : struct.getSelection()) writeSelectionItem(f);
+            endElement();
+        } else if (isGroup) {
+            startElement("dcsset:selection");
+            writeSelectionItem("Auto");
             endElement();
         }
         if (struct.getFilter() != null && !struct.getFilter().isEmpty()) {
@@ -840,11 +854,17 @@ public class SkdWriter extends XmlWriter {
             for (Object f : struct.getFilter()) writeFilterItem(f);
             endElement();
         }
+        // S-02: симметрично для порядка — OrderItemAuto в группе без явного order (Template.xml:292-294).
         if (struct.getOrder() != null && !struct.getOrder().isEmpty()) {
             startElement("dcsset:order");
             for (String o : struct.getOrder()) writeOrderItem(o);
             endElement();
+        } else if (isGroup) {
+            startElement("dcsset:order");
+            writeOrderItem("Auto");
+            endElement();
         }
+        //**agent TASK-176
         if (struct.getOutputParameters() != null && !struct.getOutputParameters().isEmpty()) {
             writeSettingsParameters("dcsset:outputParameters", struct.getOutputParameters());
         }
@@ -1078,12 +1098,29 @@ public class SkdWriter extends XmlWriter {
         };
     }
 
+    //**agent TASK-176 [08.06.2026 12:00:00]
+    // S-01 (XG-43): ссылочные значения правой части фильтра (Справочник.X.ПустаяСсылка,
+    // ПланСчетов.*, Перечисление.*.Значение и т.п.) платформа интерпретирует как ОМД-ссылку
+    // ТОЛЬКО при xsi:type="dcscor:DesignTimeValue". Без этого они эмитились как xs:string и
+    // фильтр не работал в режиме дизайна. Перечень префиксов и порядок проверки (ПОСЛЕ
+    // boolean/dateTime/decimal, ДО string-fallback, чтобы не перехватывать примитивы) —
+    // дословно из upstream a9deeee2 (emit_filter_item, RU+EN формы имён метаданных).
+    private static final java.util.regex.Pattern DESIGN_TIME_VALUE_PATTERN =
+            java.util.regex.Pattern.compile(
+                    "^(Перечисление|Справочник|ПланСчетов|Документ|ПланВидовХарактеристик"
+                            + "|ПланВидовРасчета|БизнесПроцесс|Задача|РегистрСведений|ПланОбмена"
+                            + "|Catalog|Enum|Document|ChartOfAccounts|ChartOfCharacteristicTypes"
+                            + "|ChartOfCalculationTypes|BusinessProcess|Task|InformationRegister"
+                            + "|ExchangePlan)\\..+");
+
     private String detectValueType(String value) {
         if ("true".equalsIgnoreCase(value) || "false".equalsIgnoreCase(value)) return "xs:boolean";
         if (value.matches("\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}")) return "xs:dateTime";
         if (value.matches("-?\\d+(\\.\\d+)?")) return "xs:decimal";
+        if (DESIGN_TIME_VALUE_PATTERN.matcher(value).matches()) return "dcscor:DesignTimeValue";
         return "xs:string";
     }
+    //**agent TASK-176
 
     private void writeOrderItem(String orderStr) throws XMLStreamException {
         if ("Auto".equalsIgnoreCase(orderStr)) {
@@ -1337,8 +1374,19 @@ public class SkdWriter extends XmlWriter {
         }
         writeElement("dcscor:parameter", paramName);
 
+        //**agent TASK-176 [08.06.2026 09:00:00]
+        // Мультиязычное значение оформления (be9ebedf): значение-словарь {ru:.., en:..}
+        // — это LocalStringType ДЛЯ ЛЮБОГО ключа (Формат/Текст/Заголовок/...), а не строка.
+        // Раньше уцелевший после wrapper-разбора Map проваливался в value.toString() →
+        // "{ru=.., en=..}" эмитился как xs:string (напр. Формат) или одним ru-айтемом с тем
+        // же мусором (Текст/Заголовок) — терялись прочие языки и структура. Порт-регрессия
+        // be9ebedf, в Java не воспроизведённая (диспозиция S-08, F-01 rework #1).
+        boolean multilangValue = value instanceof Map;
         String valueStr = value != null ? value.toString() : "";
-        String valueType = detectAppearanceValueType(paramName, valueStr);
+        String valueType = multilangValue
+                ? "v8:LocalStringType"
+                : detectAppearanceValueType(paramName, valueStr);
+        //**agent TASK-176
 
         writer.writeCharacters("\t".repeat(indentLevel));
         writer.writeStartElement("dcscor:value");
@@ -1358,10 +1406,24 @@ public class SkdWriter extends XmlWriter {
         } else if ("v8:LocalStringType".equals(valueType)) {
             writer.writeCharacters("\n");
             indentLevel++;
-            startElement("v8:item");
-            writeElement("v8:lang", "ru");
-            writeElement("v8:content", valueStr);
-            endElement();
+            //**agent TASK-176 [08.06.2026 09:00:00]
+            // Словарь {ru:.., en:..} → по v8:item на каждый язык (порядок вставки сохранён);
+            // строковое значение — прежний единственный ru-айтем.
+            if (multilangValue) {
+                for (Map.Entry<?, ?> langEntry : ((Map<?, ?>) value).entrySet()) {
+                    startElement("v8:item");
+                    writeElement("v8:lang", stringOrNull(langEntry.getKey()));
+                    writeElement("v8:content",
+                            langEntry.getValue() != null ? langEntry.getValue().toString() : "");
+                    endElement();
+                }
+            } else {
+                startElement("v8:item");
+                writeElement("v8:lang", "ru");
+                writeElement("v8:content", valueStr);
+                endElement();
+            }
+            //**agent TASK-176
             indentLevel--;
             writer.writeCharacters("\t".repeat(indentLevel));
         } else {
