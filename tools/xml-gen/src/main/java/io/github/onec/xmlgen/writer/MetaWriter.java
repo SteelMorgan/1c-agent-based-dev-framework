@@ -3001,6 +3001,29 @@ public class MetaWriter {
         if ("BusinessProcess".equals(type)) {
             writeFlowchartStub(extDir.resolve("Flowchart.xml"), formatVersion);
         }
+
+        // ScheduledJob: Designer stores schedule settings in a separate XCF body.
+        if ("ScheduledJob".equals(type)) {
+            writeJobScheduleStub(extDir.resolve("Schedule.xml"), formatVersion);
+        }
+    }
+
+    private void writeJobScheduleStub(Path path, String formatVersion) throws IOException {
+        String xml = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
+                + "<JobSchedule xmlns=\"http://v8.1c.ru/8.3/xcf/extrnprops\" "
+                + "xmlns:ent=\"http://v8.1c.ru/8.1/data/enterprise\" "
+                + "xmlns:xs=\"http://www.w3.org/2001/XMLSchema\" "
+                + "xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\" "
+                + "version=\"" + esc(formatVersion) + "\">\n"
+                + "\t<Schedule BeginDate=\"0001-01-01\" EndDate=\"0001-01-01\" "
+                + "BeginTime=\"00:00:00\" EndTime=\"00:00:00\" CompletionTime=\"00:00:00\" "
+                + "CompletionInterval=\"0\" RepeatPeriodInDay=\"0\" RepeatPause=\"0\" "
+                + "WeekDayInMonth=\"0\" DayInMonth=\"1\" WeeksPeriod=\"1\" DaysRepeatPeriod=\"0\">\n"
+                + "\t\t<ent:WeekDays>1 2 3 4 5 6 7</ent:WeekDays>\n"
+                + "\t\t<ent:Months>1 2 3 4 5 6 7 8 9 10 11 12</ent:Months>\n"
+                + "\t</Schedule>\n"
+                + "</JobSchedule>\n";
+        writeWithBom(path, xml);
     }
 
     private void writeExchangePlanContent(Path path, String formatVersion) throws IOException {

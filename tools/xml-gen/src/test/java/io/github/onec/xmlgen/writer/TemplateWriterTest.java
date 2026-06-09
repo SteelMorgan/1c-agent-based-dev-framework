@@ -318,11 +318,12 @@ class TemplateWriterTest {
         assertThatCode(() -> TemplateWriter.parseTemplateType("AddIn")).doesNotThrowAnyException();
         assertThatCode(() -> TemplateWriter.parseTemplateType("ВнешняяКомпонента")).doesNotThrowAnyException();
         assertThatCode(() -> TemplateWriter.parseTemplateType("DataCompositionAppearanceTemplate")).doesNotThrowAnyException();
-        assertThatCode(() -> TemplateWriter.parseTemplateType("GraphicalSchema")).doesNotThrowAnyException();
-        assertThatCode(() -> TemplateWriter.parseTemplateType("ActiveDocument")).doesNotThrowAnyException();
-        assertThatCode(() -> TemplateWriter.parseTemplateType("GeographicalSchema")).doesNotThrowAnyException();
-        assertThat(ObjectContainerEditor.getExtension("AddIn")).isEqualTo("bin");
-    }
+	        assertThatCode(() -> TemplateWriter.parseTemplateType("GraphicalSchema")).doesNotThrowAnyException();
+	        assertThatCode(() -> TemplateWriter.parseTemplateType("ActiveDocument")).doesNotThrowAnyException();
+	        assertThatCode(() -> TemplateWriter.parseTemplateType("GeographicalSchema")).doesNotThrowAnyException();
+	        assertThat(ObjectContainerEditor.getExtension("HTMLDocument")).isEqualTo("xml");
+	        assertThat(ObjectContainerEditor.getExtension("AddIn")).isEqualTo("bin");
+	    }
 
     @Test
     void testParseTemplateType_Unknown_Throws() {

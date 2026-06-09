@@ -5,6 +5,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -120,15 +121,16 @@ class EpfWriterTest {
         writer.init("ТестоваяОбработка", "Тестовая обработка", tempDir);
         writer.addTemplate("ТестоваяОбработка", "Справка", "Справка", "HTMLDocument", tempDir);
         
-        Path templateBody = tempDir.resolve("ТестоваяОбработка/Templates/Справка/Ext/Template.html");
-        assertThat(templateBody).exists();
+	        Path templateBody = tempDir.resolve("ТестоваяОбработка/Templates/Справка/Ext/Template.xml");
+	        Path htmlPayload = tempDir.resolve("ТестоваяОбработка/Templates/Справка/Ext/Template/ru.html");
+	        assertThat(templateBody).exists();
+	        assertThat(htmlPayload).exists();
 
-        // TASK-171 D1/W5: тело HTML теперь из единого источника ObjectContainerEditor.getTemplateBody
-        // (минимальный валидный каркас; персональный <title> в каноне не предусмотрен).
-        String body = readStrippingBom(templateBody);
-        assertThat(body).contains("<!DOCTYPE html>");
-        assertThat(body).contains("<meta charset=\"UTF-8\">");
-        assertThat(body).contains("<html>");
+	        // Designer HTMLDocument: wrapper body is Help-like Template.xml, actual HTML is under Template/ru.html.
+	        String body = readStrippingBom(templateBody);
+	        assertThat(body).contains("<Help xmlns=\"http://v8.1c.ru/8.3/xcf/extrnprops\"");
+	        assertThat(body).contains("<Page>ru</Page>");
+	        assertThat(Files.readString(htmlPayload, StandardCharsets.UTF_8)).contains("<html>");
     }
     
     @Test
@@ -186,7 +188,7 @@ class EpfWriterTest {
 
     @Test
     void task171_templateBodiesHaveBom() throws Exception {
-        // TASK-171: тела макетов (Template.xml/.html/.txt) должны писаться с UTF-8 BOM,
+	        // TASK-171: тела макетов (Template.xml/.txt) должны писаться с UTF-8 BOM,
         // как реальные демо-макеты Designer. Раньше Files.writeString писал без BOM.
         EpfWriter writer = new EpfWriter(OutputFormat.DESIGNER);
         writer.init("ТестоваяОбработка", "Тестовая обработка", tempDir);
@@ -196,7 +198,7 @@ class EpfWriterTest {
 
         byte[] mxlBody = Files.readAllBytes(tempDir.resolve("ТестоваяОбработка/Templates/Макет/Ext/Template.xml"));
         assertBom(mxlBody);
-        byte[] htmlBody = Files.readAllBytes(tempDir.resolve("ТестоваяОбработка/Templates/Справка/Ext/Template.html"));
+	        byte[] htmlBody = Files.readAllBytes(tempDir.resolve("ТестоваяОбработка/Templates/Справка/Ext/Template.xml"));
         assertBom(htmlBody);
         byte[] txtBody = Files.readAllBytes(tempDir.resolve("ТестоваяОбработка/Templates/Текст/Ext/Template.txt"));
         assertBom(txtBody);

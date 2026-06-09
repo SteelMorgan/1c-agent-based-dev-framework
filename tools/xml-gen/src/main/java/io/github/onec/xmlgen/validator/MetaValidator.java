@@ -988,15 +988,19 @@ public class MetaValidator {
                 String formName = f.getText() != null ? f.getText().trim() : "";
                 if (formName.isEmpty()) continue;
                 declaredForms.add(formName);
-                Path wrapper = objDir.resolve("Forms").resolve(formName + ".xml");
-                Path extForm = objDir.resolve("Forms").resolve(formName)
-                        .resolve("Ext").resolve("Form.xml");
-                if (!Files.isRegularFile(wrapper) || !Files.isRegularFile(extForm)) {
-                    error("Form '" + formName + "': объявлена форма, но файлов определения нет "
-                            + "(Forms/" + formName + ".xml / Forms/" + formName
-                            + "/Ext/Form.xml) — форма-фантом.");
-                }
-            }
+	                Path wrapper = objDir.resolve("Forms").resolve(formName + ".xml");
+	                Path extForm = objDir.resolve("Forms").resolve(formName)
+	                        .resolve("Ext").resolve("Form.xml");
+	                boolean wrapperOk = Files.isRegularFile(wrapper);
+	                String formType = wrapperOk ? readFormType(wrapper) : null;
+	                boolean requiresBody = !"Ordinary".equals(formType);
+	                if (!wrapperOk || (requiresBody && !Files.isRegularFile(extForm))) {
+	                    error("Form '" + formName + "': объявлена форма, но файлов определения нет "
+	                            + "(Forms/" + formName + ".xml"
+	                            + (requiresBody ? " / Forms/" + formName + "/Ext/Form.xml" : "")
+	                            + ") — форма-фантом.");
+	                }
+	            }
             // Проверка 3: фантом-шаблон.
             for (XmlNode t : co.children("Template")) {
                 if (t.attr("uuid") != null || t.hasChild("Properties")) continue;
@@ -1037,15 +1041,17 @@ public class MetaValidator {
                     // the current object's Forms directory; this validator has no global resolver.
                     continue;
                 }
-                String formName = ref.substring(localPrefix.length());
-                Path wrapper = objDir.resolve("Forms").resolve(formName + ".xml");
-                Path extForm = objDir.resolve("Forms").resolve(formName)
-                        .resolve("Ext").resolve("Form.xml");
-                boolean declared = declaredForms.contains(formName);
-                boolean filesOk = Files.isRegularFile(wrapper) && Files.isRegularFile(extForm);
-                if (!declared || !filesOk) {
-                    error("Properties: " + propName + " ссылается на форму '" + formName
-                            + "', которая не объявлена текст-ссылкой / не имеет файлов "
+	                String formName = ref.substring(localPrefix.length());
+	                Path wrapper = objDir.resolve("Forms").resolve(formName + ".xml");
+	                Path extForm = objDir.resolve("Forms").resolve(formName)
+	                        .resolve("Ext").resolve("Form.xml");
+	                String formType = Files.isRegularFile(wrapper) ? readFormType(wrapper) : null;
+	                boolean requiresBody = !"Ordinary".equals(formType);
+	                boolean declared = declaredForms.contains(formName);
+	                boolean filesOk = Files.isRegularFile(wrapper) && (!requiresBody || Files.isRegularFile(extForm));
+	                if (!declared || !filesOk) {
+	                    error("Properties: " + propName + " ссылается на форму '" + formName
+	                            + "', которая не объявлена текст-ссылкой / не имеет файлов "
                             + "(Forms/" + formName + ".xml) — висячая ссылка на форму.");
                 }
             }
@@ -1101,17 +1107,29 @@ public class MetaValidator {
         }
     }
 
-    private String readTemplateType(Path wrapper) {
-        try {
-            String content = Files.readString(wrapper);
+	    private String readTemplateType(Path wrapper) {
+	        try {
+	            String content = Files.readString(wrapper);
             java.util.regex.Matcher matcher = java.util.regex.Pattern
                     .compile("<TemplateType>([^<]+)</TemplateType>")
                     .matcher(content);
             return matcher.find() ? matcher.group(1).trim() : null;
         } catch (Exception e) {
-            return null;
-        }
-    }
+	            return null;
+	        }
+	    }
+
+	    private String readFormType(Path wrapper) {
+	        try {
+	            String content = Files.readString(wrapper);
+	            java.util.regex.Matcher matcher = java.util.regex.Pattern
+	                    .compile("<FormType>([^<]+)</FormType>")
+	                    .matcher(content);
+	            return matcher.find() ? matcher.group(1).trim() : null;
+	        } catch (Exception e) {
+	            return null;
+	        }
+	    }
 
     // ==================== Helpers ====================
 

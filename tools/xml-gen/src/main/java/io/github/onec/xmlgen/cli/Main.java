@@ -113,6 +113,7 @@ public class Main {
         System.out.println("  oracle demo           - Run parallel validation audit for _Демо XML classes");
         System.out.println("  oracle predefined-data - Run behavioral oracle for Ext/Predefined.xml via public meta CLI");
         System.out.println("  oracle exchange-plan-content - Run behavioral oracle for Ext/Content.xml via public meta CLI");
+        System.out.println("  oracle mine-rules     - Mine structural rule candidates from canonical Designer XML corpus");
         System.out.println();
         System.out.println("Options:");
         System.out.println("  --version, -V            - Print version and exit");
@@ -131,5 +132,6 @@ public class Main {
         System.out.println("  xml-gen oracle demo --source src/xml --out build/oracle-demo --threads 8");
         System.out.println("  xml-gen oracle predefined-data --source src/xml --out build/oracle-predefined-data");
         System.out.println("  xml-gen oracle exchange-plan-content --source src/xml --out build/oracle-exchange-plan-content");
+        System.out.println("  xml-gen oracle mine-rules --source src/xml --out build/oracle-rule-mining --min-support 2 --digest-limit 500 --disposition rules.json");
     }
 }

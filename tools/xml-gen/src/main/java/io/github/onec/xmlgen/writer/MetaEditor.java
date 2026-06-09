@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import io.github.onec.xmlgen.dsl.FormDsl;
 import io.github.onec.xmlgen.dsl.MetaBatchDsl;
 import io.github.onec.xmlgen.dsl.MetaBatchDsl.Operation;
+import io.github.onec.xmlgen.editor.ObjectContainerEditor;
 import io.github.onec.xmlgen.form.fromobject.FormFromObjectGenerator;
 import io.github.onec.xmlgen.form.fromobject.PurposeResolver;
 import io.github.onec.xmlgen.format.OutputFormat;
@@ -721,22 +722,27 @@ public class MetaEditor {
         Path wrapperXml = formsDir.resolve(formName + ".xml");
         Path moduleBsl = formsDir.resolve(formName).resolve("Ext").resolve("Form").resolve("Module.bsl");
 
-        // 1) UI-описание Ext/Form.xml через существующую машинерию form --from-object.
-        //    Purpose выводится из имени папки формы (PurposeResolver).
-        try {
-            Files.createDirectories(formExtXml.getParent());
-            FormDsl dsl = new FormFromObjectGenerator()
-                    .generate(xmlPath, formExtXml, "erp-standard", null);
-            new FormWriter(OutputFormat.DESIGNER).create(dsl, formExtXml);
-        } catch (Exception e) {
-            // Не оставляем битых файлов: чистим то, что успели создать.
-            cleanupFormFiles(formsDir, formName);
-            throw new IOException("Не удалось сгенерировать Ext/Form.xml для формы '"
-                    + formName + "': " + e.getMessage(), e);
+        boolean managedForm = !"Ordinary".equals(formType);
+
+        if (managedForm) {
+            // 1) UI-описание Ext/Form.xml через существующую машинерию form --from-object.
+            //    Purpose выводится из имени папки формы (PurposeResolver).
+            try {
+                Files.createDirectories(formExtXml.getParent());
+                FormDsl dsl = new FormFromObjectGenerator()
+                        .generate(xmlPath, formExtXml, "erp-standard", null);
+                new FormWriter(OutputFormat.DESIGNER).create(dsl, formExtXml);
+            } catch (Exception e) {
+                // Не оставляем битых файлов: чистим то, что успели создать.
+                cleanupFormFiles(formsDir, formName);
+                throw new IOException("Не удалось сгенерировать Ext/Form.xml для формы '"
+                        + formName + "': " + e.getMessage(), e);
+            }
         }
 
         // 2) Обёртка-метаобъект Forms/<Имя>.xml (FormType=Managed по умолчанию).
         String version = detectMetaVersion(content);
+        Files.createDirectories(formsDir);
         writeFileWithBom(wrapperXml, buildFormWrapper(formName, formType, version));
         out.println("[INFO] Создан: " + wrapperXml);
 
@@ -744,18 +750,21 @@ public class MetaEditor {
         // 3) Минимальный модуль формы. Канон Designer (_Демо): ВСЕ .bsl c BOM + CRLF
         // (эталон CommonForms/.../Ext/Form/Module.bsl: ef bb bf + CRLF). Прежняя посылка
         // «без BOM, как FormWriter» была ошибочной — FormWriter сам .bsl не пишет.
-        Files.createDirectories(moduleBsl.getParent());
-        Files.write(moduleBsl, io.github.onec.xmlgen.io.Crlf.withBom(DEFAULT_FORM_MODULE));
-        //**agent TASK-172
-        out.println("[INFO] Создан: " + moduleBsl);
-        out.println("[INFO] Создан: " + formExtXml);
+        if (managedForm) {
+            Files.createDirectories(moduleBsl.getParent());
+            Files.write(moduleBsl, io.github.onec.xmlgen.io.Crlf.withBom(DEFAULT_FORM_MODULE));
+            //**agent TASK-172
+            out.println("[INFO] Создан: " + moduleBsl);
+            out.println("[INFO] Создан: " + formExtXml);
+        } else {
+            out.println("[INFO] Ordinary form: Ext/Form.xml and Module.bsl are not created");
+        }
 
         // 4) Текст-ссылка <Form>Имя</Form> в ChildObjects родителя.
         String reference = "\t\t\t<Form>" + esc(formName) + "</Form>";
         String result = insertIntoChildObjects(content, "Form", reference, null, null);
         if (result == null) {
             cleanupFormFiles(formsDir, formName);
-            Files.deleteIfExists(wrapperXml);
             throw new IOException("Не найден <ChildObjects> в " + xmlPath
                     + " — форма-ссылка не добавлена, файлы откатаны");
         }
@@ -949,7 +958,18 @@ public class MetaEditor {
      */
     private void addTemplateWithFiles(Path xmlPath, String content, String objType,
                                       String objName, String value) throws IOException {
-        String tplName = value.trim();
+        String[] parts = value.trim().split("\\|");
+        String tplName = parts[0].trim();
+        String templateType = "SpreadsheetDocument";
+        if (parts.length > 1 && !parts[1].trim().isEmpty()) {
+            templateType = TemplateWriter.canonicalTemplateTypeName(parts[1].trim());
+        }
+        for (int i = 2; i < parts.length; i++) {
+            String token = parts[i].trim();
+            if (!token.isEmpty()) {
+                warn("Неизвестный суффикс макета '" + token + "', игнорирую");
+            }
+        }
         if (tplName.isEmpty()) { warn("Пустое имя шаблона"); return; }
 
         if (findTemplateReference(content, tplName) || findChildByName(content, "Template", tplName) >= 0) {
@@ -961,18 +981,22 @@ public class MetaEditor {
         Path objectDir = xmlPath.getParent().resolve(fileBase);
         Path templatesDir = objectDir.resolve("Templates");
         Path wrapperXml = templatesDir.resolve(tplName + ".xml");
+        Path templateDir = templatesDir.resolve(tplName);
 
         String version = detectMetaVersion(content);
-        Files.createDirectories(templatesDir);
-        writeFileWithBom(wrapperXml, buildTemplateWrapper(tplName, version));
+        if (Files.exists(wrapperXml) || Files.exists(templateDir)) {
+            throw new IOException("Template '" + tplName + "' already exists on disk in " + templatesDir);
+        }
+        ObjectContainerEditor.createTemplateScaffold(objectDir, tplName, splitCamelCase(tplName), templateType,
+                version);
         out.println("[INFO] Создан: " + wrapperXml);
 
         String reference = "\t\t\t<Template>" + esc(tplName) + "</Template>";
         String result = insertIntoChildObjects(content, "Template", reference, null, null);
         if (result == null) {
-            Files.deleteIfExists(wrapperXml);
+            cleanupTemplateFiles(templatesDir, tplName);
             throw new IOException("Не найден <ChildObjects> в " + xmlPath
-                    + " — шаблон-ссылка не добавлена, файл откатан");
+                    + " — шаблон-ссылка не добавлена, файлы откатаны");
         }
         writeFileWithBom(xmlPath, result);
         addCount++;
@@ -983,7 +1007,7 @@ public class MetaEditor {
         out.println();
         out.println("=== meta-edit summary ===");
         out.println("  Object:   " + objType + "." + objName);
-        out.println("  Template added: " + tplName);
+        out.println("  Template added: " + tplName + " (TemplateType=" + templateType + ")");
     }
 
     /** Каноничная обёртка-метаобъект для формы. BOM добавляется при записи. */
@@ -1053,9 +1077,23 @@ public class MetaEditor {
     /** Откат частично созданных файлов формы при ошибке. */
     private void cleanupFormFiles(Path formsDir, String formName) {
         try {
+            Files.deleteIfExists(formsDir.resolve(formName + ".xml"));
             Path formDir = formsDir.resolve(formName);
             if (Files.exists(formDir)) {
                 Files.walk(formDir)
+                        .sorted(Comparator.reverseOrder())
+                        .forEach(p -> { try { Files.deleteIfExists(p); } catch (IOException ignored) {} });
+            }
+        } catch (IOException ignored) {}
+    }
+
+    /** Откат частично созданных файлов макета при ошибке. */
+    private void cleanupTemplateFiles(Path templatesDir, String templateName) {
+        try {
+            Files.deleteIfExists(templatesDir.resolve(templateName + ".xml"));
+            Path templateDir = templatesDir.resolve(templateName);
+            if (Files.exists(templateDir)) {
+                Files.walk(templateDir)
                         .sorted(Comparator.reverseOrder())
                         .forEach(p -> { try { Files.deleteIfExists(p); } catch (IOException ignored) {} });
             }

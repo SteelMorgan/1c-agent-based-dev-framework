@@ -584,6 +584,27 @@ public class EpfWriter extends XmlWriter {
         // Тела макетов в Designer-выводе пишем с UTF-8 BOM — реальные демо-макеты
         // (src/xml/.../Templates/**) начинаются с ef bb bf, как и весь Designer-дамп.
         writeBodyWithBom(outputPath, content);
+        if ("HTMLDocument".equals(templateType) || "Help".equals(templateType)) {
+            createHtmlPayload(outputPath.getParent());
+        }
+    }
+
+    private void createHtmlPayload(Path extDir) throws IOException {
+        Path htmlDir = extDir.resolve("Template");
+        Files.createDirectories(htmlDir);
+        String html = "<!DOCTYPE html PUBLIC \"-//W3C//DTD HTML 4.0 Transitional//EN\">\n"
+                + "<html>\n"
+                + "<head>\n"
+                + "\t<meta http-equiv=\"Content-Type\" content=\"text/html; charset=utf-8\"/>\n"
+                + "\t<link rel=\"stylesheet\" type=\"text/css\" href=\"v8help://service_book/service_style\"/>\n"
+                + "</head>\n"
+                + "<body>\n"
+                + "\t<h1>Справка</h1>\n"
+                + "\t<p>Описание</p>\n"
+                + "</body>\n"
+                + "</html>\n";
+        Files.writeString(htmlDir.resolve("ru.html"), io.github.onec.xmlgen.io.Crlf.normalize(html),
+                StandardCharsets.UTF_8);
     }
 
     /** Записать текстовое тело макета с UTF-8 BOM (канон Designer-вывода, TASK-171). */

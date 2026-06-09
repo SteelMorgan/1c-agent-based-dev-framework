@@ -26,6 +26,7 @@ public class XcfBodyValidator implements XmlValidator {
             "ExchangePlanContent", new Contract(XCF_EXTRNPROPS, true),
             "PredefinedData", new Contract(XCF_PREDEF, true),
             "AccumulationRegisterAggregates", new Contract(XCF_EXTRNPROPS, true),
+            "JobSchedule", new Contract(XCF_EXTRNPROPS, true),
             "GraphicalSchema", new Contract(XCF_SCHEME, true),
             "AppearanceTemplate", new Contract(DCS_APPEARANCE, false),
             "Help", new Contract(XCF_EXTRNPROPS, true)

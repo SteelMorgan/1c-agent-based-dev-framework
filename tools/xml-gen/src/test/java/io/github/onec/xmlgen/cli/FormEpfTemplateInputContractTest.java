@@ -71,11 +71,18 @@ class FormEpfTemplateInputContractTest {
         ProcessResult add = runMain("form", "add", catalog.toString(), "ItemForm");
         assertThat(add.exitCode()).as(add.combinedOutput()).isZero();
 
-        Path formXml = tempDir.resolve("src/Catalogs/Goods/Forms/ItemForm/Ext/Form.xml");
-        ProcessResult validate = runMain("validate", "--type", "form", "--level", "structure", formXml.toString());
+	    Path formXml = tempDir.resolve("src/Catalogs/Goods/Forms/ItemForm/Ext/Form.xml");
+	    Path wrapperXml = tempDir.resolve("src/Catalogs/Goods/Forms/ItemForm.xml");
+	    ProcessResult validate = runMain("validate", "--type", "form", "--level", "structure", formXml.toString());
 
-        assertThat(validate.exitCode()).as(validate.combinedOutput()).isZero();
-    }
+	    assertThat(validate.exitCode()).as(validate.combinedOutput()).isZero();
+	    assertThat(Files.readString(wrapperXml, StandardCharsets.UTF_8))
+	            .contains("<FormType>Managed</FormType>")
+	            .contains("<IncludeHelpInContents>false</IncludeHelpInContents>")
+	            .contains("<UsePurposes>")
+	            .contains("PlatformApplication")
+	            .contains("MobilePlatformApplication");
+	}
 
     @Test
     @DisplayName("template add rejects unknown option before mutation")

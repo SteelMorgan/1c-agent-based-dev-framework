@@ -84,6 +84,27 @@ class MetaWriterTask171Test {
         assertThat(xml).contains("<Server>true</Server>");
     }
 
+    @Test
+    void compile_scheduledJobCreatesJobScheduleBody() throws IOException {
+        writeMinimalConfig(tempDir, "2.20");
+        Path json = writeJson("sj.json", """
+                {
+                  "type": "ScheduledJob",
+                  "name": "test_НочноеЗадание",
+                  "methodName": "РегламентныеЗадания.НочноеЗадание"
+                }
+                """);
+        new MetaWriter().compile(json, tempDir);
+
+        Path schedule = tempDir.resolve("ScheduledJobs/test_НочноеЗадание/Ext/Schedule.xml");
+        assertThat(schedule).exists();
+        String xml = read(schedule);
+        assertThat(xml).contains("<JobSchedule xmlns=\"http://v8.1c.ru/8.3/xcf/extrnprops\"");
+        assertThat(xml).contains("version=\"2.20\"");
+        assertThat(xml).contains("<ent:WeekDays>1 2 3 4 5 6 7</ent:WeekDays>");
+        assertThat(xml).contains("<ent:Months>1 2 3 4 5 6 7 8 9 10 11 12</ent:Months>");
+    }
+
     // ─── D-5: enumValues алиас ───────────────────────────────────────────
 
     @Test

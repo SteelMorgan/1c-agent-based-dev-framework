@@ -232,8 +232,10 @@ public class ObjectContainerEditor {
         String fmt = effectiveFormatVersion(formatVersion);
 
         // 1. Form metadata: Forms/<formName>.xml
-        String metaXml = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
-                + "<MetaDataObject xmlns=\"http://v8.1c.ru/8.3/MDClasses\" xmlns:v8=\"http://v8.1c.ru/8.1/data/core\" version=\"" + escapeXml(fmt) + "\">\n"
+	        String metaXml = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
+	                + "<MetaDataObject xmlns=\"http://v8.1c.ru/8.3/MDClasses\" xmlns:v8=\"http://v8.1c.ru/8.1/data/core\" "
+	                + "xmlns:app=\"http://v8.1c.ru/8.2/managed-application/core\" "
+	                + "xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\" version=\"" + escapeXml(fmt) + "\">\n"
                 + "\t<Form uuid=\"" + formUuid + "\">\n"
                 + "\t\t<Properties>\n"
                 + "\t\t\t<Name>" + escapeXml(formName) + "</Name>\n"
@@ -243,10 +245,14 @@ public class ObjectContainerEditor {
                 + "\t\t\t\t\t<v8:content>" + escapeXml(syn) + "</v8:content>\n"
                 + "\t\t\t\t</v8:item>\n"
                 + "\t\t\t</Synonym>\n"
-                + "\t\t\t<Comment></Comment>\n"
-                + "\t\t\t<FormType>Managed</FormType>\n"
-                + "\t\t\t<IncludeHelpInContents>false</IncludeHelpInContents>\n"
-                + "\t\t</Properties>\n"
+	                + "\t\t\t<Comment></Comment>\n"
+	                + "\t\t\t<FormType>Managed</FormType>\n"
+	                + "\t\t\t<IncludeHelpInContents>false</IncludeHelpInContents>\n"
+	                + "\t\t\t<UsePurposes>\n"
+	                + "\t\t\t\t<v8:Value xsi:type=\"app:ApplicationUsePurpose\">PlatformApplication</v8:Value>\n"
+	                + "\t\t\t\t<v8:Value xsi:type=\"app:ApplicationUsePurpose\">MobilePlatformApplication</v8:Value>\n"
+	                + "\t\t\t</UsePurposes>\n"
+	                + "\t\t</Properties>\n"
                 + "\t</Form>\n"
                 + "</MetaDataObject>\n";
         writeWithBom(formsDir.resolve(formName + ".xml"), metaXml);
@@ -354,7 +360,7 @@ public class ObjectContainerEditor {
         // (src/xml/.../Templates/**/Ext/Template.xml) начинаются с ef bb bf, как и весь Designer-дамп.
         // BinaryData/TextDocument дают пустое тело — пишем только BOM (как в EPF-ветке).
         writeWithBom(bodyPath, body);
-        if ("Help".equals(templateType)) {
+        if ("Help".equals(templateType) || "HTMLDocument".equals(templateType)) {
             createHelpTemplateHtml(extDir, "ru");
         }
     }
@@ -490,10 +496,10 @@ public class ObjectContainerEditor {
      * Расширение файла тела макета по типу (Designer-раскладка).
      * TASK-171: public static — единый источник истины для EpfWriter (EPF/ERF идут тем же путём, W5).
      */
-    public static String getExtension(String templateType) {
-        switch (templateType) {
-            case "HTMLDocument": return "html";
-            case "TextDocument": return "txt";
+	    public static String getExtension(String templateType) {
+	        switch (templateType) {
+	            case "HTMLDocument": return "xml";
+	            case "TextDocument": return "txt";
             case "BinaryData": return "bin";
             case "AddIn": return "bin";
             case "Help": return "xml";
@@ -530,8 +536,14 @@ public class ObjectContainerEditor {
                         + "\t\t<dataSourceType>Local</dataSourceType>\n"
                         + "\t</dataSource>\n"
                         + "</DataCompositionSchema>\n";
-            case "HTMLDocument":
-                return "<!DOCTYPE html>\n<html>\n<head>\n\t<meta charset=\"UTF-8\">\n</head>\n<body>\n</body>\n</html>\n";
+	            case "HTMLDocument":
+	                return "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
+	                        + "<Help xmlns=\"http://v8.1c.ru/8.3/xcf/extrnprops\"\n"
+	                        + "\txmlns:xs=\"http://www.w3.org/2001/XMLSchema\"\n"
+	                        + "\txmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\"\n"
+	                        + "\tversion=\"" + escapeXml(fmt) + "\">\n"
+	                        + "\t<Page>ru</Page>\n"
+	                        + "</Help>\n";
             case "TextDocument":
                 return "";
             case "BinaryData":

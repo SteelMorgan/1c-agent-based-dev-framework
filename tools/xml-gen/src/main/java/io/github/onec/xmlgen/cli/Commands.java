@@ -38,11 +38,14 @@ import io.github.onec.xmlgen.info.MetaInfoPrinter;
 import io.github.onec.xmlgen.info.ExtensionDiffPrinter;
 import io.github.onec.xmlgen.model.ConfigurationXmlReader;
 import io.github.onec.xmlgen.model.MetadataTypeRegistry;
+import io.github.onec.xmlgen.oracle.CanonicalRuleMiner;
 import io.github.onec.xmlgen.oracle.DemoOracleRunner;
 import io.github.onec.xmlgen.oracle.ExchangePlanContentOracleRunner;
 import io.github.onec.xmlgen.oracle.MxlOracleRunner;
 import io.github.onec.xmlgen.oracle.OracleOptions;
 import io.github.onec.xmlgen.oracle.PredefinedDataOracleRunner;
+import io.github.onec.xmlgen.oracle.RuleMiningReport;
+import io.github.onec.xmlgen.oracle.RuleMiningReportWriter;
 
 import io.github.onec.xmlgen.editor.ReplaceTextEditor;
 
@@ -147,7 +150,7 @@ public class Commands {
 
     private static void executeOracle(String[] args) {
         if (args.length == 0) {
-            throw new IllegalArgumentException("Oracle subcommand required: mxl|demo|predefined-data|exchange-plan-content");
+            throw new IllegalArgumentException("Oracle subcommand required: mxl|demo|predefined-data|exchange-plan-content|mine-rules");
         }
         String subcommand = args[0].toLowerCase();
         if ("demo".equals(subcommand)) {
@@ -162,9 +165,13 @@ public class Commands {
             executeExchangePlanContentOracle(args);
             return;
         }
+        if ("mine-rules".equals(subcommand)) {
+            executeMineRulesOracle(args);
+            return;
+        }
         if (!"mxl".equals(subcommand)) {
             throw new IllegalArgumentException("Unknown oracle subcommand: " + args[0]
-                    + ". Supported: mxl, demo, predefined-data, exchange-plan-content");
+                    + ". Supported: mxl, demo, predefined-data, exchange-plan-content, mine-rules");
         }
 
         Path source = null;
@@ -300,6 +307,49 @@ public class Commands {
             new ExchangePlanContentOracleRunner().run(source, out, limit);
         } catch (Exception e) {
             throw new RuntimeException("Failed to run ExchangePlanContent oracle: " + e.getMessage(), e);
+        }
+    }
+
+    private static void executeMineRulesOracle(String[] args) {
+        Path source = null;
+        Path out = Paths.get("build/oracle-rule-mining");
+        int limit = 0;
+        int minSupport = 2;
+        int digestLimit = io.github.onec.xmlgen.oracle.RuleCandidateReducer.DEFAULT_DIGEST_LIMIT;
+        Path disposition = null;
+
+        for (int i = 1; i < args.length; i++) {
+            String a = args[i];
+            if ("--source".equals(a) && i + 1 < args.length) {
+                source = Paths.get(args[++i]);
+            } else if ("--out".equals(a) && i + 1 < args.length) {
+                out = Paths.get(args[++i]);
+            } else if ("--limit".equals(a) && i + 1 < args.length) {
+                limit = Integer.parseInt(args[++i]);
+            } else if ("--min-support".equals(a) && i + 1 < args.length) {
+                minSupport = Integer.parseInt(args[++i]);
+            } else if ("--digest-limit".equals(a) && i + 1 < args.length) {
+                digestLimit = Integer.parseInt(args[++i]);
+            } else if ("--disposition".equals(a) && i + 1 < args.length) {
+                disposition = Paths.get(args[++i]);
+            } else {
+                throw new IllegalArgumentException("Unknown option for oracle mine-rules: " + a);
+            }
+        }
+
+        if (source == null) {
+            throw new IllegalArgumentException("--source is required");
+        }
+
+        try {
+            RuleMiningReport report = new CanonicalRuleMiner().mine(source, limit, minSupport);
+            io.github.onec.xmlgen.oracle.RuleDispositionRegistry registry =
+                    io.github.onec.xmlgen.oracle.RuleDispositionRegistry.load(disposition);
+            new RuleMiningReportWriter().write(out, report, digestLimit, registry);
+            System.out.println("Rule mining report: " + out.resolve("rule-mining-report.json"));
+            System.out.println("Rule digest: " + out.resolve("rule-digest.json"));
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to run rule mining oracle: " + e.getMessage(), e);
         }
     }
 

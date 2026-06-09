@@ -308,6 +308,39 @@ class MetaValidatorTest {
                 && m.message.contains("висячая ссылка"));
     }
 
+    @Test
+    void ordinaryFormWrapperWithoutBody_notReportedAsPhantom() throws Exception {
+        Path catalogsDir = tempDir.resolve("CatalogsOrdinary");
+        Files.createDirectories(catalogsDir.resolve("Товары/Forms"));
+        Path catalogXml = catalogsDir.resolve("Товары.xml");
+        Files.writeString(catalogXml, metadataObjectWithFormRef("Товары", "ОбычнаяФорма"), StandardCharsets.UTF_8);
+        Files.writeString(catalogsDir.resolve("Товары/Forms/ОбычнаяФорма.xml"),
+                formWrapper("ОбычнаяФорма", "Ordinary"), StandardCharsets.UTF_8);
+
+        List<MetaValidator.ValidationMessage> msgs =
+                new MetaValidator().validate(reader.parse(catalogXml), catalogsDir);
+
+        assertThat(msgs)
+                .as("Ordinary form wrapper has no Ext/Form.xml body in Designer corpus: " + msgs)
+                .noneMatch(m -> m.message.contains("форма-фантом"));
+    }
+
+    @Test
+    void managedFormWrapperWithoutBody_stillReportedAsPhantom() throws Exception {
+        Path catalogsDir = tempDir.resolve("CatalogsManaged");
+        Files.createDirectories(catalogsDir.resolve("Товары/Forms"));
+        Path catalogXml = catalogsDir.resolve("Товары.xml");
+        Files.writeString(catalogXml, metadataObjectWithFormRef("Товары", "ФормаЭлемента"), StandardCharsets.UTF_8);
+        Files.writeString(catalogsDir.resolve("Товары/Forms/ФормаЭлемента.xml"),
+                formWrapper("ФормаЭлемента", "Managed"), StandardCharsets.UTF_8);
+
+        List<MetaValidator.ValidationMessage> msgs =
+                new MetaValidator().validate(reader.parse(catalogXml), catalogsDir);
+
+        assertThat(msgs)
+                .anyMatch(m -> "ERROR".equals(m.level) && m.message.contains("форма-фантом"));
+    }
+
     // ==================== Helpers ====================
 
     /**
@@ -370,5 +403,30 @@ class MetaValidatorTest {
         Path file = tempDir.resolve(filename);
         Files.writeString(file, content, StandardCharsets.UTF_8);
         return file;
+    }
+
+    private String metadataObjectWithFormRef(String objectName, String formName) {
+        return "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
+                + "<MetaDataObject xmlns=\"http://v8.1c.ru/8.3/MDClasses\" version=\"2.20\">\n"
+                + "  <Catalog uuid=\"11111111-1111-1111-1111-111111111111\">\n"
+                + "    <Properties><Name>" + objectName + "</Name><Synonym/></Properties>\n"
+                + "    <ChildObjects><Form>" + formName + "</Form></ChildObjects>\n"
+                + "  </Catalog>\n"
+                + "</MetaDataObject>\n";
+    }
+
+    private String formWrapper(String formName, String formType) {
+        return "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
+                + "<MetaDataObject xmlns=\"http://v8.1c.ru/8.3/MDClasses\" version=\"2.20\">\n"
+                + "  <Form uuid=\"22222222-2222-2222-2222-222222222222\">\n"
+                + "    <Properties>\n"
+                + "      <Name>" + formName + "</Name>\n"
+                + "      <Synonym/>\n"
+                + "      <Comment/>\n"
+                + "      <FormType>" + formType + "</FormType>\n"
+                + "      <IncludeHelpInContents>false</IncludeHelpInContents>\n"
+                + "    </Properties>\n"
+                + "  </Form>\n"
+                + "</MetaDataObject>\n";
     }
 }
