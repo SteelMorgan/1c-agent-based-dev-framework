@@ -1,12 +1,20 @@
 ---
 name: ssl-patterns
 description: "MUST use WHEN you use or extend functionality of БСП (Standard Subsystems Library). Provides a catalog of ready-made ОбщегоНазначения functions and rules for calling subsystems without duplication."
+uses_capabilities:
+  - get_signature_help
 alwaysApply: false
 ---
 
 # Patterns for working with БСП (Standard Subsystems Library)
 
 БСП code is tested on millions of installations, updated centrally, and familiar to other developers. Duplicating БСП is an anti-pattern.
+
+> **БСП function signatures — via `get_signature_help`.** `ОбщегоНазначения` and other БСП module
+> functions have many parameters and overloads; do not guess the order or set of arguments. At the
+> call site, `get_signature_help(uri, line, character)` shows the parameters and overloads of the
+> called method right there — without opening the БСП module definition. Use it when calling any
+> function from the catalog below if you are unsure of the signature.
 
 ---
 
@@ -104,7 +112,7 @@ See `error-handling`, rule 7.
 
 ---
 
-## Rule 6: РаботаСФайлами instead of direct FileSystem access
+## Rule 6: РаботаСФайлами instead of direct ФайловаяСистема
 
 Direct file handling does not account for access rights, temporary files, or cross-platform compatibility.
 
@@ -136,7 +144,7 @@ Direct file handling does not account for access rights, temporary files, or cro
             ЭтотОбъект, "Контрагент",, Отказ);
     КонецЕсли;
 
-    // Conditionally exclude attributes from the check
+    // Условное исключение реквизитов из проверки
     Если ВидОперации = Перечисления.ВидыОпераций.Услуга Тогда
         ОбщегоНазначенияКлиентСервер.УдалитьЗначениеИзМассива(
             ПроверяемыеРеквизиты, "Склад");
@@ -250,16 +258,16 @@ Never store passwords, tokens, or secrets in:
 - version control systems (configs, xml)
 
 ```bsl
-// Write secret
+// Запись секрета
 БезопасноеХранилище.Записать(ЭтотОбъект, Новый Структура("Пароль", ПарольПользователя));
 
-// Read secret
+// Чтение секрета
 ДанныеХранилища = БезопасноеХранилище.ПрочитатьДанные(ЭтотОбъект);
 Если ДанныеХранилища <> Неопределено Тогда
     Пароль = ДанныеХранилища.Пароль;
 КонецЕсли;
 
-// Delete when deleting the object
+// Удаление при удалении объекта
 БезопасноеХранилище.Удалить(ЭтотОбъект);
 ```
 
@@ -292,7 +300,7 @@ When developing subsystems with role-based access, use the БСП profile mechan
 Registering an external processor in a БСП-based configuration requires the `СведенияОВнешнейОбработке()` function in the processor's main module.
 
 ```bsl
-// In the processor module
+// В модуле обработки
 Функция СведенияОВнешнейОбработке() Экспорт
 
     СведенияОВнешнейОбработке = ДополнительныеОтчётыИОбработки.СведенияОВнешнейОбработке();
@@ -302,7 +310,7 @@ Registering an external processor in a БСП-based configuration requires the `
     СведенияОВнешнейОбработке.Версия       = "1.0";
     СведенияОВнешнейОбработке.БезопасныйРежим = Истина;
 
-    // Command description
+    // Описание команды
     Команда = СведенияОВнешнейОбработке.Команды.Добавить();
     Команда.Представление = НСтр("ru = 'Выполнить'");
     Команда.Идентификатор = "Выполнить";
@@ -313,9 +321,9 @@ Registering an external processor in a БСП-based configuration requires the `
 
 КонецФункции
 
-// Entry point for the command
+// Точка входа для команды
 Процедура ВыполнитьКоманду(Идентификатор, ПараметрыКоманды, ОбъектыНазначения) Экспорт
-    // ... implementation ...
+    // ... реализация ...
 КонецПроцедуры
 ```
 

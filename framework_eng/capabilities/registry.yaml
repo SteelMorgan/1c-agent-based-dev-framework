@@ -17,7 +17,10 @@
 #   notes — необязательный комментарий: ограничения, рантайм-зависимости, deprecated.
 #
 # MCP-поля:
-#   server, tool — имя MCP-сервера и tool в нём.
+#   server, tool — имя MCP-сервера и tool в нём (tool ДОЛЖЕН совпадать с именем из tools/list сервера).
+#   lsp_method   — (для lsp-bsl-bridge) LSP-метод, который реализует tool. Третья нога
+#                  сопоставления capability ↔ mcp tool ↔ lsp method; служит для сверки
+#                  корректности привязки tool при ревизии реестра.
 #
 # CLI-поля:
 #   runner   — бинарь (например, v8-runner).
@@ -33,41 +36,159 @@ capabilities:
   # ───────────────────────────────────────────────────────
   # BSL / LSP — навигация, диагностика, рефакторинг
   # ───────────────────────────────────────────────────────
+  # Переход к определению символа (LSP textDocument/definition).
   navigate_symbol:
     kind: mcp
     server: lsp-bsl-bridge
-    tool: navigate_symbol
+    tool: definition
+    lsp_method: textDocument/definition
     skill: framework/skills/tool-usage/code-analysis/code-navigation
 
+  # Граф вызовов символа (LSP call hierarchy: подготовка + входящие/исходящие).
   get_call_graph:
     kind: mcp
     server: lsp-bsl-bridge
-    tool: get_call_graph
+    tool: call_graph
+    lsp_method: textDocument/prepareCallHierarchy + callHierarchy/incomingCalls + callHierarchy/outgoingCalls
     skill: framework/skills/tool-usage/code-analysis/code-navigation
 
+  # Диагностики BSL LS по одному файлу (LSP textDocument/diagnostic).
   get_diagnostics:
     kind: mcp
     server: lsp-bsl-bridge
-    tool: get_diagnostics
+    tool: document_diagnostics
+    lsp_method: textDocument/diagnostic
     skill: framework/skills/tool-usage/code-analysis/syntax-checking
+    notes: >
+      Базовая capability диагностики (полный список замечаний по файлу). Для прицельного
+      среза security/perf/sql — get_quality_diagnostics (тот же tool с оффлайн-фильтром).
 
+  # Quick-fix и рефакторинги в позиции (LSP textDocument/codeAction).
   get_code_actions:
     kind: mcp
     server: lsp-bsl-bridge
-    tool: get_code_actions
+    tool: code_actions
+    lsp_method: textDocument/codeAction
     skill: framework/skills/tool-usage/code-analysis/code-navigation
 
+  # Переименование символа по всему проекту (LSP textDocument/rename).
   rename_symbol:
     kind: mcp
     server: lsp-bsl-bridge
-    tool: rename_symbol
+    tool: rename
+    lsp_method: textDocument/rename
     skill: framework/skills/tool-usage/code-analysis/code-navigation
 
+  # Поиск функций (в т.ч. БСП) по имени символа в воркспейсе (LSP workspace/symbol).
   search_ssl_functions:
     kind: mcp
     server: lsp-bsl-bridge
-    tool: search_ssl_functions
+    tool: symbol_explore
+    lsp_method: workspace/symbol
     skill: framework/skills/tool-usage/code-analysis/code-navigation
+    notes: >
+      symbol_explore — мультирежимный инструмент (workspace/symbol, references,
+      documentSymbol, hover). Для поиска функции БСП по имени используется режим
+      workspace/symbol.
+
+  # Цикломатическая + когнитивная сложность по методам (BSL LS complexity CodeLens).
+  get_method_complexity:
+    kind: mcp
+    server: lsp-bsl-bridge
+    tool: complexity
+    lsp_method: textDocument/codeLens + codeLens/resolve
+    skill: framework/skills/tool-usage/code-analysis/syntax-checking
+    notes: >
+      Возвращает на каждый метод модуля цикломатическую и когнитивную сложность с пометкой
+      превышения порогов BSL LS (cyclomatic > 20, cognitive > 15). Источник — complexity
+      CodeLens (должен быть включён в конфиге BSL LS:
+      codeLens.parameters.cyclomaticComplexity / cognitiveComplexity).
+
+  # Прицельные диагностики безопасности / производительности / SQL.
+  get_quality_diagnostics:
+    kind: mcp
+    server: lsp-bsl-bridge
+    tool: quality_diagnostics
+    lsp_method: textDocument/diagnostic
+    skill: framework/skills/tool-usage/code-analysis/syntax-checking
+    notes: >
+      Фильтрует document_diagnostics по категориям security (SECURITY_HOTSPOT + VULNERABILITY),
+      performance (тег PERFORMANCE) и sql (тег SQL). Классификация — оффлайн-таблица в MCP
+      (LSP-протокол несёт только код правила, без DiagnosticType/Tag). Аргумент categories
+      задаёт подмножество категорий (по умолчанию — все три).
+
+  # Тип значения переменной / выражения под курсором (LSP textDocument/hover).
+  get_hover_info:
+    kind: mcp
+    server: lsp-bsl-bridge
+    tool: hover
+    lsp_method: textDocument/hover
+    skill: framework/skills/tool-usage/code-analysis/code-verification
+    notes: >
+      Возвращает выведенный тип переменной/выражения в указанной позиции (Type System v2
+      BSL LS). Это вывод типа конкретного значения, а не справка по всем типам платформы
+      (для членов платформенного типа — getMembers/getMember).
+
+  # Сигнатуры метода под курсором при вызове (LSP textDocument/signatureHelp).
+  get_signature_help:
+    kind: mcp
+    server: lsp-bsl-bridge
+    tool: signature_help
+    lsp_method: textDocument/signatureHelp
+    skill: framework/skills/bsl-practices/ssl-patterns
+    notes: >
+      Параметры и перегрузки вызываемого метода (в т.ч. функций БСП/ОбщегоНазначения) прямо
+      в точке вызова — без открытия определения. Опирается на bsl-context BSL LS.
+
+  # Автодополнение в позиции (LSP textDocument/completion), type- и metadata-aware (Type System v2).
+  get_completion:
+    kind: mcp
+    server: lsp-bsl-bridge
+    tool: completion
+    lsp_method: textDocument/completion
+    skill: framework/skills/tool-usage/code-analysis/code-navigation
+    notes: >
+      После точки ('Объект.') возвращает членов выведенного типа получателя: для платформенных
+      типов — методы/свойства с сигнатурой и возвращаемым типом; для объектов конфигурации —
+      реквизиты, ТАБЛИЧНЫЕ ЧАСТИ и их колонки. Discovery-канал «что доступно здесь и какой тип
+      возвращает». Применения-рецепты: значения перечисления (после 'Перечисления.X.'),
+      предопределённые (после 'Справочники.X.'), состав ОпределяемогоТипа (+ get_hover_info).
+      Пустой ответ после 'перем.' — сигнал, что тип переменной выведен неверно/неизвестен.
+
+  # ───────────────────────────────────────────────────────
+  # Комбо-возможности (детерминированные цепочки, свёрнутые в один tool).
+  # Один вызов заменяет несколько; одиночные capability при этом сохраняются для узких сценариев.
+  # ───────────────────────────────────────────────────────
+
+  # Здоровье модуля: сложность + диагностики качества, сведённые по методам и ранжированные.
+  get_module_health:
+    kind: mcp
+    server: lsp-bsl-bridge
+    tool: module_health
+    lsp_method: textDocument/codeLens + codeLens/resolve + textDocument/diagnostic
+    skill: framework/skills/tool-usage/code-analysis/syntax-checking
+    notes: >
+      Комбо get_method_complexity + get_quality_diagnostics: за один вызов считает сложность
+      (CodeLens) и security/performance/sql диагностики, атрибутирует каждое замечание методу
+      и выдаёт ранжированный список «что рефакторить первым» (вес: security ×10, sql/perf ×4,
+      превышение порогов сложности). Для метрик одного метода — get_method_complexity; для одной
+      категории риска — get_quality_diagnostics (одиночные не поглощаются).
+
+  # Импакт-анализ символа: входящие вызовы + ссылки + классификация вызывающих по типу модуля.
+  get_symbol_impact:
+    kind: mcp
+    server: lsp-bsl-bridge
+    tool: symbol_impact
+    lsp_method: textDocument/prepareCallHierarchy + callHierarchy/incomingCalls + textDocument/references
+    skill: framework/skills/tool-usage/code-analysis/code-navigation
+    notes: >
+      Комбо get_call_graph(incoming) + references: из одной позиции собирает входящих вызывающих
+      и все места использования, классифицирует вызывающих по типу модуля 1С (CommonModule /
+      FormModule / ManagerModule / ObjectModule / ...), показывая, откуда тянется правка (UI /
+      сервер / фон). ОГРАНИЧЕНИЯ (заложены в вывод): call hierarchy не видит триггеров (подписки
+      на события, обработчики форм, регл.задания, расширения &Вместо/&Перед/&После); references
+      не ловит строковых ('ДокументСсылка.X') и запросных использований — их добирают grep'ом.
+      Для одного направления/глубины > 1 — get_call_graph; для сырых ссылок — search_ssl_functions.
 
   # ───────────────────────────────────────────────────────
   # 1c-mcp — метаданные, запросы, навигационные ссылки.
