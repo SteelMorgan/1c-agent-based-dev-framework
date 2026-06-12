@@ -1,9 +1,11 @@
 package io.github.onec.xmlgen.writer;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.JsonNode;
 import io.github.onec.xmlgen.dsl.FormDsl;
 import io.github.onec.xmlgen.dsl.MetaBatchDsl;
 import io.github.onec.xmlgen.dsl.MetaBatchDsl.Operation;
+import io.github.onec.xmlgen.editor.ObjectContainerEditor;
 import io.github.onec.xmlgen.form.fromobject.FormFromObjectGenerator;
 import io.github.onec.xmlgen.form.fromobject.PurposeResolver;
 import io.github.onec.xmlgen.format.OutputFormat;
@@ -109,6 +111,10 @@ public class MetaEditor {
         // отдельном Ext/Predefined.xml — обрабатываем до общего content-конвейера.
         if ("add-predefined".equals(operation)) {
             addPredefinedItems(xmlPath, objType, value);
+            return;
+        }
+        if ("add-exchange-content".equals(operation)) {
+            addExchangePlanContent(xmlPath, objType, value);
             return;
         }
 
@@ -228,7 +234,7 @@ public class MetaEditor {
         sb.append(indent).append("<").append(xmlTag).append(" uuid=\"").append(uuid()).append("\">\n");
         sb.append(indent).append("\t<Properties>\n");
         sb.append(indent).append("\t\t<Name>").append(esc(def.name)).append("</Name>\n");
-        writeSynonym(sb, indent + "\t\t", splitCamelCase(def.name));
+        writeSynonym(sb, indent + "\t\t", def.synonym != null ? def.synonym : splitCamelCase(def.name)); //**agent TASK-174 [05.06.2026 12:42:00] XG-09: синоним из пайп-токена
         sb.append(indent).append("\t\t<Comment/>\n");
 
         // Type
@@ -276,6 +282,13 @@ public class MetaEditor {
         String fillChecking = def.flags.contains("req") ? "ShowError" : "DontCheck";
         sb.append(indent).append("\t\t<FillChecking>").append(fillChecking).append("</FillChecking>\n");
 
+        //++agent TASK-174 [07.06.2026 12:00:00]
+        // Порт-аудит: ChoiceFoldersAndItems был опущен при переносе — спека (1c-config-objects-spec §6.1)
+        // и грунт-труф Designer 2.20 пишут его МЕЖДУ FillChecking и ChoiceParameterLinks
+        // для ВСЕХ реквизитов/измерений/ресурсов (даже примитивных типов).
+        sb.append(indent).append("\t\t<ChoiceFoldersAndItems>Items</ChoiceFoldersAndItems>\n");
+        //++agent TASK-174
+
         // ChoiceParameterLinks etc
         sb.append(indent).append("\t\t<ChoiceParameterLinks/>\n");
         sb.append(indent).append("\t\t<ChoiceParameters/>\n");
@@ -295,6 +308,23 @@ public class MetaEditor {
             if ("AccumulationRegister".equals(objType)) {
                 sb.append(indent).append("\t\t<DenyIncompleteValues>").append(def.flags.contains("denyincomplete")).append("</DenyIncompleteValues>\n");
             }
+            //++agent TASK-174 [07.06.2026 12:00:00]
+            // Порт-аудит: для бух./расчётных регистров измерения имеют СВОИ специфичные
+            // узлы (грунт-труф _ДемоЖурналПроводок*/_ДемоОсновныеНачисления):
+            // AcctReg: Balance → AccountingFlag → DenyIncompleteValues;
+            // CalcReg: DenyIncompleteValues → BaseDimension → ScheduleLink.
+            // Раньше эти узлы не эмитились вовсе.
+            if ("AccountingRegister".equals(objType)) {
+                sb.append(indent).append("\t\t<Balance>").append(def.flags.contains("balance")).append("</Balance>\n");
+                sb.append(indent).append("\t\t<AccountingFlag/>\n");
+                sb.append(indent).append("\t\t<DenyIncompleteValues>").append(def.flags.contains("denyincomplete")).append("</DenyIncompleteValues>\n");
+            }
+            if ("CalculationRegister".equals(objType)) {
+                sb.append(indent).append("\t\t<DenyIncompleteValues>").append(def.flags.contains("denyincomplete")).append("</DenyIncompleteValues>\n");
+                sb.append(indent).append("\t\t<BaseDimension>").append(def.flags.contains("base")).append("</BaseDimension>\n");
+                sb.append(indent).append("\t\t<ScheduleLink/>\n");
+            }
+            //++agent TASK-174
         }
 
         // Indexing
@@ -310,8 +340,16 @@ public class MetaEditor {
             sb.append(indent).append("\t\t<UseInTotals>").append(useInTotals).append("</UseInTotals>\n");
         }
 
-        // DataHistory
-        sb.append(indent).append("\t\t<DataHistory>Use</DataHistory>\n");
+        //**agent TASK-174 [07.06.2026 12:00:00]
+        // Порт-аудит: DataHistory писался безусловно, но по грунт-труфу 2.20 у измерений/
+        // ресурсов Accumulation/Accounting/CalculationRegister элемента DataHistory НЕТ
+        // (есть только у InformationRegister и нерегистровых объектов). Лишний узел —
+        // риск XSD-отказа при full-load (тот же класс, что Master/MainFilter у AccumReg).
+        //sb.append(indent).append("\t\t<DataHistory>Use</DataHistory>\n");
+        if (!isRegister || "InformationRegister".equals(objType)) {
+            sb.append(indent).append("\t\t<DataHistory>Use</DataHistory>\n");
+        }
+        //**agent TASK-174
 
         sb.append(indent).append("\t</Properties>\n");
         sb.append(indent).append("</").append(xmlTag).append(">");
@@ -366,25 +404,10 @@ public class MetaEditor {
                 : PredefinedXmlWriter.DEFAULT_CODE_WIDTH;
         int nextCode = exists ? PredefinedXmlWriter.nextCodeNumber(content) : 1;
 
-        List<PredefinedXmlWriter.Item> newItems = new ArrayList<>();
-        for (String raw : value.split(";;")) {
-            String item = raw.trim();
-            if (item.isEmpty()) continue;
-            String[] parts = item.split("\\|", -1);
-            String name = parts[0].trim();
-            if (name.isEmpty()) continue;
-            if (exists && findPredefinedByName(content, name)) {
-                warn("Predefined '" + name + "' already exists, skipping");
-                continue;
-            }
-            String description = parts.length > 1 && !parts[1].trim().isEmpty()
-                    ? parts[1].trim() : name;
-            String code = parts.length > 2 && !parts[2].trim().isEmpty()
-                    ? parts[2].trim() : PredefinedXmlWriter.formatCode(nextCode++, codeWidth);
-            boolean isFolder = parts.length > 3 && "folder".equalsIgnoreCase(parts[3].trim());
-            newItems.add(new PredefinedXmlWriter.Item(name, code, description, isFolder));
-            addCount++;
-        }
+        List<PredefinedXmlWriter.Item> newItems = value.startsWith("@")
+                ? readPredefinedItemsJson(value.substring(1))
+                : readPredefinedItemsShorthand(value, exists, content, nextCode, codeWidth);
+        addCount += newItems.size();
 
         if (newItems.isEmpty()) {
             out.println("[INFO] No predefined items added (all duplicates or empty).");
@@ -408,6 +431,126 @@ public class MetaEditor {
         out.println("  Predefined added: " + addCount);
     }
 
+    private List<PredefinedXmlWriter.Item> readPredefinedItemsShorthand(String value, boolean exists,
+                                                                        String content, int nextCode, int codeWidth) {
+        List<PredefinedXmlWriter.Item> items = new ArrayList<>();
+        for (String raw : value.split(";;")) {
+            String item = raw.trim();
+            if (item.isEmpty()) continue;
+            String[] parts = item.split("\\|", -1);
+            String name = parts[0].trim();
+            if (name.isEmpty()) continue;
+            if (exists && findPredefinedByName(content, name)) {
+                warn("Predefined '" + name + "' already exists, skipping");
+                continue;
+            }
+            String description = parts.length > 1 && !parts[1].trim().isEmpty()
+                    ? parts[1].trim() : name;
+            String code = parts.length > 2
+                    ? parts[2].trim() : PredefinedXmlWriter.formatCode(nextCode++, codeWidth);
+            boolean isFolder = parts.length > 3 && "folder".equalsIgnoreCase(parts[3].trim());
+            items.add(new PredefinedXmlWriter.Item(name, code, description, isFolder));
+        }
+        return items;
+    }
+
+    private List<PredefinedXmlWriter.Item> readPredefinedItemsJson(String fileName) throws IOException {
+        Path jsonPath = Paths.get(fileName);
+        if (!Files.isRegularFile(jsonPath)) {
+            throw new IllegalArgumentException("Predefined JSON file not found: " + jsonPath);
+        }
+        JsonNode root = new ObjectMapper().readTree(jsonPath.toFile());
+        JsonNode itemsNode = root.isArray() ? root : root.get("items");
+        if (itemsNode == null || !itemsNode.isArray()) {
+            throw new IllegalArgumentException("Predefined JSON must be an array or object with items[]: " + jsonPath);
+        }
+        List<PredefinedXmlWriter.Item> items = new ArrayList<>();
+        for (JsonNode itemNode : itemsNode) {
+            items.add(readPredefinedItemJson(itemNode));
+        }
+        return items;
+    }
+
+    private PredefinedXmlWriter.Item readPredefinedItemJson(JsonNode node) {
+        String name = text(node, "name", "");
+        if (name.isBlank()) {
+            throw new IllegalArgumentException("Predefined JSON item requires non-empty name");
+        }
+        List<PredefinedXmlWriter.Item> childItems = new ArrayList<>();
+        JsonNode children = node.get("childItems");
+        if (children != null && children.isArray()) {
+            for (JsonNode child : children) {
+                childItems.add(readPredefinedItemJson(child));
+            }
+        }
+        List<String> types = stringList(node.get("types"));
+        Map<String, Boolean> accountingFlags = booleanMap(node.get("accountingFlags"));
+        List<PredefinedXmlWriter.ExtDimensionType> extDimensionTypes = new ArrayList<>();
+        JsonNode extDims = node.get("extDimensionTypes");
+        if (extDims != null && extDims.isArray()) {
+            for (JsonNode extDim : extDims) {
+                extDimensionTypes.add(new PredefinedXmlWriter.ExtDimensionType(
+                        text(extDim, "name", ""),
+                        bool(extDim, "turnover", false),
+                        booleanMap(extDim.get("accountingFlags"))));
+            }
+        }
+        return new PredefinedXmlWriter.Item(
+                name,
+                text(node, "code", ""),
+                text(node, "description", name),
+                bool(node, "isFolder", false),
+                childItems,
+                types,
+                nullableText(node, "accountType"),
+                nullableBool(node, "offBalance"),
+                nullableText(node, "order"),
+                accountingFlags,
+                extDimensionTypes,
+                nullableBool(node, "actionPeriodIsBase"),
+                stringList(node.get("displaced")));
+    }
+
+    private List<String> stringList(JsonNode node) {
+        if (node == null || !node.isArray()) {
+            return List.of();
+        }
+        List<String> values = new ArrayList<>();
+        for (JsonNode item : node) {
+            values.add(item.asText());
+        }
+        return values;
+    }
+
+    private Map<String, Boolean> booleanMap(JsonNode node) {
+        if (node == null || !node.isObject()) {
+            return Map.of();
+        }
+        Map<String, Boolean> values = new LinkedHashMap<>();
+        node.fields().forEachRemaining(entry -> values.put(entry.getKey(), entry.getValue().asBoolean()));
+        return values;
+    }
+
+    private String text(JsonNode node, String field, String fallback) {
+        JsonNode value = node.get(field);
+        return value == null || value.isNull() ? fallback : value.asText();
+    }
+
+    private String nullableText(JsonNode node, String field) {
+        JsonNode value = node.get(field);
+        return value == null || value.isNull() ? null : value.asText();
+    }
+
+    private boolean bool(JsonNode node, String field, boolean fallback) {
+        JsonNode value = node.get(field);
+        return value == null || value.isNull() ? fallback : value.asBoolean();
+    }
+
+    private Boolean nullableBool(JsonNode node, String field) {
+        JsonNode value = node.get(field);
+        return value == null || value.isNull() ? null : value.asBoolean();
+    }
+
     /** Есть ли в Predefined.xml элемент с таким {@code <Name>}. */
     private boolean findPredefinedByName(String content, String name) {
         Matcher m = Pattern.compile("<Name>([^<]*)</Name>").matcher(content);
@@ -415,6 +558,82 @@ public class MetaEditor {
             if (m.group(1).trim().equals(name)) return true;
         }
         return false;
+    }
+
+    private void addExchangePlanContent(Path xmlPath, String objType, String value) throws IOException {
+        if (!"ExchangePlan".equals(objType)) {
+            throw new IllegalArgumentException("add-exchange-content supports only ExchangePlan objects");
+        }
+
+        String fileName = xmlPath.getFileName().toString();
+        String fileBase = fileName.endsWith(".xml")
+                ? fileName.substring(0, fileName.length() - 4) : fileName;
+        Path extDir = xmlPath.getParent().resolve(fileBase).resolve("Ext");
+        Path contentFile = extDir.resolve("Content.xml");
+
+        Path configRoot = xmlPath.getParent() != null ? xmlPath.getParent().getParent() : null;
+        Path configurationXml = configRoot != null
+                ? configRoot.resolve("Configuration.xml")
+                : Paths.get("Configuration.xml");
+        String formatVersion = ConfigurationXmlReader.readFormatVersion(configurationXml);
+
+        boolean exists = Files.isRegularFile(contentFile);
+        String content = exists ? readFileContent(contentFile) : null;
+        List<ExchangePlanContentWriter.Item> items = value.startsWith("@")
+                ? readExchangeContentJson(value.substring(1))
+                : readExchangeContentShorthand(value);
+        if (items.isEmpty()) {
+            out.println("[INFO] No exchange content items added.");
+            return;
+        }
+
+        Files.createDirectories(extDir);
+        String result = exists && content.contains("</ExchangePlanContent>")
+                ? content : ExchangePlanContentWriter.buildFile(formatVersion, List.of());
+        for (ExchangePlanContentWriter.Item item : items) {
+            result = ExchangePlanContentWriter.appendItem(result, item);
+        }
+        writeFileWithBom(contentFile, result);
+        out.println("[INFO] Saved: " + contentFile);
+        out.println();
+        out.println("=== meta-edit summary ===");
+        out.println("  Exchange content added: " + items.size());
+    }
+
+    private List<ExchangePlanContentWriter.Item> readExchangeContentShorthand(String value) {
+        List<ExchangePlanContentWriter.Item> items = new ArrayList<>();
+        for (String raw : value.split(";;")) {
+            String item = raw.trim();
+            if (item.isEmpty()) continue;
+            String[] parts = item.split("\\|", -1);
+            String metadata = parts[0].trim();
+            if (metadata.isEmpty()) continue;
+            String autoRecord = parts.length > 1 && !parts[1].trim().isEmpty() ? parts[1].trim() : "Deny";
+            items.add(new ExchangePlanContentWriter.Item(metadata, autoRecord));
+        }
+        return items;
+    }
+
+    private List<ExchangePlanContentWriter.Item> readExchangeContentJson(String fileName) throws IOException {
+        Path jsonPath = Paths.get(fileName);
+        if (!Files.isRegularFile(jsonPath)) {
+            throw new IllegalArgumentException("Exchange content JSON file not found: " + jsonPath);
+        }
+        JsonNode root = new ObjectMapper().readTree(jsonPath.toFile());
+        JsonNode itemsNode = root.isArray() ? root : root.get("items");
+        if (itemsNode == null || !itemsNode.isArray()) {
+            throw new IllegalArgumentException("Exchange content JSON must be an array or object with items[]: "
+                    + jsonPath);
+        }
+        List<ExchangePlanContentWriter.Item> items = new ArrayList<>();
+        for (JsonNode item : itemsNode) {
+            String metadata = text(item, "metadata", "");
+            if (metadata.isBlank()) {
+                throw new IllegalArgumentException("Exchange content item requires non-empty metadata");
+            }
+            items.add(new ExchangePlanContentWriter.Item(metadata, text(item, "autoRecord", "Deny")));
+        }
+        return items;
     }
 
     // ─── TASK-171: каноничное добавление формы (внешние файлы) ──────────────
@@ -503,22 +722,27 @@ public class MetaEditor {
         Path wrapperXml = formsDir.resolve(formName + ".xml");
         Path moduleBsl = formsDir.resolve(formName).resolve("Ext").resolve("Form").resolve("Module.bsl");
 
-        // 1) UI-описание Ext/Form.xml через существующую машинерию form --from-object.
-        //    Purpose выводится из имени папки формы (PurposeResolver).
-        try {
-            Files.createDirectories(formExtXml.getParent());
-            FormDsl dsl = new FormFromObjectGenerator()
-                    .generate(xmlPath, formExtXml, "erp-standard", null);
-            new FormWriter(OutputFormat.DESIGNER).create(dsl, formExtXml);
-        } catch (Exception e) {
-            // Не оставляем битых файлов: чистим то, что успели создать.
-            cleanupFormFiles(formsDir, formName);
-            throw new IOException("Не удалось сгенерировать Ext/Form.xml для формы '"
-                    + formName + "': " + e.getMessage(), e);
+        boolean managedForm = !"Ordinary".equals(formType);
+
+        if (managedForm) {
+            // 1) UI-описание Ext/Form.xml через существующую машинерию form --from-object.
+            //    Purpose выводится из имени папки формы (PurposeResolver).
+            try {
+                Files.createDirectories(formExtXml.getParent());
+                FormDsl dsl = new FormFromObjectGenerator()
+                        .generate(xmlPath, formExtXml, "erp-standard", null);
+                new FormWriter(OutputFormat.DESIGNER).create(dsl, formExtXml);
+            } catch (Exception e) {
+                // Не оставляем битых файлов: чистим то, что успели создать.
+                cleanupFormFiles(formsDir, formName);
+                throw new IOException("Не удалось сгенерировать Ext/Form.xml для формы '"
+                        + formName + "': " + e.getMessage(), e);
+            }
         }
 
         // 2) Обёртка-метаобъект Forms/<Имя>.xml (FormType=Managed по умолчанию).
         String version = detectMetaVersion(content);
+        Files.createDirectories(formsDir);
         writeFileWithBom(wrapperXml, buildFormWrapper(formName, formType, version));
         out.println("[INFO] Создан: " + wrapperXml);
 
@@ -526,18 +750,21 @@ public class MetaEditor {
         // 3) Минимальный модуль формы. Канон Designer (_Демо): ВСЕ .bsl c BOM + CRLF
         // (эталон CommonForms/.../Ext/Form/Module.bsl: ef bb bf + CRLF). Прежняя посылка
         // «без BOM, как FormWriter» была ошибочной — FormWriter сам .bsl не пишет.
-        Files.createDirectories(moduleBsl.getParent());
-        Files.write(moduleBsl, io.github.onec.xmlgen.io.Crlf.withBom(DEFAULT_FORM_MODULE));
-        //**agent TASK-172
-        out.println("[INFO] Создан: " + moduleBsl);
-        out.println("[INFO] Создан: " + formExtXml);
+        if (managedForm) {
+            Files.createDirectories(moduleBsl.getParent());
+            Files.write(moduleBsl, io.github.onec.xmlgen.io.Crlf.withBom(DEFAULT_FORM_MODULE));
+            //**agent TASK-172
+            out.println("[INFO] Создан: " + moduleBsl);
+            out.println("[INFO] Создан: " + formExtXml);
+        } else {
+            out.println("[INFO] Ordinary form: Ext/Form.xml and Module.bsl are not created");
+        }
 
         // 4) Текст-ссылка <Form>Имя</Form> в ChildObjects родителя.
         String reference = "\t\t\t<Form>" + esc(formName) + "</Form>";
         String result = insertIntoChildObjects(content, "Form", reference, null, null);
         if (result == null) {
             cleanupFormFiles(formsDir, formName);
-            Files.deleteIfExists(wrapperXml);
             throw new IOException("Не найден <ChildObjects> в " + xmlPath
                     + " — форма-ссылка не добавлена, файлы откатаны");
         }
@@ -731,7 +958,18 @@ public class MetaEditor {
      */
     private void addTemplateWithFiles(Path xmlPath, String content, String objType,
                                       String objName, String value) throws IOException {
-        String tplName = value.trim();
+        String[] parts = value.trim().split("\\|");
+        String tplName = parts[0].trim();
+        String templateType = "SpreadsheetDocument";
+        if (parts.length > 1 && !parts[1].trim().isEmpty()) {
+            templateType = TemplateWriter.canonicalTemplateTypeName(parts[1].trim());
+        }
+        for (int i = 2; i < parts.length; i++) {
+            String token = parts[i].trim();
+            if (!token.isEmpty()) {
+                warn("Неизвестный суффикс макета '" + token + "', игнорирую");
+            }
+        }
         if (tplName.isEmpty()) { warn("Пустое имя шаблона"); return; }
 
         if (findTemplateReference(content, tplName) || findChildByName(content, "Template", tplName) >= 0) {
@@ -743,18 +981,22 @@ public class MetaEditor {
         Path objectDir = xmlPath.getParent().resolve(fileBase);
         Path templatesDir = objectDir.resolve("Templates");
         Path wrapperXml = templatesDir.resolve(tplName + ".xml");
+        Path templateDir = templatesDir.resolve(tplName);
 
         String version = detectMetaVersion(content);
-        Files.createDirectories(templatesDir);
-        writeFileWithBom(wrapperXml, buildTemplateWrapper(tplName, version));
+        if (Files.exists(wrapperXml) || Files.exists(templateDir)) {
+            throw new IOException("Template '" + tplName + "' already exists on disk in " + templatesDir);
+        }
+        ObjectContainerEditor.createTemplateScaffold(objectDir, tplName, splitCamelCase(tplName), templateType,
+                version);
         out.println("[INFO] Создан: " + wrapperXml);
 
         String reference = "\t\t\t<Template>" + esc(tplName) + "</Template>";
         String result = insertIntoChildObjects(content, "Template", reference, null, null);
         if (result == null) {
-            Files.deleteIfExists(wrapperXml);
+            cleanupTemplateFiles(templatesDir, tplName);
             throw new IOException("Не найден <ChildObjects> в " + xmlPath
-                    + " — шаблон-ссылка не добавлена, файл откатан");
+                    + " — шаблон-ссылка не добавлена, файлы откатаны");
         }
         writeFileWithBom(xmlPath, result);
         addCount++;
@@ -765,7 +1007,7 @@ public class MetaEditor {
         out.println();
         out.println("=== meta-edit summary ===");
         out.println("  Object:   " + objType + "." + objName);
-        out.println("  Template added: " + tplName);
+        out.println("  Template added: " + tplName + " (TemplateType=" + templateType + ")");
     }
 
     /** Каноничная обёртка-метаобъект для формы. BOM добавляется при записи. */
@@ -835,9 +1077,23 @@ public class MetaEditor {
     /** Откат частично созданных файлов формы при ошибке. */
     private void cleanupFormFiles(Path formsDir, String formName) {
         try {
+            Files.deleteIfExists(formsDir.resolve(formName + ".xml"));
             Path formDir = formsDir.resolve(formName);
             if (Files.exists(formDir)) {
                 Files.walk(formDir)
+                        .sorted(Comparator.reverseOrder())
+                        .forEach(p -> { try { Files.deleteIfExists(p); } catch (IOException ignored) {} });
+            }
+        } catch (IOException ignored) {}
+    }
+
+    /** Откат частично созданных файлов макета при ошибке. */
+    private void cleanupTemplateFiles(Path templatesDir, String templateName) {
+        try {
+            Files.deleteIfExists(templatesDir.resolve(templateName + ".xml"));
+            Path templateDir = templatesDir.resolve(templateName);
+            if (Files.exists(templateDir)) {
+                Files.walk(templateDir)
                         .sorted(Comparator.reverseOrder())
                         .forEach(p -> { try { Files.deleteIfExists(p); } catch (IOException ignored) {} });
             }
@@ -1074,7 +1330,7 @@ public class MetaEditor {
         sb.append(indent).append("<Attribute uuid=\"").append(uuid()).append("\">\n");
         sb.append(indent).append("\t<Properties>\n");
         sb.append(indent).append("\t\t<Name>").append(esc(def.name)).append("</Name>\n");
-        writeSynonym(sb, indent + "\t\t", splitCamelCase(def.name));
+        writeSynonym(sb, indent + "\t\t", def.synonym != null ? def.synonym : splitCamelCase(def.name)); //**agent TASK-174 [05.06.2026 12:42:00] XG-09: синоним из пайп-токена
         sb.append(indent).append("\t\t<Comment/>\n");
         writeTypeBlock(sb, indent + "\t\t", def.types);
         sb.append(indent).append("\t\t<PasswordMode>false</PasswordMode>\n");
@@ -1091,6 +1347,10 @@ public class MetaEditor {
         String fillChecking = def.flags.contains("req") ? "ShowError" : "DontCheck";
         sb.append(indent).append("\t\t<FillChecking>").append(fillChecking).append("</FillChecking>\n");
 
+        //++agent TASK-174 [07.06.2026 12:00:00]
+        // Порт-аудит: ChoiceFoldersAndItems был опущен (спека §6.1 + грунт-труф 2.20).
+        sb.append(indent).append("\t\t<ChoiceFoldersAndItems>Items</ChoiceFoldersAndItems>\n");
+        //++agent TASK-174
         sb.append(indent).append("\t\t<ChoiceParameterLinks/>\n");
         sb.append(indent).append("\t\t<ChoiceParameters/>\n");
         sb.append(indent).append("\t\t<QuickChoice>Auto</QuickChoice>\n");
@@ -1506,6 +1766,14 @@ public class MetaEditor {
             sb.append(indent).append("<v8:DateQualifiers>\n");
             sb.append(indent).append("\t<v8:DateFractions>DateTime</v8:DateFractions>\n");
             sb.append(indent).append("</v8:DateQualifiers>\n");
+        //++agent TASK-174 [07.06.2026 12:00:00]
+        // XG-13: ветка Time (ЧастиДаты=Время) — раньше отсутствовала, Date(Time) уходил в литерал.
+        } else if ("Time".equals(type)) {
+            sb.append(indent).append("<v8:Type>xs:dateTime</v8:Type>\n");
+            sb.append(indent).append("<v8:DateQualifiers>\n");
+            sb.append(indent).append("\t<v8:DateFractions>Time</v8:DateFractions>\n");
+            sb.append(indent).append("</v8:DateQualifiers>\n");
+        //++agent TASK-174
         } else if (type.startsWith("DefinedType.")) {
             sb.append(indent).append("<v8:TypeSet>cfg:").append(type).append("</v8:TypeSet>\n");
         } else if (type.contains(".")) {
@@ -1567,45 +1835,140 @@ public class MetaEditor {
         }
 
         // Split by | for flags
-        String[] pipeparts = shorthand.split("\\|", 2);
+        //**agent TASK-174 [05.06.2026 12:40:00]
+        // XG-09: прежний разбор считал ВСЁ после первого "|" флагами. Популярная
+        // у агентов форма --value "Имя|Синоним|Date" (стиль add-predefined) молча
+        // теряла и синоним, и тип — реквизит всегда получал xs:string (TASK-173).
+        // Теперь каждый пайп-токен классифицируется: известный флаг → флаг;
+        // распознанный тип (если тип ещё не задан через "Имя: Тип") → тип;
+        // иначе → синоним. Канонический синтаксис "Имя: Тип | req" не меняется.
+        String[] pipeparts = shorthand.split("\\|");
         String main = pipeparts[0].trim();
-        if (pipeparts.length > 1) {
-            for (String f : pipeparts[1].split(",")) {
-                String flag = f.trim().toLowerCase();
-                if (!flag.isEmpty()) def.flags.add(flag);
+        for (int pi = 1; pi < pipeparts.length; pi++) {
+            String segment = pipeparts[pi].trim();
+            if (segment.isEmpty()) continue;
+            // Сегмент классифицируется ЦЕЛИКОМ: тип "Number(15,2)" содержит запятую
+            // внутри скобок — рвать сегмент по запятой до классификации нельзя.
+            java.util.List<String> tokens = new ArrayList<>();
+            boolean allFlags = true;
+            for (String f : segment.split(",")) {
+                String token = f.trim().toLowerCase();
+                if (token.isEmpty()) continue;
+                tokens.add(token);
+                if (!KNOWN_FLAGS.contains(token)) allFlags = false;
+            }
+            if (allFlags && !tokens.isEmpty()) {
+                def.flags.addAll(tokens);
+            } else if (def.types.isEmpty() && isRecognizedType(segment)) {
+                for (String part : CompositeType.splitCompositeTypes(segment)) {
+                    if (!part.trim().isEmpty()) def.types.add(resolveType(part.trim()));
+                }
+            } else if (def.synonym == null) {
+                def.synonym = segment;
+            } else {
+                warn("Unrecognized shorthand token '" + segment + "' (not a flag/type/synonym slot)");
             }
         }
+        //**agent TASK-174
 
         // Split by : for name and type
         int colonIdx = main.indexOf(':');
         if (colonIdx > 0) {
             def.name = main.substring(0, colonIdx).trim();
             String typeStr = main.substring(colonIdx + 1).trim();
-            // Composite types: Type1 + Type2
-            if (typeStr.contains(" + ")) {
-                for (String part : typeStr.split("\\+")) {
-                    def.types.add(resolveType(part.trim()));
-                }
-            } else {
-                def.types.add(resolveType(typeStr));
+            //**agent TASK-174 [05.06.2026 12:40:00]
+            // XG-09: тип из "Имя: Тип" имеет приоритет над типом, угаданным из
+            // пайп-токенов; составной тип — через paren-aware сплиттер ("+" и "|"
+            // внутри скобок не рвутся).
+            //--agent TASK-174 (прежний код)
+            //// Composite types: Type1 + Type2
+            //if (typeStr.contains(" + ")) {
+            //    for (String part : typeStr.split("\\+")) {
+            //        def.types.add(resolveType(part.trim()));
+            //    }
+            //} else {
+            //    def.types.add(resolveType(typeStr));
+            //}
+            List<String> colonTypes = new ArrayList<>();
+            for (String part : CompositeType.splitCompositeTypes(typeStr)) {
+                if (!part.trim().isEmpty()) colonTypes.add(resolveType(part.trim()));
             }
+            if (!colonTypes.isEmpty()) {
+                def.types.clear();
+                def.types.addAll(colonTypes);
+            }
+            //**agent TASK-174
         } else {
             def.name = main;
+        }
+        //++agent TASK-174 [05.06.2026 12:40:00]
+        // Default только если тип не пришёл ни из ":", ни из пайп-токена.
+        if (def.types.isEmpty()) {
             def.types.add("String"); // default — String(10)
         }
+        //++agent TASK-174
 
         return def;
     }
+
+    //++agent TASK-174 [05.06.2026 12:40:00]
+    /** Флаги shorthand-нотации (всё, что реально читается из def.flags). */
+    private static final Set<String> KNOWN_FLAGS = Set.of(
+            "req", "nonneg", "master", "mainfilter", "denyincomplete",
+            "index", "indexadditional", "nouseintotals",
+            //++agent TASK-174 [07.06.2026 12:00:00] порт-аудит: флаги измерений бух./расчётного регистра
+            "balance", "base");
+            //++agent TASK-174
+
+    /**
+     * XG-09: распознаваем ли токен как тип (для классификации пайп-токенов).
+     * Консервативно: только то, что resolveType() переводит в известную форму —
+     * параметризованный тип, известный простой тип (рус/англ) или dotted-ссылка.
+     */
+    private boolean isRecognizedType(String token) {
+        String first = CompositeType.splitCompositeTypes(token).get(0).trim();
+        if (first.isEmpty()) return false;
+        Matcher m = Pattern.compile("^([^(]+)\\((.+)\\)$").matcher(first);
+        String base = m.matches() ? m.group(1).trim() : first;
+        if (base.contains(".")) {
+            // dotted: CatalogRef.X / СправочникСсылка.X / DefinedType.X и т.п.
+            return true;
+        }
+        for (String known : RU_TYPE_SYNONYMS.keySet()) {
+            if (base.equalsIgnoreCase(known)) return true;
+        }
+        return base.equalsIgnoreCase("Number") || base.equalsIgnoreCase("String")
+                || base.equalsIgnoreCase("Boolean") || base.equalsIgnoreCase("Date")
+                || base.equalsIgnoreCase("DateTime") || base.equalsIgnoreCase("ValueStorage");
+    }
+    //++agent TASK-174
 
     private static class AttrDef {
         String name = "";
         List<String> types = new ArrayList<>();
         Set<String> flags = new LinkedHashSet<>();
+        //++agent TASK-174 [05.06.2026 12:40:00]
+        String synonym; // XG-09: синоним из пайп-токена ("Имя|Синоним|Тип")
+        //++agent TASK-174
         String after;
         String before;
     }
 
     // ─── Type resolution ────────────────────────────────────────────────
+
+    //++agent TASK-174 [07.06.2026 12:00:00]
+    /**
+     * XG-13: нормализация параметра ЧастиДаты из формы Date(X) / Дата(X)
+     * в канонический простой тип (Date | Time | DateTime).
+     */
+    private static String normalizeDateFraction(String fraction) {
+        if (fraction.equalsIgnoreCase("Date") || fraction.equalsIgnoreCase("Дата")) return "Date";
+        if (fraction.equalsIgnoreCase("Time") || fraction.equalsIgnoreCase("Время")) return "Time";
+        if (fraction.equalsIgnoreCase("DateTime") || fraction.equalsIgnoreCase("ДатаВремя")) return "DateTime";
+        throw new IllegalArgumentException("Unknown date fraction '" + fraction
+                + "' in Date(...) shorthand. Valid: Date|Time|DateTime (Дата|Время|ДатаВремя)");
+    }
+    //++agent TASK-174
 
     private String resolveType(String type) {
         if (type == null || type.isEmpty()) return "String";
@@ -1615,6 +1978,16 @@ public class MetaEditor {
         if (m.matches()) {
             String base = m.group(1).trim();
             String params = m.group(2);
+            //**agent TASK-174 [07.06.2026 12:00:00]
+            // XG-13: параметр Date(...) — это КВАЛИФИКАТОР ЧастиДаты, а не параметризованный
+            // тип. Раньше resolveType возвращал "Date(DateTime)" как есть, writeTypeValue
+            // не имел ветки для скобочной формы и молча писал литерал
+            // <v8:Type>Date(DateTime)</v8:Type> — битый тип в выгрузке. Теперь Date(X)
+            // нормализуется в канонический простой тип Date/Time/DateTime.
+            if (base.equalsIgnoreCase("Date") || base.equalsIgnoreCase("Дата")) {
+                return normalizeDateFraction(params.trim());
+            }
+            //**agent TASK-174
             // Russian synonyms
             for (Map.Entry<String, String> entry : RU_TYPE_SYNONYMS.entrySet()) {
                 if (base.equalsIgnoreCase(entry.getKey())) {
@@ -1624,7 +1997,6 @@ public class MetaEditor {
             // English canonical names — normalize case
             if (base.equalsIgnoreCase("String"))  return "String("  + params + ")";
             if (base.equalsIgnoreCase("Number"))  return "Number("  + params + ")";
-            if (base.equalsIgnoreCase("Date"))    return "Date("    + params + ")";
             return type;
         }
 

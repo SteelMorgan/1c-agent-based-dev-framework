@@ -104,7 +104,13 @@ public class InterfaceEditor {
                 "\\s*<Command name=\"[^\"]*\">\\s*"
                         + "<CommandGroup>" + Pattern.quote(group) + "</CommandGroup>\\s*"
                         + "</Command>\\s*", Pattern.DOTALL);
-        content = groupEntries.matcher(content).replaceAll("\n");
+        int orderStart = content.indexOf("<CommandsOrder>");
+        int orderEnd = content.indexOf("</CommandsOrder>");
+        if (orderStart >= 0 && orderEnd > orderStart) {
+            String section = content.substring(orderStart, orderEnd);
+            String newSection = groupEntries.matcher(section).replaceAll("\n");
+            content = content.substring(0, orderStart) + newSection + content.substring(orderEnd);
+        }
 
         // Build new entries
         StringBuilder sb = new StringBuilder();
@@ -174,6 +180,10 @@ public class InterfaceEditor {
             Files.write(filePath, contentBytes);
         }
         //++agent TASK-172
+    }
+
+    public String previewContent() {
+        return content;
     }
 
     // --- Internal ---

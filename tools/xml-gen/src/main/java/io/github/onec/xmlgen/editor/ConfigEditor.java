@@ -24,7 +24,7 @@ public class ConfigEditor {
             "Language", "Subsystem", "StyleItem", "Style", "CommonPicture",
             "SessionParameter", "Role", "CommonTemplate", "FilterCriterion",
             "CommonModule", "CommonAttribute", "ExchangePlan", "XDTOPackage",
-            "WebService", "HTTPService", "WSReference", "EventSubscription",
+            "WebService", "HTTPService", "WebSocketClient", "WSReference", "EventSubscription",
             "ScheduledJob", "SettingsStorage", "FunctionalOption",
             "FunctionalOptionsParameter", "DefinedType", "CommonCommand",
             "CommandGroup", "Constant", "CommonForm", "Catalog", "Document",
@@ -163,6 +163,14 @@ public class ConfigEditor {
             Files.write(configXmlPath, contentBytes);
         }
         //++agent TASK-172
+    }
+
+    /**
+     * Текущее содержимое после операций, но до записи на диск.
+     * Используется CLI для validate-before-save без временной порчи Configuration.xml.
+     */
+    public String previewContent() {
+        return content;
     }
 
     // --- Internal ---
@@ -335,8 +343,14 @@ public class ConfigEditor {
             }
         }
 
-        // Fallback: insert before </ChildObjects>
-        content = content.replace("</ChildObjects>", indent + entry + "\n\t\t</ChildObjects>");
+        int childObjectsEnd = content.indexOf("</ChildObjects>");
+        if (childObjectsEnd < 0) {
+            throw new IllegalStateException("Configuration.xml must contain <ChildObjects> to register "
+                    + type + "." + name);
+        }
+        content = content.substring(0, childObjectsEnd)
+                + indent + entry + "\n\t\t"
+                + content.substring(childObjectsEnd);
     }
 
     private void removeChildEntry(String type, String name) {

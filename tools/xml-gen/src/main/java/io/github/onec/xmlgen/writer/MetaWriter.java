@@ -144,6 +144,7 @@ public class MetaWriter {
         // что и конфигурация, иначе full-load падает «Версия формата ... отличается».
         Path configurationXml = outputDir.resolve("Configuration.xml");
         String formatVersion = ConfigurationXmlReader.readFormatVersion(configurationXml);
+        preflightConfigurationRegistration(configurationXml, td.xmlElement(), name);
 
         // Generate UUIDs
         String objectUuid = UuidGenerator.generate();
@@ -153,7 +154,7 @@ public class MetaWriter {
         writeWithBom(typeDir.resolve(name + ".xml"), xml);
 
         // Create directory structure
-        createDirStructure(typeDir, name, type, td);
+        createDirStructure(typeDir, name, type, td, formatVersion);
 
         // Предопределённые элементы (TASK-171 D-1): Ext/Predefined.xml для
         // справочников и планов видов характеристик/счетов/расчёта.
@@ -185,6 +186,20 @@ public class MetaWriter {
             editor.save();
         } catch (IOException e) {
             throw new RuntimeException("Не удалось зарегистрировать " + xmlElement + "." + name
+                    + " в Configuration.xml: " + e.getMessage(), e);
+        }
+    }
+
+    private void preflightConfigurationRegistration(Path configurationXml, String xmlElement, String name) {
+        if (!Files.isRegularFile(configurationXml)) {
+            return;
+        }
+        try {
+            ConfigEditor editor = new ConfigEditor(configurationXml);
+            editor.setSkipFileCheck(true);
+            editor.addChildObject(xmlElement + "." + name);
+        } catch (IOException e) {
+            throw new RuntimeException("Не удалось проверить регистрацию " + xmlElement + "." + name
                     + " в Configuration.xml: " + e.getMessage(), e);
         }
     }
@@ -238,8 +253,33 @@ public class MetaWriter {
         sb.append("\t</").append(td.xmlElement()).append(">\n");
         sb.append("</MetaDataObject>\n");
 
-        return sb.toString();
+        //**agent TASK-174 [07.06.2026 12:05:00]
+        // Порт-аудит: элементы формата 2.20 (TypeReductionMode в стандартных реквизитах,
+        // LineNumberLength в ТЧ — спека §26.1) эмитятся всегда (канон 2.20), а для
+        // конфигураций со старым форматом (< 2.20) вырезаются здесь единым фильтром.
+        // Заодно чинится прежняя непоследовательность: вербатим-блоки
+        // StandardTabularSections писали TypeReductionMode даже в 2.17.
+        //return sb.toString();
+        String xml = sb.toString();
+        if (!isFormatAtLeast220(formatVersion)) {
+            xml = xml.replaceAll("(?m)^\\t*<xr:TypeReductionMode>[^<]*</xr:TypeReductionMode>\\n", "");
+            xml = xml.replaceAll("(?m)^\\t*<LineNumberLength>[^<]*</LineNumberLength>\\n", "");
+        }
+        return xml;
+        //**agent TASK-174
     }
+
+    //++agent TASK-174 [07.06.2026 12:05:00]
+    /** Формат выгрузки >= 2.20 (платформа 8.3.27+): сравнение по числам major.minor. */
+    static boolean isFormatAtLeast220(String formatVersion) {
+        if (formatVersion == null) return false;
+        Matcher m = Pattern.compile("^(\\d+)\\.(\\d+)").matcher(formatVersion.trim());
+        if (!m.find()) return false;
+        int major = Integer.parseInt(m.group(1));
+        int minor = Integer.parseInt(m.group(2));
+        return major > 2 || (major == 2 && minor >= 20);
+    }
+    //++agent TASK-174
 
     // ==================== InternalInfo ====================
 
@@ -1467,6 +1507,12 @@ public class MetaWriter {
         sb.append(indent(ind + 1)).append("<xr:MultiLine>false</xr:MultiLine>\n");
         sb.append(indent(ind + 1)).append("<xr:FillFromFillingValue>false</xr:FillFromFillingValue>\n");
         sb.append(indent(ind + 1)).append("<xr:CreateOnInput>Auto</xr:CreateOnInput>\n");
+        //++agent TASK-174 [07.06.2026 12:05:00]
+        // Порт-аудит: TypeReductionMode (формат 2.20, спека §26.1) был опущен — каждый
+        // стандартный реквизит в Designer-дампе 2.20 имеет его после CreateOnInput.
+        // Для формата < 2.20 строка вырезается глобальным фильтром в generateXml.
+        sb.append(indent(ind + 1)).append("<xr:TypeReductionMode>TransformValues</xr:TypeReductionMode>\n");
+        //++agent TASK-174
         sb.append(indent(ind + 1)).append("<xr:MaxValue xsi:nil=\"true\"/>\n");
         sb.append(indent(ind + 1)).append("<xr:ToolTip/>\n");
         sb.append(indent(ind + 1)).append("<xr:ExtendedEdit>false</xr:ExtendedEdit>\n");
@@ -1945,15 +1991,29 @@ public class MetaWriter {
 
         sb.append("\t\t<ChildObjects>\n");
 
-        // Dimensions (registers)
-        if (hasDimensions) {
-            writeDimensions(sb, root.get("dimensions"), type, name);
-        }
-
+        //**agent TASK-174 [07.06.2026 12:05:00]
+        // Порт-аудит: канонический порядок ChildObjects регистров в Designer-дампе —
+        // Resource ПЕРЕД Dimension (грунт-труф биг_СебестоимостьАктивов, биг_ЛогиИнтеграций;
+        // так же упорядочивает MetaEditor.CHILD_ORDER). Порт писал Dimension первым.
+        //// Dimensions (registers)
+        //if (hasDimensions) {
+        //    writeDimensions(sb, root.get("dimensions"), type, name);
+        //}
+        //
+        //// Resources (registers)
+        //if (hasResources) {
+        //    writeResources(sb, root.get("resources"), type, name);
+        //}
         // Resources (registers)
         if (hasResources) {
             writeResources(sb, root.get("resources"), type, name);
         }
+
+        // Dimensions (registers)
+        if (hasDimensions) {
+            writeDimensions(sb, root.get("dimensions"), type, name);
+        }
+        //**agent TASK-174
 
         // Attributes
         if (hasAttributes) {
@@ -2043,6 +2103,11 @@ public class MetaWriter {
             writeElement(sb, 5, "FillChecking",
                     dim.flags.contains("req") ? "ShowError" : "DontCheck");
 
+            //++agent TASK-174 [07.06.2026 12:05:00]
+            // Порт-аудит: ChoiceFoldersAndItems был опущен при переносе (спека §6.1 +
+            // грунт-труф Designer 2.20 пишут его между FillChecking и ChoiceParameterLinks).
+            writeElement(sb, 5, "ChoiceFoldersAndItems", "Items");
+            //++agent TASK-174
             writeEmptyElement(sb, 5, "ChoiceParameterLinks");
             writeEmptyElement(sb, 5, "ChoiceParameters");
             writeElement(sb, 5, "QuickChoice", "Auto");
@@ -2051,31 +2116,70 @@ public class MetaWriter {
             writeEmptyElement(sb, 5, "LinkByType");
             writeElement(sb, 5, "ChoiceHistoryOnInput", "Auto");
 
-            // Indexing
+            //**agent TASK-174 [07.06.2026 12:05:00]
+            // Порт-аудит: хвост Properties измерения зависит от вида регистра, а порт писал
+            // Master/MainFilter ВСЕМ регистрам и ПОСЛЕ Indexing. Канон (грунт-труф 2.20):
+            //   InfoReg:  Master → MainFilter → DenyIncompleteValues → Indexing → FTS → DataHistory
+            //   AccumReg: DenyIncompleteValues → Indexing → FTS → UseInTotals (Master/MainFilter НЕТ)
+            //   AcctReg:  Balance → AccountingFlag → DenyIncompleteValues → Indexing → FTS
+            //   CalcReg:  DenyIncompleteValues → BaseDimension → ScheduleLink → Indexing → FTS
+            // Лишние Master/MainFilter у Accum/Acct/CalcReg — риск XSD-отказа (тот же класс,
+            // что FillFromFillingValue, см. комментарий выше).
+            //// Indexing
+            //String indexing = "DontIndex";
+            //if (dim.flags.contains("index")) {
+            //    indexing = "Index";
+            //}
+            //writeElement(sb, 5, "Indexing", indexing);
+            //
+            //writeElement(sb, 5, "FullTextSearch", "Use");
+            //if (dimIsInfoReg) {
+            //    writeElement(sb, 5, "DataHistory", "Use");
+            //}
+            //
+            //// Dimension-specific properties
+            //writeElement(sb, 5, "Master",
+            //        String.valueOf(dim.flags.contains("master")));
+            //writeElement(sb, 5, "MainFilter",
+            //        String.valueOf(dim.flags.contains("mainfilter")));
+            //writeElement(sb, 5, "DenyIncompleteValues",
+            //        String.valueOf(dim.flags.contains("denyincomplete")));
+            //
+            //// UseInTotals — only for AccumulationRegister, default true per spec §9.4
+            //if ("AccumulationRegister".equals(type)) {
+            //    // Default true; explicit "useintotals" flag confirms, no flag = true
+            //    writeElement(sb, 5, "UseInTotals", "true");
+            //}
+            if (dimIsInfoReg) {
+                writeElement(sb, 5, "Master", String.valueOf(dim.flags.contains("master")));
+                writeElement(sb, 5, "MainFilter", String.valueOf(dim.flags.contains("mainfilter")));
+            }
+            if ("AccountingRegister".equals(type)) {
+                writeElement(sb, 5, "Balance", String.valueOf(dim.flags.contains("balance")));
+                writeEmptyElement(sb, 5, "AccountingFlag");
+            }
+            writeElement(sb, 5, "DenyIncompleteValues",
+                    String.valueOf(dim.flags.contains("denyincomplete")));
+            if ("CalculationRegister".equals(type)) {
+                writeElement(sb, 5, "BaseDimension", String.valueOf(dim.flags.contains("base")));
+                writeEmptyElement(sb, 5, "ScheduleLink");
+            }
+
             String indexing = "DontIndex";
             if (dim.flags.contains("index")) {
                 indexing = "Index";
             }
             writeElement(sb, 5, "Indexing", indexing);
-
             writeElement(sb, 5, "FullTextSearch", "Use");
             if (dimIsInfoReg) {
                 writeElement(sb, 5, "DataHistory", "Use");
             }
-
-            // Dimension-specific properties
-            writeElement(sb, 5, "Master",
-                    String.valueOf(dim.flags.contains("master")));
-            writeElement(sb, 5, "MainFilter",
-                    String.valueOf(dim.flags.contains("mainfilter")));
-            writeElement(sb, 5, "DenyIncompleteValues",
-                    String.valueOf(dim.flags.contains("denyincomplete")));
-
-            // UseInTotals — only for AccumulationRegister, default true per spec §9.4
             if ("AccumulationRegister".equals(type)) {
-                // Default true; explicit "useintotals" flag confirms, no flag = true
-                writeElement(sb, 5, "UseInTotals", "true");
+                // Default true; explicit "nouseintotals" flag отключает
+                writeElement(sb, 5, "UseInTotals",
+                        String.valueOf(!dim.flags.contains("nouseintotals")));
             }
+            //**agent TASK-174
 
             sb.append(indent(4)).append("</Properties>\n");
             sb.append(indent(3)).append("</Dimension>\n");
@@ -2121,6 +2225,10 @@ public class MetaWriter {
             writeElement(sb, 5, "FillChecking",
                     res.flags.contains("req") ? "ShowError" : "DontCheck");
 
+            //++agent TASK-174 [07.06.2026 12:05:00]
+            // Порт-аудит: опущенный ChoiceFoldersAndItems (спека §6.1 + грунт-труф 2.20).
+            writeElement(sb, 5, "ChoiceFoldersAndItems", "Items");
+            //++agent TASK-174
             writeEmptyElement(sb, 5, "ChoiceParameterLinks");
             writeEmptyElement(sb, 5, "ChoiceParameters");
             writeElement(sb, 5, "QuickChoice", "Auto");
@@ -2183,6 +2291,10 @@ public class MetaWriter {
             writeElement(sb, 5, "FillChecking",
                     attr.flags.contains("req") ? "ShowError" : "DontCheck");
 
+            //++agent TASK-174 [07.06.2026 12:05:00]
+            // Порт-аудит: опущенный ChoiceFoldersAndItems (спека §6.1 + грунт-труф 2.20).
+            writeElement(sb, 5, "ChoiceFoldersAndItems", "Items");
+            //++agent TASK-174
             writeEmptyElement(sb, 5, "ChoiceParameterLinks");
             writeEmptyElement(sb, 5, "ChoiceParameters");
             writeElement(sb, 5, "QuickChoice", "Auto");
@@ -2191,24 +2303,44 @@ public class MetaWriter {
             writeEmptyElement(sb, 5, "LinkByType");
             writeElement(sb, 5, "ChoiceHistoryOnInput", "Auto");
 
-            // Indexing (flags are stored lowercase)
-            String indexing = "DontIndex";
-            if (attr.flags.contains("indexadditional")) {
-                indexing = "IndexWithAdditionalOrder";
-            } else if (attr.flags.contains("index")) {
-                indexing = "Index";
-            }
-            writeElement(sb, 5, "Indexing", indexing);
-
-            if (storable) {
-                writeElement(sb, 5, "FullTextSearch", "Use");
-                writeElement(sb, 5, "DataHistory", "Use");
-            }
-
-            // Use (Catalog only)
+            //**agent TASK-174 [07.06.2026 12:05:00]
+            // Порт-аудит: (1) у нехранимых (Report/DataProcessor) реквизитов НЕТ Indexing
+            // (спека §6.1, прим. о различии хранимых/нехранимых) — порт писал безусловно;
+            // (2) порядок хвоста у Catalog по грунт-труфу 2.20: Use → Indexing → FTS → DataHistory
+            // (порт писал Use ПОСЛЕДНИМ — расходился с Designer-дампом).
+            //// Indexing (flags are stored lowercase)
+            //String indexing = "DontIndex";
+            //if (attr.flags.contains("indexadditional")) {
+            //    indexing = "IndexWithAdditionalOrder";
+            //} else if (attr.flags.contains("index")) {
+            //    indexing = "Index";
+            //}
+            //writeElement(sb, 5, "Indexing", indexing);
+            //
+            //if (storable) {
+            //    writeElement(sb, 5, "FullTextSearch", "Use");
+            //    writeElement(sb, 5, "DataHistory", "Use");
+            //}
+            //
+            //// Use (Catalog only)
+            //if ("Catalog".equals(type)) {
+            //    writeElement(sb, 5, "Use", "ForItem");
+            //}
             if ("Catalog".equals(type)) {
                 writeElement(sb, 5, "Use", "ForItem");
             }
+            if (storable) {
+                String indexing = "DontIndex";
+                if (attr.flags.contains("indexadditional")) {
+                    indexing = "IndexWithAdditionalOrder";
+                } else if (attr.flags.contains("index")) {
+                    indexing = "Index";
+                }
+                writeElement(sb, 5, "Indexing", indexing);
+                writeElement(sb, 5, "FullTextSearch", "Use");
+                writeElement(sb, 5, "DataHistory", "Use");
+            }
+            //**agent TASK-174
 
             sb.append(indent(4)).append("</Properties>\n");
             sb.append(indent(3)).append("</Attribute>\n");
@@ -2244,6 +2376,12 @@ public class MetaWriter {
             writeComment(sb, 5, "");
             writeEmptyElement(sb, 5, "ToolTip");
             writeElement(sb, 5, "FillChecking", "DontCheck");
+            //++agent TASK-174 [07.06.2026 12:05:00]
+            // Порт-аудит: LineNumberLength (формат 2.20, спека §26.1) был опущен — ТЧ в
+            // Designer-дампе 2.20 имеет его после FillChecking (дефолт платформы — 5).
+            // Для формата < 2.20 строка вырезается глобальным фильтром в generateXml.
+            writeElement(sb, 5, "LineNumberLength", "5");
+            //++agent TASK-174
 
             // Use (Catalog only)
             if ("Catalog".equals(type)) {
@@ -2292,9 +2430,24 @@ public class MetaWriter {
         writeMinValue(sb, 7, tsNonneg);
         sb.append(indent(7)).append("<MaxValue xsi:nil=\"true\"/>\n");
 
+        //++agent TASK-174 [07.06.2026 12:05:00]
+        // Порт-аудит: у НЕхранимых объектов (Report/DataProcessor) реквизиты ТЧ имеют
+        // FillFromFillingValue + FillValue между MaxValue и FillChecking (спека
+        // 1c-config-objects §6.2 / 1c-epf-spec §3) — порт их не писал ни для кого.
+        // Для хранимых их отсутствие правильно (грунт-труф Document ТЧ их не содержит).
+        if (!isStorableType(parentType)) {
+            writeElement(sb, 7, "FillFromFillingValue", "false");
+            sb.append(indent(7)).append("<FillValue xsi:nil=\"true\"/>\n");
+        }
+        //++agent TASK-174
+
         writeElement(sb, 7, "FillChecking",
                 attr.flags.contains("req") ? "ShowError" : "DontCheck");
 
+        //++agent TASK-174 [07.06.2026 12:05:00]
+        // Порт-аудит: опущенный ChoiceFoldersAndItems (спека §6.1/§6.2 + грунт-труф 2.20).
+        writeElement(sb, 7, "ChoiceFoldersAndItems", "Items");
+        //++agent TASK-174
         writeEmptyElement(sb, 7, "ChoiceParameterLinks");
         writeEmptyElement(sb, 7, "ChoiceParameters");
         writeElement(sb, 7, "QuickChoice", "Auto");
@@ -2382,6 +2535,10 @@ public class MetaWriter {
             writeElement(sb, 5, "FillFromFillingValue", "true");
             sb.append(indent(5)).append("<FillValue xsi:nil=\"true\"/>\n");
             writeElement(sb, 5, "FillChecking", "DontCheck");
+            //++agent TASK-174 [07.06.2026 12:05:00]
+            // Порт-аудит: опущенный ChoiceFoldersAndItems (спека §6.1 + грунт-труф 2.20).
+            writeElement(sb, 5, "ChoiceFoldersAndItems", "Items");
+            //++agent TASK-174
             writeEmptyElement(sb, 5, "ChoiceParameterLinks");
             writeEmptyElement(sb, 5, "ChoiceParameters");
             writeElement(sb, 5, "QuickChoice", "Auto");
@@ -2634,6 +2791,10 @@ public class MetaWriter {
             writeElement(sb, 5, "FillFromFillingValue", "true");
             sb.append(indent(5)).append("<FillValue xsi:nil=\"true\"/>\n");
             writeElement(sb, 5, "FillChecking", "DontCheck");
+            //++agent TASK-174 [07.06.2026 12:05:00]
+            // Порт-аудит: опущенный ChoiceFoldersAndItems (спека §6.1 + грунт-труф 2.20).
+            writeElement(sb, 5, "ChoiceFoldersAndItems", "Items");
+            //++agent TASK-174
             writeEmptyElement(sb, 5, "ChoiceParameterLinks");
             writeEmptyElement(sb, 5, "ChoiceParameters");
             writeElement(sb, 5, "QuickChoice", "Auto");
@@ -2802,7 +2963,7 @@ public class MetaWriter {
     // ==================== Directory Structure ====================
 
     private void createDirStructure(Path typeDir, String name, String type,
-                                     TypeDescriptor td) throws IOException {
+                                     TypeDescriptor td, String formatVersion) throws IOException {
         Path objDir = typeDir.resolve(name);
         Path extDir = objDir.resolve("Ext");
         Files.createDirectories(extDir);
@@ -2833,16 +2994,39 @@ public class MetaWriter {
 
         // ExchangePlan: Content.xml stub
         if ("ExchangePlan".equals(type)) {
-            writeExchangePlanContent(extDir.resolve("Content.xml"));
+            writeExchangePlanContent(extDir.resolve("Content.xml"), formatVersion);
         }
 
         // BusinessProcess: Flowchart.xml stub
         if ("BusinessProcess".equals(type)) {
-            writeFlowchartStub(extDir.resolve("Flowchart.xml"));
+            writeFlowchartStub(extDir.resolve("Flowchart.xml"), formatVersion);
+        }
+
+        // ScheduledJob: Designer stores schedule settings in a separate XCF body.
+        if ("ScheduledJob".equals(type)) {
+            writeJobScheduleStub(extDir.resolve("Schedule.xml"), formatVersion);
         }
     }
 
-    private void writeExchangePlanContent(Path path) throws IOException {
+    private void writeJobScheduleStub(Path path, String formatVersion) throws IOException {
+        String xml = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
+                + "<JobSchedule xmlns=\"http://v8.1c.ru/8.3/xcf/extrnprops\" "
+                + "xmlns:ent=\"http://v8.1c.ru/8.1/data/enterprise\" "
+                + "xmlns:xs=\"http://www.w3.org/2001/XMLSchema\" "
+                + "xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\" "
+                + "version=\"" + esc(formatVersion) + "\">\n"
+                + "\t<Schedule BeginDate=\"0001-01-01\" EndDate=\"0001-01-01\" "
+                + "BeginTime=\"00:00:00\" EndTime=\"00:00:00\" CompletionTime=\"00:00:00\" "
+                + "CompletionInterval=\"0\" RepeatPeriodInDay=\"0\" RepeatPause=\"0\" "
+                + "WeekDayInMonth=\"0\" DayInMonth=\"1\" WeeksPeriod=\"1\" DaysRepeatPeriod=\"0\">\n"
+                + "\t\t<ent:WeekDays>1 2 3 4 5 6 7</ent:WeekDays>\n"
+                + "\t\t<ent:Months>1 2 3 4 5 6 7 8 9 10 11 12</ent:Months>\n"
+                + "\t</Schedule>\n"
+                + "</JobSchedule>\n";
+        writeWithBom(path, xml);
+    }
+
+    private void writeExchangePlanContent(Path path, String formatVersion) throws IOException {
         StringBuilder sb = new StringBuilder();
         sb.append("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n");
         sb.append("<ExchangePlanContent xmlns=\"http://v8.1c.ru/8.3/xcf/extrnprops\"\n");
@@ -2850,17 +3034,17 @@ public class MetaWriter {
         sb.append("\txmlns:xr=\"http://v8.1c.ru/8.3/xcf/readable\"\n");
         sb.append("\txmlns:xs=\"http://www.w3.org/2001/XMLSchema\"\n");
         sb.append("\txmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\"\n");
-        sb.append("\tversion=\"2.17\"/>\n");
+        sb.append("\tversion=\"").append(formatVersion).append("\"/>\n");
         writeWithBom(path, sb.toString());
     }
 
-    private void writeFlowchartStub(Path path) throws IOException {
+    private void writeFlowchartStub(Path path, String formatVersion) throws IOException {
         StringBuilder sb = new StringBuilder();
         sb.append("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n");
-        sb.append("<Flowchart xmlns=\"http://v8.1c.ru/8.3/flowchart\"\n");
+        sb.append("<GraphicalSchema xmlns=\"http://v8.1c.ru/8.3/xcf/scheme\"\n");
         sb.append("\txmlns:xs=\"http://www.w3.org/2001/XMLSchema\"\n");
         sb.append("\txmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\"\n");
-        sb.append("\tversion=\"2.17\"/>\n");
+        sb.append("\tversion=\"").append(formatVersion).append("\"/>\n");
         writeWithBom(path, sb.toString());
     }
 
@@ -2903,6 +3087,13 @@ public class MetaWriter {
         if (getBool(node, "mainFilter", false)) flags.add("mainfilter");
         if (getBool(node, "denyIncomplete", false)) flags.add("denyincomplete");
         if (getBool(node, "useInTotals", false)) flags.add("useintotals");
+        //++agent TASK-174 [07.06.2026 12:05:00]
+        // Порт-аудит: object-form флаги измерений бух./расчётного регистра + явное
+        // отключение UseInTotals (дефолт true, см. writeDimensions).
+        if (node.has("useInTotals") && !node.get("useInTotals").asBoolean()) flags.add("nouseintotals");
+        if (getBool(node, "balance", false)) flags.add("balance");
+        if (getBool(node, "baseDimension", false)) flags.add("base");
+        //++agent TASK-174
 
         return new AttrDef(name, type, synonym, comment, flags);
     }

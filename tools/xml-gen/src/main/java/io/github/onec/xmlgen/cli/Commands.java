@@ -1,8 +1,10 @@
 package io.github.onec.xmlgen.cli;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.github._1c_syntax.bsl.mdo.support.TemplateType;
 import io.github.onec.xmlgen.dsl.FormDsl;
 import io.github.onec.xmlgen.dsl.FormEditDsl;
+import io.github.onec.xmlgen.form.edit.BslStubWriter;
 import io.github.onec.xmlgen.form.edit.FormEditApplier;
 import io.github.onec.xmlgen.dsl.MxlDsl;
 import io.github.onec.xmlgen.dsl.RoleDsl;
@@ -34,12 +36,21 @@ import io.github.onec.xmlgen.validator.ExtensionValidator;
 import io.github.onec.xmlgen.info.SubsystemInfoPrinter;
 import io.github.onec.xmlgen.info.MetaInfoPrinter;
 import io.github.onec.xmlgen.info.ExtensionDiffPrinter;
+import io.github.onec.xmlgen.model.ConfigurationXmlReader;
+import io.github.onec.xmlgen.model.MetadataTypeRegistry;
+import io.github.onec.xmlgen.oracle.CanonicalRuleMiner;
+import io.github.onec.xmlgen.oracle.DemoOracleRunner;
+import io.github.onec.xmlgen.oracle.ExchangePlanContentOracleRunner;
+import io.github.onec.xmlgen.oracle.MxlOracleRunner;
+import io.github.onec.xmlgen.oracle.OracleOptions;
+import io.github.onec.xmlgen.oracle.PredefinedDataOracleRunner;
+import io.github.onec.xmlgen.oracle.RuleMiningReport;
+import io.github.onec.xmlgen.oracle.RuleMiningReportWriter;
 
 import io.github.onec.xmlgen.editor.ReplaceTextEditor;
 
 //++agent TASK-155 [22.05.2026 00:00:00]
-// TASK-155 A2 iter-3: import RoleRight for compile-path rights validation (bug-T-154-role-002).
-import com.github._1c_syntax.bsl.mdo.support.RoleRight;
+// TASK-155/TASK-174: role compile validates right names before writing Rights.xml.
 //++agent TASK-155
 
 import java.io.IOException;
@@ -68,9 +79,20 @@ public class Commands {
     // erf is normalised to epf before the check.
     private static final Set<String> KNOWN_VALIDATE_TYPES = new HashSet<>(Arrays.asList(
         "form", "role", "skd", "mxl", "epf", "erf",
-        "meta", "config", "extension", "subsystem", "interface", "template"
+        "meta", "config", "extension", "subsystem", "interface", "template", "xcf-body"
     ));
-    
+
+    //++agent TASK-174 [05.06.2026 00:00:00]
+    // XG-03: единый шаблон допустимого имени метаданных 1С — латиница ИЛИ кириллица,
+    // далее буквы/цифры/подчёркивание, не начинается с цифры. Совпадает с EpfValidator.IDENT_RE
+    // и с регуляркой пути meta/extension. Прежняя EPF/config-регулярка [A-Za-z_][A-Za-z0-9_]*
+    // отвергала кириллицу — это была ошибочная посылка TASK-155 (bug-T-154-epf-002):
+    // 1С полностью поддерживает кириллические идентификаторы (вся конфигурация GBIG PAM —
+    // имена с префиксом биг_). Из-за этого `epf init --name биг_X` падал, а обход через
+    // латинский плейсхолдер + edit replace-text давал структурно битый корневой XML (XG-03/XG-04).
+    private static final String ONEC_NAME_PATTERN = "[A-Za-z_А-ЯЁа-яё][A-Za-z0-9_А-ЯЁа-яё]*";
+    //++agent TASK-174
+
     public static void execute(String command, String[] args) {
         switch (command.toLowerCase()) {
             case "epf":
@@ -115,11 +137,219 @@ public class Commands {
             case "validate":
                 executeValidate(args);
                 break;
+            case "oracle":
+                executeOracle(args);
+                break;
             case "--help":
             case "-h":
                 throw new IllegalArgumentException("Use without arguments to see help");
-            default:
+                default:
                 throw new IllegalArgumentException("Unknown command: " + command);
+        }
+    }
+
+    private static void executeOracle(String[] args) {
+        if (args.length == 0) {
+            throw new IllegalArgumentException("Oracle subcommand required: mxl|demo|predefined-data|exchange-plan-content|mine-rules");
+        }
+        String subcommand = args[0].toLowerCase();
+        if ("demo".equals(subcommand)) {
+            executeDemoOracle(args);
+            return;
+        }
+        if ("predefined-data".equals(subcommand)) {
+            executePredefinedDataOracle(args);
+            return;
+        }
+        if ("exchange-plan-content".equals(subcommand)) {
+            executeExchangePlanContentOracle(args);
+            return;
+        }
+        if ("mine-rules".equals(subcommand)) {
+            executeMineRulesOracle(args);
+            return;
+        }
+        if (!"mxl".equals(subcommand)) {
+            throw new IllegalArgumentException("Unknown oracle subcommand: " + args[0]
+                    + ". Supported: mxl, demo, predefined-data, exchange-plan-content, mine-rules");
+        }
+
+        Path source = null;
+        Path out = Paths.get("build/oracle");
+        String mode = "both";
+        int limit = 0;
+        Path allowlist = null;
+        Path xgRegistry = null;
+        boolean includeAll = false;
+
+        for (int i = 1; i < args.length; i++) {
+            String a = args[i];
+            if ("--source".equals(a) && i + 1 < args.length) {
+                source = Paths.get(args[++i]);
+            } else if ("--out".equals(a) && i + 1 < args.length) {
+                out = Paths.get(args[++i]);
+            } else if ("--mode".equals(a) && i + 1 < args.length) {
+                mode = args[++i].toLowerCase();
+            } else if ("--limit".equals(a) && i + 1 < args.length) {
+                limit = Integer.parseInt(args[++i]);
+            } else if ("--allowlist".equals(a) && i + 1 < args.length) {
+                allowlist = Paths.get(args[++i]);
+            } else if ("--xg-registry".equals(a) && i + 1 < args.length) {
+                xgRegistry = Paths.get(args[++i]);
+            } else if ("--include-all".equals(a)) {
+                includeAll = true;
+            } else {
+                throw new IllegalArgumentException("Unknown option for oracle mxl: " + a);
+            }
+        }
+
+        if (source == null) {
+            throw new IllegalArgumentException("--source is required");
+        }
+        if (!List.of("dsl", "cli", "both").contains(mode)) {
+            throw new IllegalArgumentException("--mode must be one of: dsl, cli, both");
+        }
+
+        try {
+            new MxlOracleRunner().run(new OracleOptions(source, out, mode, limit, allowlist, xgRegistry, includeAll));
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to run MXL oracle: " + e.getMessage(), e);
+        }
+    }
+
+    private static void executeDemoOracle(String[] args) {
+        Path source = null;
+        Path out = Paths.get("build/oracle-demo");
+        int limit = 0;
+        int threads = Math.max(1, Runtime.getRuntime().availableProcessors() / 2);
+        boolean includeMxl = false;
+
+        for (int i = 1; i < args.length; i++) {
+            String a = args[i];
+            if ("--source".equals(a) && i + 1 < args.length) {
+                source = Paths.get(args[++i]);
+            } else if ("--out".equals(a) && i + 1 < args.length) {
+                out = Paths.get(args[++i]);
+            } else if ("--limit".equals(a) && i + 1 < args.length) {
+                limit = Integer.parseInt(args[++i]);
+            } else if ("--threads".equals(a) && i + 1 < args.length) {
+                threads = Integer.parseInt(args[++i]);
+            } else if ("--include-mxl".equals(a)) {
+                includeMxl = true;
+            } else {
+                throw new IllegalArgumentException("Unknown option for oracle demo: " + a);
+            }
+        }
+
+        if (source == null) {
+            throw new IllegalArgumentException("--source is required");
+        }
+
+        try {
+            new DemoOracleRunner().run(source, out, limit, threads, includeMxl);
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to run demo oracle: " + e.getMessage(), e);
+        }
+    }
+
+    private static void executePredefinedDataOracle(String[] args) {
+        Path source = null;
+        Path out = Paths.get("build/oracle-predefined-data");
+        int limit = 0;
+
+        for (int i = 1; i < args.length; i++) {
+            String a = args[i];
+            if ("--source".equals(a) && i + 1 < args.length) {
+                source = Paths.get(args[++i]);
+            } else if ("--out".equals(a) && i + 1 < args.length) {
+                out = Paths.get(args[++i]);
+            } else if ("--limit".equals(a) && i + 1 < args.length) {
+                limit = Integer.parseInt(args[++i]);
+            } else {
+                throw new IllegalArgumentException("Unknown option for oracle predefined-data: " + a);
+            }
+        }
+
+        if (source == null) {
+            throw new IllegalArgumentException("--source is required");
+        }
+
+        try {
+            new PredefinedDataOracleRunner().run(source, out, limit);
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to run PredefinedData oracle: " + e.getMessage(), e);
+        }
+    }
+
+    private static void executeExchangePlanContentOracle(String[] args) {
+        Path source = null;
+        Path out = Paths.get("build/oracle-exchange-plan-content");
+        int limit = 0;
+
+        for (int i = 1; i < args.length; i++) {
+            String a = args[i];
+            if ("--source".equals(a) && i + 1 < args.length) {
+                source = Paths.get(args[++i]);
+            } else if ("--out".equals(a) && i + 1 < args.length) {
+                out = Paths.get(args[++i]);
+            } else if ("--limit".equals(a) && i + 1 < args.length) {
+                limit = Integer.parseInt(args[++i]);
+            } else {
+                throw new IllegalArgumentException("Unknown option for oracle exchange-plan-content: " + a);
+            }
+        }
+
+        if (source == null) {
+            throw new IllegalArgumentException("--source is required");
+        }
+
+        try {
+            new ExchangePlanContentOracleRunner().run(source, out, limit);
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to run ExchangePlanContent oracle: " + e.getMessage(), e);
+        }
+    }
+
+    private static void executeMineRulesOracle(String[] args) {
+        Path source = null;
+        Path out = Paths.get("build/oracle-rule-mining");
+        int limit = 0;
+        int minSupport = 2;
+        int digestLimit = io.github.onec.xmlgen.oracle.RuleCandidateReducer.DEFAULT_DIGEST_LIMIT;
+        Path disposition = null;
+
+        for (int i = 1; i < args.length; i++) {
+            String a = args[i];
+            if ("--source".equals(a) && i + 1 < args.length) {
+                source = Paths.get(args[++i]);
+            } else if ("--out".equals(a) && i + 1 < args.length) {
+                out = Paths.get(args[++i]);
+            } else if ("--limit".equals(a) && i + 1 < args.length) {
+                limit = Integer.parseInt(args[++i]);
+            } else if ("--min-support".equals(a) && i + 1 < args.length) {
+                minSupport = Integer.parseInt(args[++i]);
+            } else if ("--digest-limit".equals(a) && i + 1 < args.length) {
+                digestLimit = Integer.parseInt(args[++i]);
+            } else if ("--disposition".equals(a) && i + 1 < args.length) {
+                disposition = Paths.get(args[++i]);
+            } else {
+                throw new IllegalArgumentException("Unknown option for oracle mine-rules: " + a);
+            }
+        }
+
+        if (source == null) {
+            throw new IllegalArgumentException("--source is required");
+        }
+
+        try {
+            RuleMiningReport report = new CanonicalRuleMiner().mine(source, limit, minSupport);
+            io.github.onec.xmlgen.oracle.RuleDispositionRegistry registry =
+                    io.github.onec.xmlgen.oracle.RuleDispositionRegistry.load(disposition);
+            new RuleMiningReportWriter().write(out, report, digestLimit, registry);
+            System.out.println("Rule mining report: " + out.resolve("rule-mining-report.json"));
+            System.out.println("Rule digest: " + out.resolve("rule-digest.json"));
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to run rule mining oracle: " + e.getMessage(), e);
         }
     }
 
@@ -180,6 +410,8 @@ public class Commands {
                 epfPath = Paths.get(a);
             } else if (!a.startsWith("--")) {
                 // дополнительный позиционный — игнор
+            } else {
+                throw new IllegalArgumentException("Unknown option for epf bsp-init: " + a);
             }
         }
 
@@ -241,6 +473,8 @@ public class Commands {
                 form = args[++i];
             } else if (epfPath == null && !a.startsWith("--")) {
                 epfPath = Paths.get(a);
+            } else if (a.startsWith("--")) {
+                throw new IllegalArgumentException("Unknown option for epf bsp-add-command: " + a);
             }
         }
 
@@ -293,8 +527,12 @@ public class Commands {
             } else if ("--with-skd".equals(args[i])) {
                 withSkd = true;
             //++agent TASK-171
+            } else if (args[i].startsWith("--")) {
+                throw new IllegalArgumentException("Unknown option for epf init: " + args[i]);
             } else if (outputDir == null) {
                 outputDir = Paths.get(args[i]);
+            } else {
+                throw new IllegalArgumentException("Unexpected positional argument for epf init: " + args[i]);
             }
         }
 
@@ -315,17 +553,25 @@ public class Commands {
         }
         //++agent TASK-171
 
-        //++agent TASK-155 [22.05.2026 00:00:00]
-        // TASK-155 A2 iter-3: name validation for EPF init (bug-T-154-epf-002).
-        // 1C metadata names must match [A-Za-z_][A-Za-z0-9_]* (latin only, no spaces/special chars).
-        // Names with spaces or special characters produce paths invalid on some 1C Designer versions.
-        if (!name.matches("[A-Za-z_][A-Za-z0-9_]*")) {
+        //**agent TASK-174 [05.06.2026 00:00:00]
+        // XG-03: имя обработки/отчёта валидируется единым ONEC_NAME_PATTERN (латиница+кириллица).
+        // Прежняя латиница-только регулярка [A-Za-z_][A-Za-z0-9_]* блокировала кириллический init,
+        // вынуждая обход (латинский плейсхолдер + edit replace-text), ломавший корневой XML.
+        // Имя по-прежнему отвергает пробелы/спецсимволы (валидный путь Designer), но кириллицу пропускает.
+        //// TASK-155 A2 iter-3: name validation for EPF init (bug-T-154-epf-002).
+        //if (!name.matches("[A-Za-z_][A-Za-z0-9_]*")) {
+        //    throw new IllegalArgumentException(
+        //        "Invalid 1C name: '" + name + "'. " +
+        //        "EPF/ERF names must match [A-Za-z_][A-Za-z0-9_]* " +
+        //        "(Latin letters, digits, and underscores only; must not start with a digit).");
+        //}
+        if (!name.matches(ONEC_NAME_PATTERN)) {
             throw new IllegalArgumentException(
                 "Invalid 1C name: '" + name + "'. " +
-                "EPF/ERF names must match [A-Za-z_][A-Za-z0-9_]* " +
-                "(Latin letters, digits, and underscores only; must not start with a digit).");
+                "EPF/ERF names must match " + ONEC_NAME_PATTERN + " " +
+                "(Latin or Cyrillic letters, digits, and underscores only; must not start with a digit).");
         }
-        //++agent TASK-155
+        //**agent TASK-174
 
         try {
             EpfWriter writer = new EpfWriter(format, isReport);
@@ -365,8 +611,12 @@ public class Commands {
                 formSynonym = args[++i];
             } else if ("--default".equals(args[i])) {
                 setAsDefault = true;
+            } else if (args[i].startsWith("--")) {
+                throw new IllegalArgumentException("Unknown option for epf add-form: " + args[i]);
             } else if (outputDir == null) {
                 outputDir = Paths.get(args[i]);
+            } else {
+                throw new IllegalArgumentException("Unexpected positional argument for epf add-form: " + args[i]);
             }
         }
         
@@ -379,6 +629,7 @@ public class Commands {
         if (outputDir == null) {
             throw new IllegalArgumentException("output directory is required");
         }
+        assertValidOneCName(formName, "form");
         
         //++agent TASK-155 [22.05.2026 00:00:00]
         // TASK-155 A2 iter-3: duplicate form detection (bug-T-154-epf-002 obs #1).
@@ -419,8 +670,12 @@ public class Commands {
                 templateType = args[++i];
             } else if ("--synonym".equals(args[i]) && i + 1 < args.length) {
                 templateSynonym = args[++i];
+            } else if (args[i].startsWith("--")) {
+                throw new IllegalArgumentException("Unknown option for epf add-template: " + args[i]);
             } else if (outputDir == null) {
                 outputDir = Paths.get(args[i]);
+            } else {
+                throw new IllegalArgumentException("Unexpected positional argument for epf add-template: " + args[i]);
             }
         }
         
@@ -436,6 +691,7 @@ public class Commands {
         if (outputDir == null) {
             throw new IllegalArgumentException("output directory is required");
         }
+        assertValidOneCName(templateName, "template");
         
         try {
             EpfWriter writer = new EpfWriter(format);
@@ -464,24 +720,18 @@ public class Commands {
                          "(e.g. --type String, --type Number, --type Boolean, --type CatalogRef.X)");
                  }
                  String attrName = getArg(args, "--name", true);
-                 // Check for duplicate attribute in the EPF XML
-                 XmlNode epfAttribs = doc.getRoot().child("ExternalDataProcessor") != null
-                     ? doc.getRoot().child("ExternalDataProcessor")
-                     : doc.getRoot();
-                 // Find Attributes section at any depth by scanning root's Attributes child
-                 XmlNode attrSection = doc.getRoot().child("Attributes");
-                 if (attrSection == null) {
-                     // Try nested ExternalDataProcessor / ExternalReport root pattern
-                     for (String childName : new String[]{"ExternalDataProcessor", "ExternalReport"}) {
-                         XmlNode container = doc.getRoot().child(childName);
-                         if (container != null) {
-                             attrSection = container.child("Attributes");
-                             break;
-                         }
+                 // Check for duplicate attribute in the canonical EPF ChildObjects section.
+                 XmlNode epfRoot = doc.getRoot();
+                 for (String childName : new String[]{"ExternalDataProcessor", "ExternalReport"}) {
+                     XmlNode container = doc.getRoot().child(childName);
+                     if (container != null) {
+                         epfRoot = container;
+                         break;
                      }
                  }
-                 if (attrSection != null) {
-                     for (XmlNode existingAttr : attrSection.children("Attribute")) {
+                 XmlNode childObjects = epfRoot.child("ChildObjects");
+                 if (childObjects != null) {
+                     for (XmlNode existingAttr : childObjects.children("Attribute")) {
                          XmlNode props = existingAttr.child("Properties");
                          if (props != null) {
                              XmlNode nameNode = props.child("Name");
@@ -583,17 +833,25 @@ public class Commands {
                 synonym = args[++i];
             } else if ("--default".equals(args[i])) {
                 setAsDefault = true;
+            } else if (args[i].startsWith("--")) {
+                throw new IllegalArgumentException("Unknown option for form add: " + args[i]);
             } else if (objectXml == null) {
                 objectXml = Paths.get(args[i]);
             } else if (formName == null) {
                 formName = args[i];
+            } else {
+                throw new IllegalArgumentException("Unexpected positional argument for form add: " + args[i]);
             }
         }
 
         if (objectXml == null || formName == null) {
             throw new IllegalArgumentException("Usage: xml-gen form add <objectXml> <formName> [--synonym <syn>] [--default]");
         }
+        assertValidOneCName(formName, "form");
 
+        Path formMeta = null;
+        Path formDir = null;
+        boolean ownsScaffold = false;
         try {
             ObjectContainerEditor editor = new ObjectContainerEditor(objectXml);
             if (editor.hasForm(formName)) {
@@ -602,10 +860,19 @@ public class Commands {
 
             String objectType = editor.detectObjectType();
             String objectName = editor.getObjectName();
+            requireKnownObjectType(objectType, objectXml);
 
             // Create scaffold
             Path baseDir = objectXml.getParent().resolve(objectName != null ? objectName : "");
-            ObjectContainerEditor.createFormScaffold(baseDir, formName, synonym, objectType, objectName);
+            formMeta = baseDir.resolve("Forms").resolve(formName + ".xml");
+            formDir = baseDir.resolve("Forms").resolve(formName);
+            if (Files.exists(formMeta) || Files.exists(formDir)) {
+                throw new IllegalArgumentException("Form scaffold already exists for '" + formName + "'");
+            }
+            String formatVersion = ConfigurationXmlReader.readFormatVersion(objectXml);
+            ownsScaffold = true;
+            ObjectContainerEditor.createFormScaffold(baseDir, formName, synonym, objectType, objectName,
+                    formatVersion);
 
             // Update ChildObjects
             boolean isFirstForm = !editor.hasAnyForm();
@@ -618,7 +885,10 @@ public class Commands {
 
             System.out.println("Added form: " + formName);
             System.out.println("  Metadata: " + baseDir.resolve("Forms").resolve(formName + ".xml"));
-        } catch (IOException e) {
+        } catch (IOException | RuntimeException e) {
+            if (ownsScaffold) {
+                cleanupCreatedFormScaffold(formMeta, formDir, e);
+            }
             throw new RuntimeException("Failed to add form: " + e.getMessage(), e);
         }
     }
@@ -644,7 +914,7 @@ public class Commands {
 
         try {
             ObjectContainerEditor editor = new ObjectContainerEditor(objectXml);
-            if (!editor.removeForm(formName)) {
+            if (!editor.hasForm(formName)) {
                 //++agent TASK-155 [22.05.2026 00:00:00]
                 // TASK-155 A2 iter-3: fail-fast on missing form (bug-T-154-form-002 obs #6).
                 // Previously: print "Form not found" + exit=0 (silent no-op).
@@ -655,25 +925,102 @@ public class Commands {
                 //++agent TASK-155
             }
 
-            editor.clearDefaultFormIfMatches(formName);
-            editor.save();
-
-            // Delete form files
             String objectName = editor.getObjectName();
             Path baseDir = objectXml.getParent().resolve(objectName != null ? objectName : "");
             Path formMeta = baseDir.resolve("Forms").resolve(formName + ".xml");
             Path formDir = baseDir.resolve("Forms").resolve(formName);
+            if (Files.exists(formMeta) && !Files.isRegularFile(formMeta)) {
+                throw new IOException("Expected form metadata file, got non-file path: " + formMeta);
+            }
+            if (Files.exists(formDir) && !Files.isDirectory(formDir)) {
+                throw new IOException("Expected form directory, got non-directory path: " + formDir);
+            }
 
-            if (Files.exists(formMeta)) Files.delete(formMeta);
-            if (Files.exists(formDir)) {
-                Files.walk(formDir)
-                        .sorted(java.util.Comparator.reverseOrder())
-                        .forEach(p -> { try { Files.delete(p); } catch (IOException ignored) {} });
+            byte[] originalObjectXml = Files.readAllBytes(objectXml);
+            Path backupRoot = createFormRemoveBackupRoot(baseDir);
+            boolean backupCommitted = false;
+            try {
+                moveIfExists(formMeta, backupRoot.resolve(formName + ".xml"));
+                moveIfExists(formDir, backupRoot.resolve(formName));
+
+                editor.removeForm(formName);
+                editor.clearDefaultFormIfMatches(formName);
+                editor.save();
+                backupCommitted = true;
+            } catch (IOException e) {
+                restoreFormRemoveBackup(backupRoot, formMeta, formDir, formName, e);
+                try {
+                    Files.write(objectXml, originalObjectXml);
+                } catch (IOException restoreError) {
+                    e.addSuppressed(restoreError);
+                }
+                throw e;
+            } finally {
+                if (backupCommitted) {
+                    cleanupCommittedFormRemoveBackup(backupRoot);
+                }
             }
 
             System.out.println("Removed form: " + formName);
         } catch (IOException e) {
             throw new RuntimeException("Failed to remove form: " + e.getMessage(), e);
+        }
+    }
+
+    private static Path createFormRemoveBackupRoot(Path baseDir) throws IOException {
+        Path formsDir = baseDir.resolve("Forms");
+        Files.createDirectories(formsDir);
+        return Files.createTempDirectory(formsDir, ".xml-gen-remove-");
+    }
+
+    private static void moveIfExists(Path source, Path target) throws IOException {
+        if (!Files.exists(source)) return;
+        Files.createDirectories(target.getParent());
+        try {
+            Files.move(source, target, java.nio.file.StandardCopyOption.ATOMIC_MOVE);
+        } catch (java.nio.file.AtomicMoveNotSupportedException e) {
+            Files.move(source, target);
+        }
+    }
+
+    private static void restoreFormRemoveBackup(Path backupRoot, Path formMeta, Path formDir,
+                                                String formName, Exception cause) {
+        try {
+            moveIfExists(backupRoot.resolve(formName), formDir);
+            moveIfExists(backupRoot.resolve(formName + ".xml"), formMeta);
+            Files.deleteIfExists(backupRoot);
+        } catch (IOException restoreError) {
+            cause.addSuppressed(restoreError);
+        }
+    }
+
+    private static void cleanupCommittedFormRemoveBackup(Path backupRoot) {
+        try {
+            deleteDirectoryTree(backupRoot);
+        } catch (IOException e) {
+            System.err.println("Warning: cannot delete temporary form backup " + backupRoot
+                    + ": " + e.getMessage());
+        }
+    }
+
+    private static void cleanupCreatedFormScaffold(Path formMeta, Path formDir, Exception cause) {
+        try {
+            if (formMeta != null && Files.exists(formMeta)) {
+                Files.deleteIfExists(formMeta);
+            }
+            deleteDirectoryTree(formDir);
+        } catch (IOException cleanupError) {
+            cause.addSuppressed(cleanupError);
+        }
+    }
+
+    private static void deleteDirectoryTree(Path dir) throws IOException {
+        if (dir == null || !Files.exists(dir)) return;
+        try (java.util.stream.Stream<Path> paths = Files.walk(dir)) {
+            List<Path> toDelete = paths.sorted(java.util.Comparator.reverseOrder()).toList();
+            for (Path path : toDelete) {
+                Files.delete(path);
+            }
         }
     }
 
@@ -742,6 +1089,12 @@ public class Commands {
         Path file = getFileArg(args);
         try {
             XmlDocument doc = new XmlStructureReader().parse(file);
+            //++agent TASK-174 [05.06.2026 12:55:00]
+            // Diff-gate (как в formEditJson): pre-existing ошибки валидации (включая
+            // новый FORM-121 на рукописных формах без корневого Title) НЕ блокируют
+            // точечную правку — блокируются только НОВЫЕ ошибки, внесённые правкой.
+            Set<String> preEditErrors = snapshotErrors(doc, "form", args);
+            //++agent TASK-174
             FormEditor editor = new FormEditor(doc);
             String cmd = args[0];
             
@@ -765,13 +1118,20 @@ public class Commands {
                  //++agent TASK-155
                  editor.addAttribute(addAttrName, getArg(args, "--type", true));
             } else if ("add-element".equals(cmd)) {
+                 //**agent TASK-174 [05.06.2026 00:00:00]
+                 // XG-02: добавлен --command для привязки кнопки к команде формы через edit-путь
+                 // (раньше CommandName умел только compile). Значение — короткое имя команды
+                 // или полная ссылка Form.Command.X.
                  editor.addElement(
                      getArg(args, "--type", true),
                      getArg(args, "--name", true),
                      getArg(args, "--path", false),
                      getArg(args, "--parent", false),
-                     getArg(args, "--after", false)
+                     getArg(args, "--after", false),
+                     getArg(args, "--before", false),
+                     getArg(args, "--command", false)
                  );
+                 //**agent TASK-174
             } else if ("add-command".equals(cmd)) {
                  //++agent TASK-155 [22.05.2026 00:00:00]
                  // TASK-155 A2 iter-3: --action is required for form add-command (bug-T-154-form-002 obs #1).
@@ -835,7 +1195,9 @@ public class Commands {
                      moveInto
                  );
             }
-            saveAndValidate(doc, file, "form", args);
+            //**agent TASK-174 [05.06.2026 12:55:00] diff-gate вместо строгого gate
+            saveAndValidate(doc, file, "form", args, preEditErrors);
+            //**agent TASK-174
         } catch (Exception e) {
             throw new RuntimeException("Form editor failed: " + e.getMessage(), e);
         }
@@ -865,6 +1227,12 @@ public class Commands {
         }
 
         try {
+            byte[] originalFormBytes = Files.readAllBytes(formFile);
+            BslStubWriter bslWriter = new BslStubWriter(formFile);
+            Path modulePath = bslWriter.getModulePath();
+            boolean moduleExisted = modulePath != null && Files.exists(modulePath);
+            byte[] originalModuleBytes = moduleExisted ? Files.readAllBytes(modulePath) : null;
+
             XmlDocument doc = new XmlStructureReader().parse(formFile);
             // Snapshot pre-existing errors, чтобы diff-gate не блокировался на них
             Set<String> preEditErrors = snapshotErrors(doc, "form", args);
@@ -872,10 +1240,40 @@ public class Commands {
             ObjectMapper mapper = new ObjectMapper();
             FormEditDsl spec = mapper.readValue(jsonFile.toFile(), FormEditDsl.class);
             // formFile передаётся, чтобы BslStubWriter мог найти соседний Module.bsl
-            new FormEditApplier(editor, formFile).apply(spec);
-            saveAndValidate(doc, formFile, "form", args, preEditErrors);
+            FormEditApplier applier = new FormEditApplier(editor, formFile);
+            applier.apply(spec, false);
+            try {
+                saveAndValidate(doc, formFile, "form", args, preEditErrors);
+                applier.flushBslStubs();
+            } catch (Exception e) {
+                restoreBytes(formFile, originalFormBytes);
+                restoreOptionalBytes(modulePath, moduleExisted, originalModuleBytes);
+                throw e;
+            }
         } catch (Exception e) {
             throw new RuntimeException("Form edit failed: " + e.getMessage(), e);
+        }
+    }
+
+    private static void restoreBytes(Path file, byte[] bytes) {
+        if (file == null || bytes == null) return;
+        try {
+            Files.write(file, bytes);
+        } catch (Exception ignored) {
+            // best effort rollback
+        }
+    }
+
+    private static void restoreOptionalBytes(Path file, boolean existed, byte[] bytes) {
+        if (file == null) return;
+        try {
+            if (existed) {
+                Files.write(file, bytes);
+            } else {
+                Files.deleteIfExists(file);
+            }
+        } catch (Exception ignored) {
+            // best effort rollback
         }
     }
 
@@ -980,6 +1378,27 @@ public class Commands {
                                     "Posting, UndoPosting). Got: '" + right + "'.");
                             }
                         }
+                    } else if (obj.getRights() instanceof Map) {
+                        @SuppressWarnings("unchecked")
+                        Map<String, Object> rightsMap = (Map<String, Object>) obj.getRights();
+                        for (String right : rightsMap.keySet()) {
+                            if (!isValidRoleRightName(right)) {
+                                throw new IllegalArgumentException(
+                                    "Invalid right name '" + right + "' for object '" + obj.getName() + "'. " +
+                                    "Right names are case-sensitive XML identifiers (e.g. Read, View, Insert, " +
+                                    "Update, Delete, Edit, InteractiveInsert, InteractiveDelete, " +
+                                    "Posting, UndoPosting). Got: '" + right + "'.");
+                            }
+                        }
+                    }
+                    if (obj.getRls() != null) {
+                        for (String right : obj.getRls().keySet()) {
+                            if (!isValidRoleRightName(right)) {
+                                throw new IllegalArgumentException(
+                                    "Invalid RLS right name '" + right + "' for object '" + obj.getName() + "'. " +
+                                    "Right names are case-sensitive XML identifiers (e.g. Read, Update, Insert, Delete).");
+                            }
+                        }
                     }
                 }
             }
@@ -1023,18 +1442,29 @@ public class Commands {
      */
     private static boolean isValidRoleRightName(String name) {
         try {
-            for (RoleRight rr : RoleRight.values()) {
-                if (rr.fullName().getEn().equals(name)) {
-                    return true;
-                }
-            }
-            return false;
+            return RoleDsl.isKnownRightName(name);
         } catch (Exception e) {
             // If enum not available, do not block compilation
             return true;
         }
     }
     //++agent TASK-155
+
+    private static void assertValidOneCName(String name, String kind) {
+        if (name == null || !name.matches(ONEC_NAME_PATTERN)) {
+            throw new IllegalArgumentException(
+                    "Invalid 1C name for " + kind + ": '" + name + "'. "
+                            + "Names must match " + ONEC_NAME_PATTERN + " "
+                            + "(Latin or Cyrillic letters, digits, and underscores only; must not start with a digit).");
+        }
+    }
+
+    private static void requireKnownObjectType(String objectType, Path objectXml) {
+        if (objectType == null || "Unknown".equals(objectType)) {
+            throw new IllegalArgumentException("Expected a supported 1C metadata object XML, got unknown object type: "
+                    + objectXml);
+        }
+    }
 
     private static void executeMxl(String[] args) {
         if (args.length == 0) {
@@ -1156,7 +1586,8 @@ public class Commands {
             boolean hasContent = (dsl.getAreas() != null && !dsl.getAreas().isEmpty())
                 || dsl.getColumns() != null
                 || (dsl.getColumnWidths() != null && !dsl.getColumnWidths().isEmpty())
-                || dsl.getPage() != null;
+                || dsl.getPage() != null
+                || (dsl.getLosslessXmlBase64() != null && !dsl.getLosslessXmlBase64().isBlank());
             if (!hasContent) {
                 throw new IllegalArgumentException(
                     "MXL DSL requires at least one of: areas, columns, columnWidths, page. " +
@@ -1242,8 +1673,12 @@ public class Commands {
                 srcDir = args[++i];
             } else if ("--set-main-dcs".equals(a)) {
                 setMainDcs = true;
+            } else if (a.startsWith("--")) {
+                throw new IllegalArgumentException("Unknown option for template add: " + a);
             } else if (!a.startsWith("--") && configDir == null) {
                 configDir = Paths.get(a);
+            } else {
+                throw new IllegalArgumentException("Unexpected positional argument for template add: " + a);
             }
         }
 
@@ -1259,6 +1694,7 @@ public class Commands {
         if (configDir == null) {
             throw new IllegalArgumentException("configDir (positional) is required");
         }
+        assertValidOneCName(name, "template");
 
         io.github.onec.xmlgen.model.MdoPath object = io.github.onec.xmlgen.model.MdoPath.parse(objectSpec);
         try {
@@ -1285,10 +1721,14 @@ public class Commands {
                 templateType = args[++i];
             } else if ("--synonym".equals(args[i]) && i + 1 < args.length) {
                 synonym = args[++i];
+            } else if (args[i].startsWith("--")) {
+                throw new IllegalArgumentException("Unknown option for template add: " + args[i]);
             } else if (objectXml == null) {
                 objectXml = Paths.get(args[i]);
             } else if (templateName == null) {
                 templateName = args[i];
+            } else {
+                throw new IllegalArgumentException("Unexpected positional argument for template add: " + args[i]);
             }
         }
 
@@ -1297,6 +1737,7 @@ public class Commands {
                     "Usage: xml-gen template add --object Type.Name --name T --type TT [--synonym S] [--src dir] [--set-main-dcs] configDir\n"
                     + "  or (legacy): xml-gen template add <objectXml> <templateName> [--type <type>]");
         }
+        assertValidOneCName(templateName, "template");
 
         try {
             ObjectContainerEditor editor = new ObjectContainerEditor(objectXml);
@@ -1306,7 +1747,9 @@ public class Commands {
 
             String objectName = editor.getObjectName();
             Path baseDir = objectXml.getParent().resolve(objectName != null ? objectName : "");
-            ObjectContainerEditor.createTemplateScaffold(baseDir, templateName, synonym, templateType);
+            String formatVersion = ConfigurationXmlReader.readFormatVersion(objectXml);
+            ObjectContainerEditor.createTemplateScaffold(baseDir, templateName, synonym, templateType,
+                    formatVersion);
 
             editor.addTemplate(templateName);
 
@@ -1360,8 +1803,12 @@ public class Commands {
                 name = args[++i];
             } else if ("--src".equals(a) && i + 1 < args.length) {
                 srcDir = args[++i];
+            } else if (a.startsWith("--")) {
+                throw new IllegalArgumentException("Unknown option for template remove: " + a);
             } else if (!a.startsWith("--") && configDir == null) {
                 configDir = Paths.get(a);
+            } else {
+                throw new IllegalArgumentException("Unexpected positional argument for template remove: " + a);
             }
         }
 
@@ -1382,9 +1829,8 @@ public class Commands {
         // templates. Check existence in the CLI layer before delegating so we get exit=1 + ERROR.
         // Use srcDir to resolve the object XML (same logic as TemplateWriter.resolveSrcDir).
         try {
-            Path effectiveSrc = "src".equals(srcDir) ? configDir : configDir.resolve(srcDir);
-            // Also handle absolute srcDir paths passed by tests
-            if (Paths.get(srcDir).isAbsolute()) effectiveSrc = Paths.get(srcDir);
+            Path srcPath = Paths.get(srcDir);
+            Path effectiveSrc = srcPath.isAbsolute() ? srcPath : configDir.resolve(srcDir);
             Path objectXmlForCheck = effectiveSrc.resolve(object.getObjectXmlRelPath());
             if (Files.exists(objectXmlForCheck)) {
                 io.github.onec.xmlgen.editor.ObjectContainerEditor checkEditor =
@@ -1429,8 +1875,8 @@ public class Commands {
         try {
             ObjectContainerEditor editor = new ObjectContainerEditor(objectXml);
             if (!editor.removeTemplate(templateName)) {
-                System.out.println("Template '" + templateName + "' not found in ChildObjects");
-                return;
+                throw new IllegalArgumentException("Template '" + templateName
+                        + "' not found in ChildObjects of '" + objectXml + "'. Cannot remove a non-existing template.");
             }
             editor.save();
 
@@ -1469,8 +1915,12 @@ public class Commands {
                 lang = args[++i];
             } else if ("--src".equals(a) && i + 1 < args.length) {
                 srcDir = args[++i];
+            } else if (a.startsWith("--")) {
+                throw new IllegalArgumentException("Unknown option for template add-help: " + a);
             } else if (!a.startsWith("--") && configDir == null) {
                 configDir = Paths.get(a);
+            } else {
+                throw new IllegalArgumentException("Unexpected positional argument for template add-help: " + a);
             }
         }
 
@@ -1552,7 +2002,8 @@ public class Commands {
             ObjectContainerEditor editor = new ObjectContainerEditor(objectXml);
             String objectName = editor.getObjectName();
             Path baseDir = objectXml.getParent().resolve(objectName != null ? objectName : "");
-            ObjectContainerEditor.createHelpScaffold(baseDir, lang);
+            String formatVersion = ConfigurationXmlReader.readFormatVersion(objectXml);
+            ObjectContainerEditor.createHelpScaffold(baseDir, lang, formatVersion);
 
             System.out.println("Added help for: " + objectName);
             System.out.println("  Help.xml: " + baseDir.resolve("Ext").resolve("Help.xml"));
@@ -1591,9 +2042,15 @@ public class Commands {
         String name = null;
         int limit = 150;
         int offset = 0;
+        //++agent TASK-176 [08.06.2026 12:50:00]
+        // S-06 (XG-48): флаг --raw для печати запроса verbatim (lossless round-trip).
+        boolean raw = false;
+        //++agent TASK-176
 
         for (int i = 1; i < args.length; i++) {
-            if ("--mode".equals(args[i]) && i + 1 < args.length) {
+            if ("--raw".equals(args[i])) { //++agent TASK-176
+                raw = true;                //++agent TASK-176
+            } else if ("--mode".equals(args[i]) && i + 1 < args.length) {
                 mode = args[++i].toLowerCase();
             } else if ("--name".equals(args[i]) && i + 1 < args.length) {
                 name = args[++i];
@@ -1625,7 +2082,15 @@ public class Commands {
                     "Expected root <DataCompositionSchema>, got <" + rootEl + ">. " +
                     "The file does not appear to be a 1C data composition schema.");
             }
-            new SkdInfoPrinter().print(doc, mode, name, limit, offset, System.out);
+            //**agent TASK-176 [08.06.2026 12:50:00]
+            // S-06 (XG-48): --raw с режимом query печатает запрос байт-в-байт (verbatim),
+            // минуя пагинацию/декорации; иначе обычный режим.
+            if (raw && "query".equals(mode)) {
+                new SkdInfoPrinter().printRawQuery(doc.getRoot(), name, System.out);
+            } else {
+                new SkdInfoPrinter().print(doc, mode, name, limit, offset, System.out);
+            }
+            //**agent TASK-176
         } catch (XmlStructureReader.XmlParseException e) {
             throw new RuntimeException("Failed to parse SKD XML: " + e.getMessage(), e);
         }
@@ -1780,9 +2245,21 @@ public class Commands {
                 io.github.onec.xmlgen.editor.SkdEditor editor =
                         new io.github.onec.xmlgen.editor.SkdEditor(doc);
 
-                applySkdOperation(editor, operation, value, dataSet, variant, noSelection, schemaPath);
+                //**agent TASK-176 [08.06.2026 13:00:00]
+                // S-09 (XG-46): changed-гейт. Записываем (tmp+atomic-move в saveAndValidate)
+                // ТОЛЬКО при фактическом изменении — NO-OP edit не трогает байты файла.
+                // saveAndValidate-инвариант не нарушен: он просто не вызывается при NO-OP;
+                // rollback (внешний catch) для changed-пути сохранён. Правдивость changed
+                // обеспечена аудитом OpResult (removeField-починка — предусловие гейта).
+                boolean changed = applySkdOperation(editor, operation, value, dataSet, variant,
+                        noSelection, schemaPath);
 
-                saveAndValidate(doc, schemaPath, "skd", args);
+                if (changed) {
+                    saveAndValidate(doc, schemaPath, "skd", args);
+                } else {
+                    System.out.println("[NO-OP] No changes detected; file not rewritten.");
+                }
+                //**agent TASK-176
             } catch (Exception e) {
                 // Rollback: restore bytes
                 try {
@@ -1804,10 +2281,12 @@ public class Commands {
      * Некоторые операции batch не поддерживают (set-query, modify-structure,
      * patch-query без @once в составе spec → проверяется отдельно).
      */
-    private static void applySkdOperation(io.github.onec.xmlgen.editor.SkdEditor editor,
-                                          String operation, String value,
-                                          String dataSet, String variant, boolean noSelection,
-                                          Path schemaPath) {
+    //**agent TASK-176 [08.06.2026 13:00:00]
+    // S-09 (XG-46): агрегируем changed по batch-частям — гейт записи опирается на правду.
+    private static boolean applySkdOperation(io.github.onec.xmlgen.editor.SkdEditor editor,
+                                             String operation, String value,
+                                             String dataSet, String variant, boolean noSelection,
+                                             Path schemaPath) {
         java.util.List<String> parts;
         boolean allowBatch = !operation.equals("set-query")
                 && !operation.equals("modify-structure")
@@ -1819,72 +2298,70 @@ public class Commands {
             parts = java.util.List.of(value);
         }
 
+        boolean anyChanged = false;
         for (String spec : parts) {
-            applySingleSkdOp(editor, operation, spec, dataSet, variant, noSelection, schemaPath);
+            anyChanged |= applySingleSkdOp(editor, operation, spec, dataSet, variant, noSelection, schemaPath);
         }
+        return anyChanged;
     }
+    //**agent TASK-176
 
-    private static void applySingleSkdOp(io.github.onec.xmlgen.editor.SkdEditor editor,
-                                         String op, String spec,
-                                         String dataSet, String variant, boolean noSelection,
-                                         Path schemaPath) {
+    //**agent TASK-176 [08.06.2026 13:00:00]
+    // S-09 (XG-46): возвращаем агрегированный признак фактического изменения каждой операции
+    // (OpResult.changed editor'а). Раньше возвраты editor.*() отбрасывались (void), из-за чего
+    // вышестоящий гейт не мог отличить NO-OP от реальной правки. Правдивость OpResult по всем
+    // операциям проаудирована (см. dispositions.md): единственный «лгущий unchanged» —
+    // removeField selection-путь — починен (removeFromSelectionRecursive теперь сообщает
+    // о мутации). Прочие операции возвращают unchanged только без мутации XML.
+    private static boolean applySingleSkdOp(io.github.onec.xmlgen.editor.SkdEditor editor,
+                                            String op, String spec,
+                                            String dataSet, String variant, boolean noSelection,
+                                            Path schemaPath) {
         switch (op) {
             case "add-field": {
                 var fd = io.github.onec.xmlgen.editor.skd.SkdShorthandParser.parseField(spec);
-                editor.addField(fd, dataSet, variant, noSelection);
-                return;
+                return editor.addField(fd, dataSet, variant, noSelection).changed;
             }
             case "modify-field": {
                 var fd = io.github.onec.xmlgen.editor.skd.SkdShorthandParser.parseField(spec);
-                editor.modifyField(fd, dataSet);
-                return;
+                return editor.modifyField(fd, dataSet).changed;
             }
             case "remove-field": {
-                editor.removeField(spec.trim(), dataSet, variant);
-                return;
+                return editor.removeField(spec.trim(), dataSet, variant).changed;
             }
             case "set-field-role": {
                 var d = io.github.onec.xmlgen.editor.skd.SkdShorthandParser.parseFieldRole(spec);
-                editor.setFieldRole(d, dataSet);
-                return;
+                return editor.setFieldRole(d, dataSet).changed;
             }
             case "add-parameter": {
                 var p = io.github.onec.xmlgen.editor.skd.SkdShorthandParser.parseParameter(spec);
-                editor.addParameter(p);
-                return;
+                return editor.addParameter(p).changed;
             }
             case "modify-parameter": {
                 var p = io.github.onec.xmlgen.editor.skd.SkdShorthandParser.parseModifyParameter(spec);
-                editor.modifyParameter(p);
-                return;
+                return editor.modifyParameter(p).changed;
             }
             case "remove-parameter": {
-                editor.removeParameter(spec.trim());
-                return;
+                return editor.removeParameter(spec.trim()).changed;
             }
             case "rename-parameter": {
                 var arrow = io.github.onec.xmlgen.editor.skd.SkdShorthandParser.parseArrow(spec, false);
-                editor.renameParameter(arrow.oldText.trim(), arrow.newText.trim());
-                return;
+                return editor.renameParameter(arrow.oldText.trim(), arrow.newText.trim()).changed;
             }
             case "reorder-parameters": {
                 var order = io.github.onec.xmlgen.editor.skd.SkdShorthandParser.parseReorderParameters(spec);
-                editor.reorderParameters(order);
-                return;
+                return editor.reorderParameters(order).changed;
             }
             case "add-total": {
                 var t = io.github.onec.xmlgen.editor.skd.SkdShorthandParser.parseTotal(spec);
-                editor.addTotal(t);
-                return;
+                return editor.addTotal(t).changed;
             }
             case "remove-total": {
-                editor.removeTotal(spec.trim());
-                return;
+                return editor.removeTotal(spec.trim()).changed;
             }
             case "modify-structure": {
                 var s = io.github.onec.xmlgen.editor.skd.SkdShorthandParser.parseStructureSpec(spec);
-                editor.modifyStructure(s, variant);
-                return;
+                return editor.modifyStructure(s, variant).changed;
             }
             case "set-query": {
                 String text = spec;
@@ -1906,33 +2383,37 @@ public class Commands {
                         throw new RuntimeException("failed to read query file: " + ioe.getMessage(), ioe);
                     }
                 }
-                editor.setQuery(text, dataSet);
-                return;
+                return editor.setQuery(text, dataSet).changed;
             }
             case "patch-query": {
                 // patch-query batch via ;; is allowed (per skill query.md "batch supported").
                 java.util.List<String> patches =
                         io.github.onec.xmlgen.editor.skd.SkdShorthandParser.splitBatch(spec);
                 if (patches.isEmpty()) patches = java.util.List.of(spec);
-                for (String p : patches) editor.patchQuery(p, dataSet);
-                return;
+                boolean changed = false;
+                for (String p : patches) changed |= editor.patchQuery(p, dataSet).changed;
+                return changed;
             }
             case "clear-conditionalAppearance": {
                 if (!"*".equals(spec.trim())) {
                     throw new IllegalArgumentException(
                             "clear-conditionalAppearance: only '*' wildcard is supported");
                 }
-                editor.clearConditionalAppearance(variant);
-                return;
+                return editor.clearConditionalAppearance(variant).changed;
             }
             default:
                 throw new IllegalArgumentException("Unknown SKD edit operation: " + op);
         }
     }
+    //**agent TASK-176
 
     // ============================================================
     // validate command
     // ============================================================
+
+    static record ValidateOptions(String type, String format, ValidationLevel level,
+                                  String output, List<Path> files, Path srcRoot) {
+    }
 
     private static MetadataTypeValidator createMetadataValidator(String[] args) {
         String srcRootStr = getArg(args, "--src-root", false);
@@ -1940,48 +2421,25 @@ public class Commands {
         return new MetadataTypeValidator(srcRoot);
     }
 
+    private static MetadataTypeValidator createMetadataValidator(Path srcRoot) {
+        return new MetadataTypeValidator(srcRoot);
+    }
+
     private static void executeValidate(String[] args) {
-        // Парсинг: [--type <form|role|skd|mxl|epf>] [--format <designer|edt>] [--src-root <path>]
-        //          [--level <structure|semantic>] [--output <text|json>] <file1> [file2] ...
-        String type = null;
-        String formatStr = "designer";
-        ValidationLevel level = ValidationLevel.SEMANTIC;
-        String output = "text";
-        List<Path> files = new ArrayList<>();
-        
-        MetadataTypeValidator metadataValidator = createMetadataValidator(args);
+        ValidateOptions options = parseValidateOptions(args);
 
-        for (int i = 0; i < args.length; i++) {
-            if ("--type".equals(args[i]) && i + 1 < args.length) {
-                type = args[++i].toLowerCase();
-                if ("erf".equals(type)) type = "epf"; // ERF uses same validator as EPF
-                // TASK-155 A2: whitelist --type — reject unknown type values early
-                if (!KNOWN_VALIDATE_TYPES.contains(type)) {
-                    throw new IllegalArgumentException(
-                        "Unknown --type value: \"" + type + "\". Expected one of: " +
-                        "form, role, skd, mxl, epf, meta, config, extension, subsystem, interface, template");
-                }
-            } else if ("--format".equals(args[i]) && i + 1 < args.length) {
-                formatStr = args[++i].toLowerCase();
-            } else if ("--level".equals(args[i]) && i + 1 < args.length) {
-                String lvl = args[++i].toLowerCase();
-                level = "structure".equals(lvl) ? ValidationLevel.STRUCTURE : ValidationLevel.SEMANTIC;
-            } else if ("--output".equals(args[i]) && i + 1 < args.length) {
-                output = args[++i].toLowerCase();
-            } else if ("--src-root".equals(args[i]) && i + 1 < args.length) {
-                i++; // Skip value (already handled)
-            } else if (!args[i].startsWith("--")) {
-                files.add(Paths.get(args[i]));
-            }
-        }
-
-        if (files.isEmpty()) {
+        if (options.files().isEmpty()) {
             throw new IllegalArgumentException(
                     "Usage: validate [--type <form|role|skd|mxl|epf>] [--output <text|json>] [--src-root <path>] <file> [files...]");
+        }
+        if (options.srcRoot() != null && !Files.isDirectory(options.srcRoot())) {
+            throw new IllegalArgumentException("--src-root does not exist or is not a directory: "
+                    + options.srcRoot());
         }
 
         XmlStructureReader reader = new XmlStructureReader();
         ValidatorFactory factory = new ValidatorFactory();
+        MetadataTypeValidator metadataValidator = createMetadataValidator(options.srcRoot());
         GenValidator genValidator = new GenValidator(metadataValidator);
         TextReporter textReporter = new TextReporter();
         JsonReporter jsonReporter = new JsonReporter();
@@ -1989,7 +2447,7 @@ public class Commands {
         boolean hasErrors = false;
         boolean hasWarnings = false;
 
-        for (Path file : files) {
+        for (Path file : options.files()) {
             XmlDocument document;
             try {
                 document = reader.parse(file);
@@ -1998,50 +2456,114 @@ public class Commands {
                         ValidationIssue.error("GEN-001", e.getMessage(), 0, "/")
                 );
                 ValidationResult parseResult = new ValidationResult(
-                        file, type != null ? type : "unknown", formatStr, parseIssues);
-                System.out.println("text".equals(output)
+                        file, options.type() != null ? options.type() : "unknown", options.format(), parseIssues);
+                System.out.println("text".equals(options.output())
                         ? textReporter.format(parseResult)
                         : jsonReporter.format(parseResult));
                 hasErrors = true;
                 continue;
             }
 
-            String objectType = type;
+            String objectType = options.type();
             if (objectType == null) {
                 Optional<XmlValidator> detected = factory.detectValidator(document);
                 objectType = detected.map(XmlValidator::objectType).orElse(detectTypeByRoot(document));
             }
 
-            boolean expectBom = "designer".equals(formatStr) && isMetadataFile(objectType);
-            List<ValidationIssue> allIssues = new ArrayList<>(genValidator.validate(document, objectType, expectBom));
+            List<ValidationIssue> allIssues = validateDocumentForType(
+                    document, objectType, file, options.format(), options.level(), genValidator, factory);
 
-            Optional<XmlValidator> validator = type != null
-                    ? factory.getValidator(type)
-                    : factory.detectValidator(document);
-            if (validator.isPresent()) {
-                allIssues.addAll(validator.get().validate(document, level));
-            }
-
-            ValidationResult result = new ValidationResult(file, objectType, formatStr, allIssues);
+            ValidationResult result = new ValidationResult(file, objectType, options.format(), allIssues);
 
             if (!result.isValid()) hasErrors = true;
             if (result.warningCount() > 0) hasWarnings = true;
 
-            System.out.println("text".equals(output)
+            System.out.println("text".equals(options.output())
                     ? textReporter.format(result)
                     : jsonReporter.format(result));
         }
 
-        if (hasErrors) {
-            System.exit(1);
-        } else if (hasWarnings) {
-            System.exit(2);
+        exitForValidationSummary(hasErrors ? 1 : 0, hasWarnings ? 1 : 0);
+    }
+
+    static ValidateOptions parseValidateOptions(String[] args) {
+        // Парсинг: [--type <form|role|skd|mxl|epf>] [--format <designer|edt>] [--src-root <path>]
+        //          [--level <structure|semantic>] [--output <text|json>] <file1> [file2] ...
+        String type = null;
+        String formatStr = "designer";
+        ValidationLevel level = ValidationLevel.SEMANTIC;
+        String output = "text";
+        Path srcRoot = null;
+        List<Path> files = new ArrayList<>();
+
+        for (int i = 0; i < args.length; i++) {
+            String arg = args[i];
+            switch (arg) {
+                case "--type" -> {
+                    String rawType = requireOptionValue(args, i, "--type").toLowerCase();
+                    i++;
+                    type = "erf".equals(rawType) ? "epf" : rawType;
+                    if (!KNOWN_VALIDATE_TYPES.contains(rawType) && !KNOWN_VALIDATE_TYPES.contains(type)) {
+                        throw new IllegalArgumentException(
+                                "Unknown --type value: \"" + rawType + "\". Expected one of: "
+                                        + "form, role, skd, mxl, epf, erf, meta, config, extension, "
+                                        + "subsystem, interface, template");
+                    }
+                }
+                case "--format" -> {
+                    formatStr = requireOptionValue(args, i, "--format").toLowerCase();
+                    i++;
+                    if (!"designer".equals(formatStr) && !"edt".equals(formatStr)) {
+                        throw new IllegalArgumentException(
+                                "Unknown --format value: \"" + formatStr + "\". Expected designer or edt");
+                    }
+                }
+                case "--level" -> {
+                    String lvl = requireOptionValue(args, i, "--level").toLowerCase();
+                    i++;
+                    if ("structure".equals(lvl)) {
+                        level = ValidationLevel.STRUCTURE;
+                    } else if ("semantic".equals(lvl)) {
+                        level = ValidationLevel.SEMANTIC;
+                    } else {
+                        throw new IllegalArgumentException(
+                                "Unknown --level value: \"" + lvl + "\". Expected structure or semantic");
+                    }
+                }
+                case "--output" -> {
+                    output = requireOptionValue(args, i, "--output").toLowerCase();
+                    i++;
+                    if (!"text".equals(output) && !"json".equals(output)) {
+                        throw new IllegalArgumentException(
+                                "Unknown --output value: \"" + output + "\". Expected text or json");
+                    }
+                }
+                case "--src-root" -> {
+                    srcRoot = Paths.get(requireOptionValue(args, i, "--src-root"));
+                    i++;
+                }
+                default -> {
+                    if (arg.startsWith("--")) {
+                        throw new IllegalArgumentException("Unknown validate option: " + arg);
+                    }
+                    files.add(Paths.get(arg));
+                }
+            }
         }
+
+        return new ValidateOptions(type, formatStr, level, output, List.copyOf(files), srcRoot);
+    }
+
+    private static String requireOptionValue(String[] args, int index, String option) {
+        if (index + 1 >= args.length || args[index + 1].startsWith("--")) {
+            throw new IllegalArgumentException(option + " requires a value");
+        }
+        return args[index + 1];
     }
     
     // --- Helpers ---
 
-    private static String detectTypeByRoot(XmlDocument doc) {
+    static String detectTypeByRoot(XmlDocument doc) {
         switch (doc.getRootElement()) {
             case "Rights": return "role";
             case "Form": return "form";
@@ -2049,7 +2571,238 @@ public class Commands {
             case "document": return "mxl";
             case "ExternalDataProcessor": return "epf";
             case "ExternalReport": return "epf";
+            case "CommandInterface": return "interface";
+            case "Subsystem": return "subsystem";
+            case "MetaDataObject": return detectMetaDataObjectType(doc.getRoot());
+            case "ExtPicture":
+            case "ExchangePlanContent":
+            case "PredefinedData":
+            case "AccumulationRegisterAggregates":
+            case "GraphicalSchema":
+            case "AppearanceTemplate":
+            case "Help":
+                return "xcf-body";
             default: return "unknown";
+        }
+    }
+
+    private static String detectMetaDataObjectType(XmlNode root) {
+        if (root.child("ExternalDataProcessor") != null || root.child("ExternalReport") != null) {
+            return "epf";
+        }
+        XmlNode configuration = root.child("Configuration");
+        if (configuration != null) {
+            XmlNode props = configuration.child("Properties");
+            if (props != null
+                    && (props.child("ConfigurationExtensionPurpose") != null
+                    || props.child("NamePrefix") != null
+                    || props.child("ConfigurationExtensionCompatibilityMode") != null)) {
+                return "extension";
+            }
+            return "config";
+        }
+        if (root.child("Subsystem") != null) {
+            return "subsystem";
+        }
+        for (XmlNode child : root.getChildren()) {
+            if (MetadataTypeRegistry.byXmlElement(child.getName()) != null) {
+                return "meta";
+            }
+        }
+        return "unknown";
+    }
+
+    static int validationExitCode(int errors, int warnings) {
+        if (errors > 0) return 1;
+        if (warnings > 0) return 2;
+        return 0;
+    }
+
+    private static void exitForValidationSummary(int errors, int warnings) {
+        int exitCode = validationExitCode(errors, warnings);
+        if (exitCode != 0) {
+            System.exit(exitCode);
+        }
+    }
+
+    static List<ValidationIssue> validateDocumentForType(XmlDocument document, String objectType, Path file,
+                                                          String formatStr, ValidationLevel level,
+                                                          GenValidator genValidator,
+                                                          ValidatorFactory factory) {
+        String validationType = effectiveValidationType(document, objectType);
+        boolean expectBom = "designer".equals(formatStr) && isMetadataFile(validationType);
+        boolean validateSemanticTypes = level == ValidationLevel.SEMANTIC;
+        List<ValidationIssue> allIssues = new ArrayList<>(
+                genValidator.validate(document, validationType, expectBom, formatStr, validateSemanticTypes));
+        allIssues.addAll(validateFormatSpecificShape(document, validationType, formatStr));
+
+        Optional<XmlValidator> validator = factory.getValidator(validationType);
+        if (validator.isPresent()) {
+            allIssues.addAll(validator.get().validate(document, level));
+            return allIssues;
+        }
+
+        Path contextDir = validationContextDir(objectType, file);
+        switch (objectType) {
+            case "config" -> allIssues.addAll(convertMessages("CONFIG",
+                    new ConfigValidator().validate(document, contextDir)));
+            case "meta" -> allIssues.addAll(convertMessages("META",
+                    new MetaValidator().validate(document, contextDir)));
+            case "template" -> allIssues.addAll(validateTemplateMetadataWrapper(document));
+            case "subsystem" -> allIssues.addAll(convertMessages("SUBSYSTEM",
+                    new SubsystemValidator().validate(document, contextDir, file)));
+            case "interface" -> allIssues.addAll(convertMessages("INTERFACE",
+                    new InterfaceValidator().validate(document, contextDir)));
+            case "extension" -> allIssues.addAll(convertMessages("EXTENSION",
+                    new ExtensionValidator().validate(document, contextDir)));
+            default -> {
+                // Unknown and schema-less types intentionally get only GEN checks.
+            }
+        }
+        return allIssues;
+    }
+
+    private static List<ValidationIssue> validateFormatSpecificShape(XmlDocument document,
+                                                                     String validationType,
+                                                                     String formatStr) {
+        if (!"form".equals(validationType) || !"edt".equals(formatStr)) {
+            return List.of();
+        }
+        String ns = document.getRoot().getNamespace();
+        String expected = "http://g5.1c.ru/v8/dt/form";
+        if (expected.equals(ns)) {
+            return List.of();
+        }
+        return List.of(ValidationIssue.error("GEN-005",
+                "EDT managed form must use namespace '" + expected
+                        + "', got '" + (ns != null ? ns : "(none)") + "'",
+                document.getRoot().getLine(), "/Form"));
+    }
+
+    private static List<ValidationIssue> validateTemplateMetadataWrapper(XmlDocument document) {
+        List<ValidationIssue> issues = new ArrayList<>();
+        XmlNode root = document.getRoot();
+
+        if (!"MetaDataObject".equals(root.getName())) {
+            issues.add(ValidationIssue.error("TEMPLATE-001",
+                    "Expected root element 'MetaDataObject' or template body XML, found '"
+                            + root.getName() + "'",
+                    root.getLine(), "/"));
+            return issues;
+        }
+
+        String version = root.attr("version");
+        if (version == null || version.isEmpty()) {
+            issues.add(ValidationIssue.error("TEMPLATE-002",
+                    "Structure: version attribute missing on <MetaDataObject>",
+                    root.getLine(), "/MetaDataObject"));
+        } else if (!"2.17".equals(version) && !"2.20".equals(version)) {
+            issues.add(ValidationIssue.warning("TEMPLATE-002",
+                    "Structure: unexpected version '" + version + "' (expected 2.17 or 2.20)",
+                    root.getLine(), "/MetaDataObject/@version"));
+        }
+
+        XmlNode template = root.child("Template");
+        if (template == null) {
+            issues.add(ValidationIssue.error("TEMPLATE-003",
+                    "Structure: <Template> element missing inside <MetaDataObject>",
+                    root.getLine(), "/MetaDataObject"));
+            return issues;
+        }
+
+        String uuid = template.attr("uuid");
+        if (uuid == null || uuid.isEmpty()) {
+            issues.add(ValidationIssue.error("TEMPLATE-004",
+                    "Structure: uuid attribute missing on <Template>",
+                    template.getLine(), "/MetaDataObject/Template"));
+        } else if (!uuid.matches("[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}")) {
+            issues.add(ValidationIssue.error("TEMPLATE-004",
+                    "Structure: invalid uuid format '" + uuid + "'",
+                    template.getLine(), "/MetaDataObject/Template/@uuid"));
+        }
+
+        XmlNode props = template.child("Properties");
+        if (props == null) {
+            issues.add(ValidationIssue.error("TEMPLATE-005",
+                    "Properties: section missing",
+                    template.getLine(), "/MetaDataObject/Template"));
+            return issues;
+        }
+
+        String name = props.childText("Name");
+        if (name == null || name.isBlank()) {
+            issues.add(ValidationIssue.error("TEMPLATE-006",
+                    "Properties: Name is required",
+                    props.getLine(), "/MetaDataObject/Template/Properties/Name"));
+        }
+
+        String templateType = props.childText("TemplateType");
+        if (templateType == null || templateType.isBlank()) {
+            issues.add(ValidationIssue.error("TEMPLATE-007",
+                    "Properties: TemplateType is required",
+                    props.getLine(), "/MetaDataObject/Template/Properties/TemplateType"));
+        } else if (!"Help".equals(templateType) && TemplateType.valueByName(templateType) == TemplateType.UNKNOWN) {
+            issues.add(ValidationIssue.error("TEMPLATE-007",
+                    "Properties: unknown TemplateType '" + templateType + "'",
+                    props.getLine(), "/MetaDataObject/Template/Properties/TemplateType"));
+        }
+
+        if (props.child("Synonym") == null) {
+            issues.add(ValidationIssue.warning("TEMPLATE-008",
+                    "Properties: Synonym is missing",
+                    props.getLine(), "/MetaDataObject/Template/Properties/Synonym"));
+        }
+
+        return issues;
+    }
+
+    private static String effectiveValidationType(XmlDocument document, String objectType) {
+        if ("template".equals(objectType) && "document".equals(document.getRootElement())) {
+            return "mxl";
+        }
+        if ("template".equals(objectType) && "DataCompositionSchema".equals(document.getRootElement())) {
+            return "skd";
+        }
+        return objectType;
+    }
+
+    private static Path validationContextDir(String objectType, Path file) {
+        if (file == null) return null;
+        if ("subsystem".equals(objectType) || "interface".equals(objectType)) {
+            Path root = locateConfigRoot(file);
+            if (root != null) return root;
+        }
+        if ("config".equals(objectType) || "extension".equals(objectType)) {
+            return Files.isDirectory(file) ? file : file.getParent();
+        }
+        return file.getParent();
+    }
+
+    private static List<ValidationIssue> convertMessages(String codePrefix,
+                                                         List<?> messages) {
+        List<ValidationIssue> issues = new ArrayList<>();
+        int idx = 0;
+        for (Object message : messages) {
+            idx++;
+            String level = readMessageField(message, "level");
+            String text = readMessageField(message, "message");
+            Severity severity = "ERROR".equals(level) ? Severity.ERROR : Severity.WARNING;
+            issues.add(new ValidationIssue(
+                    severity,
+                    codePrefix + "-" + String.format("%03d", idx),
+                    text,
+                    0,
+                    "/"));
+        }
+        return issues;
+    }
+
+    private static String readMessageField(Object message, String fieldName) {
+        try {
+            Object value = message.getClass().getField(fieldName).get(message);
+            return value != null ? value.toString() : "";
+        } catch (ReflectiveOperationException e) {
+            return message != null ? message.toString() : "";
         }
     }
 
@@ -2059,7 +2812,10 @@ public class Commands {
         // Раньше skd/mxl не входили в metadata-файлы → GEN-003 их не проверял на BOM,
         // и одновременно ложно ворнил «Unexpected UTF-8 BOM» на каноничных файлах.
         return "role".equals(type) || "form".equals(type) || "epf".equals(type)
-                || "skd".equals(type) || "mxl".equals(type);
+                || "skd".equals(type) || "mxl".equals(type)
+                || "meta".equals(type) || "config".equals(type) || "extension".equals(type)
+                || "subsystem".equals(type) || "interface".equals(type) || "template".equals(type)
+                || "xcf-body".equals(type);
     }
 
     /**
@@ -2276,14 +3032,23 @@ public class Commands {
                     + "[--vendor <vendor>] [--compat <Version8_3_NN>] [--format-version <2.NN>]");
         }
 
-        //++agent TASK-155 [22.05.2026 00:00:00]
-        // TASK-155 A2 iter-3: config init validations (bug-T-154-config-002).
-        // (1) Name validation — same pattern as epf init and extension init.
-        if (!name.matches("[A-Za-z_][A-Za-z0-9_]*")) {
+        //**agent TASK-174 [05.06.2026 00:00:00]
+        // XG-03 (родственное): имя конфигурации тоже валидируем единым ONEC_NAME_PATTERN
+        // (латиница+кириллица). Прежняя латиница-только регулярка — та же ошибочная посылка
+        // TASK-155, что 1С-имена только латинские. Комментарий «same pattern as epf init»
+        // теперь снова верен — оба пути используют ONEC_NAME_PATTERN.
+        //// TASK-155 A2 iter-3: config init validations (bug-T-154-config-002).
+        //if (!name.matches("[A-Za-z_][A-Za-z0-9_]*")) {
+        //    throw new IllegalArgumentException(
+        //        "Invalid configuration name: '" + name + "'. " +
+        //        "Configuration names must match [A-Za-z_][A-Za-z0-9_]* " +
+        //        "(Latin letters, digits, and underscores only; must not start with a digit).");
+        //}
+        if (!name.matches(ONEC_NAME_PATTERN)) {
             throw new IllegalArgumentException(
                 "Invalid configuration name: '" + name + "'. " +
-                "Configuration names must match [A-Za-z_][A-Za-z0-9_]* " +
-                "(Latin letters, digits, and underscores only; must not start with a digit).");
+                "Configuration names must match " + ONEC_NAME_PATTERN + " " +
+                "(Latin or Cyrillic letters, digits, and underscores only; must not start with a digit).");
         }
         // (2) Existing-dir guard — refuse to silently overwrite an existing Configuration.xml.
         // Use --force flag to allow overwrite (currently not implemented, fail by default).
@@ -2405,17 +3170,78 @@ public class Commands {
                 case "set-defaultRoles":
                     editor.setDefaultRoles(value);
                     break;
-                default:
+            default:
                     throw new IllegalArgumentException("Unknown operation: " + operation
                             + ". Supported: modify-property, add-childObject, remove-childObject, "
                             + "add-defaultRole, remove-defaultRole, set-defaultRoles");
             }
 
+            validateConfigPreviewNoNewErrors(file, editor.previewContent());
             editor.save();
             System.out.println("Configuration updated: " + operation);
         } catch (IOException e) {
             throw new RuntimeException("Failed to edit configuration: " + e.getMessage(), e);
         }
+    }
+
+    private static void validateConfigPreviewNoNewErrors(Path file, String previewContent) throws IOException {
+        Set<String> preExistingErrors;
+        try {
+            preExistingErrors = configErrorKeys(validateConfigContent(
+                    file, ConfigurationXmlReader.readContent(file)));
+        } catch (Exception e) {
+            throw new IllegalArgumentException(
+                    "Cannot validate existing Configuration.xml before edit: " + e.getMessage(), e);
+        }
+
+        List<ConfigValidator.ValidationMessage> afterMessages;
+        try {
+            afterMessages = validateConfigContent(file, previewContent);
+        } catch (Exception e) {
+            throw new IllegalArgumentException(
+                    "Config edit would produce unparsable Configuration.xml: " + e.getMessage(), e);
+        }
+
+        List<ConfigValidator.ValidationMessage> newErrors = afterMessages.stream()
+                .filter(m -> "ERROR".equals(m.level))
+                .filter(m -> !preExistingErrors.contains(configMessageKey(m)))
+                .toList();
+        if (!newErrors.isEmpty()) {
+            String first = newErrors.get(0).message;
+            throw new IllegalArgumentException(
+                    "Config edit would introduce validation errors; file was not changed. First error: "
+                            + first);
+        }
+    }
+
+    private static List<ConfigValidator.ValidationMessage> validateConfigContent(Path file, String content)
+            throws Exception {
+        Path dir = file.toAbsolutePath().normalize().getParent();
+        Path tmp = Files.createTempFile(dir, ".xmlgen-config-edit-", ".xml");
+        try {
+            Files.writeString(tmp, content, java.nio.charset.StandardCharsets.UTF_8);
+            XmlDocument doc = new XmlStructureReader().parse(tmp);
+            return new ConfigValidator().validate(doc, dir);
+        } finally {
+            try {
+                Files.deleteIfExists(tmp);
+            } catch (Exception ignored) {
+            }
+        }
+    }
+
+    private static Set<String> configErrorKeys(List<ConfigValidator.ValidationMessage> messages) {
+        Set<String> keys = new HashSet<>();
+        for (ConfigValidator.ValidationMessage message : messages) {
+            if ("ERROR".equals(message.level)) {
+                keys.add(configMessageKey(message));
+            }
+        }
+        return keys;
+    }
+
+    private static String configMessageKey(ConfigValidator.ValidationMessage message) {
+        return message.level + "\u0001" + message.message;
     }
 
     /**
@@ -2481,9 +3307,7 @@ public class Commands {
             System.out.println();
             System.out.println("Summary: " + errors + " errors, " + warnings + " warnings");
 
-            if (errors > 0) {
-                System.exit(1);
-            }
+            exitForValidationSummary(errors, warnings);
         } catch (XmlStructureReader.XmlParseException e) {
             throw new RuntimeException("Failed to parse Configuration XML: " + e.getMessage(), e);
         }
@@ -2686,7 +3510,8 @@ public class Commands {
         try {
             XmlDocument doc = new XmlStructureReader().parse(subsystemXml);
             SubsystemValidator validator = new SubsystemValidator();
-            List<SubsystemValidator.ValidationMessage> messages = validator.validate(doc, subsystemDir);
+            List<SubsystemValidator.ValidationMessage> messages =
+                    validator.validate(doc, subsystemDir, subsystemXml);
 
             if (messages.isEmpty()) {
                 System.out.println("OK: Subsystem is valid");
@@ -2704,7 +3529,7 @@ public class Commands {
             }
             System.out.println();
             System.out.println("Summary: " + errors + " errors, " + warnings + " warnings");
-            if (errors > 0) System.exit(1);
+            exitForValidationSummary(errors, warnings);
         } catch (XmlStructureReader.XmlParseException e) {
             throw new RuntimeException("Failed to parse Subsystem XML: " + e.getMessage(), e);
         }
@@ -2829,11 +3654,79 @@ public class Commands {
                             + "set-group-order (alias: group-order)");
             }
 
+            validateInterfacePreviewNoNewErrors(file, editor.previewContent());
             editor.save();
             System.out.println("CommandInterface updated: " + operation);
         } catch (IOException e) {
             throw new RuntimeException("Failed to edit CommandInterface: " + e.getMessage(), e);
         }
+    }
+
+    private static void validateInterfacePreviewNoNewErrors(Path file, String previewContent) throws IOException {
+        Set<String> preExistingErrors;
+        try {
+            preExistingErrors = interfaceErrorKeys(validateInterfaceContent(file, Files.readString(file)));
+        } catch (Exception e) {
+            throw new IllegalArgumentException(
+                    "Cannot validate existing CommandInterface.xml before edit: " + e.getMessage(), e);
+        }
+
+        List<InterfaceValidator.ValidationMessage> afterMessages;
+        try {
+            afterMessages = validateInterfaceContent(file, previewContent);
+        } catch (Exception e) {
+            throw new IllegalArgumentException(
+                    "Interface edit would produce unparsable CommandInterface.xml: " + e.getMessage(), e);
+        }
+
+        List<InterfaceValidator.ValidationMessage> newErrors = afterMessages.stream()
+                .filter(m -> "ERROR".equals(m.level))
+                .filter(m -> !preExistingErrors.contains(interfaceMessageKey(m)))
+                .toList();
+        if (!newErrors.isEmpty()) {
+            String details = newErrors.stream()
+                    .map(m -> m.message)
+                    .collect(java.util.stream.Collectors.joining("; "));
+            throw new IllegalArgumentException(
+                    "Interface edit would introduce validation errors; file was not changed. Errors: "
+                            + details);
+        }
+    }
+
+    private static List<InterfaceValidator.ValidationMessage> validateInterfaceContent(Path file, String content)
+            throws Exception {
+        Path dir = file.toAbsolutePath().normalize().getParent();
+        Path tmp = Files.createTempFile(dir, ".xmlgen-interface-edit-", ".xml");
+        try {
+            Files.writeString(tmp, content, java.nio.charset.StandardCharsets.UTF_8);
+            XmlDocument doc = new XmlStructureReader().parse(tmp);
+            Path configRoot = locateConfigRoot(file);
+            if (configRoot == null) {
+                Path p2 = file.getParent();
+                Path p3 = (p2 != null) ? p2.getParent() : null;
+                if (p3 != null) configRoot = p3.getParent();
+            }
+            return new InterfaceValidator().validate(doc, configRoot);
+        } finally {
+            try {
+                Files.deleteIfExists(tmp);
+            } catch (Exception ignored) {
+            }
+        }
+    }
+
+    private static Set<String> interfaceErrorKeys(List<InterfaceValidator.ValidationMessage> messages) {
+        Set<String> keys = new HashSet<>();
+        for (InterfaceValidator.ValidationMessage message : messages) {
+            if ("ERROR".equals(message.level)) {
+                keys.add(interfaceMessageKey(message));
+            }
+        }
+        return keys;
+    }
+
+    private static String interfaceMessageKey(InterfaceValidator.ValidationMessage message) {
+        return message.level + "\u0001" + message.message;
     }
 
     /**
@@ -2905,7 +3798,7 @@ public class Commands {
             }
             System.out.println();
             System.out.println("Summary: " + errors + " errors, " + warnings + " warnings");
-            if (errors > 0) System.exit(1);
+            exitForValidationSummary(errors, warnings);
         } catch (XmlStructureReader.XmlParseException e) {
             throw new RuntimeException("Failed to parse CommandInterface XML: " + e.getMessage(), e);
         }
@@ -3077,6 +3970,7 @@ public class Commands {
                     + "       xml-gen meta edit <objectPath> --batch <file.json>\n"
                     + "Operations: add-attribute, add-ts, add-dimension, add-resource, add-enumValue,\n"
                     + "  add-predefined (--value \"Имя[|Описание[|Код[|folder]]]\", батч через ;;),\n"
+                    + "  add-exchange-content (--value \"Metadata[|AutoRecord]\", батч через ;; или @items.json),\n"
                     + "  add-column, add-form, add-template, add-command, add-ts-attribute,\n"
                     + "  remove-attribute, remove-ts, remove-dimension, ..., remove-ts-attribute,\n"
                     + "  modify-attribute, modify-dimension, modify-resource, modify-enumValue, modify-column");
@@ -3093,6 +3987,7 @@ public class Commands {
         }
         String[] opParts = operation.split("-", 2);
         String opAction = opParts[0];
+        String opTarget = opParts[1];
         if (!opAction.equals("add") && !opAction.equals("remove") && !opAction.equals("modify")) {
             throw new IllegalArgumentException(
                 "Unknown --op value: \"" + operation + "\". "
@@ -3102,11 +3997,28 @@ public class Commands {
                 + "remove-column, remove-form, remove-template, remove-command, remove-ts-attribute, "
                 + "modify-attribute, modify-dimension, modify-resource, modify-enumValue, modify-column.");
         }
+        validateMetaEditTarget(opAction, opTarget);
 
         try {
             new MetaEditor().edit(objectPath, operation, value);
         } catch (IOException e) {
             throw new RuntimeException("Failed to edit metadata: " + e.getMessage(), e);
+        }
+    }
+
+    private static void validateMetaEditTarget(String action, String target) {
+        Set<String> supported = switch (action) {
+            case "add" -> Set.of("attribute", "ts", "dimension", "resource", "enumValue",
+                    "predefined", "exchange-content", "column", "form", "template", "command",
+                    "ts-attribute", "property");
+            case "remove" -> Set.of("attribute", "ts", "dimension", "resource", "enumValue",
+                    "column", "form", "template", "command", "ts-attribute");
+            case "modify" -> Set.of("attribute", "dimension", "resource", "enumValue", "column", "property");
+            default -> Set.of();
+        };
+        if (!supported.contains(target)) {
+            throw new IllegalArgumentException("Unknown --op target: \"" + target
+                    + "\" for action \"" + action + "\".");
         }
     }
 
@@ -3197,7 +4109,7 @@ public class Commands {
             }
             System.out.println();
             System.out.println("Summary: " + errors + " errors, " + warnings + " warnings");
-            if (errors > 0) System.exit(1);
+            exitForValidationSummary(errors, warnings);
         } catch (XmlStructureReader.XmlParseException e) {
             throw new RuntimeException("Failed to parse metadata XML: " + e.getMessage(), e);
         }
@@ -3343,7 +4255,7 @@ public class Commands {
             }
             System.out.println();
             System.out.println("Summary: " + errors + " errors, " + warnings + " warnings");
-            if (errors > 0) System.exit(1);
+            exitForValidationSummary(errors, warnings);
         } catch (XmlStructureReader.XmlParseException e) {
             throw new RuntimeException("Failed to parse extension XML: " + e.getMessage(), e);
         }

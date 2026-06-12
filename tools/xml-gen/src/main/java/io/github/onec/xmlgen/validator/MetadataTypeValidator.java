@@ -1,5 +1,8 @@
 package io.github.onec.xmlgen.validator;
 
+import io.github.onec.xmlgen.model.MetadataTypeRegistry;
+import io.github.onec.xmlgen.model.MetadataTypeRegistry.TypeDescriptor;
+
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -15,6 +18,7 @@ public class MetadataTypeValidator {
 
     private final Path sourceRoot;
     private final Set<String> knownMetadata = new HashSet<>();
+    private final Set<String> generatedTypePrefixes = new HashSet<>();
     private boolean initialized = false;
 
     public MetadataTypeValidator(Path sourceRoot) {
@@ -30,11 +34,9 @@ public class MetadataTypeValidator {
             return;
         }
 
-        scanMetadata("Catalogs", "CatalogRef");
-        scanMetadata("Documents", "DocumentRef");
-        scanMetadata("Enums", "EnumRef");
-        scanMetadata("DataProcessors", "DataProcessor"); // Не Ref, но может пригодиться
-        scanMetadata("Reports", "Report");
+        for (TypeDescriptor descriptor : MetadataTypeRegistry.all()) {
+            scanMetadata(descriptor);
+        }
 
         // Стандартные типы платформы (базовый набор)
         knownMetadata.add("Boolean");
@@ -47,8 +49,12 @@ public class MetadataTypeValidator {
         initialized = true;
     }
 
-    private void scanMetadata(String folderName, String typePrefix) {
-        Path folder = sourceRoot.resolve(folderName);
+    private void scanMetadata(TypeDescriptor descriptor) {
+        for (String category : descriptor.categories()) {
+            generatedTypePrefixes.add(generatedTypePrefix(descriptor, category));
+        }
+
+        Path folder = sourceRoot.resolve(descriptor.directory());
         if (!Files.exists(folder) || !Files.isDirectory(folder)) {
             return;
         }
@@ -57,18 +63,31 @@ public class MetadataTypeValidator {
             paths.filter(Files::isDirectory) // В формате Source каталоги - это объекты
                  .map(p -> p.getFileName().toString())
                  .filter(name -> !name.startsWith(".")) // Игнорим .gitkeep и прочее
-                 .forEach(name -> knownMetadata.add(typePrefix + "." + name));
+                 .forEach(name -> addGeneratedTypes(descriptor, name));
                  
             // Также поддерживаем формат выгрузки в файлы .xml (старый формат)
             try (Stream<Path> files = Files.list(folder)) {
                 files.filter(Files::isRegularFile)
                      .filter(p -> p.toString().endsWith(".xml"))
                      .map(p -> p.getFileName().toString().replace(".xml", ""))
-                     .forEach(name -> knownMetadata.add(typePrefix + "." + name));
+                     .forEach(name -> addGeneratedTypes(descriptor, name));
             }
         } catch (IOException e) {
             System.err.println("Warning: Failed to scan metadata folder " + folder + ": " + e.getMessage());
         }
+    }
+
+    private void addGeneratedTypes(TypeDescriptor descriptor, String objectName) {
+        for (String category : descriptor.categories()) {
+            knownMetadata.add(generatedTypePrefix(descriptor, category) + "." + objectName);
+        }
+    }
+
+    private String generatedTypePrefix(TypeDescriptor descriptor, String category) {
+        if (category.equals(descriptor.type())) {
+            return descriptor.type();
+        }
+        return descriptor.type() + category;
     }
 
     /**
@@ -87,11 +106,27 @@ public class MetadataTypeValidator {
             initialize();
         }
 
-        // Пропускаем составные типы или сложные описания (пока только простые)
-        if (typeName.contains(" ")) { 
-            return Collections.emptyList(); // TODO: Парсинг составных типов
+        List<ValidationIssue> issues = new ArrayList<>();
+        for (String part : splitTypeNames(typeName)) {
+            issues.addAll(validateSingleType(part, contextNode, path));
         }
+        return issues;
+    }
 
+    private List<String> splitTypeNames(String typeName) {
+        if (typeName == null || typeName.isBlank()) {
+            return Collections.emptyList();
+        }
+        if (typeName.contains("|") || typeName.contains("+")) {
+            return Arrays.stream(typeName.split("[|+]"))
+                    .map(String::trim)
+                    .filter(s -> !s.isEmpty())
+                    .collect(Collectors.toList());
+        }
+        return List.of(typeName.trim());
+    }
+
+    private List<ValidationIssue> validateSingleType(String typeName, XmlNode contextNode, String path) {
         // Убираем namespace prefix (cfg:CatalogRef.X -> CatalogRef.X)
         if (typeName.contains(":")) {
             typeName = typeName.substring(typeName.indexOf(":") + 1);
@@ -100,15 +135,26 @@ public class MetadataTypeValidator {
         if (knownMetadata.contains(typeName)) {
             return Collections.emptyList();
         }
+
+        // Generic platform reference categories such as CatalogRef/DocumentRef without
+        // an object name are valid TypeSet members in Designer XML. Only dotted
+        // references can be checked against sourceRoot.
+        if (!typeName.contains(".") && generatedTypePrefixes.contains(typeName)) {
+            return Collections.emptyList();
+        }
         
-        // Попытка угадать: может это стандартный тип 1С, который мы забыли?
-        // Если начинается на CatalogRef/DocumentRef - мы точно должны знать о нем.
-        if (typeName.startsWith("CatalogRef.") || typeName.startsWith("DocumentRef.") || typeName.startsWith("EnumRef.")) {
+        String prefix = typePrefix(typeName);
+        if (generatedTypePrefixes.contains(prefix)) {
             return List.of(ValidationIssue.error("SEM-001", 
                 "Unknown metadata type: '" + typeName + "'. Check if object exists in " + sourceRoot, 
                 contextNode.getLine(), path));
         }
 
         return Collections.emptyList();
+    }
+
+    private String typePrefix(String typeName) {
+        int dot = typeName.indexOf('.');
+        return dot > 0 ? typeName.substring(0, dot) : typeName;
     }
 }

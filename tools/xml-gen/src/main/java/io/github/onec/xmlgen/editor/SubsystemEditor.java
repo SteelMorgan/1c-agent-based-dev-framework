@@ -293,7 +293,7 @@ public class SubsystemEditor {
     public void removeContent(String spec) {
         String[] items = parseItems(spec);
         for (String item : items) {
-            String trimmed = item.trim();
+            String trimmed = normalizeContentType(item.trim());
             if (trimmed.isEmpty()) continue;
 
             String escaped = Pattern.quote(escapeXml(trimmed));
@@ -351,6 +351,7 @@ public class SubsystemEditor {
         Files.createDirectories(childrenDir);
 
         String uuid = java.util.UUID.randomUUID().toString();
+        String formatVersion = currentFormatVersion();
         StringBuilder sb = new StringBuilder();
         sb.append("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n");
         sb.append("<MetaDataObject xmlns=\"http://v8.1c.ru/8.3/MDClasses\"\n");
@@ -358,7 +359,7 @@ public class SubsystemEditor {
         sb.append("\txmlns:xr=\"http://v8.1c.ru/8.3/xcf/readable\"\n");
         sb.append("\txmlns:xs=\"http://www.w3.org/2001/XMLSchema\"\n");
         sb.append("\txmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\"\n");
-        sb.append("\tversion=\"2.17\">\n");
+        sb.append("\tversion=\"").append(formatVersion).append("\">\n");
         sb.append("\t<Subsystem uuid=\"").append(uuid).append("\">\n");
         sb.append("\t\t<Properties>\n");
         sb.append("\t\t\t<Name>").append(escapeXml(childName)).append("</Name>\n");
@@ -418,6 +419,10 @@ public class SubsystemEditor {
             setLocalStringProperty(propName, value);
         } else if (BOOLEAN_PROPS.contains(propName)) {
             String normalized = normalizeBoolean(value);
+            if (!"true".equals(normalized) && !"false".equals(normalized)) {
+                throw new IllegalArgumentException(
+                        propName + " has invalid boolean value '" + value + "' (expected true/false)");
+            }
             setSimpleProperty(propName, normalized);
         } else if ("Picture".equals(propName)) {
             setPictureProperty(value);
@@ -438,6 +443,7 @@ public class SubsystemEditor {
         // Picture value: CommonPicture.Name or StdPicture.Name
         String pictureBlock = "<Picture>\n"
                 + "\t\t\t\t<xr:Ref>" + escapeXml(value) + "</xr:Ref>\n"
+                + "\t\t\t\t<xr:LoadTransparent>false</xr:LoadTransparent>\n"
                 + "\t\t\t</Picture>";
 
         // Replace existing Picture block
@@ -521,6 +527,13 @@ public class SubsystemEditor {
         if (m.find()) {
             content = m.replaceFirst(Matcher.quoteReplacement(replacement));
         }
+    }
+
+    private String currentFormatVersion() {
+        Pattern version = Pattern.compile("<MetaDataObject\\b[^>]*\\bversion=\"([^\"]+)\"", Pattern.DOTALL);
+        Matcher m = version.matcher(content);
+        if (m.find()) return m.group(1);
+        return "2.17";
     }
 
     /**

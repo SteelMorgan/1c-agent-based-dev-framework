@@ -3,6 +3,9 @@ name: syntax-checking
 description: "MUST use BEFORE коммитом или передачей BSL-кода на ревью. Defines двухуровневый процесс (LSP get_diagnostics → полная проверка Конфигуратором) как доказательство отсутствия синтаксических ошибок."
 uses_capabilities:
   - get_diagnostics
+  - get_quality_diagnostics
+  - get_method_complexity
+  - get_module_health
   - syntax_check_designer_modules
   - syntax_check_designer_config
   - syntax_check_edt
@@ -32,6 +35,25 @@ alwaysApply: false
 | Ошибка компиляции | `get_diagnostics` для локализации |
 | **Перед коммитом / перед PR** | **`v8-runner syntax …`** — финальная проверка |
 | **Завершение задачи** | **`v8-runner syntax …`** — финальный вердикт |
+
+## Самопроверка качества (помимо синтаксиса)
+
+Синтаксис — необходимый минимум, но «компилируется» ≠ «качественно». После того как
+`get_diagnostics`/`v8-runner syntax` подтвердили отсутствие ошибок, прогоните самопроверку
+по изменённым файлам — это дёшево (LSP, секунды) и ловит то, что синтаксис пропускает:
+
+| Capability | Что показывает | Когда применять |
+|------------|----------------|-----------------|
+| `get_diagnostics` | Все диагностики BSL LS по файлу (точнее workspace-проверки) | После правок — полный список замечаний по файлу |
+| `get_quality_diagnostics` | Только security / performance / sql (запрос в цикле, отключение безопасного режима, отсутствие псевдонимов и т.п.) | Перед коммитом — прицельная самопроверка кодером на риски |
+| `get_method_complexity` | Цикломатическая + когнитивная сложность по методам, флаг превышения порогов | После написания/правки метода — сигнал «пора рефакторить» (cyclomatic > 20 / cognitive > 15) |
+| `get_module_health` | Комбо: сложность + security/perf/sql, сведённые по методам и ранжированные «что рефакторить первым» | Триаж модуля целиком за один вызов — вместо отдельных complexity + quality_diagnostics + ручного сведения |
+
+> Это **самопроверка кодером**, а не замена ревью. `get_quality_diagnostics`,
+> `get_method_complexity` и `get_module_health` опираются на BSL LS; complexity-метрики
+> требуют включённого complexity CodeLens в конфиге BSL LS. Для метрик одного метода —
+> `get_method_complexity`; для одной категории риска — `get_quality_diagnostics`; для
+> триажа всего модуля — `get_module_health` (одиночные при этом не отменяются).
 
 ## Алгоритм проверки
 

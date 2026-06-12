@@ -66,6 +66,35 @@ class GenValidatorTest {
         assertThat(issues).anyMatch(i -> i.getCode().equals("GEN-003") && i.getSeverity() == Severity.WARNING);
     }
 
+    // ===== GEN-002: XML declaration =====
+
+    @Test
+    void testXmlDeclarationMissing() throws Exception {
+        Path file = writeXml("Rights.xml", false,
+                "<Rights xmlns=\"http://v8.1c.ru/8.2/roles\"/>\n");
+
+        XmlDocument doc = reader.parse(file);
+        List<ValidationIssue> issues = genValidator.validate(doc, "role", false);
+
+        assertThat(issues).anyMatch(i -> i.getCode().equals("GEN-002")
+                && i.getSeverity() == Severity.ERROR
+                && i.getMessage().contains("Missing XML declaration"));
+    }
+
+    @Test
+    void testXmlDeclarationEncodingMustBeUtf8() throws Exception {
+        Path file = writeXml("Rights.xml", false,
+                "<?xml version=\"1.0\" encoding=\"windows-1251\"?>\n" +
+                "<Rights xmlns=\"http://v8.1c.ru/8.2/roles\"/>\n");
+
+        XmlDocument doc = reader.parse(file);
+        List<ValidationIssue> issues = genValidator.validate(doc, "role", false);
+
+        assertThat(issues).anyMatch(i -> i.getCode().equals("GEN-002")
+                && i.getSeverity() == Severity.ERROR
+                && i.getMessage().contains("encoding=\"UTF-8\""));
+    }
+
     // ===== GEN-004: Root element =====
 
     @Test
@@ -149,6 +178,45 @@ class GenValidatorTest {
         List<ValidationIssue> issues = genValidator.validate(doc, "epf", false);
 
         assertThat(issues).anyMatch(i -> i.getCode().equals("GEN-006") && i.getSeverity() == Severity.WARNING);
+    }
+
+    @Test
+    void testDirectEpfRootDoesNotFailGenericRootCheck() throws Exception {
+        Path file = writeXml("epf.xml", false,
+                "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n" +
+                "<ExternalDataProcessor xmlns=\"http://v8.1c.ru/8.3/MDClasses\" " +
+                "uuid=\"a1b2c3d4-e5f6-7890-abcd-ef1234567890\">\n" +
+                "\t<Properties><Name>Test</Name></Properties>\n" +
+                "\t<ChildObjects/>\n" +
+                "</ExternalDataProcessor>\n");
+
+        XmlDocument doc = reader.parse(file);
+        List<ValidationIssue> issues = genValidator.validate(doc, "epf", false);
+
+        assertThat(issues).noneMatch(i -> i.getCode().equals("GEN-004"));
+        assertThat(issues).noneMatch(i -> i.getCode().equals("GEN-005"));
+    }
+
+    @Test
+    void testTypesetIsCheckedByMetadataValidator() throws Exception {
+        Path srcRoot = tempDir.resolve("src");
+        Files.createDirectories(srcRoot.resolve("DefinedTypes"));
+        Files.writeString(srcRoot.resolve("DefinedTypes/Цена.xml"), "<MetaDataObject/>");
+        Path file = writeXml("Form.xml", false,
+                "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n" +
+                "<Form xmlns=\"http://v8.1c.ru/8.3/xcf/logform\" " +
+                "xmlns:v8=\"http://v8.1c.ru/8.1/data/core\">\n" +
+                "\t<Attributes>\n" +
+                "\t\t<Attribute name=\"Ставка\"><Type><v8:TypeSet>cfg:DefinedType.Ставка</v8:TypeSet></Type></Attribute>\n" +
+                "\t</Attributes>\n" +
+                "</Form>\n");
+
+        XmlDocument doc = reader.parse(file);
+        GenValidator validator = new GenValidator(new MetadataTypeValidator(srcRoot));
+        List<ValidationIssue> issues = validator.validate(doc, "form", false);
+
+        assertThat(issues).anyMatch(i -> i.getCode().equals("SEM-001")
+                && i.getMessage().contains("DefinedType.Ставка"));
     }
 
     // ===== All GEN for valid Role XML =====

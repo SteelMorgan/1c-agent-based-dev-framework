@@ -16,7 +16,6 @@ import java.util.Map;
 import java.util.Set;
 
 import static io.github.onec.xmlgen.editor.EditorUtils.createNode;
-import static io.github.onec.xmlgen.editor.EditorUtils.findOrCreateChild;
 
 /**
  * Редактор схем СКД (DataCompositionSchema) — точечные patch-операции.
@@ -37,6 +36,11 @@ import static io.github.onec.xmlgen.editor.EditorUtils.findOrCreateChild;
  * изменён, и false для noop-кейсов.
  */
 public class SkdEditor {
+    private static final String DCS_COMMON_NS =
+            "http://v8.1c.ru/8.1/data-composition-system/common";
+    private static final String CURRENT_CONFIG_NS =
+            "http://v8.1c.ru/8.1/data/enterprise/current-config";
+
     private final XmlDocument document;
     private final List<String> warnings = new ArrayList<>();
 
@@ -105,7 +109,6 @@ public class SkdEditor {
         if (dataSet == null) {
             throw new IllegalArgumentException("DataSet not found: " + datasetName);
         }
-        XmlNode fields = findOrCreateChild(dataSet, "fields");
         XmlNode field = createNode("field");
         field.setAttribute("xsi:type", "DataSetFieldField");
 
@@ -129,7 +132,7 @@ public class SkdEditor {
         titleNode.addChild(v8Item);
         field.addChild(titleNode);
 
-        fields.addChild(field);
+        insertDataSetField(dataSet, field);
     }
 
     // ====================================================================
@@ -187,6 +190,37 @@ public class SkdEditor {
                 .orElse(null);
     }
 
+    private XmlNode findFieldByDataPath(XmlNode dataSet, String dataPath) {
+        for (XmlNode field : dataSet.children("field")) {
+            if (dataPath.equals(field.childText("dataPath"))) {
+                return field;
+            }
+        }
+        XmlNode legacyFields = dataSet.child("fields");
+        if (legacyFields != null) {
+            for (XmlNode field : legacyFields.children("field")) {
+                if (dataPath.equals(field.childText("dataPath"))) {
+                    return field;
+                }
+            }
+        }
+        return null;
+    }
+
+    private void insertDataSetField(XmlNode dataSet, XmlNode field) {
+        List<XmlNode> children = dataSet.getChildren();
+        int insertAt = 0;
+        for (int i = 0; i < children.size(); i++) {
+            String name = children.get(i).getName();
+            if ("field".equals(name)) {
+                insertAt = i + 1;
+            } else if ("name".equals(name) && insertAt == 0) {
+                insertAt = i + 1;
+            }
+        }
+        children.add(insertAt, field);
+    }
+
     // ====================================================================
     // FIELDS
     // ====================================================================
@@ -194,14 +228,11 @@ public class SkdEditor {
     public OpResult addField(SkdShorthandParser.FieldDescriptor fd, String dataSetName,
                               String variantName, boolean noSelection) {
         XmlNode ds = resolveDataSet(dataSetName);
-        XmlNode fields = findOrCreateChild(ds, "fields");
 
         // duplicate check by dataPath
-        for (XmlNode f : fields.children("field")) {
-            if (fd.name.equals(f.childText("dataPath"))) {
-                warn("add-field: '" + fd.name + "' already exists; skipped");
-                return OpResult.unchanged("duplicate");
-            }
+        if (findFieldByDataPath(ds, fd.name) != null) {
+            warn("add-field: '" + fd.name + "' already exists; skipped");
+            return OpResult.unchanged("duplicate");
         }
 
         XmlNode field = createNode("field");
@@ -223,13 +254,14 @@ public class SkdEditor {
         }
         if (fd.role != null) {
             XmlNode role = createNode("role");
-            role.addChild(simpleTextNode(roleFlagToTag(fd.role), "true"));
+            role.setAttribute("xmlns:dcscom", DCS_COMMON_NS);
+            addRoleFlag(role, fd.role);
             field.addChild(role);
         }
         if (!fd.restrictions.isEmpty()) {
             field.addChild(buildUseRestriction(fd.restrictions));
         }
-        fields.addChild(field);
+        insertDataSetField(ds, field);
 
         // Add to selection
         if (!noSelection) {
@@ -243,25 +275,17 @@ public class SkdEditor {
 
     public OpResult modifyField(SkdShorthandParser.FieldDescriptor fd, String dataSetName) {
         XmlNode ds = resolveDataSet(dataSetName);
-        XmlNode fields = ds.child("fields");
-        if (fields == null) {
-            warn("modify-field: dataset has no fields; skipped");
-            return OpResult.unchanged("no fields container");
-        }
-        XmlNode target = null;
-        for (XmlNode f : fields.children("field")) {
-            if (fd.name.equals(f.childText("dataPath"))) {
-                target = f;
-                break;
-            }
-        }
+        XmlNode target = findFieldByDataPath(ds, fd.name);
         if (target == null) {
             warn("modify-field: '" + fd.name + "' not found; skipped");
             return OpResult.unchanged("not found");
         }
         boolean changed = false;
         if (fd.title != null) {
-            replaceChild(target, "title", buildLocalStringType("title", fd.title));
+            //**agent TASK-176 [08.06.2026 12:30:00]
+            // S-04 (XG-45): патч ru-content вместо полной замены — сохраняет multi-lang title.
+            patchTitlePreservingLangs(target, fd.title);
+            //**agent TASK-176
             changed = true;
         }
         if (fd.type != null) {
@@ -278,41 +302,49 @@ public class SkdEditor {
 
     public OpResult removeField(String dataPath, String dataSetName, String variantName) {
         XmlNode ds = resolveDataSet(dataSetName);
-        XmlNode fields = ds.child("fields");
         boolean removed = false;
-        if (fields != null) {
-            Iterator<XmlNode> it = fields.getChildren().iterator();
-            while (it.hasNext()) {
-                XmlNode f = it.next();
+        Iterator<XmlNode> direct = ds.getChildren().iterator();
+        while (direct.hasNext()) {
+            XmlNode f = direct.next();
+            if (!"field".equals(f.getName())) continue;
+            if (dataPath.equals(f.childText("dataPath"))) {
+                direct.remove();
+                removed = true;
+            }
+        }
+        XmlNode legacyFields = ds.child("fields");
+        if (legacyFields != null) {
+            Iterator<XmlNode> legacy = legacyFields.getChildren().iterator();
+            while (legacy.hasNext()) {
+                XmlNode f = legacy.next();
                 if (!"field".equals(f.getName())) continue;
                 if (dataPath.equals(f.childText("dataPath"))) {
-                    it.remove();
+                    legacy.remove();
                     removed = true;
                 }
             }
         }
         // Remove from variant selection (and any nested folders)
+        //**agent TASK-176 [08.06.2026 12:40:00]
+        // S-09 / F-01 (XG-46): учитываем фактическую мутацию selection в возврате (правдивость
+        // OpResult — предусловие changed-гейта). Поле могло отсутствовать в наборе данных
+        // (removed==false), но присутствовать в selection варианта → реальное изменение XML.
         XmlNode variant = resolveVariant(variantName);
+        boolean selectionTouched = false;
         if (variant != null) {
-            removeFromSelectionRecursive(variant, dataPath);
+            selectionTouched = removeFromSelectionRecursive(variant, dataPath);
         }
-        if (!removed) {
+        if (!removed && !selectionTouched) {
             warn("remove-field: '" + dataPath + "' not found; noop");
             return OpResult.unchanged("noop");
         }
         return OpResult.changed("removed");
+        //**agent TASK-176
     }
 
     public OpResult setFieldRole(SkdShorthandParser.FieldRoleDescriptor d, String dataSetName) {
         XmlNode ds = resolveDataSet(dataSetName);
-        XmlNode fields = ds.child("fields");
-        if (fields == null) {
-            throw new IllegalArgumentException("set-field-role: dataset has no fields");
-        }
-        XmlNode target = null;
-        for (XmlNode f : fields.children("field")) {
-            if (d.dataPath.equals(f.childText("dataPath"))) { target = f; break; }
-        }
+        XmlNode target = findFieldByDataPath(ds, d.dataPath);
         if (target == null) {
             throw new IllegalArgumentException("set-field-role: field '" + d.dataPath + "' not found");
         }
@@ -343,13 +375,14 @@ public class SkdEditor {
             return null;
         }
         XmlNode role = createNode("role");
+        role.setAttribute("xmlns:dcscom", DCS_COMMON_NS);
         // Flags become boolean children
         for (String flag : d.flags) {
-            role.addChild(simpleTextNode(roleFlagToTag(flag), "true"));
+            addRoleFlag(role, flag);
         }
         // kv become children with text
         for (Map.Entry<String, String> e : d.kv.entrySet()) {
-            role.addChild(simpleTextNode(e.getKey(), e.getValue()));
+            role.addChild(simpleTextNode(prefixDcsCommon(e.getKey()), e.getValue()));
         }
         return role;
     }
@@ -365,9 +398,34 @@ public class SkdEditor {
         return ma.equals(mb);
     }
 
-    private String roleFlagToTag(String flag) {
-        // нормализация: balance → balance (XML тэг), autoOrder → autoOrder
-        return flag;
+    private void addRoleFlag(XmlNode role, String flag) {
+        String normalized = flag.startsWith("@") ? flag.substring(1) : flag;
+        switch (normalized) {
+            case "period":
+                role.addChild(simpleTextNode("dcscom:periodNumber", "1"));
+                role.addChild(simpleTextNode("dcscom:periodType", "Main"));
+                break;
+            case "account":
+                role.addChild(simpleTextNode("dcscom:account", "true"));
+                break;
+            case "dimension":
+            case "balance":
+                role.addChild(simpleTextNode("dcscom:" + normalized, "true"));
+                break;
+            case "resource":
+                role.addChild(simpleTextNode("dcscom:ignoreNullValues", "true"));
+                break;
+            default:
+                role.addChild(simpleTextNode(prefixDcsCommon(normalized), "true"));
+                break;
+        }
+    }
+
+    private String prefixDcsCommon(String name) {
+        if (name == null || name.isEmpty() || name.contains(":")) {
+            return name;
+        }
+        return "dcscom:" + name;
     }
 
     // ====================================================================
@@ -384,14 +442,16 @@ public class SkdEditor {
         }
         // @autoDates only valid for StandardPeriod
         if (p.flags.contains("autoDates")) {
-            boolean isStd = p.type != null && p.type.size() == 1
-                    && "v8:StandardPeriod".equals(p.type.get(0).xmlType);
-            if (!isStd) {
+            if (!descriptorIsStandardPeriod(p)) {
                 throw new IllegalArgumentException(
                         "add-parameter: @autoDates is only valid for StandardPeriod type");
             }
         }
-        root.addChild(buildParameterNode(p));
+        insertRootChild(buildParameterNode(p), "parameter");
+        if (p.flags.contains("autoDates")) {
+            addDerivedDateParameterIfMissing("ДатаНачала", "&" + p.name + ".ДатаНачала");
+            addDerivedDateParameterIfMissing("ДатаОкончания", "&" + p.name + ".ДатаОкончания");
+        }
         return OpResult.changed("added");
     }
 
@@ -407,7 +467,10 @@ public class SkdEditor {
         }
         boolean changed = false;
         if (p.title != null) {
-            replaceChild(target, "title", buildLocalStringType("title", p.title));
+            //**agent TASK-176 [08.06.2026 12:30:00]
+            // S-04 (XG-45): тот же класс, что modify-field — preserve multi-lang title.
+            patchTitlePreservingLangs(target, p.title);
+            //**agent TASK-176
             changed = true;
         }
         // kv: value, use, denyIncompleteValues, ...
@@ -425,30 +488,26 @@ public class SkdEditor {
         if (p.availableValues != null) {
             // FULL replacement
             removeAllChildren(target, "availableValue");
-            for (SkdShorthandParser.AvailableValueItem item : p.availableValues) {
-                XmlNode av = createNode("availableValue");
-                av.addChild(simpleTextNode("value", item.value));
-                if (item.presentation != null) {
-                    av.addChild(simpleTextNode("presentation", item.presentation));
-                }
-                target.addChild(av);
-            }
+            replaceChild(target, "availableValues", buildAvailableValues(p.availableValues));
             changed = true;
         }
         // Flags (idempotent)
         for (String flag : p.flags) {
-            String tag;
-            switch (flag) {
-                case "hidden": tag = "useRestriction"; break;
-                case "always": tag = "use"; break;
-                case "autoDates": tag = "useChoice"; break;
-                default: tag = flag;
+            if ("autoDates".equals(flag) && !parameterNodeIsStandardPeriod(target)) {
+                throw new IllegalArgumentException(
+                        "modify-parameter: @autoDates is only valid for StandardPeriod type");
             }
-            if (target.child(tag) == null) {
-                XmlNode flagNode = createNode(tag);
-                flagNode.setText(flag);
-                target.addChild(flagNode);
+            if (applyParameterFlag(target, flag)) {
                 changed = true;
+            }
+            if ("autoDates".equals(flag)) {
+                boolean startAdded = addDerivedDateParameterIfMissing(
+                        "ДатаНачала", "&" + p.name + ".ДатаНачала");
+                boolean endAdded = addDerivedDateParameterIfMissing(
+                        "ДатаОкончания", "&" + p.name + ".ДатаОкончания");
+                if (startAdded || endAdded) {
+                    changed = true;
+                }
             }
         }
         if (!changed && p.title == null && p.kv.isEmpty()
@@ -456,6 +515,79 @@ public class SkdEditor {
             warn("modify-parameter: no changes for '" + p.name + "'; noop");
         }
         return changed ? OpResult.changed("modified") : OpResult.unchanged("noop");
+    }
+
+    private boolean addDerivedDateParameterIfMissing(String name, String expression) {
+        XmlNode root = document.getRoot();
+        for (XmlNode existing : root.children("parameter")) {
+            if (name.equals(existing.childText("name"))) {
+                warn("add-parameter @autoDates: derived parameter '" + name + "' already exists; skipped");
+                return false;
+            }
+        }
+        XmlNode param = createNode("parameter");
+        param.addChild(simpleTextNode("name", name));
+        param.addChild(buildDateTimeValueType());
+        param.addChild(simpleTextNode("useRestriction", "true"));
+        param.addChild(simpleTextNode("expression", expression));
+        param.addChild(simpleTextNode("availableAsField", "false"));
+        insertRootChild(param, "parameter");
+        return true;
+    }
+
+    private XmlNode buildDateTimeValueType() {
+        XmlNode vt = createNode("valueType");
+        vt.addChild(simpleTextNode("v8:Type", "xs:dateTime"));
+        XmlNode dq = createNode("v8:DateQualifiers");
+        dq.addChild(simpleTextNode("v8:DateFractions", "DateTime"));
+        vt.addChild(dq);
+        return vt;
+    }
+
+    private boolean applyParameterFlag(XmlNode target, String flag) {
+        switch (flag) {
+            case "hidden": {
+                boolean c1 = replaceTextChildIfDifferent(target, "useRestriction", "true");
+                boolean c2 = replaceTextChildIfDifferent(target, "availableAsField", "false");
+                return c1 || c2;
+            }
+            case "always":
+                return replaceTextChildIfDifferent(target, "use", "Always");
+            case "autoDates": {
+                boolean c1 = replaceTextChildIfDifferent(target, "use", "Always");
+                boolean c2 = replaceTextChildIfDifferent(target, "denyIncompleteValues", "true");
+                return c1 || c2;
+            }
+            case "valueList":
+                return replaceTextChildIfDifferent(target, "valueListAllowed", "true");
+            default:
+                return replaceTextChildIfDifferent(target, flag, "true");
+        }
+    }
+
+    private boolean replaceTextChildIfDifferent(XmlNode parent, String childName, String text) {
+        XmlNode existing = parent.child(childName);
+        if (existing != null && text.equals(existing.getText())) {
+            return false;
+        }
+        replaceChild(parent, childName, simpleTextNode(childName, text));
+        return true;
+    }
+
+    private boolean descriptorIsStandardPeriod(SkdShorthandParser.ParameterDescriptor p) {
+        return p.type != null && p.type.size() == 1
+                && "v8:StandardPeriod".equals(p.type.get(0).xmlType);
+    }
+
+    private boolean parameterNodeIsStandardPeriod(XmlNode parameter) {
+        XmlNode valueType = parameter.child("valueType");
+        if (valueType == null) return false;
+        for (XmlNode child : valueType.getChildren()) {
+            if ("Type".equals(child.getName()) && "v8:StandardPeriod".equals(child.getText())) {
+                return true;
+            }
+        }
+        return false;
     }
 
     public OpResult removeParameter(String name) {
@@ -557,9 +689,7 @@ public class SkdEditor {
         }
         // Remove old, insert new
         root.getChildren().removeAll(params);
-        // Reinsert preserving position of first param
-        // To keep things simple: just append at end. Original position lost — acceptable per skill.
-        for (XmlNode p : newOrder) root.addChild(p);
+        for (XmlNode p : newOrder) insertRootChild(p, "parameter");
         return OpResult.changed("reordered");
     }
 
@@ -576,26 +706,10 @@ public class SkdEditor {
             replaceParameterValue(param, p.value, p);
         }
         if (p.availableValues != null) {
-            for (SkdShorthandParser.AvailableValueItem av : p.availableValues) {
-                XmlNode avn = createNode("availableValue");
-                avn.addChild(simpleTextNode("value", av.value));
-                if (av.presentation != null) {
-                    avn.addChild(simpleTextNode("presentation", av.presentation));
-                }
-                param.addChild(avn);
-            }
+            param.addChild(buildAvailableValues(p.availableValues));
         }
         for (String flag : p.flags) {
-            String tag;
-            switch (flag) {
-                case "hidden": tag = "useRestriction"; break;
-                case "always": tag = "use"; break;
-                case "autoDates": tag = "useChoice"; break;
-                default: tag = flag;
-            }
-            XmlNode fn = createNode(tag);
-            fn.setText(flag);
-            param.addChild(fn);
+            applyParameterFlag(param, flag);
         }
         return param;
     }
@@ -604,13 +718,76 @@ public class SkdEditor {
                                        SkdShorthandParser.ParameterDescriptor p) {
         XmlNode v = createNode("value");
         // Pick xsi:type from type
-        String xsi = "xs:string";
-        if (p.type != null && p.type.size() == 1) {
-            xsi = p.type.get(0).xmlType;
-        }
+        String xsi = parameterValueType(param, p);
         v.setAttribute("xsi:type", xsi);
-        v.setText(rawValue);
+        if ("v8:StandardPeriod".equals(xsi)) {
+            XmlNode variant = simpleTextNode("v8:variant", rawValue);
+            variant.setAttribute("xsi:type", "v8:StandardPeriodVariant");
+            v.addChild(variant);
+        } else {
+            v.setText(rawValue);
+        }
         replaceChild(param, "value", v);
+    }
+
+    private String parameterValueType(XmlNode param, SkdShorthandParser.ParameterDescriptor p) {
+        if (p.type != null && p.type.size() == 1) {
+            return p.type.get(0).xmlType;
+        }
+        XmlNode valueType = param.child("valueType");
+        if (valueType != null) {
+            for (XmlNode child : valueType.getChildren()) {
+                if ("Type".equals(child.getName()) && child.getText() != null
+                        && !child.getText().isEmpty()) {
+                    return child.getText();
+                }
+            }
+        }
+        return "xs:string";
+    }
+
+    private XmlNode buildAvailableValues(List<SkdShorthandParser.AvailableValueItem> values) {
+        XmlNode wrapper = createNode("availableValues");
+        for (SkdShorthandParser.AvailableValueItem item : values) {
+            XmlNode av = createNode("item");
+            av.addChild(simpleTextNode("value", item.value));
+            if (item.presentation != null) {
+                av.addChild(simpleTextNode("presentation", item.presentation));
+            }
+            wrapper.addChild(av);
+        }
+        return wrapper;
+    }
+
+    private void insertRootChild(XmlNode node, String kind) {
+        List<String> following;
+        switch (kind) {
+            case "dataSetLink":
+                following = List.of("calculatedField", "totalField", "parameter",
+                        "template", "groupTemplate", "settingsVariant");
+                break;
+            case "calculatedField":
+                following = List.of("totalField", "parameter", "template",
+                        "groupTemplate", "settingsVariant");
+                break;
+            case "totalField":
+                following = List.of("parameter", "template", "groupTemplate", "settingsVariant");
+                break;
+            case "parameter":
+                following = List.of("template", "groupTemplate", "settingsVariant");
+                break;
+            default:
+                document.getRoot().addChild(node);
+                return;
+        }
+        List<XmlNode> children = document.getRoot().getChildren();
+        for (int i = 0; i < children.size(); i++) {
+            if (following.contains(children.get(i).getName())) {
+                children.add(i, node);
+                return;
+            }
+        }
+        document.getRoot().addChild(node);
     }
 
     // ====================================================================
@@ -628,7 +805,7 @@ public class SkdEditor {
         XmlNode tn = createNode("totalField");
         tn.addChild(simpleTextNode("dataPath", t.dataPath));
         tn.addChild(simpleTextNode("expression", t.expression));
-        root.addChild(tn);
+        insertRootChild(tn, "totalField");
         return OpResult.changed("added");
     }
 
@@ -663,12 +840,21 @@ public class SkdEditor {
         if (settings == null) {
             throw new IllegalArgumentException("modify-structure: variant has no settings");
         }
+        //**agent TASK-174 [07.06.2026 11:10:00]
+        //XmlNode structure = findChildLocal(settings, "structure");
+        //if (structure == null) {
+        //    throw new IllegalArgumentException("modify-structure: variant has no structure");
+        //}
+        // Канон платформы: элементы структуры — прямые <dcsset:item xsi:type="...StructureItem*">
+        // под dcsset:settings; обёртки <dcsset:structure> в сериализации НЕТ (1c-dcs-spec.md §11.1).
+        // Прежний код требовал обёртку → на любой реальной (канонической) схеме падал
+        // "variant has no structure". Fallback на <structure> оставлен для файлов,
+        // сгенерированных старым writer'ом до фикса TASK-174.
         XmlNode structure = findChildLocal(settings, "structure");
-        if (structure == null) {
-            throw new IllegalArgumentException("modify-structure: variant has no structure");
-        }
+        XmlNode container = structure != null ? structure : settings;
+        //**agent TASK-174
         // Find group with matching @name via dcsset:name
-        XmlNode group = findStructureGroup(structure, s.groupName);
+        XmlNode group = findStructureGroup(container, s.groupName);
         if (group == null) {
             throw new IllegalArgumentException("modify-structure: group '" + s.groupName + "' not found");
         }
@@ -711,6 +897,18 @@ public class SkdEditor {
                     XmlNode found = findStructureGroup(nested, groupName);
                     if (found != null) return found;
                 }
+                //++agent TASK-174 [07.06.2026 11:10:00]
+                // Канон: вложенная группировка — прямой дочерний <dcsset:item
+                // xsi:type="...StructureItem*"> родительской группировки (1c-dcs-spec.md §11.8).
+                // Без спуска в item вложенные группы канонических схем не находились.
+                if ("item".equals(ln) && nested.attr("xsi:type") != null
+                        && nested.attr("xsi:type").contains("StructureItem")) {
+                    String nestedName = childTextLocal(nested, "name");
+                    if (groupName.equals(nestedName)) return nested;
+                    XmlNode found = findStructureGroup(nested, groupName);
+                    if (found != null) return found;
+                }
+                //++agent TASK-174
             }
         }
         return null;
@@ -794,10 +992,45 @@ public class SkdEditor {
         return node;
     }
 
+    //++agent TASK-176 [08.06.2026 12:30:00]
+    // S-04 (XG-45, upstream 79db5de6): preserve multi-lang <title> при modify-field/parameter.
+    // Полная замена через buildLocalStringType строила mono-ru блок и затирала en-заголовок
+    // (потеря данных round-trip на типовых ERP/БП/ЗУП-конфигурациях). Здесь патчим ТОЛЬКО
+    // ru-<v8:content> существующего <title>; прочие языки и неизвестные дети узла сохраняются.
+    // Если <title> отсутствует — создаём mono-ru (корректно: сохранять нечего, как в ADD-путях).
+    private void patchTitlePreservingLangs(XmlNode target, String content) {
+        XmlNode title = target.child("title");
+        if (title == null) {
+            target.addChild(buildLocalStringType("title", content));
+            return;
+        }
+        for (XmlNode item : title.children("item")) {
+            if ("ru".equals(item.childText("lang"))) {
+                XmlNode contentNode = item.child("content");
+                if (contentNode != null) {
+                    contentNode.setText(content);
+                } else {
+                    item.addChild(simpleTextNode("v8:content", content));
+                }
+                return;
+            }
+        }
+        // ru-элемента нет — добавляем, не трогая прочие языки.
+        XmlNode ruItem = createNode("v8:item");
+        ruItem.addChild(simpleTextNode("v8:lang", "ru"));
+        ruItem.addChild(simpleTextNode("v8:content", content));
+        title.addChild(ruItem);
+    }
+    //++agent TASK-176
+
     private XmlNode buildValueType(List<SkdTypeParser.TypePart> parts) {
         XmlNode vt = createNode("valueType");
         for (SkdTypeParser.TypePart tp : parts) {
-            vt.addChild(simpleTextNode("v8:Type", tp.xmlType));
+            XmlNode type = simpleTextNode("v8:Type", tp.xmlType);
+            if (tp.xmlType.startsWith("d5p1:")) {
+                type.setAttribute("xmlns:d5p1", CURRENT_CONFIG_NS);
+            }
+            vt.addChild(type);
             if (tp.stringLength != null) {
                 XmlNode sq = createNode("v8:StringQualifiers");
                 sq.addChild(simpleTextNode("v8:Length", tp.stringLength.toString()));
@@ -819,7 +1052,16 @@ public class SkdEditor {
     private XmlNode buildUseRestriction(List<String> restrictions) {
         XmlNode ur = createNode("useRestriction");
         for (String r : restrictions) {
-            ur.addChild(simpleTextNode(r, "true"));
+            String name;
+            switch (r) {
+                case "noField": name = "field"; break;
+                case "noFilter":
+                case "noCondition": name = "condition"; break;
+                case "noGroup": name = "group"; break;
+                case "noOrder": name = "order"; break;
+                default: name = r; break;
+            }
+            ur.addChild(simpleTextNode(name, "true"));
         }
         return ur;
     }
@@ -860,7 +1102,14 @@ public class SkdEditor {
         selection.addChild(item);
     }
 
-    private void removeFromSelectionRecursive(XmlNode node, String fieldName) {
+    //**agent TASK-176 [08.06.2026 12:40:00]
+    // S-09 / F-01 (XG-46): возвращаем признак фактического удаления. Раньше метод был void,
+    // а removeField решал возврат только по флагу removed (наличие поля в наборе данных). Если
+    // поле было ТОЛЬКО в selection варианта — helper реально удалял item (мутация XML), но
+    // removeField возвращал unchanged("noop") → под changed-гейтом S-09 правка молча терялась
+    // бы (потеря данных, risk 3a). Теперь selectionTouched агрегируется в возврат операции.
+    private boolean removeFromSelectionRecursive(XmlNode node, String fieldName) {
+        boolean touched = false;
         Iterator<XmlNode> it = node.getChildren().iterator();
         while (it.hasNext()) {
             XmlNode c = it.next();
@@ -873,12 +1122,19 @@ public class SkdEditor {
                 while (it2.hasNext()) {
                     XmlNode item = it2.next();
                     String f = childTextLocal(item, "field");
-                    if (fieldName.equals(f)) it2.remove();
+                    if (fieldName.equals(f)) {
+                        it2.remove();
+                        touched = true;
+                    }
                 }
             }
-            removeFromSelectionRecursive(c, fieldName);
+            if (removeFromSelectionRecursive(c, fieldName)) {
+                touched = true;
+            }
         }
+        return touched;
     }
+    //**agent TASK-176
 
     /** Локально-нечувствительный поиск дочернего узла (игнорирует префикс). */
     private XmlNode findChildLocal(XmlNode parent, String localName) {

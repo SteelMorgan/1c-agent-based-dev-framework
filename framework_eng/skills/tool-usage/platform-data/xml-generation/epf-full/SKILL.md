@@ -19,7 +19,7 @@ Workflow: `epf init → add-form → add-template → BSP registration (BSL)`. S
 | Create a processor | `xml-gen epf init --name <Name> output/` |
 | Create an external report (ERF) | `xml-gen epf init --type report --name <Name> output/` |
 | Add a form | `xml-gen epf add-form --epf <Name> --name <FormName> output/` |
-| Add an MXL template to EPF | `xml-gen epf add-template --epf <Name> --name <T> --type spreadsheet output/` |
+| Add an MXL template to EPF | `xml-gen epf add-template --epf <Name> --name <T> --type SpreadsheetDocument output/` |
 | Add an attribute to the processor | `xml-gen epf add-attribute --name <N> --type <T> output/<Name>.xml` |
 | Add a tabular section to the processor | `xml-gen epf add-tabular-section --name <N> output/<Name>.xml` |
 | Register in BSP (printing) | Insert `СведенияОВнешнейОбработке()` into `ObjectModule.bsl` — see §5 |

@@ -2,6 +2,7 @@ package io.github.onec.xmlgen.dsl;
 
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonProperty;
+import com.fasterxml.jackson.databind.JsonNode;
 import lombok.Value;
 
 import java.util.List;
@@ -97,7 +98,7 @@ public class FormEditDsl {
 
     /**
      * Привязка события элемента. Поддерживает как строку ("OnChange"), так и объект
-     * с callType / handler — десериализуется через {@link EventBindingDeserializer}.
+     * с callType / handler.
      */
     @Value
     public static class EventBinding {
@@ -106,10 +107,22 @@ public class FormEditDsl {
         String callType;
 
         @JsonCreator
-        public EventBinding(
-                @JsonProperty("event") String event,
-                @JsonProperty("handler") String handler,
-                @JsonProperty("callType") String callType) {
+        public EventBinding(JsonNode node) {
+            String event = null;
+            String handler = null;
+            String callType = null;
+            if (node != null) {
+                if (node.isTextual()) {
+                    event = node.asText();
+                } else if (node.isObject()) {
+                    JsonNode eventNode = node.get("event");
+                    JsonNode handlerNode = node.get("handler");
+                    JsonNode callTypeNode = node.get("callType");
+                    event = eventNode != null && !eventNode.isNull() ? eventNode.asText() : null;
+                    handler = handlerNode != null && !handlerNode.isNull() ? handlerNode.asText() : null;
+                    callType = callTypeNode != null && !callTypeNode.isNull() ? callTypeNode.asText() : null;
+                }
+            }
             this.event = event;
             this.handler = handler;
             this.callType = callType;

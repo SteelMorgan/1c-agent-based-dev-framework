@@ -29,7 +29,7 @@ public final class SkdTypeParser {
     /** Результат разбора одного «слагаемого» типа. */
     public static final class TypePart {
         /** Имя в XML, например {@code xs:string}, {@code xs:decimal}, {@code xs:dateTime},
-         * {@code v8:UUID}, {@code cfg:CatalogRef.Контрагенты}. */
+         * {@code v8:UUID}, {@code d5p1:CatalogRef.Контрагенты}. */
         public final String xmlType;
         /** Длина для string-(N), null если нет. */
         public final Integer stringLength;
@@ -163,7 +163,7 @@ public final class SkdTypeParser {
         }
         // Reference types: CatalogRef.X, DocumentRef.X, ...
         if (head.contains(".") && (head.endsWith(".") || head.matches("[A-Za-zА-Яа-я_]+Ref\\..+"))) {
-            return new TypePart("cfg:" + head, null, null, null, false, s);
+            return new TypePart("d5p1:" + head, null, null, null, false, s);
         }
         // ref:Catalog.X — short alias
         if (head.toLowerCase().startsWith("ref:")) {
@@ -178,7 +178,7 @@ public final class SkdTypeParser {
             }
             String cls = tail.substring(0, dot);
             String name = tail.substring(dot + 1);
-            return new TypePart("cfg:" + cls + "Ref." + name, null, null, null, false, s);
+            return new TypePart("d5p1:" + cls + "Ref." + name, null, null, null, false, s);
         }
         // Enum bare types from skill (StandardPeriod and friends)
         if (head.matches("[A-Za-zА-Яа-я_][A-Za-zА-Яа-я0-9_]*")) {

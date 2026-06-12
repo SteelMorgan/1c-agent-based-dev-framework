@@ -7,6 +7,8 @@ import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
+import io.github.onec.xmlgen.editor.skd.SkdShorthandParser;
+import io.github.onec.xmlgen.editor.skd.SkdTypeParser;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
@@ -216,7 +218,6 @@ public class SkdDsl {
         private List<String> restrict;
         private List<Object> availableValues;
 
-        @JsonCreator
         public Field(@JsonProperty("dataPath") String dataPath,
                      @JsonProperty("field") String field,
                      @JsonProperty("title") Object title,
@@ -247,6 +248,17 @@ public class SkdDsl {
             this.field = field;
             this.title = title;
             this.type = type;
+        }
+
+        @JsonCreator(mode = JsonCreator.Mode.DELEGATING)
+        public Field(String shorthand) {
+            SkdShorthandParser.FieldDescriptor parsed = SkdShorthandParser.parseField(shorthand);
+            this.dataPath = parsed.name;
+            this.field = parsed.name;
+            this.title = parsed.title;
+            this.type = rawType(parsed.type);
+            this.role = parsed.role;
+            this.restrict = parsed.restrictions;
         }
 
         /** Удобный геттер — возвращает title как простую строку (или ru-вариант). */
@@ -301,7 +313,6 @@ public class SkdDsl {
         private Map<String, Object> roleAttributes;
         private Object useRestriction;
 
-        @JsonCreator
         public CalculatedField(@JsonProperty("name") String name,
                                @JsonProperty("title") Object title,
                                @JsonProperty("expression") String expression,
@@ -316,6 +327,16 @@ public class SkdDsl {
             this.role = role;
             this.roleAttributes = roleAttributes;
             this.useRestriction = useRestriction;
+        }
+
+        @JsonCreator(mode = JsonCreator.Mode.DELEGATING)
+        public CalculatedField(String shorthand) {
+            ParsedCalculatedField parsed = parseCalculatedField(shorthand);
+            this.name = parsed.name;
+            this.title = parsed.title;
+            this.expression = parsed.expression;
+            this.type = parsed.type;
+            this.useRestriction = parsed.useRestriction;
         }
 
         @JsonIgnore
@@ -349,8 +370,11 @@ public class SkdDsl {
         /** {@code Always | Auto | DontUse}. */
         private String use;
         private List<Object> availableValues;
+        //++agent TASK-175 [07.06.2026 19:30:00]
+        /** XG-40 (32e06cbc): ограничение использования параметра; платформа эмитит тег всегда. */
+        private Boolean useRestriction;
+        //++agent TASK-175
 
-        @JsonCreator
         public Parameter(@JsonProperty("name") String name,
                          @JsonProperty("title") Object title,
                          @JsonProperty("type") String type,
@@ -361,7 +385,10 @@ public class SkdDsl {
                          @JsonProperty("denyIncompleteValues") Boolean denyIncompleteValues,
                          @JsonProperty("autoDates") Boolean autoDates,
                          @JsonProperty("use") String use,
-                         @JsonProperty("availableValues") List<Object> availableValues) {
+                         @JsonProperty("availableValues") List<Object> availableValues,
+                         //++agent TASK-175 [07.06.2026 19:30:00]
+                         @JsonProperty("useRestriction") Boolean useRestriction) {
+                         //++agent TASK-175
             this.name = name;
             this.title = title;
             this.type = type;
@@ -373,6 +400,9 @@ public class SkdDsl {
             this.autoDates = autoDates;
             this.use = use;
             this.availableValues = availableValues;
+            //++agent TASK-175 [07.06.2026 19:30:00]
+            this.useRestriction = useRestriction;
+            //++agent TASK-175
         }
 
         /** Legacy 4-arg конструктор. */
@@ -381,6 +411,19 @@ public class SkdDsl {
             this.title = title;
             this.type = type;
             this.value = value;
+        }
+
+        @JsonCreator(mode = JsonCreator.Mode.DELEGATING)
+        public Parameter(String shorthand) {
+            SkdShorthandParser.ParameterDescriptor parsed = SkdShorthandParser.parseParameter(shorthand);
+            this.name = parsed.name;
+            this.title = parsed.title;
+            this.type = rawType(parsed.type);
+            this.value = parsed.value;
+            this.hidden = parsed.flags.contains("hidden") ? true : null;
+            this.valueListAllowed = parsed.flags.contains("valueList") ? true : null;
+            this.autoDates = parsed.flags.contains("autoDates") ? true : null;
+            this.use = parsed.flags.contains("always") ? "Always" : null;
         }
 
         @JsonIgnore
@@ -407,7 +450,6 @@ public class SkdDsl {
         private String expression;
         private List<String> group;
 
-        @JsonCreator
         public TotalField(@JsonProperty("dataPath") String dataPath,
                           @JsonProperty("expression") String expression,
                           @JsonProperty("group") List<String> group) {
@@ -420,6 +462,13 @@ public class SkdDsl {
         public TotalField(String dataPath, String expression) {
             this.dataPath = dataPath;
             this.expression = expression;
+        }
+
+        @JsonCreator(mode = JsonCreator.Mode.DELEGATING)
+        public TotalField(String shorthand) {
+            SkdShorthandParser.TotalDescriptor parsed = SkdShorthandParser.parseTotal(shorthand);
+            this.dataPath = parsed.dataPath;
+            this.expression = parsed.expression;
         }
     }
 
@@ -542,21 +591,27 @@ public class SkdDsl {
         private String source;
         @JsonAlias({"dest", "target", "destDataSet"})
         private String dest;
+        @JsonAlias("sourceExpr")
         private String sourceExpression;
-        @JsonAlias({"destExpression", "targetExpression"})
+        @JsonAlias({"destExpr", "targetExpr", "destExpression", "targetExpression"})
         private String destExpression;
+        private String parameter;
+        private Boolean parameterListAllowed;
         private List<DataSetLinkItem> items;
 
-        @JsonCreator
         public DataSetLink(@JsonProperty("source") String source,
                            @JsonProperty("dest") String dest,
                            @JsonProperty("sourceExpression") String sourceExpression,
                            @JsonProperty("destExpression") String destExpression,
+                           @JsonProperty("parameter") String parameter,
+                           @JsonProperty("parameterListAllowed") Boolean parameterListAllowed,
                            @JsonProperty("items") List<DataSetLinkItem> items) {
             this.source = source;
             this.dest = dest;
             this.sourceExpression = sourceExpression;
             this.destExpression = destExpression;
+            this.parameter = parameter;
+            this.parameterListAllowed = parameterListAllowed;
             this.items = items;
         }
     }
@@ -565,15 +620,21 @@ public class SkdDsl {
     @NoArgsConstructor
     @JsonInclude(JsonInclude.Include.NON_NULL)
     public static class DataSetLinkItem {
+        @JsonAlias("sourceExpr")
         private String sourceExpression;
-        @JsonAlias({"destExpression", "targetExpression"})
+        @JsonAlias({"destExpr", "targetExpr", "destExpression", "targetExpression"})
         private String destExpression;
+        private String parameter;
+        private Boolean parameterListAllowed;
 
-        @JsonCreator
         public DataSetLinkItem(@JsonProperty("sourceExpression") String sourceExpression,
-                               @JsonProperty("destExpression") String destExpression) {
+                               @JsonProperty("destExpression") String destExpression,
+                               @JsonProperty("parameter") String parameter,
+                               @JsonProperty("parameterListAllowed") Boolean parameterListAllowed) {
             this.sourceExpression = sourceExpression;
             this.destExpression = destExpression;
+            this.parameter = parameter;
+            this.parameterListAllowed = parameterListAllowed;
         }
     }
 
@@ -630,8 +691,8 @@ public class SkdDsl {
     @NoArgsConstructor
     @JsonInclude(JsonInclude.Include.NON_NULL)
     public static class ConditionalAppearanceItem {
-        private List<String> selection;
-        private List<String> filter;
+        private List<Object> selection;
+        private List<Object> filter;
         private FilterGroup filterGroup;
         private Map<String, Object> appearance;
         private Object presentation;
@@ -639,15 +700,15 @@ public class SkdDsl {
         private String userSettingID;
 
         @JsonCreator
-        public ConditionalAppearanceItem(@JsonProperty("selection") List<String> selection,
-                                          @JsonProperty("filter") List<String> filter,
+        public ConditionalAppearanceItem(@JsonProperty("selection") List<?> selection,
+                                          @JsonProperty("filter") List<?> filter,
                                           @JsonProperty("filterGroup") FilterGroup filterGroup,
                                           @JsonProperty("appearance") Map<String, Object> appearance,
                                           @JsonProperty("presentation") Object presentation,
                                           @JsonProperty("viewMode") String viewMode,
                                           @JsonProperty("userSettingID") String userSettingID) {
-            this.selection = selection;
-            this.filter = filter;
+            this.selection = objectList(selection);
+            this.filter = objectList(filter);
             this.filterGroup = filterGroup;
             this.appearance = appearance;
             this.presentation = presentation;
@@ -660,8 +721,8 @@ public class SkdDsl {
                                           List<String> filter,
                                           Map<String, Object> appearance,
                                           String presentation) {
-            this.selection = selection;
-            this.filter = filter;
+            this.selection = objectList(selection);
+            this.filter = objectList(filter);
             this.appearance = appearance;
             this.presentation = presentation;
         }
@@ -731,8 +792,8 @@ public class SkdDsl {
     @NoArgsConstructor
     @JsonInclude(JsonInclude.Include.NON_NULL)
     public static class Settings {
-        private List<String> selection;
-        private List<String> filter;
+        private List<Object> selection;
+        private List<Object> filter;
         private List<String> order;
         private List<ConditionalAppearanceItem> conditionalAppearance;
         private Map<String, Object> outputParameters;
@@ -741,15 +802,15 @@ public class SkdDsl {
         private Object dataParameters;
 
         @JsonCreator
-        public Settings(@JsonProperty("selection") List<String> selection,
-                        @JsonProperty("filter") List<String> filter,
+        public Settings(@JsonProperty("selection") List<?> selection,
+                        @JsonProperty("filter") List<?> filter,
                         @JsonProperty("order") List<String> order,
                         @JsonProperty("conditionalAppearance") List<ConditionalAppearanceItem> conditionalAppearance,
                         @JsonProperty("outputParameters") Map<String, Object> outputParameters,
                         @JsonProperty("structure") List<Structure> structure,
                         @JsonProperty("dataParameters") Object dataParameters) {
-            this.selection = selection;
-            this.filter = filter;
+            this.selection = objectList(selection);
+            this.filter = objectList(filter);
             this.order = order;
             this.conditionalAppearance = conditionalAppearance;
             this.outputParameters = outputParameters;
@@ -764,8 +825,8 @@ public class SkdDsl {
                         List<ConditionalAppearanceItem> conditionalAppearance,
                         Map<String, Object> outputParameters,
                         List<Structure> structure) {
-            this.selection = selection;
-            this.filter = filter;
+            this.selection = objectList(selection);
+            this.filter = objectList(filter);
             this.order = order;
             this.conditionalAppearance = conditionalAppearance;
             this.outputParameters = outputParameters;
@@ -785,28 +846,27 @@ public class SkdDsl {
         private String name;
         @JsonAlias({"groupBy", "groupFields"})
         private List<String> groupBy;
-        private List<String> selection;
+        private List<Object> selection;
         private List<String> order;
-        private List<String> filter;
+        private List<Object> filter;
         private Map<String, Object> outputParameters;
         private List<Structure> children;
 
-        @JsonCreator
         public Structure(@JsonProperty("type") String type,
                          @JsonProperty("name") String name,
                          @JsonProperty("groupBy") List<String> groupBy,
                          @JsonProperty("groupFields") List<String> groupFields,
-                         @JsonProperty("selection") List<String> selection,
+                         @JsonProperty("selection") List<?> selection,
                          @JsonProperty("order") List<String> order,
-                         @JsonProperty("filter") List<String> filter,
+                         @JsonProperty("filter") List<?> filter,
                          @JsonProperty("outputParameters") Map<String, Object> outputParameters,
                          @JsonProperty("children") List<Structure> children) {
             this.type = type;
             this.name = name;
             this.groupBy = groupBy != null ? groupBy : groupFields;
-            this.selection = selection;
+            this.selection = objectList(selection);
             this.order = order;
-            this.filter = filter;
+            this.filter = objectList(filter);
             this.outputParameters = outputParameters;
             this.children = children;
         }
@@ -815,7 +875,148 @@ public class SkdDsl {
         public Structure(String type, List<String> groupBy, List<String> selection) {
             this.type = type;
             this.groupBy = groupBy;
-            this.selection = selection;
+            this.selection = objectList(selection);
         }
+
+        @JsonProperty("groupFields")
+        public void setGroupFields(List<String> groupFields) {
+            this.groupBy = groupFields;
+        }
+
+        @JsonCreator(mode = JsonCreator.Mode.DELEGATING)
+        public Structure(String shorthand) {
+            Structure parsed = parseStructureShorthand(shorthand);
+            this.type = parsed.type;
+            this.name = parsed.name;
+            this.groupBy = parsed.groupBy;
+            this.selection = parsed.selection;
+            this.order = parsed.order;
+            this.filter = parsed.filter;
+            this.outputParameters = parsed.outputParameters;
+            this.children = parsed.children;
+        }
+    }
+
+    private static String rawType(List<SkdTypeParser.TypePart> parts) {
+        if (parts == null || parts.isEmpty()) return null;
+        List<String> raw = new ArrayList<>();
+        for (SkdTypeParser.TypePart part : parts) {
+            raw.add(part.raw);
+        }
+        return String.join("|", raw);
+    }
+
+    private static List<Object> objectList(List<?> values) {
+        if (values == null) {
+            return null;
+        }
+        return new ArrayList<>(values);
+    }
+
+    private static ParsedCalculatedField parseCalculatedField(String shorthand) {
+        String rest = shorthand == null ? "" : shorthand.trim();
+        ParsedCalculatedField parsed = new ParsedCalculatedField();
+        int nameEnd = findNameEnd(rest);
+        if (nameEnd <= 0) {
+            throw new IllegalArgumentException("calculatedField shorthand: expected name");
+        }
+        parsed.name = rest.substring(0, nameEnd).trim();
+        rest = rest.substring(nameEnd).trim();
+
+        if (rest.startsWith("[")) {
+            int close = rest.indexOf(']');
+            if (close < 0) {
+                throw new IllegalArgumentException("calculatedField shorthand: unmatched '['");
+            }
+            parsed.title = rest.substring(1, close);
+            rest = rest.substring(close + 1).trim();
+        }
+
+        int equals = rest.indexOf('=');
+        String beforeExpr = equals >= 0 ? rest.substring(0, equals).trim() : rest;
+        parsed.expression = equals >= 0 ? rest.substring(equals + 1).trim() : null;
+        if (beforeExpr.startsWith(":")) {
+            parsed.type = beforeExpr.substring(1).trim();
+        }
+        parsed.useRestriction = parseRestrictFlags(parsed.type);
+        if (parsed.type instanceof String) {
+            String type = (String) parsed.type;
+            int hash = type.indexOf('#');
+            if (hash >= 0) {
+                parsed.type = type.substring(0, hash).trim();
+            }
+        }
+        if (parsed.expression != null) {
+            int hash = parsed.expression.indexOf('#');
+            if (hash >= 0) {
+                parsed.useRestriction = parseRestrictFlags(parsed.expression.substring(hash));
+                parsed.expression = parsed.expression.substring(0, hash).trim();
+            }
+        }
+        return parsed;
+    }
+
+    private static int findNameEnd(String value) {
+        int end = 0;
+        while (end < value.length()) {
+            char ch = value.charAt(end);
+            if (Character.isWhitespace(ch) || ch == '[' || ch == ':' || ch == '=') break;
+            end++;
+        }
+        return end;
+    }
+
+    private static Map<String, Boolean> parseRestrictFlags(Object value) {
+        if (!(value instanceof String)) return null;
+        String text = (String) value;
+        if (!text.contains("#")) return null;
+        Map<String, Boolean> out = new LinkedHashMap<>();
+        for (String token : text.split("\\s+")) {
+            if (!token.startsWith("#")) continue;
+            switch (token.substring(1)) {
+                case "noField": out.put("field", true); break;
+                case "noFilter":
+                case "noCondition": out.put("condition", true); break;
+                case "noGroup": out.put("group", true); break;
+                case "noOrder": out.put("order", true); break;
+                default: break;
+            }
+        }
+        return out.isEmpty() ? null : out;
+    }
+
+    private static Structure parseStructureShorthand(String shorthand) {
+        String spec = shorthand == null ? "" : shorthand.trim();
+        if (spec.isEmpty()) {
+            throw new IllegalArgumentException("structure shorthand is empty");
+        }
+        String[] parts = spec.split(">");
+        Structure root = null;
+        Structure current = null;
+        for (String part : parts) {
+            String token = part.trim();
+            if (token.isEmpty()) continue;
+            Structure item = new Structure();
+            item.type = "group";
+            item.groupBy = "details".equalsIgnoreCase(token) ? List.of() : List.of(token);
+            if (root == null) {
+                root = item;
+            } else {
+                current.children = List.of(item);
+            }
+            current = item;
+        }
+        if (root == null) {
+            throw new IllegalArgumentException("structure shorthand has no items");
+        }
+        return root;
+    }
+
+    private static final class ParsedCalculatedField {
+        String name;
+        Object title;
+        String expression;
+        Object type;
+        Object useRestriction;
     }
 }

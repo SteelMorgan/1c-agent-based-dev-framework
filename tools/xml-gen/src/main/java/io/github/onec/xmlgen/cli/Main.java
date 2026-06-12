@@ -7,7 +7,7 @@ import java.util.Arrays;
  */
 public class Main {
     /** Fallback-версия, если в манифесте jar нет Implementation-Version. */
-    private static final String FALLBACK_VERSION = "0.1.0-SNAPSHOT";
+    private static final String FALLBACK_VERSION = "0.1.1-SNAPSHOT";
 
     public static void main(String[] args) {
         if (args.length == 0) {
@@ -44,7 +44,7 @@ public class Main {
         try {
             Commands.execute(command, commandArgs);
         } catch (IllegalArgumentException e) {
-            System.err.println("Error: " + e.getMessage());
+            System.err.println("ERROR: " + e.getMessage());
             if (debug) {
                 e.printStackTrace(System.err);
             }
@@ -109,6 +109,11 @@ public class Main {
         System.out.println("  help                  - BSP help operations");
         System.out.println("  edit replace-text     - Byte-safe text replacement in XML files");
         System.out.println("  validate              - Validate 1C XML files");
+        System.out.println("  oracle mxl            - Run behavioral oracle for MXL DSL and CLI reconstruction modes");
+        System.out.println("  oracle demo           - Run parallel validation audit for _Демо XML classes");
+        System.out.println("  oracle predefined-data - Run behavioral oracle for Ext/Predefined.xml via public meta CLI");
+        System.out.println("  oracle exchange-plan-content - Run behavioral oracle for Ext/Content.xml via public meta CLI");
+        System.out.println("  oracle mine-rules     - Mine structural rule candidates from canonical Designer XML corpus");
         System.out.println();
         System.out.println("Options:");
         System.out.println("  --version, -V            - Print version and exit");
@@ -122,5 +127,11 @@ public class Main {
         System.out.println("  xml-gen epf init --format designer --name МояОбработка output/");
         System.out.println("  xml-gen form compile --format designer form.json output/");
         System.out.println("  xml-gen meta compile catalog.json src/xml/");
+        System.out.println("  xml-gen oracle mxl --source src/xml --out build/oracle --mode both");
+        System.out.println("  xml-gen oracle mxl --source src/xml --out build/oracle --mode both --include-all");
+        System.out.println("  xml-gen oracle demo --source src/xml --out build/oracle-demo --threads 8");
+        System.out.println("  xml-gen oracle predefined-data --source src/xml --out build/oracle-predefined-data");
+        System.out.println("  xml-gen oracle exchange-plan-content --source src/xml --out build/oracle-exchange-plan-content");
+        System.out.println("  xml-gen oracle mine-rules --source src/xml --out build/oracle-rule-mining --min-support 2 --digest-limit 500 --disposition rules.json");
     }
 }

@@ -94,6 +94,24 @@ class SubsystemInterfaceConfigRootTask171Test {
             + "\t</Subsystem>\n"
             + "</MetaDataObject>\n";
 
+    private static final String SUBSYSTEM_WITH_CHILD =
+            "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
+            + "<MetaDataObject xmlns=\"http://v8.1c.ru/8.3/MDClasses\"\n"
+            + "\txmlns:v8=\"http://v8.1c.ru/8.1/data/core\"\n"
+            + "\txmlns:xr=\"http://v8.1c.ru/8.3/xcf/readable\"\n"
+            + "\txmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\" version=\"2.17\">\n"
+            + "\t<Subsystem uuid=\"00000000-0000-0000-0000-000000000002\">\n"
+            + "\t\t<Properties>\n"
+            + "\t\t\t<Name>Родитель</Name>\n"
+            + "\t\t\t<Synonym><v8:item><v8:lang>ru</v8:lang><v8:content>Родитель</v8:content></v8:item></Synonym>\n"
+            + "\t\t\t<Content/>\n"
+            + "\t\t</Properties>\n"
+            + "\t\t<ChildObjects>\n"
+            + "\t\t\t<Subsystem>Ребёнок</Subsystem>\n"
+            + "\t\t</ChildObjects>\n"
+            + "\t</Subsystem>\n"
+            + "</MetaDataObject>\n";
+
     @Test
     void subsystemValidate_topLevel_correctRoot_noFalseErrors() throws Exception {
         buildConfig();
@@ -140,6 +158,23 @@ class SubsystemInterfaceConfigRootTask171Test {
         assertThat(errors(msgs)).isZero();
     }
 
+    @Test
+    void subsystemValidate_topLevelChildren_usesSubsystemXmlParentForFileChecks() throws Exception {
+        buildConfig();
+        Path ssFile = configRoot.resolve("Subsystems").resolve("Родитель.xml");
+        Path childFile = configRoot.resolve("Subsystems").resolve("Родитель")
+                .resolve("Subsystems").resolve("Ребёнок.xml");
+        Files.createDirectories(childFile.getParent());
+        Files.writeString(ssFile, SUBSYSTEM_WITH_CHILD, StandardCharsets.UTF_8);
+        Files.writeString(childFile, SUBSYSTEM_WITH_CONTENT, StandardCharsets.UTF_8);
+
+        List<SubsystemValidator.ValidationMessage> msgs =
+                new SubsystemValidator().validate(parse(ssFile), configRoot, ssFile);
+
+        assertThat(msgs)
+                .noneMatch(m -> m.message.contains("File missing"));
+    }
+
     // ============================================================
     // InterfaceValidator (Task 2 + 3)
     // ============================================================
@@ -157,6 +192,36 @@ class SubsystemInterfaceConfigRootTask171Test {
             + "\t\t\t<Visibility><xr:Common>true</xr:Common></Visibility>\n"
             + "\t\t</Command>\n"
             + "\t</CommandsVisibility>\n"
+            + "</CommandInterface>\n";
+
+    private static final String CI_WITH_MISSING_COMMON_COMMAND =
+            "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
+            + "<CommandInterface xmlns=\"http://v8.1c.ru/8.3/xcf/extrnprops\"\n"
+            + "\txmlns:xr=\"http://v8.1c.ru/8.3/xcf/readable\" version=\"2.17\">\n"
+            + "\t<CommandsVisibility>\n"
+            + "\t\t<Command name=\"CommonCommand.НетТакойКоманды\">\n"
+            + "\t\t\t<Visibility><xr:Common>true</xr:Common></Visibility>\n"
+            + "\t\t</Command>\n"
+            + "\t</CommandsVisibility>\n"
+            + "</CommandInterface>\n";
+
+    private static final String CI_WITH_MISSING_GROUP =
+            "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
+            + "<CommandInterface xmlns=\"http://v8.1c.ru/8.3/xcf/extrnprops\" version=\"2.17\">\n"
+            + "\t<CommandsPlacement>\n"
+            + "\t\t<Command name=\"Catalog.Партнеры.StandardCommand.OpenList\">\n"
+            + "\t\t\t<CommandGroup>CommandGroup.НетТакойГруппы</CommandGroup>\n"
+            + "\t\t\t<Placement>Auto</Placement>\n"
+            + "\t\t</Command>\n"
+            + "\t</CommandsPlacement>\n"
+            + "</CommandInterface>\n";
+
+    private static final String CI_WITH_MISSING_SUBSYSTEM =
+            "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
+            + "<CommandInterface xmlns=\"http://v8.1c.ru/8.3/xcf/extrnprops\" version=\"2.17\">\n"
+            + "\t<SubsystemsOrder>\n"
+            + "\t\t<Subsystem>Subsystem.НетТакойПодсистемы</Subsystem>\n"
+            + "\t</SubsystemsOrder>\n"
             + "</CommandInterface>\n";
 
     private Path writeCI(Path subsystemDir) throws IOException {
@@ -204,5 +269,47 @@ class SubsystemInterfaceConfigRootTask171Test {
         List<InterfaceValidator.ValidationMessage> msgs =
                 new InterfaceValidator().validate(parse(ci), root);
         assertThat(ifaceErrors(msgs)).isZero();
+    }
+
+    @Test
+    void interfaceValidate_missingCommonCommand_isError() throws Exception {
+        buildConfig();
+        Path ci = tempDir.resolve("CommandInterface.xml");
+        Files.writeString(ci, CI_WITH_MISSING_COMMON_COMMAND, StandardCharsets.UTF_8);
+
+        List<InterfaceValidator.ValidationMessage> msgs =
+                new InterfaceValidator().validate(parse(ci), configRoot);
+
+        assertThat(msgs)
+                .anyMatch(m -> "ERROR".equals(m.level)
+                        && m.message.contains("non-existent CommonCommand"));
+    }
+
+    @Test
+    void interfaceValidate_missingCommandGroup_isError() throws Exception {
+        buildConfig();
+        Path ci = tempDir.resolve("CommandInterface.xml");
+        Files.writeString(ci, CI_WITH_MISSING_GROUP, StandardCharsets.UTF_8);
+
+        List<InterfaceValidator.ValidationMessage> msgs =
+                new InterfaceValidator().validate(parse(ci), configRoot);
+
+        assertThat(msgs)
+                .anyMatch(m -> "ERROR".equals(m.level)
+                        && m.message.contains("non-existent CommandGroup"));
+    }
+
+    @Test
+    void interfaceValidate_subsystemsOrderChecksExistingPath() throws Exception {
+        buildConfig();
+        Path ci = tempDir.resolve("CommandInterface.xml");
+        Files.writeString(ci, CI_WITH_MISSING_SUBSYSTEM, StandardCharsets.UTF_8);
+
+        List<InterfaceValidator.ValidationMessage> msgs =
+                new InterfaceValidator().validate(parse(ci), configRoot);
+
+        assertThat(msgs)
+                .anyMatch(m -> "ERROR".equals(m.level)
+                        && m.message.contains("non-existent subsystem"));
     }
 }

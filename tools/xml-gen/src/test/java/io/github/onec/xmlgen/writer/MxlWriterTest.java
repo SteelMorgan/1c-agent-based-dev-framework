@@ -3,6 +3,9 @@ package io.github.onec.xmlgen.writer;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.github.onec.xmlgen.dsl.MxlDsl;
 import io.github.onec.xmlgen.format.OutputFormat;
+import io.github.onec.xmlgen.validator.MxlValidator;
+import io.github.onec.xmlgen.validator.ValidationLevel;
+import io.github.onec.xmlgen.validator.XmlStructureReader;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -14,6 +17,7 @@ import java.util.List;
 import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
  * Тесты для MxlWriter.
@@ -403,6 +407,39 @@ class MxlWriterTest {
         assertThat(rt).contains("\"border\"");
     }
 
+    @Test
+    void testRowStyleSkipsColumnsOccupiedByPreviousRowspan() throws Exception {
+        String json = """
+                {
+                  "columns": 2,
+                  "defaultWidth": 50,
+                  "styles": {"bordered": {"border": "all"}},
+                  "areas": [{"name": "Строка", "rows": [
+                    {"rowStyle": "bordered", "cells": [
+                      {"col": 1, "rowspan": 2, "text": "A"}
+                    ]},
+                    {"rowStyle": "bordered", "cells": [
+                      {"col": 2, "text": "B"}
+                    ]}
+                  ]}]
+                }
+                """;
+        MxlDsl dsl = new ObjectMapper().readValue(json, MxlDsl.class);
+        Path outputXml = tempDir.resolve("Template.xml");
+        new MxlWriter(OutputFormat.DESIGNER).create(dsl, outputXml);
+
+        var doc = new XmlStructureReader().parse(outputXml);
+        var issues = new MxlValidator().validate(doc, ValidationLevel.SEMANTIC);
+        assertThat(issues).noneMatch(i -> i.getCode().equals("MXL-202"));
+
+        String content = Files.readString(outputXml);
+        int secondRowStart = content.indexOf("<index>1</index>");
+        assertThat(secondRowStart).isGreaterThan(0);
+        String secondRowBlock = content.substring(secondRowStart, content.indexOf("</rowsItem>", secondRowStart));
+        assertThat(secondRowBlock).doesNotContain("<i>0</i>");
+        assertThat(secondRowBlock).contains("<i>1</i>");
+    }
+
     /**
      * Баг #2 — rowStyle: явный style ячейки перебивает rowStyle строки.
      * TASK-171: проверяем, что у двух ячеек разные форматы (money vs bordered)
@@ -754,6 +791,9 @@ class MxlWriterTest {
      */
     @Test
     void testPageA4Landscape() throws Exception {
+        Map<String, Object> widths = new HashMap<>();
+        widths.put("1", "1x");
+        widths.put("2", "1x");
         MxlDsl dsl = new MxlDsl(1, 40, null, null, null,
                 Arrays.asList(new MxlDsl.Area("X", Arrays.asList(
                         new MxlDsl.Row(null, null, Arrays.asList(
@@ -761,16 +801,20 @@ class MxlWriterTest {
                         ), null)))),
                 "A4-landscape");
         Path out = tempDir.resolve("Template.xml");
-        new MxlWriter(OutputFormat.DESIGNER).create(dsl, out);
+        new MxlWriter(OutputFormat.DESIGNER).create(
+                new MxlDsl(2, null, widths, null, null, dsl.getAreas(), "A4-landscape"), out);
         String content = Files.readString(out);
-        assertThat(content).contains("<pageSetup>");
-        assertThat(content).contains("<orientation>Landscape</orientation>");
-        assertThat(content).contains("<pageWidth>780</pageWidth>");
+        assertThat(content).doesNotContain("<pageSetup>");
+        assertThat(content).doesNotContain("<orientation>Landscape</orientation>");
+        assertThat(content).contains("<width>390</width>");
     }
 
     @Test
     void testPageA4Portrait() throws Exception {
-        MxlDsl dsl = new MxlDsl(1, 40, null, null, null,
+        Map<String, Object> widths = new HashMap<>();
+        widths.put("1", "1x");
+        widths.put("2", "1x");
+        MxlDsl dsl = new MxlDsl(2, null, widths, null, null,
                 Arrays.asList(new MxlDsl.Area("X", Arrays.asList(
                         new MxlDsl.Row(null, null, Arrays.asList(
                                 new MxlDsl.Cell(1, null, null, null, null, null, "A", null)
@@ -779,8 +823,9 @@ class MxlWriterTest {
         Path out = tempDir.resolve("Template.xml");
         new MxlWriter(OutputFormat.DESIGNER).create(dsl, out);
         String content = Files.readString(out);
-        assertThat(content).contains("<orientation>Portrait</orientation>");
-        assertThat(content).contains("<pageWidth>540</pageWidth>");
+        assertThat(content).doesNotContain("<pageSetup>");
+        assertThat(content).doesNotContain("<orientation>Portrait</orientation>");
+        assertThat(content).contains("<width>270</width>");
     }
 
     @Test
@@ -797,8 +842,9 @@ class MxlWriterTest {
     }
 
     @Test
-    void testPageWithExcessiveWidthsTriggersValidatorError() throws Exception {
-        // page=portrait (540) + columnWidths summing to 1100 → should fail MXL-206 via validator.
+    void testPageWithExcessiveWidthsFailsCompilation() throws Exception {
+        // page=portrait (540) + columnWidths summing to 1100 has no canonical pageSetup
+        // carrier in XML, so writer must reject it before producing impossible geometry.
         Map<String, Object> cw = new HashMap<>();
         cw.put("1", 500);
         cw.put("2", 600);
@@ -809,12 +855,27 @@ class MxlWriterTest {
                         ), null)))),
                 "A4-portrait");
         Path out = tempDir.resolve("Template.xml");
-        new MxlWriter(OutputFormat.DESIGNER).create(dsl, out);
-        String content = Files.readString(out);
-        // The XML must include the pageSetup with width 540 and per-column formats summing > 540.
-        assertThat(content).contains("<pageWidth>540</pageWidth>");
-        assertThat(content).contains("<width>500</width>");
-        assertThat(content).contains("<width>600</width>");
+        assertThatThrownBy(() -> new MxlWriter(OutputFormat.DESIGNER).create(dsl, out))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("MXL page width 540")
+                .hasMessageContaining("absolute column widths 1100");
+    }
+
+    @Test
+    void testPageWithNoRemainingWidthForDefaultColumnsFailsCompilation() throws Exception {
+        Map<String, Object> cw = new HashMap<>();
+        cw.put("1", 540);
+        MxlDsl dsl = new MxlDsl(2, null, cw, null, null,
+                Arrays.asList(new MxlDsl.Area("X", Arrays.asList(
+                        new MxlDsl.Row(null, null, Arrays.asList(
+                                new MxlDsl.Cell(1, null, null, null, null, null, "A", null)
+                        ), null)))),
+                "A4-portrait");
+        Path out = tempDir.resolve("Template.xml");
+        assertThatThrownBy(() -> new MxlWriter(OutputFormat.DESIGNER).create(dsl, out))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("MXL page width 540")
+                .hasMessageContaining("absolute column widths 540");
     }
 
     /**

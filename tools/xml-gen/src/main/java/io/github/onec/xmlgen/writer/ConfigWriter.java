@@ -73,10 +73,10 @@ public class ConfigWriter {
         writeConfigurationXml(outputDir, name, syn, ver, vnd, lName, lCode, configUuid, compat, fmtVer);
 
         // 2. ConfigDumpInfo.xml
-        writeConfigDumpInfo(outputDir, name, configUuid, lName, langUuid);
+        writeConfigDumpInfo(outputDir, name, configUuid, lName, langUuid, fmtVer);
 
         // 3. Languages/<langName>.xml
-        writeLanguage(outputDir, lName, lCode, langUuid);
+        writeLanguage(outputDir, lName, lCode, langUuid, fmtVer);
 
         // 4. Ext/ modules (empty stubs)
         Path extDir = outputDir.resolve("Ext");
@@ -140,7 +140,12 @@ public class ConfigWriter {
         sb.append("\t\t\t<ObjectAutonumerationMode>NotAutoFree</ObjectAutonumerationMode>\n");
         sb.append("\t\t\t<ModalityUseMode>DontUse</ModalityUseMode>\n");
         sb.append("\t\t\t<SynchronousPlatformExtensionAndAddInCallUseMode>DontUse</SynchronousPlatformExtensionAndAddInCallUseMode>\n");
-        sb.append("\t\t\t<InterfaceCompatibilityMode>Taxi</InterfaceCompatibilityMode>\n");
+        //**agent TASK-175 [07.06.2026 18:55:00]
+        // XG-36 (72bad1aa cf-init v1.1): Taxi → TaxiEnableVersion8_2 — соответствует всем
+        // реальным конфигурациям (acc 8.3.20/24/27, erp 8.3.24); голый Taxi не встречается.
+        //sb.append("\t\t\t<InterfaceCompatibilityMode>Taxi</InterfaceCompatibilityMode>\n");
+        sb.append("\t\t\t<InterfaceCompatibilityMode>TaxiEnableVersion8_2</InterfaceCompatibilityMode>\n");
+        //**agent TASK-175
         sb.append("\t\t\t<DatabaseTablespacesUseMode>DontUse</DatabaseTablespacesUseMode>\n");
         sb.append("\t\t\t<MainClientApplicationWindowMode>Normal</MainClientApplicationWindowMode>\n");
         sb.append("\t\t\t<UsePurposes>\n");
@@ -186,14 +191,15 @@ public class ConfigWriter {
     }
 
     private void writeConfigDumpInfo(Path outputDir, String configName, String configUuid,
-                                     String langName, String langUuid) throws IOException {
+                                     String langName, String langUuid,
+                                     String formatVersion) throws IOException {
         StringBuilder sb = new StringBuilder();
         sb.append("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n");
         sb.append("<ConfigDumpInfo xmlns=\"http://v8.1c.ru/8.3/xcf/dumpinfo\"\n");
         sb.append("\txmlns:xen=\"http://v8.1c.ru/8.3/xcf/enums\"\n");
         sb.append("\txmlns:xs=\"http://www.w3.org/2001/XMLSchema\"\n");
         sb.append("\txmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\"\n");
-        sb.append("\tformat=\"Hierarchical\" version=\"2.17\">\n");
+        sb.append("\tformat=\"Hierarchical\" version=\"").append(escapeXml(formatVersion)).append("\">\n");
         sb.append("\t<ConfigVersions>\n");
         sb.append("\t\t<Metadata name=\"Configuration.").append(escapeXml(configName))
                 .append("\" id=\"").append(configUuid).append("\" configVersion=\"00000000000000000000000000000000 00000000\"/>\n");
@@ -206,7 +212,7 @@ public class ConfigWriter {
     }
 
     private void writeLanguage(Path outputDir, String langName, String langCode,
-                               String langUuid) throws IOException {
+                               String langUuid, String formatVersion) throws IOException {
         Path langDir = outputDir.resolve("Languages");
         Files.createDirectories(langDir);
 
@@ -216,7 +222,7 @@ public class ConfigWriter {
         sb.append("\txmlns:v8=\"http://v8.1c.ru/8.1/data/core\"\n");
         sb.append("\txmlns:xs=\"http://www.w3.org/2001/XMLSchema\"\n");
         sb.append("\txmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\"\n");
-        sb.append("\tversion=\"2.17\">\n");
+        sb.append("\tversion=\"").append(escapeXml(formatVersion)).append("\">\n");
         sb.append("\t<Language uuid=\"").append(langUuid).append("\">\n");
         sb.append("\t\t<Properties>\n");
         sb.append("\t\t\t<Name>").append(escapeXml(langName)).append("</Name>\n");

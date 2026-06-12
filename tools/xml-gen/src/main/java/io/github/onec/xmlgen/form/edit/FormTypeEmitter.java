@@ -67,11 +67,21 @@ public class FormTypeEmitter {
         V8_TYPES.put("FixedArray", "v8:FixedArray");
         V8_TYPES.put("FixedStructure", "v8:FixedStructure");
         V8_TYPES.put("UUID", "v8:UUID");
+        V8_TYPES.put("FillChecking", "v8:FillChecking");
+        V8_TYPES.put("Null", "v8:Null");
+        V8_TYPES.put("StandardBeginningDate", "v8:StandardBeginningDate");
+        V8_TYPES.put("StandardPeriod", "v8:StandardPeriod");
+        V8_TYPES.put("Type", "v8:Type");
+
+        V8_TYPES.put("ConstantsSet", "cfg:ConstantsSet");
 
         V8UI_TYPES.put("FormattedString", "v8ui:FormattedString");
         V8UI_TYPES.put("Picture", "v8ui:Picture");
         V8UI_TYPES.put("Color", "v8ui:Color");
         V8UI_TYPES.put("Font", "v8ui:Font");
+        V8UI_TYPES.put("SizeChangeMode", "v8ui:SizeChangeMode");
+        V8UI_TYPES.put("VerticalAlign", "v8ui:VerticalAlign");
+        V8UI_TYPES.put("HorizontalAlign", "v8ui:HorizontalAlign");
 
         DCS_TYPES.put("DataCompositionSettings", "dcsset:DataCompositionSettings");
         DCS_TYPES.put("DataCompositionSchema", "dcssch:DataCompositionSchema");
@@ -87,13 +97,24 @@ public class FormTypeEmitter {
         if (dslType == null || dslType.isBlank()) {
             return type;
         }
-        for (String part : dslType.split("[|+]")) {
-            appendSingle(type, part.trim());
+        //**agent TASK-174 [05.06.2026 12:32:00]
+        // XG-10: (а) сплит paren-aware (CompositeType), чтобы не рвать "number+(15,2)" /
+        // "number(15,2)"; (б) канонический порядок — сперва ВСЕ <v8:Type>, затем
+        // квалификаторы (эталон: НастройкиВерсионированияОбъектов — xs:string +
+        // CatalogRef, StringQualifiers после обоих типов). Раньше квалификаторы
+        // интерливились с типами (type, qual, type) — не канон.
+        java.util.List<XmlNode> qualifiers = new java.util.ArrayList<>();
+        for (String part : io.github.onec.xmlgen.model.CompositeType.splitCompositeTypes(dslType)) {
+            appendSingle(type, part.trim(), qualifiers);
         }
+        for (XmlNode q : qualifiers) {
+            type.addChild(q);
+        }
+        //**agent TASK-174
         return type;
     }
 
-    private void appendSingle(XmlNode type, String raw) {
+    private void appendSingle(XmlNode type, String raw, java.util.List<XmlNode> qualifiersOut) {
         String resolved = applySynonyms(raw);
 
         // Bare-types не через TypeResolver (без qualifiers)
@@ -118,11 +139,11 @@ public class FormTypeEmitter {
         type.addChild(v8TypeText(info.getXmlType()));
         Object q = info.getQualifiers();
         if (q instanceof TypeResolver.StringQualifiers) {
-            type.addChild(stringQualifiers((TypeResolver.StringQualifiers) q));
+            qualifiersOut.add(stringQualifiers((TypeResolver.StringQualifiers) q));
         } else if (q instanceof TypeResolver.NumberQualifiers) {
-            type.addChild(numberQualifiers((TypeResolver.NumberQualifiers) q));
+            qualifiersOut.add(numberQualifiers((TypeResolver.NumberQualifiers) q));
         } else if (q instanceof TypeResolver.DateQualifiers) {
-            type.addChild(dateQualifiers((TypeResolver.DateQualifiers) q));
+            qualifiersOut.add(dateQualifiers((TypeResolver.DateQualifiers) q));
         }
     }
 

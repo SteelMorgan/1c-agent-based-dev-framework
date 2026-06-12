@@ -87,6 +87,16 @@ public class FormEditor {
      */
     public void addAttribute(String name, String titleText, String type, Boolean main,
                              Boolean savedData, List<FormDsl.Column> columns) {
+        addAttribute(name, titleText, type, main, savedData, columns, null, null);
+    }
+
+    /**
+     * Full form attribute emission used by {@code form edit --json}. Mirrors the
+     * compile path for flags shared by {@link FormDsl.Attribute}.
+     */
+    public void addAttribute(String name, String titleText, String type, Boolean main,
+                             Boolean savedData, List<FormDsl.Column> columns,
+                             String fillChecking, String useAlwaysField) {
         XmlNode attributes = findOrCreateChild(document.getRoot(), "Attributes");
 
         XmlNode attr = createNode("Attribute");
@@ -106,13 +116,26 @@ public class FormEditor {
             flag.setText("true");
             attr.addChild(flag);
         }
+        if (fillChecking != null && !fillChecking.isBlank()) {
+            XmlNode flag = createNode("FillChecking");
+            flag.setText(fillChecking);
+            attr.addChild(flag);
+        }
+        if (useAlwaysField != null && !useAlwaysField.isBlank()) {
+            XmlNode useAlways = createNode("UseAlways");
+            XmlNode field = createNode("Field");
+            field.setText(useAlwaysField);
+            useAlways.addChild(field);
+            attr.addChild(useAlways);
+        }
 
         if (columns != null && !columns.isEmpty()) {
             XmlNode columnsNode = createNode("Columns");
+            int columnId = 1;
             for (FormDsl.Column col : columns) {
                 XmlNode c = createNode("Column");
                 c.setAttribute("name", col.getName());
-                c.setAttribute("id", attributeIds.nextId());
+                c.setAttribute("id", String.valueOf(columnId++));
                 c.addChild(multilingualTitle(col.getTitle() != null ? col.getTitle() : col.getName()));
                 c.addChild(emitType(col.getType()));
                 columnsNode.addChild(c);
@@ -158,6 +181,11 @@ public class FormEditor {
     // --- Commands ---
 
     public void addCommand(String name, String titleText, String action) {
+        addCommand(name, titleText, action, null, null, null, null);
+    }
+
+    public void addCommand(String name, String titleText, String action, String tooltip,
+                           String shortcut, String picture, String representation) {
         XmlNode commands = findOrCreateChild(document.getRoot(), "Commands");
 
         XmlNode cmd = createNode("Command");
@@ -176,13 +204,57 @@ public class FormEditor {
         title.addChild(v8Item);
         cmd.addChild(title);
 
+        if (tooltip != null) {
+            cmd.addChild(multilingual("ToolTip", tooltip));
+        }
+
+        if (picture != null && !picture.isBlank()) {
+            cmd.addChild(pictureRef(picture));
+        }
+
         if (action != null) {
             XmlNode actionNode = createNode("Action");
             actionNode.setText(action);
             cmd.addChild(actionNode);
         }
 
+        if (shortcut != null && !shortcut.isBlank()) {
+            XmlNode shortcutNode = createNode("Shortcut");
+            shortcutNode.setText(shortcut);
+            cmd.addChild(shortcutNode);
+        }
+
+        if (representation != null && !representation.isBlank()) {
+            XmlNode representationNode = createNode("Representation");
+            representationNode.setText(representation);
+            cmd.addChild(representationNode);
+        }
+
         commands.addChild(cmd);
+    }
+
+    private XmlNode multilingual(String elementName, String text) {
+        XmlNode node = createNode(elementName);
+        XmlNode v8Item = createNode("v8:item");
+        XmlNode v8Lang = createNode("v8:lang");
+        v8Lang.setText("ru");
+        XmlNode v8Content = createNode("v8:content");
+        v8Content.setText(text);
+        v8Item.addChild(v8Lang);
+        v8Item.addChild(v8Content);
+        node.addChild(v8Item);
+        return node;
+    }
+
+    private XmlNode pictureRef(String ref) {
+        XmlNode picture = createNode("Picture");
+        XmlNode xrRef = createNode("xr:Ref");
+        xrRef.setText(ref);
+        XmlNode transparent = createNode("xr:LoadTransparent");
+        transparent.setText("true");
+        picture.addChild(xrRef);
+        picture.addChild(transparent);
+        return picture;
     }
 
     // --- Elements ---
@@ -196,22 +268,64 @@ public class FormEditor {
      * минимальный набор companion'ов (ContextMenu + ExtendedTooltip) для совместимости.</p>
      */
     public void addElement(String type, String name, String dataPath, String parentName, String afterName) {
+        addElement(type, name, dataPath, parentName, afterName, null);
+    }
+
+    //++agent TASK-174 [05.06.2026 00:00:00]
+    // XG-02: перегрузка с привязкой команды. Прежде CommandName умел писать только
+    // compile-путь (FormWriter.writeButton), а edit-путь (FormEditor) игнорировал
+    // command → кнопка, добавленная через `form edit`, оставалась без CommandName и не
+    // вызывала команду. Формат значения совпадает с compile-путём: Form.Command.<имя>.
+    public void addElement(String type, String name, String dataPath, String parentName,
+                           String afterName, String command) {
+        addElement(type, name, dataPath, parentName, afterName, null, command);
+    }
+
+    public void addElement(String type, String name, String dataPath, String parentName,
+                           String afterName, String beforeName, String command) {
+        if (afterName != null && beforeName != null) {
+            throw new IllegalArgumentException("Use either after or before, not both");
+        }
+
+        String normalizedType = "radio".equalsIgnoreCase(type) ? "RadioButtonField" : type;
+        FormElementKind kind = FormElementKind.resolve(normalizedType);
+
+        // XG-15: контейнеры (UsualGroup, Pages, Page, CommandBar, Popup, Table) обязаны
+        // хранить дочерние элементы в <ChildItems>, а не непосредственно в своём узле.
+        // При parentName != null ищем родительский элемент и добавляем в его <ChildItems>.
+        // Аналогично compile-пути (FormWriter.writeUsualGroup/writePages/...) и канону
+        // дизайнера (биг_УборщикТестовыхДанных/Forms/Форма/Ext/Form.xml, строки 14-40).
         XmlNode parent;
         if (parentName != null) {
-            parent = findElement(parentName);
-            if (parent == null) {
-                 throw new IllegalArgumentException("Parent element not found: " + parentName);
+            XmlNode parentElement = findElement(parentName);
+            if (parentElement == null) {
+                throw new IllegalArgumentException("Parent element not found: " + parentName);
+            }
+            // Для контейнерных типов добавляем в <ChildItems>; иначе напрямую в родителя
+            if (isContainerElement(parentElement)) {
+                parent = findOrCreateChild(parentElement, "ChildItems");
+            } else {
+                parent = parentElement;
             }
         } else {
             parent = findOrCreateChild(document.getRoot(), "ChildItems");
         }
 
-        FormElementKind kind = FormElementKind.resolve(type);
-        String xmlTag = kind != null ? kind.getXmlTag() : type;
+        String xmlTag = kind != null ? kind.getXmlTag() : normalizedType;
 
         XmlNode element = createNode(xmlTag);
         element.setAttribute("name", name);
         element.setAttribute("id", elementIds.nextId());
+
+        // XG-14: Button должен иметь <Type>UsualButton</Type> как ПЕРВЫЙ дочерний тег.
+        // Без него Designer-batch при /LoadExternalDataProcessorOrReportFromFiles молча
+        // отбрасывает кнопку → Элементы.ИмяКнопки не существует в модуле формы.
+        // Канон: биг_УборщикТестовыхДанных/Forms/Форма/Ext/Form.xml строки 45-54.
+        if (kind == FormElementKind.BUTTON) {
+            XmlNode typeNode = createNode("Type");
+            typeNode.setText("UsualButton");
+            element.addChild(typeNode);
+        }
 
         if (dataPath != null) {
             XmlNode dataPathNode = createNode("DataPath");
@@ -219,29 +333,120 @@ public class FormEditor {
             element.addChild(dataPathNode);
         }
 
-        // Companion-элементы согласно типу; для неизвестного kind — минимальный набор.
-        List<CompanionKind> companions = kind != null
-                ? kind.getCompanions()
-                : List.of(CompanionKind.CONTEXT_MENU, CompanionKind.EXTENDED_TOOLTIP);
-        for (CompanionKind c : companions) {
-            XmlNode companion = createNode(c.getXmlTag());
-            companion.setAttribute("name", c.nameFor(name));
-            companion.setAttribute("id", elementIds.nextId());
-            element.addChild(companion);
+        // XG-02: CommandName для кнопки. Порядок как в compile-пути: до companion-элементов.
+        // Принимаем как короткое имя команды, так и уже полную ссылку Form.Command.X /
+        // Form.StandardCommand.X — не дублируем префикс.
+        if (command != null && !command.isEmpty()) {
+            String commandRef = command.startsWith("Form.")
+                    ? command
+                    : "Form.Command." + command;
+            XmlNode commandNode = createNode("CommandName");
+            commandNode.setText(commandRef);
+            element.addChild(commandNode);
+        }
+        //++agent TASK-174
+
+        if (kind == FormElementKind.TABLE) {
+            addTableCompanions(element, name);
+        } else {
+            // Companion-элементы согласно типу; для неизвестного kind — минимальный набор.
+            List<CompanionKind> companions = kind != null
+                    ? kind.getCompanions()
+                    : List.of(CompanionKind.CONTEXT_MENU, CompanionKind.EXTENDED_TOOLTIP);
+            for (CompanionKind c : companions) {
+                element.addChild(simpleCompanion(c, name));
+            }
+        }
+
+        if (isContainerElement(element)) {
+            findOrCreateChild(element, "ChildItems");
         }
 
         if (afterName != null) {
-             insertAfter(parent, element, afterName);
+            insertAfter(parent, element, afterName);
+        } else if (beforeName != null) {
+            insertBefore(parent, element, beforeName);
         } else {
-             parent.addChild(element);
+            parent.addChild(element);
         }
     }
 
+    //++agent TASK-174 [07.06.2026 10:00:00]
+    // XG-14/XG-15: контейнерные типы элементов формы — те, что требуют обёртки <ChildItems>
+    // для дочерних элементов. Определяется по XML-тегу узла (не по kind enum, т.к.
+    // это может быть существующий узел из загруженного Form.xml).
+    //**agent TASK-174 [08.06.2026 00:30:00]
+    //private static final java.util.Set<String> CONTAINER_XML_TAGS = java.util.Set.of(
+    //        "UsualGroup", "Pages", "Page", "CommandBar", "Popup", "Table"
+    //);
+    // XG-41: набор XG-15 был неполным. Канон Designer-выгрузок (GBIG PAM, 956 форм):
+    // родителями <ChildItems> бывают также AutoCommandBar (540), ButtonGroup (404),
+    // ColumnGroup (347), ContextMenu (197). Без них дети добавлялись бы напрямую в
+    // узел контейнера, и Designer молча отбрасывал бы их при загрузке.
+    private static final java.util.Set<String> CONTAINER_XML_TAGS = java.util.Set.of(
+            "UsualGroup", "Pages", "Page", "CommandBar", "Popup", "Table",
+            "AutoCommandBar", "ButtonGroup", "ColumnGroup", "ContextMenu"
+    );
+    //**agent TASK-174
+
+    /**
+     * Проверяет, является ли элемент контейнерным (требует <ChildItems> для детей).
+     */
+    private static boolean isContainerElement(XmlNode node) {
+        return CONTAINER_XML_TAGS.contains(node.getName());
+    }
+
+    private XmlNode simpleCompanion(CompanionKind kind, String ownerName) {
+        XmlNode companion = createNode(kind.getXmlTag());
+        companion.setAttribute("name", kind.nameFor(ownerName));
+        companion.setAttribute("id", elementIds.nextId());
+        return companion;
+    }
+
+    private void addTableCompanions(XmlNode table, String tableName) {
+        table.addChild(simpleCompanion(CompanionKind.CONTEXT_MENU, tableName));
+        table.addChild(simpleCompanion(CompanionKind.AUTO_COMMAND_BAR, tableName));
+        table.addChild(simpleCompanion(CompanionKind.EXTENDED_TOOLTIP, tableName));
+        table.addChild(tableAddition("SearchStringAddition", tableName,
+                tableName + "СтрокаПоиска", "SearchStringRepresentation"));
+        table.addChild(tableAddition("ViewStatusAddition", tableName,
+                tableName + "СостояниеПросмотра", "ViewStatusRepresentation"));
+        table.addChild(tableAddition("SearchControlAddition", tableName,
+                tableName + "УправлениеПоиском", "SearchControl"));
+    }
+
+    private XmlNode tableAddition(String tag, String tableName, String additionName, String type) {
+        XmlNode addition = createNode(tag);
+        addition.setAttribute("name", additionName);
+        addition.setAttribute("id", elementIds.nextId());
+
+        XmlNode source = createNode("AdditionSource");
+        XmlNode item = createNode("Item");
+        item.setText(tableName);
+        XmlNode sourceType = createNode("Type");
+        sourceType.setText(type);
+        source.addChild(item);
+        source.addChild(sourceType);
+        addition.addChild(source);
+
+        addition.addChild(simpleCompanion(CompanionKind.CONTEXT_MENU, additionName));
+        addition.addChild(simpleCompanion(CompanionKind.EXTENDED_TOOLTIP, additionName));
+        return addition;
+    }
+    //++agent TASK-174
+
     public void removeElement(String name) {
-        XmlNode childItems = document.getRoot().child("ChildItems");
-        if (childItems != null) {
-            removeElementRecursive(childItems, name);
+        //**agent TASK-174 [08.06.2026 00:30:00]
+        //XmlNode childItems = document.getRoot().child("ChildItems");
+        //if (childItems != null) {
+        //    removeElementRecursive(childItems, name);
+        //}
+        // XG-41: элементы формы живут не только в корневом <ChildItems>, но и в
+        // form-level <AutoCommandBar> (прямой ребёнок <Form>) — обходим оба корня.
+        for (XmlNode rootContainer : elementSearchRoots()) {
+            removeElementRecursive(rootContainer, name);
         }
+        //**agent TASK-174
     }
 
     public void moveElement(String name, String afterName, String beforeName, String intoName) {
@@ -257,7 +462,10 @@ public class FormEditor {
             XmlNode newParent = findElement(intoName);
             if (newParent == null) throw new IllegalArgumentException("Target parent not found: " + intoName);
             oldParent.getChildren().remove(element);
-            newParent.addChild(element);
+            XmlNode insertionParent = isContainerElement(newParent)
+                    ? findOrCreateChild(newParent, "ChildItems")
+                    : newParent;
+            insertionParent.addChild(element);
         } else if (afterName != null) {
             XmlNode sibling = findElement(afterName);
             if (sibling == null) throw new IllegalArgumentException("Target sibling not found: " + afterName);
@@ -285,11 +493,39 @@ public class FormEditor {
 
     // --- Helpers ---
 
+    //**agent TASK-174 [08.06.2026 00:30:00]
+    //private XmlNode findElement(String name) {
+    //     XmlNode childItems = document.getRoot().child("ChildItems");
+    //     if (childItems == null) return null;
+    //     return findElementRecursive(childItems, name);
+    //}
+    // XG-41: командная панель формы (AutoCommandBar name="ФормаКоманднаяПанель") —
+    // прямой ребёнок <Form> ВНЕ корневого <ChildItems>; поиск только от ChildItems
+    // делал её принципиально недостижимой как into/after/before-цель
+    // («Parent element not found»). Ищем по всем корням UI-элементов.
     private XmlNode findElement(String name) {
-         XmlNode childItems = document.getRoot().child("ChildItems");
-         if (childItems == null) return null;
-         return findElementRecursive(childItems, name);
+        for (XmlNode rootContainer : elementSearchRoots()) {
+            XmlNode found = findElementRecursive(rootContainer, name);
+            if (found != null) return found;
+        }
+        return null;
     }
+
+    /**
+     * Корни поддеревьев UI-элементов формы. По канону Designer-выгрузки прямым
+     * ребёнком <Form> кроме <ChildItems> бывает только <AutoCommandBar> (968 форм
+     * GBIG PAM); Attributes/Commands/Parameters сюда не входят намеренно — их
+     * name-атрибуты не являются именами элементов формы.
+     */
+    private List<XmlNode> elementSearchRoots() {
+        List<XmlNode> roots = new ArrayList<>(2);
+        XmlNode childItems = document.getRoot().child("ChildItems");
+        if (childItems != null) roots.add(childItems);
+        XmlNode autoCommandBar = document.getRoot().child("AutoCommandBar");
+        if (autoCommandBar != null) roots.add(autoCommandBar);
+        return roots;
+    }
+    //**agent TASK-174
     
     private XmlNode findElementRecursive(XmlNode root, String name) {
         if (name.equals(root.attr("name"))) return root;
@@ -328,7 +564,22 @@ public class FormEditor {
         if (index != -1) {
             parent.getChildren().add(index + 1, element);
         } else {
-            parent.addChild(element);
+            throw new IllegalArgumentException("Target element for after not found in parent: " + afterName);
+        }
+    }
+
+    private void insertBefore(XmlNode parent, XmlNode element, String beforeName) {
+        int index = -1;
+        for (int i = 0; i < parent.getChildren().size(); i++) {
+            if (beforeName.equals(parent.getChildren().get(i).attr("name"))) {
+                index = i;
+                break;
+            }
+        }
+        if (index != -1) {
+            parent.getChildren().add(index, element);
+        } else {
+            throw new IllegalArgumentException("Target element for before not found in parent: " + beforeName);
         }
     }
 }

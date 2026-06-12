@@ -153,6 +153,36 @@ class MetaEditorTest {
                 .contains("<Name>Тип</Name>");
     }
 
+    @Test
+    void addOrdinaryFormCreatesWrapperWithoutManagedBody() throws Exception {
+        Path xml = writeCatalogXml(tempDir, "КаталогФорм");
+
+        silentEditor().edit(xml, "add-form", "ОбычнаяФорма|Ordinary");
+
+        Path forms = tempDir.resolve("КаталогФорм").resolve("Forms");
+        assertThat(forms.resolve("ОбычнаяФорма.xml")).exists();
+        assertThat(forms.resolve("ОбычнаяФорма/Ext/Form.xml")).doesNotExist();
+        assertThat(forms.resolve("ОбычнаяФорма/Ext/Form/Module.bsl")).doesNotExist();
+        assertThat(readXml(forms.resolve("ОбычнаяФорма.xml")))
+                .contains("<FormType>Ordinary</FormType>");
+        assertThat(readXml(xml)).contains("<Form>ОбычнаяФорма</Form>");
+    }
+
+    @Test
+    void addTemplateWithTypeCreatesDiscriminatorBodyFile() throws Exception {
+        Path xml = writeCatalogXml(tempDir, "КаталогМакетов");
+
+        silentEditor().edit(xml, "add-template", "Инструкция|TextDocument");
+
+        Path templates = tempDir.resolve("КаталогМакетов").resolve("Templates");
+        assertThat(templates.resolve("Инструкция.xml")).exists();
+        assertThat(templates.resolve("Инструкция/Ext/Template.txt")).exists();
+        assertThat(templates.resolve("Инструкция/Ext/Template.xml")).doesNotExist();
+        assertThat(readXml(templates.resolve("Инструкция.xml")))
+                .contains("<TemplateType>TextDocument</TemplateType>");
+        assertThat(readXml(xml)).contains("<Template>Инструкция</Template>");
+    }
+
     /**
      * If operation N fails, the file must NOT be changed (rollback).
      */

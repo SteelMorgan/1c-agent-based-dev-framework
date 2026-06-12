@@ -31,7 +31,7 @@ public class RoleEditor {
             addRightNode(object, rightName, "true");
         }
 
-        document.getRoot().addChild(object);
+        insertObjectBeforeRestrictionTemplates(object);
     }
 
     public void addRight(String objectName, String rightName, String value) {
@@ -70,6 +70,17 @@ public class RoleEditor {
         right.addChild(valueNode);
 
         object.addChild(right);
+    }
+
+    private void insertObjectBeforeRestrictionTemplates(XmlNode object) {
+        List<XmlNode> rootChildren = document.getRoot().getChildren();
+        for (int i = 0; i < rootChildren.size(); i++) {
+            if ("restrictionTemplate".equals(rootChildren.get(i).getName())) {
+                rootChildren.add(i, object);
+                return;
+            }
+        }
+        document.getRoot().addChild(object);
     }
 
     private XmlNode findObject(String name) {

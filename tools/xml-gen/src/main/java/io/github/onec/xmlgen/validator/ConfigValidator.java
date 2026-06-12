@@ -138,13 +138,14 @@ public class ConfigValidator {
 
         // Check 1: Structure + version
         XmlNode config = root;
+        String formatVersion = null;
         if ("MetaDataObject".equals(root.getName())) {
             // Check version attribute
-            String version = root.attr("version");
-            if (version == null || version.isEmpty()) {
+            formatVersion = root.attr("version");
+            if (formatVersion == null || formatVersion.isEmpty()) {
                 error("Structure: version attribute missing on <MetaDataObject>");
-            } else if (!"2.17".equals(version) && !"2.20".equals(version)) {
-                warn("Structure: unexpected version '" + version + "' (expected 2.17 or 2.20)");
+            } else if (!"2.17".equals(formatVersion) && !"2.20".equals(formatVersion)) {
+                warn("Structure: unexpected version '" + formatVersion + "' (expected 2.17 or 2.20)");
             }
             config = root.child("Configuration");
             if (config == null) {
@@ -297,6 +298,7 @@ public class ConfigValidator {
 
         // Check 7-8: File existence (only if configDir provided)
         if (configDir != null && co != null) {
+            validateConfigDumpInfoVersion(configDir, formatVersion);
             for (XmlNode child : co.getChildren()) {
                 String type = child.getName();
                 String objName = child.getText();
@@ -312,6 +314,9 @@ public class ConfigValidator {
                         // with missing object files — treating it as WARN (exit=0) is misleading.
                         error("File missing: Languages/" + objName + ".xml");
                         //++agent TASK-155
+                    } else {
+                        validateMetadataFileVersion(langFile, formatVersion,
+                                "Languages/" + objName + ".xml");
                     }
                 }
 
@@ -352,6 +357,52 @@ public class ConfigValidator {
                 "IntegrationService" // TASK-171 D-5: WebSocketClient добавлен между HTTPService и WSReference
         );
         return order.indexOf(type);
+    }
+
+    private void validateConfigDumpInfoVersion(Path configDir, String expectedVersion) {
+        if (expectedVersion == null || expectedVersion.isBlank()) {
+            return;
+        }
+        Path dumpInfo = configDir.resolve("ConfigDumpInfo.xml");
+        if (!Files.isRegularFile(dumpInfo)) {
+            return;
+        }
+        String actual = readRootVersion(dumpInfo, "ConfigDumpInfo");
+        if (actual == null || actual.isBlank()) {
+            error("ConfigDumpInfo.xml: root version attribute is missing"
+                    + " (expected " + expectedVersion + ")");
+        } else if (!expectedVersion.equals(actual)) {
+            error("ConfigDumpInfo.xml: version '" + actual
+                    + "' differs from Configuration.xml version '" + expectedVersion + "'");
+        }
+    }
+
+    private void validateMetadataFileVersion(Path file, String expectedVersion, String label) {
+        if (expectedVersion == null || expectedVersion.isBlank()) {
+            return;
+        }
+        String actual = readRootVersion(file, "MetaDataObject");
+        if (actual == null || actual.isBlank()) {
+            error(label + ": root version attribute is missing"
+                    + " (expected " + expectedVersion + ")");
+        } else if (!expectedVersion.equals(actual)) {
+            error(label + ": version '" + actual
+                    + "' differs from Configuration.xml version '" + expectedVersion + "'");
+        }
+    }
+
+    private String readRootVersion(Path file, String rootElement) {
+        try {
+            String content = Files.readString(file);
+            java.util.regex.Matcher matcher = java.util.regex.Pattern
+                    .compile("<(?:\\w+:)?" + java.util.regex.Pattern.quote(rootElement)
+                            + "\\b[^>]*\\bversion=\"([^\"]+)\"",
+                            java.util.regex.Pattern.DOTALL)
+                    .matcher(content);
+            return matcher.find() ? matcher.group(1).trim() : null;
+        } catch (Exception e) {
+            return null;
+        }
     }
 
     private boolean isUuid(String s) {

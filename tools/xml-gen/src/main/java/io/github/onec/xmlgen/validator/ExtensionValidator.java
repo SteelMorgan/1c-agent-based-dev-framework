@@ -3,6 +3,7 @@ package io.github.onec.xmlgen.validator;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.*;
+import java.util.stream.Stream;
 import java.util.regex.Pattern;
 
 /**
@@ -18,8 +19,14 @@ import java.util.regex.Pattern;
  * 7. Файлы языков Languages/<name>.xml существуют
  * 8. Каталоги объектов из ChildObjects существуют
  * 9. Borrowed objects: ObjectBelonging=Adopted + валидный ExtendedConfigurationObject UUID
+ * 10. (EXT-10, TASK-175 XG-35) Заимствованная форма (Ext/Form.xml с BaseForm) не содержит
+ *     конструкций, которые borrow обязан вырезать (паттерн XG-04 «валидатор слеп к битому XML»):
+ *     ExcludedCommand, DataPath в AutoCommandBar, RowPictureDataPath, top-level CommandSet,
+ *     TitleDataPath, TypeLink с Items.*, element-level Events в ChildItems
  */
 public class ExtensionValidator {
+
+    private static final String NS_MD_CLASSES = "http://v8.1c.ru/8.3/MDClasses";
 
     private static final Pattern UUID_PATTERN = Pattern.compile(
             "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$");
@@ -114,16 +121,22 @@ public class ExtensionValidator {
     public List<ValidationMessage> validate(XmlDocument document, Path extDir) {
         messages.clear();
         XmlNode root = document.getRoot();
+        String rootFormatVersion = null;
 
         // ── Check 1: Root structure ─────────────────────────────────────
         XmlNode config = root;
         if ("MetaDataObject".equals(root.getName())) {
+            if (!NS_MD_CLASSES.equals(root.getNamespace())) {
+                error("1. MetaDataObject namespace must be '" + NS_MD_CLASSES
+                        + "', got '" + (root.getNamespace() != null ? root.getNamespace() : "(none)") + "'");
+            }
             String version = root.attr("version");
             if (version == null || version.isEmpty()) {
                 warn("1. Missing version attribute on <MetaDataObject>");
             } else if (!"2.17".equals(version) && !"2.20".equals(version)) {
                 warn("1. Unusual version '" + version + "' (expected 2.17 or 2.20)");
             }
+            rootFormatVersion = version;
             config = root.child("Configuration");
             if (config == null) {
                 error("1. No <Configuration> element found inside MetaDataObject");
@@ -307,6 +320,44 @@ public class ExtensionValidator {
             }
         }
 
+        // ── Check 8b: Object files exist and use root format version ────
+        if (extDir != null && childObjects != null) {
+            for (XmlNode child : childEntries) {
+                String typeName = child.getName();
+                String objName = child.getText() != null ? child.getText() : "";
+                String dirName = TYPE_TO_DIR.get(typeName);
+                if (dirName == null) continue;
+
+                Path objFile = extDir.resolve(dirName).resolve(objName + ".xml");
+                if (!Files.isRegularFile(objFile)) {
+                    error("8. Missing object file: " + dirName + "/" + objName + ".xml");
+                    continue;
+                }
+
+                if (rootFormatVersion != null && !rootFormatVersion.isEmpty()) {
+                    try {
+                        XmlDocument objDoc = new XmlStructureReader().parse(objFile);
+                        XmlNode objRoot = objDoc.getRoot();
+                        if ("MetaDataObject".equals(objRoot.getName())) {
+                            String objVersion = objRoot.attr("version");
+                            if (objVersion == null || objVersion.isEmpty()) {
+                                warn("8. Missing version on " + dirName + "/" + objName + ".xml");
+                            } else if (!rootFormatVersion.equals(objVersion)) {
+                                error("8. Version mismatch in " + dirName + "/" + objName + ".xml"
+                                        + ": " + objVersion + " (expected " + rootFormatVersion + ")");
+                            }
+                        }
+                    } catch (Exception e) {
+                        warn("8. Cannot parse " + dirName + "/" + objName + ".xml: " + e.getMessage());
+                    }
+                }
+
+                if ("Role".equals(typeName)) {
+                    validateRoleRightsFile(extDir, objName, rootFormatVersion);
+                }
+            }
+        }
+
         // ── Check 9: Borrowed objects validation ────────────────────────
         if (extDir != null && childObjects != null) {
             int borrowedCount = 0;
@@ -355,6 +406,11 @@ public class ExtensionValidator {
                             borrowedOk++;
                         }
                     }
+                    validateBorrowedChildObjects(dirName + "/" + objName + ".xml", typeEl);
+                    validateBorrowedFormMetadata(extDir, dirName, objName);
+                    //++agent TASK-175 [07.06.2026 18:50:00]
+                    validateBorrowedFormExtContent(extDir, dirName, objName);
+                    //++agent TASK-175
                 } catch (Exception e) {
                     warn("9. Cannot parse " + dirName + "/" + objName + ".xml: " + e.getMessage());
                 }
@@ -362,6 +418,191 @@ public class ExtensionValidator {
         }
 
         return messages;
+    }
+
+    private void validateRoleRightsFile(Path extDir, String roleName, String rootFormatVersion) {
+        Path rightsFile = extDir.resolve("Roles").resolve(roleName).resolve("Ext").resolve("Rights.xml");
+        if (!Files.isRegularFile(rightsFile)) {
+            error("8. Missing role rights file: Roles/" + roleName + "/Ext/Rights.xml");
+            return;
+        }
+        try {
+            XmlDocument rightsDoc = new XmlStructureReader().parse(rightsFile);
+            XmlNode rightsRoot = rightsDoc.getRoot();
+            if (!"Rights".equals(rightsRoot.getName())) {
+                error("8. Role rights file has unexpected root <" + rightsRoot.getName()
+                        + ">: Roles/" + roleName + "/Ext/Rights.xml");
+                return;
+            }
+            if (rootFormatVersion != null && !rootFormatVersion.isEmpty()) {
+                String rightsVersion = rightsRoot.attr("version");
+                if (rightsVersion == null || rightsVersion.isEmpty()) {
+                    warn("8. Missing version on Roles/" + roleName + "/Ext/Rights.xml");
+                } else if (!rootFormatVersion.equals(rightsVersion)) {
+                    error("8. Version mismatch in Roles/" + roleName + "/Ext/Rights.xml"
+                            + ": " + rightsVersion + " (expected " + rootFormatVersion + ")");
+                }
+            }
+            for (ValidationIssue issue : new RoleValidator().validate(rightsDoc, ValidationLevel.SEMANTIC)) {
+                String path = "Roles/" + roleName + "/Ext/Rights.xml";
+                String message = "8. " + path + ": " + issue.getCode() + " " + issue.getMessage();
+                if (issue.getSeverity() == Severity.ERROR) {
+                    error(message);
+                } else {
+                    warn(message);
+                }
+            }
+        } catch (Exception e) {
+            warn("8. Cannot parse Roles/" + roleName + "/Ext/Rights.xml: " + e.getMessage());
+        }
+    }
+
+    //++agent TASK-175 [07.06.2026 18:50:00]
+    // ── Check 10 (EXT-10): запрещённые конструкции в заимствованной форме ──────────
+    // XG-35, паттерн XG-04: borrow раньше эмитил формы с конструкциями, которые Designer
+    // отказывается загружать, а валидатор был к этому слеп. Правило флажит ПОЛНЫЙ strip-набор
+    // безусловной ветки cfe-borrow.py @ HEAD (technical-design TASK-175 §3.3 W-05).
+    // ChildItems AutoCommandBar с кнопками и CommandName=0 — валидны, НЕ флажатся.
+
+    private void validateBorrowedFormExtContent(Path extDir, String dirName, String objName) {
+        Path formsDir = extDir.resolve(dirName).resolve(objName).resolve("Forms");
+        if (!Files.isDirectory(formsDir)) return;
+        try (Stream<Path> paths = Files.list(formsDir)) {
+            paths.filter(Files::isDirectory).forEach(formDir -> {
+                Path formXml = formDir.resolve("Ext").resolve("Form.xml");
+                if (!Files.isRegularFile(formXml)) return;
+                String relativePath = dirName + "/" + objName + "/Forms/"
+                        + formDir.getFileName() + "/Ext/Form.xml";
+                try {
+                    XmlDocument doc = new XmlStructureReader().parse(formXml);
+                    XmlNode form = doc.getRoot();
+                    // Правило применяется только к заимствованным формам (есть снимок BaseForm);
+                    // для собственных форм расширения эти конструкции легитимны
+                    if (!"Form".equals(form.getName()) || form.child("BaseForm") == null) return;
+
+                    Map<String, Integer> hits = new LinkedHashMap<>();
+                    if (form.child("CommandSet") != null) {
+                        hits.put("top-level <CommandSet>", 1);
+                    }
+                    scanForbiddenBorrowConstructs(form, false, false, hits);
+                    for (Map.Entry<String, Integer> hit : hits.entrySet()) {
+                        error("10. EXT-10 Borrowed form " + relativePath + ": forbidden construct "
+                                + hit.getKey() + " (x" + hit.getValue()
+                                + ") — must be stripped by 'extension borrow'");
+                    }
+                } catch (Exception e) {
+                    warn("10. Cannot parse " + relativePath + ": " + e.getMessage());
+                }
+            });
+        } catch (Exception e) {
+            warn("10. Cannot scan " + dirName + "/" + objName + "/Forms: " + e.getMessage());
+        }
+    }
+
+    private void scanForbiddenBorrowConstructs(XmlNode node, boolean inAutoCommandBar,
+                                               boolean inChildItems, Map<String, Integer> hits) {
+        for (XmlNode child : node.getChildren()) {
+            String childName = child.getName();
+            switch (childName) {
+                case "ExcludedCommand" -> bumpHit(hits, "<ExcludedCommand>");
+                case "RowPictureDataPath" -> bumpHit(hits, "<RowPictureDataPath>");
+                case "TitleDataPath" -> bumpHit(hits, "<TitleDataPath>");
+                case "DataPath" -> {
+                    // DataPath запрещён только внутри AutoCommandBar: в ChildItems
+                    // собственные элементы расширения легитимно несут DataPath
+                    if (inAutoCommandBar) bumpHit(hits, "<DataPath> in AutoCommandBar");
+                }
+                case "TypeLink" -> {
+                    String dataPath = child.childText("DataPath");
+                    if (dataPath != null && dataPath.startsWith("Items.")) {
+                        bumpHit(hits, "<TypeLink> with Items.*");
+                    }
+                }
+                case "Events" -> {
+                    if (inChildItems) bumpHit(hits, "element-level <Events> in ChildItems");
+                }
+                default -> { /* остальные теги не входят в strip-набор */ }
+            }
+            scanForbiddenBorrowConstructs(child,
+                    inAutoCommandBar || "AutoCommandBar".equals(childName),
+                    inChildItems || "ChildItems".equals(childName),
+                    hits);
+        }
+    }
+
+    private void bumpHit(Map<String, Integer> hits, String key) {
+        hits.merge(key, 1, Integer::sum);
+    }
+    //++agent TASK-175
+
+    private void validateBorrowedChildObjects(String relativeObjectPath, XmlNode typeEl) {
+        validateBorrowedChildObjectsRecursive(relativeObjectPath, typeEl);
+    }
+
+    private void validateBorrowedChildObjectsRecursive(String relativeObjectPath, XmlNode node) {
+        for (XmlNode child : node.getChildren()) {
+            XmlNode props = child.child("Properties");
+            if (props != null) {
+                String belonging = props.childText("ObjectBelonging");
+                if ("Adopted".equals(belonging)) {
+                    String name = props.childText("Name");
+                    String displayName = child.getName() + "." + (name != null && !name.isBlank() ? name : "(unknown)");
+                    validateExtendedConfigurationObject(
+                            "9. Borrowed " + displayName + " in " + relativeObjectPath, props);
+                }
+            }
+            validateBorrowedChildObjectsRecursive(relativeObjectPath, child);
+        }
+    }
+
+    private void validateBorrowedFormMetadata(Path extDir, String dirName, String objName) {
+        Path formsDir = extDir.resolve(dirName).resolve(objName).resolve("Forms");
+        if (!Files.isDirectory(formsDir)) return;
+        try (Stream<Path> paths = Files.list(formsDir)) {
+            paths.filter(path -> Files.isRegularFile(path) && path.getFileName().toString().endsWith(".xml"))
+                    .forEach(path -> validateBorrowedMetadataFile(path,
+                            dirName + "/" + objName + "/Forms/" + path.getFileName()));
+        } catch (Exception e) {
+            warn("9. Cannot scan " + dirName + "/" + objName + "/Forms: " + e.getMessage());
+        }
+    }
+
+    private void validateBorrowedMetadataFile(Path file, String relativePath) {
+        try {
+            XmlDocument doc = new XmlStructureReader().parse(file);
+            XmlNode typeEl = firstMetadataChild(doc.getRoot());
+            if (typeEl == null) return;
+            XmlNode props = typeEl.child("Properties");
+            if (props == null || !"Adopted".equals(props.childText("ObjectBelonging"))) return;
+
+            String name = props.childText("Name");
+            String displayName = typeEl.getName() + "." + (name != null && !name.isBlank() ? name : "(unknown)");
+            validateExtendedConfigurationObject(
+                    "9. Borrowed " + displayName + " in " + relativePath, props);
+        } catch (Exception e) {
+            warn("9. Cannot parse " + relativePath + ": " + e.getMessage());
+        }
+    }
+
+    private XmlNode firstMetadataChild(XmlNode root) {
+        if (!"MetaDataObject".equals(root.getName())) {
+            return root;
+        }
+        for (XmlNode child : root.getChildren()) {
+            if (!"InternalInfo".equals(child.getName())) {
+                return child;
+            }
+        }
+        return null;
+    }
+
+    private void validateExtendedConfigurationObject(String subject, XmlNode props) {
+        String extObj = props.childText("ExtendedConfigurationObject");
+        if (extObj == null || extObj.isEmpty()) {
+            error(subject + ": missing ExtendedConfigurationObject");
+        } else if (!UUID_PATTERN.matcher(extObj).matches()) {
+            error(subject + ": invalid ExtendedConfigurationObject UUID '" + extObj + "'");
+        }
     }
 
     private void error(String msg) { messages.add(new ValidationMessage("ERROR", msg)); }

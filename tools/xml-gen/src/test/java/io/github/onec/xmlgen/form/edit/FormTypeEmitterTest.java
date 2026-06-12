@@ -79,6 +79,15 @@ class FormTypeEmitterTest {
     }
 
     @Test
+    void emit_task174_newFormBareTypes() {
+        assertEquals("v8:StandardPeriod", emitter.emit("StandardPeriod").getChildren().get(0).getText());
+        assertEquals("v8:StandardBeginningDate", emitter.emit("StandardBeginningDate").getChildren().get(0).getText());
+        assertEquals("v8:FillChecking", emitter.emit("FillChecking").getChildren().get(0).getText());
+        assertEquals("cfg:ConstantsSet", emitter.emit("ConstantsSet").getChildren().get(0).getText());
+        assertEquals("v8ui:VerticalAlign", emitter.emit("VerticalAlign").getChildren().get(0).getText());
+    }
+
+    @Test
     void emit_russianSynonyms() {
         XmlNode str = emitter.emit("строка(50)");
         assertEquals("xs:string", str.getChildren().get(0).getText());
@@ -94,13 +103,17 @@ class FormTypeEmitterTest {
     @Test
     void emit_unionTypes() {
         XmlNode t = emitter.emit("string(50)|boolean|CatalogRef.Товары");
-        // 3 пары (v8:Type + опциональный qualifier): string(50)+Qualifiers, boolean, CatalogRef
-        // итого: 4 children (1 Type + 1 Qualifiers + 1 Type + 1 Type)
+        //**agent TASK-174 [05.06.2026 13:10:00]
+        // XG-10: канонический порядок — сперва ВСЕ v8:Type подряд, затем квалификаторы
+        // (эталон конфигурации: НастройкиВерсионированияОбъектов — xs:string + CatalogRef,
+        // StringQualifiers ПОСЛЕ обоих типов). Прежнее ожидание (qualifier сразу после
+        // своего типа) закрепляло неканоническую сериализацию.
         assertEquals(4, t.getChildren().size());
         assertEquals("xs:string", t.getChildren().get(0).getText());
-        assertEquals("StringQualifiers", t.getChildren().get(1).getName());
-        assertEquals("xs:boolean", t.getChildren().get(2).getText());
-        assertEquals("cfg:CatalogRef.Товары", t.getChildren().get(3).getText());
+        assertEquals("xs:boolean", t.getChildren().get(1).getText());
+        assertEquals("cfg:CatalogRef.Товары", t.getChildren().get(2).getText());
+        assertEquals("StringQualifiers", t.getChildren().get(3).getName());
+        //**agent TASK-174
     }
 
     @Test

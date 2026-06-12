@@ -81,6 +81,16 @@ public class MxlDsl {
     private final List<ColumnMerge> columnMerges;
 
     /**
+     * Lossless payload for decompile→compile round-trip of canon Designer MXL.
+     * <p>
+     * The declarative DSL fields above remain the editable projection. This
+     * field preserves canonical sections that the projection cannot yet express
+     * (comments, non-row named areas, print areas, and other Designer trivia)
+     * so that compiling a decompiled artifact never silently drops data.
+     */
+    private final String losslessXmlBase64;
+
+    /**
      * Обратно-совместимый конструктор (без page).
      */
     public MxlDsl(
@@ -107,7 +117,6 @@ public class MxlDsl {
         this(columns, defaultWidth, columnWidths, fonts, styles, areas, page, null, null, null, null);
     }
 
-    @JsonCreator
     public MxlDsl(
             @JsonProperty("columns") Integer columns,
             @JsonProperty("defaultWidth") Integer defaultWidth,
@@ -120,6 +129,24 @@ public class MxlDsl {
             @JsonProperty("pictures") List<Picture> pictures,
             @JsonProperty("verticalUnmerges") List<Unmerge> verticalUnmerges,
             @JsonProperty("columnMerges") List<ColumnMerge> columnMerges) {
+        this(columns, defaultWidth, columnWidths, fonts, styles, areas, page, drawings, pictures,
+                verticalUnmerges, columnMerges, null);
+    }
+
+    @JsonCreator
+    public MxlDsl(
+            @JsonProperty("columns") Integer columns,
+            @JsonProperty("defaultWidth") Integer defaultWidth,
+            @JsonProperty("columnWidths") Map<String, Object> columnWidths,
+            @JsonProperty("fonts") Map<String, Font> fonts,
+            @JsonProperty("styles") Map<String, Style> styles,
+            @JsonProperty("areas") List<Area> areas,
+            @JsonProperty("page") String page,
+            @JsonProperty("drawings") List<Drawing> drawings,
+            @JsonProperty("pictures") List<Picture> pictures,
+            @JsonProperty("verticalUnmerges") List<Unmerge> verticalUnmerges,
+            @JsonProperty("columnMerges") List<ColumnMerge> columnMerges,
+            @JsonProperty("losslessXmlBase64") String losslessXmlBase64) {
         this.columns = columns;
         this.defaultWidth = defaultWidth;
         this.columnWidths = columnWidths;
@@ -131,6 +158,7 @@ public class MxlDsl {
         this.pictures = pictures;
         this.verticalUnmerges = verticalUnmerges;
         this.columnMerges = columnMerges;
+        this.losslessXmlBase64 = losslessXmlBase64;
     }
     
     /**

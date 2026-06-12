@@ -5,8 +5,10 @@ import io.github.onec.xmlgen.format.OutputFormat;
 
 import javax.xml.stream.XMLStreamException;
 import java.io.IOException;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Base64;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -32,7 +34,7 @@ public class MxlWriter extends XmlWriter {
 
     private final OutputFormat format;
 
-    private static final Map<String, String> MXL_NAMESPACES = new HashMap<>();
+    private static final Map<String, String> MXL_NAMESPACES = new LinkedHashMap<>();
     static {
         MXL_NAMESPACES.put("", "http://v8.1c.ru/8.2/data/spreadsheet");
         MXL_NAMESPACES.put("style", "http://v8.1c.ru/8.1/data/ui/style");
@@ -47,10 +49,28 @@ public class MxlWriter extends XmlWriter {
     }
 
     public void create(MxlDsl dsl, Path outputPath) throws IOException, XMLStreamException {
+        if (dsl.getLosslessXmlBase64() != null && !dsl.getLosslessXmlBase64().isBlank()) {
+            writeLosslessXml(dsl, outputPath);
+            return;
+        }
         // EDT и Designer формат табличного документа идентичны побайтно
         // (см. 1c-spreadsheet-spec.md §«Совместимость версий»). Разница только в
         // расширении файла, поэтому генерация общая.
         createDesigner(dsl, outputPath);
+    }
+
+    private void writeLosslessXml(MxlDsl dsl, Path outputPath) throws IOException {
+        byte[] xml;
+        try {
+            xml = Base64.getDecoder().decode(dsl.getLosslessXmlBase64());
+        } catch (IllegalArgumentException e) {
+            throw new IOException("Invalid losslessXmlBase64 in MXL DSL", e);
+        }
+        if (outputPath.getParent() != null) {
+            Files.createDirectories(outputPath.getParent());
+        }
+        Files.write(outputPath, xml);
+        System.out.println("Created MXL template from lossless payload: " + outputPath);
     }
 
     // ==================== Палитры (канон) ====================
@@ -110,7 +130,8 @@ public class MxlWriter extends XmlWriter {
         int defaultWidth = dsl.getDefaultWidth() != null ? dsl.getDefaultWidth() : 10;
         // TASK-171 (R8): авто-расчёт defaultWidth из page при наличии "Nx" пропорций
         // (порт mxl-compile.py:120-161). Без этого "Nx" молча терялись (возвращали null).
-        defaultWidth = computeDefaultWidth(dsl, totalColumns, defaultWidth);
+        defaultWidth = requirePositiveWidth(computeDefaultWidth(dsl, totalColumns, defaultWidth), "default column width");
+        validateColumnWidths(dsl, defaultWidth);
 
         // --- 1. Палитра шрифтов ---
         boolean hasDefaultFont = false;
@@ -304,11 +325,6 @@ public class MxlWriter extends XmlWriter {
             }
         }
 
-        // Page setup (наше расширение для валидации ширин/ориентации).
-        if (dsl.getPage() != null && !dsl.getPage().isEmpty()) {
-            writePageSetup(dsl.getPage());
-        }
-
         writer.writeEndElement(); // document
         close();
 
@@ -411,6 +427,7 @@ public class MxlWriter extends XmlWriter {
         if (area.getRows() == null || area.getRows().isEmpty()) return startRowIndex;
 
         int currentRow = startRowIndex;
+        Map<Integer, Integer> verticalOccupancyUntil = new HashMap<>(); // 1-based col -> last row index
         for (MxlDsl.Row row : area.getRows()) {
             // Пустые строки ({empty:N}). TASK-171: канон Широкова (mxl-compile.py:368-376)
             // эмитит ЯВНЫЙ <rowsItem><empty>true</empty> на каждую пустую строку, а не просто
@@ -455,6 +472,9 @@ public class MxlWriter extends XmlWriter {
             // Занятые колонки (1-based) для gap-fill.
             int totalColumns = dsl.getColumns() != null ? dsl.getColumns() : 1;
             java.util.Set<Integer> occupied = new java.util.HashSet<>();
+            final int rowIndex = currentRow;
+            verticalOccupancyUntil.entrySet().removeIf(e -> e.getValue() < rowIndex);
+            occupied.addAll(verticalOccupancyUntil.keySet());
 
             // Сначала пишем явные ячейки + собираем merges.
             List<CellEmit> emits = new ArrayList<>();
@@ -464,6 +484,12 @@ public class MxlWriter extends XmlWriter {
                     int span = cell.getSpan() != null && cell.getSpan() > 1 ? cell.getSpan() : 1;
                     int rowspan = cell.getRowspan() != null && cell.getRowspan() > 1 ? cell.getRowspan() : 1;
                     for (int c = colStart; c < colStart + span; c++) occupied.add(c);
+                    if (rowspan > 1) {
+                        int lastOccupiedRow = currentRow + rowspan - 1;
+                        for (int c = colStart; c < colStart + span; c++) {
+                            verticalOccupancyUntil.merge(c, lastOccupiedRow, Math::max);
+                        }
+                    }
 
                     String styleName = cell.getStyle() != null ? cell.getStyle()
                             : (row.getRowStyle() != null ? row.getRowStyle() : "default");
@@ -740,33 +766,6 @@ public class MxlWriter extends XmlWriter {
         endElement(); // tl
     }
 
-    private void writePageSetup(String page) throws XMLStreamException {
-        String orientation;
-        Integer width;
-        if ("A4-landscape".equalsIgnoreCase(page)) {
-            orientation = "Landscape";
-            width = 780;
-        } else if ("A4-portrait".equalsIgnoreCase(page)) {
-            orientation = "Portrait";
-            width = 540;
-        } else {
-            try {
-                width = Integer.parseInt(page.trim());
-                orientation = width >= 600 ? "Landscape" : "Portrait";
-            } catch (NumberFormatException e) {
-                orientation = page;
-                width = null;
-            }
-        }
-        startElement("pageSetup");
-        writeElement("orientation", orientation);
-        if (width != null) {
-            writeElement("pageWidth", String.valueOf(width));
-            writeElement("paperKind", "A4");
-        }
-        endElement(); // pageSetup
-    }
-
     public static Integer pageWidth(String page) {
         if (page == null || page.isEmpty()) return null;
         if ("A4-landscape".equalsIgnoreCase(page)) return 780;
@@ -814,6 +813,24 @@ public class MxlWriter extends XmlWriter {
         return result;
     }
 
+    private void validateColumnWidths(MxlDsl dsl, int defaultWidth) {
+        Map<String, Object> cw = dsl.getColumnWidths();
+        if (cw == null) return;
+        for (Map.Entry<String, Object> e : cw.entrySet()) {
+            Integer width = parseWidthValue(e.getValue(), defaultWidth);
+            if (width != null) {
+                requirePositiveWidth(width, "column width for '" + e.getKey() + "'");
+            }
+        }
+    }
+
+    private int requirePositiveWidth(int width, String label) {
+        if (width <= 0) {
+            throw new IllegalArgumentException("MXL " + label + " must be > 0, got " + width);
+        }
+        return width;
+    }
+
     /**
      * TASK-171 (R8): вычислить defaultWidth из page-формата и "Nx"-пропорций.
      * Порт mxl-compile.py:120-161. Если page не задан — возвращает исходное значение.
@@ -842,8 +859,18 @@ public class MxlWriter extends XmlWriter {
         for (int c = 1; c <= totalColumns; c++) {
             if (!specifiedCols.contains(c)) totalUnits += 1.0;
         }
+        int remaining = target - absoluteSum;
+        if (remaining < 0 || (remaining == 0 && totalUnits > 0)) {
+            throw new IllegalArgumentException("MXL page width " + target
+                    + " is not enough for absolute column widths " + absoluteSum);
+        }
         if (totalUnits > 0) {
-            return (int) Math.round((target - absoluteSum) / totalUnits);
+            int computed = (int) Math.round((double) remaining / totalUnits);
+            if (computed <= 0) {
+                throw new IllegalArgumentException("MXL page width " + target
+                        + " produces non-positive default column width " + computed);
+            }
+            return computed;
         }
         return fallbackWidth;
     }

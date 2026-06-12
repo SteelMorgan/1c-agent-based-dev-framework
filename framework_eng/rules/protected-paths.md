@@ -10,7 +10,7 @@ Global security rule. Priority over any agent actions.
 
 ## Protected paths (deny-by-default)
 
-- `exts/YAXUNIT/**`
+- `**/exts/YAXUNIT/**`
 
 Any match = prohibition on creation/modification/deletion.
 

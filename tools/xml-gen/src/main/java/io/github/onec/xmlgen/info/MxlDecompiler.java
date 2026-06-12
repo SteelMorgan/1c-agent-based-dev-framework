@@ -7,8 +7,10 @@ import io.github.onec.xmlgen.validator.XmlDocument;
 import io.github.onec.xmlgen.validator.XmlNode;
 
 import java.io.IOException;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.*;
+import java.util.Base64;
 
 /**
  * Декомпилятор MXL (Template.xml) → JSON DSL (MxlDsl-совместимый формат).
@@ -238,6 +240,11 @@ public class MxlDecompiler {
                 rowData.put(r, rd);
             }
         }
+        int inferredColumns = Math.max(maxColumnsSize(root), maxUsedColumn(rowData, mergeMap) + 1);
+        if (inferredColumns > totalColumns) {
+            totalColumns = inferredColumns;
+            result.put("columns", totalColumns);
+        }
 
         // --- 9..11. Именование шрифтов и стилей ---
         Map<Integer, String> fontNames = nameFonts(rawFonts);
@@ -304,6 +311,10 @@ public class MxlDecompiler {
         if (!picturesOut.isEmpty()) result.put("pictures", picturesOut);
         if (!verticalUnmergesOut.isEmpty()) result.put("verticalUnmerges", verticalUnmergesOut);
         if (!columnMergesOut.isEmpty()) result.put("columnMerges", columnMergesOut);
+        if (document.getFile() != null) {
+            byte[] raw = Files.readAllBytes(document.getFile());
+            result.put("losslessXmlBase64", Base64.getEncoder().encodeToString(raw));
+        }
 
         // --- JSON ---
         ObjectMapper mapper = new ObjectMapper();
@@ -909,6 +920,32 @@ public class MxlDecompiler {
 
     private static String nonEmpty(String s) {
         return (s != null && !s.isEmpty()) ? s : null;
+    }
+
+    private int maxColumnsSize(XmlNode root) {
+        int max = 0;
+        for (XmlNode columns : root.children("columns")) {
+            max = Math.max(max, parseInt(columns.childText("size"), 0));
+        }
+        return max;
+    }
+
+    private int maxUsedColumn(Map<Integer, RowData> rowData, Map<String, int[]> mergeMap) {
+        int max = -1;
+        for (Map.Entry<Integer, RowData> rowEntry : rowData.entrySet()) {
+            int row = rowEntry.getKey();
+            for (CellData cell : rowEntry.getValue().cells) {
+                int span = 0;
+                int[] merge = mergeMap.get(row + "," + cell.col);
+                if (merge != null) {
+                    span = Math.max(0, merge[0]);
+                } else if (cell.legacySpan != null && cell.legacySpan > 1) {
+                    span = cell.legacySpan - 1;
+                }
+                max = Math.max(max, cell.col + span);
+            }
+        }
+        return max;
     }
 
     private static final class RowData {

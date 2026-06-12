@@ -20,7 +20,14 @@ metadata:
 
 Установка: `python tools/install.py --install-xml-gen` (требует JDK 17+).
 
-`xml-gen` покрывает 4 типа операций — compile / edit / init / validate — детали в §2 и под-skills. Универсальные команды (validate, form/template/help add, edit replace-text) описаны в §3.
+`xml-gen` имеет две дополняющие рабочие поверхности:
+
+- **JSON DSL surface** — `mxl/skd/form/role/meta compile` и доступные декомпиляторы, например `mxl decompile`. Используй, когда артефакт удобнее описать декларативно и скомпилировать в Designer XML.
+- **Operational CLI surface** — публичные команды `epf init`, `epf add-template`, `form add-element`, `meta edit`, `template add`, `validate`. Используй, когда нужно создать или изменить существующее дерево метаданных явными CLI-действиями.
+
+Для сопровождения самого инструмента в `xml-gen` есть диагностические oracle-команды. В обычных задачах генерации/правки XML они не нужны; справочник по ним вынесен отдельно: [references/behavioral-oracles.md](references/behavioral-oracles.md).
+
+Детали — в §2 и под-skills. Универсальные команды (validate, form/template/help add, edit replace-text) описаны в §3.
 
 **Не используй** когда: нужен формат EDT (только Designer), нужны DataSetUnion/CalculatedFields в СКД (workaround: вычисления в запросах).
 
@@ -50,6 +57,10 @@ metadata:
 
 → [references/universal-commands.md](references/universal-commands.md)
 
+## §3.1 Диагностика инструмента
+
+Oracle-команды предназначены для сопровождения `xml-gen` и проверки поведения на канонических XML, а не для обычной генерации одного артефакта. Детали, режимы и тестовые матрицы см. в [references/behavioral-oracles.md](references/behavioral-oracles.md).
+
 ## §4 Сквозные принципы
 
 1. **Формат только Designer** — `--format designer` (default). EDT не поддерживается.
@@ -58,6 +69,7 @@ metadata:
 4. **Idempotency** — `validate` перед и после модификации. При ошибке `<domain> edit` делает rollback автоматически.
 5. **Batch operations** — JSON-формат для `form edit` / `meta edit` / `subsystem edit` принимает массивы операций; используй вместо повторных вызовов CLI.
 6. **EPF layout** — корневой XML: `output/MyProcessor.xml`. Формы EPF: `output/MyProcessor/Forms/MainForm/Ext/Form.xml`.
+7. **Oracle sandboxing** — `xml-gen oracle ...` читает канон и пишет сгенерированные XML только под `--out`; не указывай oracle output внутрь `src/xml`.
 
 ## §5 Быстрые примеры (entry-level workflows)
 

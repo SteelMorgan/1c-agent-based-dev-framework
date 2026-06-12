@@ -3,7 +3,11 @@ package io.github.onec.xmlgen.writer.skd;
 import io.github.onec.xmlgen.dsl.SkdDsl;
 
 import javax.xml.stream.XMLStreamException;
+import javax.xml.stream.XMLInputFactory;
+import javax.xml.stream.XMLStreamConstants;
+import javax.xml.stream.XMLStreamReader;
 import javax.xml.stream.XMLStreamWriter;
+import java.io.StringReader;
 import java.util.List;
 import java.util.Map;
 
@@ -22,6 +26,21 @@ import java.util.Map;
  * валидатора СКД и режима {@code info --mode templates}.</p>
  */
 public final class SkdTemplateWriter {
+
+    private static final String DCS_AREA_TEMPLATE_NS =
+            "http://v8.1c.ru/8.1/data-composition-system/area-template";
+    private static final String DCS_CORE_NS =
+            "http://v8.1c.ru/8.1/data-composition-system/core";
+    private static final String DCS_SETTINGS_NS =
+            "http://v8.1c.ru/8.1/data-composition-system/settings";
+    private static final String DCS_COMMON_NS =
+            "http://v8.1c.ru/8.1/data-composition-system/common";
+    private static final String V8_CORE_NS =
+            "http://v8.1c.ru/8.1/data/core";
+    private static final String XS_NS =
+            "http://www.w3.org/2001/XMLSchema";
+    private static final String XSI_NS =
+            "http://www.w3.org/2001/XMLSchema-instance";
 
     private SkdTemplateWriter() {
     }
@@ -66,17 +85,15 @@ public final class SkdTemplateWriter {
             }
         }
 
-        // Raw template — используем как есть.
-        if (tpl.getTemplate() != null && tpl.getRows() == null) {
+        // Raw dcsat:AreaTemplate XML — insert as XML subtree, not as escaped text/CDATA.
+        if (tpl.getTemplate() != null) {
             writer.writeCharacters(inner);
-            writer.writeStartElement("rawTemplate");
-            writer.writeCData(tpl.getTemplate());
-            writer.writeEndElement();
+            writeXmlFragment(writer, tpl.getTemplate());
             writer.writeCharacters("\n");
         }
 
         // Строки.
-        if (tpl.getRows() != null) {
+        if (tpl.getTemplate() == null && tpl.getRows() != null) {
             writer.writeCharacters(inner);
             writer.writeStartElement("rows");
             writer.writeCharacters("\n");
@@ -95,12 +112,8 @@ public final class SkdTemplateWriter {
 
     public static void writeGroupTemplate(XMLStreamWriter writer, SkdDsl.GroupTemplate gt, String indent)
             throws XMLStreamException {
-        String elementName = "groupTemplate";
-        if ("GroupHeader".equalsIgnoreCase(gt.getTemplateType())) {
-            elementName = "groupHeaderTemplate";
-        }
         writer.writeCharacters(indent);
-        writer.writeStartElement(elementName);
+        writer.writeStartElement("groupTemplate");
         writer.writeCharacters("\n");
         String inner = indent + "\t";
         if (gt.getGroupField() != null) {
@@ -143,12 +156,13 @@ public final class SkdTemplateWriter {
         // ExpressionAreaTemplateParameter
         writer.writeCharacters(indent);
         writer.writeStartElement("parameter");
-        writer.writeAttribute("xsi:type", "ExpressionAreaTemplateParameter");
+        writer.writeNamespace("dcsat", DCS_AREA_TEMPLATE_NS);
+        writer.writeAttribute("xsi:type", "dcsat:ExpressionAreaTemplateParameter");
         writer.writeCharacters("\n");
         String inner = indent + "\t";
-        if (p.getName() != null) writeSimple(writer, "name", p.getName(), inner);
-        if (p.getExpression() != null) writeSimple(writer, "expression", p.getExpression(), inner);
-        if (p.getFormat() != null) writeSimple(writer, "format", p.getFormat(), inner);
+        if (p.getName() != null) writeSimple(writer, "dcsat:name", p.getName(), inner);
+        if (p.getExpression() != null) writeSimple(writer, "dcsat:expression", p.getExpression(), inner);
+        if (p.getFormat() != null) writeSimple(writer, "dcsat:format", p.getFormat(), inner);
         writer.writeCharacters(indent);
         writer.writeEndElement();
         writer.writeCharacters("\n");
@@ -157,14 +171,100 @@ public final class SkdTemplateWriter {
         if (p.getDrilldown() != null) {
             writer.writeCharacters(indent);
             writer.writeStartElement("parameter");
-            writer.writeAttribute("xsi:type", "DetailsAreaTemplateParameter");
+            writer.writeNamespace("dcsat", DCS_AREA_TEMPLATE_NS);
+            writer.writeAttribute("xsi:type", "dcsat:DetailsAreaTemplateParameter");
             writer.writeCharacters("\n");
-            writeSimple(writer, "name", "Расшифровка_" + p.getDrilldown(), inner);
-            writeSimple(writer, "fieldExpression", p.getDrilldown(), inner);
-            writeSimple(writer, "mainAction", "DrillDown", inner);
+            writeSimple(writer, "dcsat:name", "Расшифровка_" + p.getDrilldown(), inner);
+            writeSimple(writer, "dcsat:fieldExpression", p.getDrilldown(), inner);
+            writeSimple(writer, "dcsat:mainAction", "DrillDown", inner);
             writer.writeCharacters(indent);
             writer.writeEndElement();
             writer.writeCharacters("\n");
+        }
+    }
+
+    private static void writeXmlFragment(XMLStreamWriter writer, String xml)
+            throws XMLStreamException {
+        XMLInputFactory factory = XMLInputFactory.newFactory();
+        factory.setProperty(XMLInputFactory.IS_SUPPORTING_EXTERNAL_ENTITIES, false);
+        factory.setProperty(XMLInputFactory.SUPPORT_DTD, false);
+
+        String wrapped = "<fragment"
+                + " xmlns:dcsat=\"" + DCS_AREA_TEMPLATE_NS + "\""
+                + " xmlns:dcscor=\"" + DCS_CORE_NS + "\""
+                + " xmlns:dcsset=\"" + DCS_SETTINGS_NS + "\""
+                + " xmlns:dcscom=\"" + DCS_COMMON_NS + "\""
+                + " xmlns:v8=\"" + V8_CORE_NS + "\""
+                + " xmlns:xs=\"" + XS_NS + "\""
+                + " xmlns:xsi=\"" + XSI_NS + "\">"
+                + xml
+                + "</fragment>";
+
+        XMLStreamReader reader = factory.createXMLStreamReader(new StringReader(wrapped));
+        try {
+            while (reader.hasNext()) {
+                int event = reader.next();
+                if (event == XMLStreamConstants.START_ELEMENT) {
+                    if ("fragment".equals(reader.getLocalName())) {
+                        continue;
+                    }
+                    writeStartElementFromReader(writer, reader);
+                } else if (event == XMLStreamConstants.END_ELEMENT) {
+                    if ("fragment".equals(reader.getLocalName())) {
+                        break;
+                    }
+                    writer.writeEndElement();
+                } else if (event == XMLStreamConstants.CHARACTERS) {
+                    writer.writeCharacters(reader.getText());
+                } else if (event == XMLStreamConstants.CDATA) {
+                    writer.writeCData(reader.getText());
+                }
+            }
+        } finally {
+            reader.close();
+        }
+    }
+
+    private static void writeStartElementFromReader(XMLStreamWriter writer, XMLStreamReader reader)
+            throws XMLStreamException {
+        String prefix = reader.getPrefix();
+        String namespace = reader.getNamespaceURI();
+        String local = reader.getLocalName();
+
+        if (prefix != null && !prefix.isEmpty()) {
+            writer.writeStartElement(prefix, local, namespace != null ? namespace : "");
+            writer.writeNamespace(prefix, namespace != null ? namespace : "");
+        } else if (namespace != null && !namespace.isEmpty()) {
+            writer.writeStartElement("", local, namespace);
+        } else {
+            writer.writeStartElement(local);
+        }
+
+        for (int i = 0; i < reader.getNamespaceCount(); i++) {
+            String nsPrefix = reader.getNamespacePrefix(i);
+            String nsUri = reader.getNamespaceURI(i);
+            if (nsPrefix == null || nsPrefix.isEmpty()) {
+                writer.writeDefaultNamespace(nsUri);
+            } else {
+                writer.writeNamespace(nsPrefix, nsUri);
+            }
+        }
+
+        for (int i = 0; i < reader.getAttributeCount(); i++) {
+            String attrPrefix = reader.getAttributePrefix(i);
+            String attrNamespace = reader.getAttributeNamespace(i);
+            String attrLocal = reader.getAttributeLocalName(i);
+            String attrValue = reader.getAttributeValue(i);
+            if (attrPrefix != null && !attrPrefix.isEmpty()) {
+                if (attrNamespace != null && !attrNamespace.isEmpty()) {
+                    writer.writeNamespace(attrPrefix, attrNamespace);
+                    writer.writeAttribute(attrPrefix, attrNamespace, attrLocal, attrValue);
+                } else {
+                    writer.writeAttribute(attrPrefix + ":" + attrLocal, attrValue);
+                }
+            } else {
+                writer.writeAttribute(attrLocal, attrValue);
+            }
         }
     }
 

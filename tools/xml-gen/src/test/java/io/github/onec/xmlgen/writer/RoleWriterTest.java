@@ -14,6 +14,7 @@ import java.util.List;
 import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
  * Тесты для RoleWriter.
@@ -239,7 +240,9 @@ class RoleWriterTest {
                 + "<MetaDataObject xmlns=\"http://v8.1c.ru/8.3/MDClasses\"\n"
                 + "\txmlns:v8=\"http://v8.1c.ru/8.1/data/core\"\n"
                 + "\tversion=\"2.20\">\n"
-                + "\t<Configuration uuid=\"00000000-0000-0000-0000-000000000001\"/>\n"
+                + "\t<Configuration uuid=\"00000000-0000-0000-0000-000000000001\">\n"
+                + "\t\t<ChildObjects/>\n"
+                + "\t</Configuration>\n"
                 + "</MetaDataObject>\n";
         byte[] bom = {(byte) 0xEF, (byte) 0xBB, (byte) 0xBF};
         byte[] body = configXml.getBytes(java.nio.charset.StandardCharsets.UTF_8);
@@ -263,6 +266,26 @@ class RoleWriterTest {
         assertThat(rightsContent).doesNotContain("version=\"2.17\"");
     }
 
+    @Test
+    void createInvalidConfigurationWithoutChildObjectsFailsBeforeWritingRoleFiles() throws Exception {
+        Files.writeString(tempDir.resolve("Configuration.xml"),
+                "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
+                        + "<MetaDataObject xmlns=\"http://v8.1c.ru/8.3/MDClasses\" version=\"2.20\">\n"
+                        + "\t<Configuration uuid=\"00000000-0000-0000-0000-000000000001\">\n"
+                        + "\t\t<Properties><Name>Test</Name></Properties>\n"
+                        + "\t</Configuration>\n"
+                        + "</MetaDataObject>\n");
+        RoleDsl dsl = new RoleDsl("РольБезChildObjects", "Роль без ChildObjects", null,
+                null, null, null, null, null);
+
+        assertThatThrownBy(() -> new RoleWriter(OutputFormat.DESIGNER).create(dsl, tempDir))
+                .isInstanceOf(RuntimeException.class)
+                .hasMessageContaining("ChildObjects");
+
+        assertThat(tempDir.resolve("Roles/РольБезChildObjects.xml")).doesNotExist();
+        assertThat(tempDir.resolve("Roles/РольБезChildObjects/Ext/Rights.xml")).doesNotExist();
+    }
+
     /**
      * Тест 6 (TASK-171): без Configuration.xml версия откатывается к дефолту 2.17
      * (ConfigurationXmlReader.DEFAULT_FORMAT_VERSION) — без падения.
@@ -277,5 +300,105 @@ class RoleWriterTest {
 
         String metaContent = Files.readString(tempDir.resolve("Roles/РольБезКонфига.xml"));
         assertThat(metaContent).contains("version=\"2.17\"");
+    }
+
+    @Test
+    void testRoleCompileRegistersRoleInConfigurationChildObjects() throws Exception {
+        Files.writeString(tempDir.resolve("Configuration.xml"),
+                "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
+                        + "<MetaDataObject xmlns=\"http://v8.1c.ru/8.3/MDClasses\" version=\"2.20\">\n"
+                        + "\t<Configuration uuid=\"00000000-0000-0000-0000-000000000001\">\n"
+                        + "\t\t<Properties><Name>Test</Name></Properties>\n"
+                        + "\t\t<ChildObjects/>\n"
+                        + "\t</Configuration>\n"
+                        + "</MetaDataObject>\n");
+
+        RoleDsl dsl = new RoleDsl("РольВКонфиге", "Роль в конфиге", null,
+                null, null, null, null, null);
+
+        new RoleWriter(OutputFormat.DESIGNER).create(dsl, tempDir);
+
+        String configuration = Files.readString(tempDir.resolve("Configuration.xml"));
+        assertThat(configuration).contains("<Role>РольВКонфиге</Role>");
+    }
+
+    /**
+     * TASK-174 XG-32: строковый shorthand и русские синонимы типов/прав из role-dsl-spec.
+     */
+    @Test
+    void task174_xg32_jsonShorthandAndRussianAliases_areNormalized() throws Exception {
+        String json = """
+                {
+                  "name": "РольXG32",
+                  "objects": [
+                    "Справочник.Контрагенты: @view",
+                    "Документ.ЗаказКлиента: Чтение, Просмотр",
+                    {
+                      "name": "Справочник.Номенклатура.Реквизит.Артикул",
+                      "rights": {"Просмотр": true, "Редактирование": false},
+                      "rls": {"Просмотр": "ГДЕ Истина"}
+                    }
+                  ]
+                }
+                """;
+
+        RoleDsl dsl = new ObjectMapper().readValue(json, RoleDsl.class);
+        new RoleWriter(OutputFormat.DESIGNER).create(dsl, tempDir);
+
+        String rights = Files.readString(tempDir.resolve("Roles/РольXG32/Ext/Rights.xml"));
+        assertThat(rights)
+                .contains("<name>Catalog.Контрагенты</name>")
+                .contains("<name>Document.ЗаказКлиента</name>")
+                .contains("<name>Catalog.Номенклатура.Attribute.Артикул</name>")
+                .contains("<name>Read</name>")
+                .contains("<name>View</name>")
+                .contains("<name>Edit</name>")
+                .contains("<condition>ГДЕ Истина</condition>");
+        assertThat(rights)
+                .doesNotContain("Справочник")
+                .doesNotContain("Документ")
+                .doesNotContain("Чтение")
+                .doesNotContain("Просмотр");
+    }
+
+    /**
+     * TASK-174 XG-32: Map-форма с неверным именем права должна падать до записи XML.
+     */
+    @Test
+    void task174_xg32_invalidMapRight_failsFast() {
+        String json = """
+                {
+                  "name": "РольBadRight",
+                  "objects": [
+                    {
+                      "name": "Catalog.Товары",
+                      "rights": {"view": true}
+                    }
+                  ]
+                }
+                """;
+
+        assertThatThrownBy(() -> new ObjectMapper().readValue(json, RoleDsl.class))
+                .hasMessageContaining("Invalid right name 'view'");
+    }
+
+    /**
+     * TASK-174 XG-32: программный HashMap больше не определяет порядок прав в Rights.xml.
+     */
+    @Test
+    void task174_xg32_mapRightsOrder_isDeterministic() throws Exception {
+        Map<String, Object> explicitRights = new HashMap<>();
+        explicitRights.put("View", true);
+        explicitRights.put("Use", true);
+
+        RoleDsl dsl = new RoleDsl("РольПорядок", null, null, null, null, null,
+                List.of(new RoleDsl.ObjectRights("DataProcessor.Загрузка", null, explicitRights, null)),
+                null);
+
+        new RoleWriter(OutputFormat.DESIGNER).create(dsl, tempDir);
+
+        String rights = Files.readString(tempDir.resolve("Roles/РольПорядок/Ext/Rights.xml"));
+        assertThat(rights.indexOf("<name>Use</name>"))
+                .isLessThan(rights.indexOf("<name>View</name>"));
     }
 }

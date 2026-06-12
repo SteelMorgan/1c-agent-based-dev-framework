@@ -105,10 +105,17 @@ class ExtensionEditorTest {
 
     /** Создать минимальное расширение с NamePrefix. */
     private Path makeExtension(String namePrefix) throws Exception {
+        return makeExtension(namePrefix, null);
+    }
+
+    /** Создать минимальное расширение с NamePrefix и опциональной версией формата. */
+    private Path makeExtension(String namePrefix, String formatVersion) throws Exception {
         Path ext = tempDir.resolve("ext");
         writeBom(ext.resolve("Configuration.xml"),
                 "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
-                        + "<MetaDataObject xmlns=\"http://v8.1c.ru/8.3/MDClasses\">\n"
+                        + "<MetaDataObject xmlns=\"http://v8.1c.ru/8.3/MDClasses\""
+                        + (formatVersion != null ? " version=\"" + formatVersion + "\"" : "")
+                        + ">\n"
                         + "\t<Configuration uuid=\"00000000-0000-0000-0000-000000000099\">\n"
                         + "\t\t<Properties>\n"
                         + "\t\t\t<Name>Ext1</Name>\n"
@@ -145,6 +152,10 @@ class ExtensionEditorTest {
         assertThat(extObj).exists();
         String content = readNoBom(extObj);
         assertThat(content).contains("<Name>Артикул</Name>");
+        assertThat(content).contains("<ObjectBelonging>Adopted</ObjectBelonging>");
+        assertThat(content).contains(
+                "<ExtendedConfigurationObject>aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa</ExtendedConfigurationObject>");
+        assertThat(content).doesNotContain("<Attribute uuid=\"aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa\"");
         // Цена НЕ должна быть скопирована — на форме нет DataPath на неё
         assertThat(content).doesNotContain("<Name>Цена</Name>");
         // Табчасть не копируется в form-режиме
@@ -164,6 +175,9 @@ class ExtensionEditorTest {
         assertThat(content).contains("<Name>Артикул</Name>");
         assertThat(content).contains("<Name>Цена</Name>");
         assertThat(content).contains("<Name>Строки</Name>");
+        assertThat(content).contains(
+                "<ExtendedConfigurationObject>cccccccc-cccc-cccc-cccc-cccccccccccc</ExtendedConfigurationObject>");
+        assertThat(content).doesNotContain("<TabularSection uuid=\"cccccccc-cccc-cccc-cccc-cccccccccccc\"");
     }
 
     @Test
@@ -188,6 +202,28 @@ class ExtensionEditorTest {
     }
 
     @Test
+    void testBorrowMainAttribute_FormAlreadyBorrowed_PreservesFormFiles() throws Exception {
+        Path cfg = makeBaseConfig();
+        Path ext = makeExtension("Расш1");
+
+        silent().borrow(ext, cfg, "Catalog.X.Form.ФормаЭлемента", null);
+
+        Path formXml = ext.resolve("Catalogs/X/Forms/ФормаЭлемента/Ext/Form.xml");
+        Path module = ext.resolve("Catalogs/X/Forms/ФормаЭлемента/Ext/Form/Module.bsl");
+        String customForm = readNoBom(formXml) + "\n<!-- custom extension change -->";
+        String customModule = "Процедура Расш1_СвояКоманда()\nКонецПроцедуры\n";
+        writeBom(formXml, customForm);
+        writeBom(module, customModule);
+
+        silent().borrow(ext, cfg, "Catalog.X.Form.ФормаЭлемента",
+                ExtensionEditor.MainAttributeMode.FORM);
+
+        assertThat(readNoBom(formXml)).contains("custom extension change");
+        assertThat(readNoBom(module)).isEqualTo(customModule);
+        assertThat(readNoBom(ext.resolve("Catalogs/X.xml"))).contains("<Name>Артикул</Name>");
+    }
+
+    @Test
     void testBorrowMainAttribute_NoFormSpec_Errors() throws Exception {
         Path cfg = makeBaseConfig();
         Path ext = makeExtension("Расш1");
@@ -196,6 +232,22 @@ class ExtensionEditorTest {
                 ExtensionEditor.MainAttributeMode.FORM))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("--borrow-main-attribute");
+    }
+
+    @Test
+    void testBorrow_UsesExtensionFormatVersionForBorrowedMetadata() throws Exception {
+        Path cfg = makeBaseConfig();
+        Path ext = makeExtension("Расш1", "2.20");
+
+        silent().borrow(ext, cfg, "Catalog.X.Form.ФормаЭлемента", null);
+
+        String objectXml = readNoBom(ext.resolve("Catalogs/X.xml"));
+        String formMetaXml = readNoBom(ext.resolve("Catalogs/X/Forms/ФормаЭлемента.xml"));
+
+        assertThat(objectXml).contains("version=\"2.20\"");
+        assertThat(objectXml).doesNotContain("version=\"2.17\"");
+        assertThat(formMetaXml).contains("version=\"2.20\"");
+        assertThat(formMetaXml).doesNotContain("version=\"2.17\"");
     }
 
     // ═══════════════════════════════════════════════════════════════════

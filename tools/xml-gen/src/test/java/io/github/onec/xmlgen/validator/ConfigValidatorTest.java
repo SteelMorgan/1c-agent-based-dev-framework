@@ -154,4 +154,63 @@ class ConfigValidatorTest {
 
         assertThat(messages).noneMatch(m -> m.message.contains("unknown ClassId"));
     }
+
+    @Test
+    void configWriterPropagatesFormatVersionToDumpInfoAndLanguage() throws Exception {
+        // TASK-174 config audit: --format-version must apply to the full Designer dump
+        // scaffold, not only Configuration.xml. Mixed 2.20/2.17 files fail full-load.
+        Path outDir = tempDir.resolve("cfg220");
+        new ConfigWriter().create(outDir, "ТестКонфиг", null, null, null, null, null,
+                "Version8_3_27", "2.20");
+
+        assertThat(Files.readString(outDir.resolve("Configuration.xml"), StandardCharsets.UTF_8))
+                .contains("version=\"2.20\"");
+        assertThat(Files.readString(outDir.resolve("ConfigDumpInfo.xml"), StandardCharsets.UTF_8))
+                .contains("format=\"Hierarchical\" version=\"2.20\"");
+        assertThat(Files.readString(outDir.resolve("Languages/Русский.xml"), StandardCharsets.UTF_8))
+                .contains("version=\"2.20\"");
+    }
+
+    @Test
+    void configValidatorReportsDumpInfoVersionMismatch() throws Exception {
+        Path outDir = tempDir.resolve("cfg-mixed-dump");
+        new ConfigWriter().create(outDir, "ТестКонфиг", null, null, null, null, null,
+                "Version8_3_27", "2.20");
+
+        Path dumpInfo = outDir.resolve("ConfigDumpInfo.xml");
+        String mixed = Files.readString(dumpInfo, StandardCharsets.UTF_8)
+                .replace("format=\"Hierarchical\" version=\"2.20\"",
+                        "format=\"Hierarchical\" version=\"2.17\"");
+        Files.writeString(dumpInfo, mixed, StandardCharsets.UTF_8);
+
+        XmlDocument doc = reader.parse(outDir.resolve("Configuration.xml"));
+        List<ConfigValidator.ValidationMessage> messages =
+                new ConfigValidator().validate(doc, outDir);
+
+        assertThat(messages).anyMatch(m -> "ERROR".equals(m.level)
+                && m.message.contains("ConfigDumpInfo.xml")
+                && m.message.contains("2.17")
+                && m.message.contains("2.20"));
+    }
+
+    @Test
+    void configValidatorReportsLanguageVersionMismatch() throws Exception {
+        Path outDir = tempDir.resolve("cfg-mixed-lang");
+        new ConfigWriter().create(outDir, "ТестКонфиг", null, null, null, null, null,
+                "Version8_3_27", "2.20");
+
+        Path lang = outDir.resolve("Languages/Русский.xml");
+        String mixed = Files.readString(lang, StandardCharsets.UTF_8)
+                .replace("version=\"2.20\"", "version=\"2.17\"");
+        Files.writeString(lang, mixed, StandardCharsets.UTF_8);
+
+        XmlDocument doc = reader.parse(outDir.resolve("Configuration.xml"));
+        List<ConfigValidator.ValidationMessage> messages =
+                new ConfigValidator().validate(doc, outDir);
+
+        assertThat(messages).anyMatch(m -> "ERROR".equals(m.level)
+                && m.message.contains("Languages/Русский.xml")
+                && m.message.contains("2.17")
+                && m.message.contains("2.20"));
+    }
 }

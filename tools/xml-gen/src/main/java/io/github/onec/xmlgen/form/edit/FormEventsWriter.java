@@ -7,7 +7,6 @@ import java.util.List;
 import java.util.Map;
 
 import static io.github.onec.xmlgen.editor.EditorUtils.createNode;
-import static io.github.onec.xmlgen.editor.EditorUtils.findOrCreateChild;
 
 /**
  * Запись {@code <Events>} в Form.xml: form-level (у корня) и element-level
@@ -46,7 +45,7 @@ public class FormEventsWriter {
         List<HandlerRef> created = new ArrayList<>();
         if (bindings == null || bindings.isEmpty()) return created;
 
-        XmlNode eventsNode = findOrCreateChild(element, "Events");
+        XmlNode eventsNode = findOrCreateEvents(element);
         for (FormEditDslBindings b : bindings) {
             String event = b.eventName;
             if (event == null || event.isEmpty()) continue;
@@ -81,7 +80,7 @@ public class FormEventsWriter {
         if (handler == null) {
             throw new IllegalArgumentException("formEvent.handler is required");
         }
-        XmlNode eventsNode = findOrCreateChild(root, "Events");
+        XmlNode eventsNode = findOrCreateEvents(root);
         XmlNode evt = createNode("Event");
         evt.setAttribute("name", eventName);
         if (callType != null) {
@@ -100,7 +99,7 @@ public class FormEventsWriter {
         if (eventName == null || handler == null) {
             throw new IllegalArgumentException("elementEvent requires both name and handler");
         }
-        XmlNode eventsNode = findOrCreateChild(element, "Events");
+        XmlNode eventsNode = findOrCreateEvents(element);
         XmlNode evt = createNode("Event");
         evt.setAttribute("name", eventName);
         if (callType != null) {
@@ -122,5 +121,33 @@ public class FormEventsWriter {
             this.explicitHandler = explicitHandler;
             this.callType = callType;
         }
+    }
+
+    /**
+     * Form XML is sequence-sensitive. Newly created Events must be inserted before
+     * ChildItems/Attributes/Parameters/Commands/BaseForm instead of appended at the end.
+     */
+    private static XmlNode findOrCreateEvents(XmlNode owner) {
+        for (XmlNode child : owner.getChildren()) {
+            if ("Events".equals(child.getName())) {
+                return child;
+            }
+        }
+
+        XmlNode events = createNode("Events");
+        int insertAt = owner.getChildren().size();
+        for (int i = 0; i < owner.getChildren().size(); i++) {
+            String name = owner.getChildren().get(i).getName();
+            if ("ChildItems".equals(name)
+                    || "Attributes".equals(name)
+                    || "Parameters".equals(name)
+                    || "Commands".equals(name)
+                    || "BaseForm".equals(name)) {
+                insertAt = i;
+                break;
+            }
+        }
+        owner.getChildren().add(insertAt, events);
+        return events;
     }
 }

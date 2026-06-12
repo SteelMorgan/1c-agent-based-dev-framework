@@ -2,6 +2,7 @@ package io.github.onec.xmlgen.writer;
 
 import com.github._1c_syntax.bsl.mdo.support.TemplateType;
 import io.github.onec.xmlgen.editor.ObjectContainerEditor;
+import io.github.onec.xmlgen.model.ConfigurationXmlReader;
 import io.github.onec.xmlgen.model.MdoPath;
 import io.github.onec.xmlgen.model.UuidGenerator;
 
@@ -45,10 +46,16 @@ public class TemplateWriter {
         Path objectXml = src.resolve(object.getObjectXmlRelPath());
         validateObjectExists(objectXml, object);
 
-        TemplateType templateType = parseTemplateType(typeStr);
+        String canonicalType = canonicalTemplateTypeName(typeStr);
+        if (setMainDcs && !object.isReport()) {
+            throw new IllegalArgumentException("--set-main-dcs is only valid with Report objects");
+        }
+        if (setMainDcs && !"DataCompositionSchema".equals(canonicalType)) {
+            throw new IllegalArgumentException("--set-main-dcs requires --type DataCompositionSchema");
+        }
 
         // Warning for SpreadsheetDocument without ПФ_ prefix
-        if (templateType == TemplateType.SPREADSHEET_DOCUMENT && !name.startsWith("ПФ_")) {
+        if ("SpreadsheetDocument".equals(canonicalType) && !name.startsWith("ПФ_")) {
             System.err.println("[WARN] Template name '" + name
                     + "' does not start with 'ПФ_'. For print forms, the prefix ПФ_ is recommended.");
         }
@@ -63,13 +70,20 @@ public class TemplateWriter {
 
         // Create the template scaffold under <src>/<Type>/<Name>/
         Path baseDir = src.resolve(object.getRelativeDir());
-        ObjectContainerEditor.createTemplateScaffold(baseDir, name, synonym, typeStr);
+        Path templateMeta = baseDir.resolve("Templates").resolve(name + ".xml");
+        Path templateDir = baseDir.resolve("Templates").resolve(name);
+        if (Files.exists(templateMeta) || Files.exists(templateDir)) {
+            throw new IllegalArgumentException("Template '" + name
+                    + "' already exists on disk in " + baseDir.resolve("Templates"));
+        }
+        String formatVersion = ConfigurationXmlReader.readFormatVersion(objectXml);
+        ObjectContainerEditor.createTemplateScaffold(baseDir, name, synonym, canonicalType, formatVersion);
 
         // Register in ChildObjects
         editor.addTemplate(name);
 
         // Handle MainDataCompositionSchema for Report
-        if (templateType == TemplateType.DATA_COMPOSITION_SCHEME && object.isReport()) {
+        if ("DataCompositionSchema".equals(canonicalType) && object.isReport()) {
             // TASK-171 D6: префикс берём из фактического типа объекта (Report / ExternalReport),
             // а не хардкодим "Report." — иначе для внешнего отчёта ссылка будет битой.
             String mainDcs = mainDcsValue(object, name);
@@ -164,11 +178,12 @@ public class TemplateWriter {
         // Create Help.xml (only if not exists or add lang)
         Path helpXmlPath = extDir.resolve("Help.xml");
         if (!Files.exists(helpXmlPath)) {
+            String formatVersion = ConfigurationXmlReader.readFormatVersion(objectXml);
             String helpXml = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
                     + "<Help xmlns=\"http://v8.1c.ru/8.3/xcf/extrnprops\"\n"
                     + "\txmlns:xs=\"http://www.w3.org/2001/XMLSchema\"\n"
                     + "\txmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\"\n"
-                    + "\tversion=\"2.17\">\n"
+                    + "\tversion=\"" + escapeXml(formatVersion) + "\">\n"
                     + "\t<Page>" + escapeXml(lang) + "</Page>\n"
                     + "</Help>\n";
             writeWithBom(helpXmlPath, helpXml);
@@ -245,16 +260,44 @@ public class TemplateWriter {
             case "двоичныеданные":
                 typeStr = "BinaryData";
                 break;
+            case "addin":
+            case "внешняякомпонента":
+                typeStr = "AddIn";
+                break;
+            case "datacompositionappearancetemplate":
+            case "макетоформлениякомпоновкиданных":
+                typeStr = "DataCompositionAppearanceTemplate";
+                break;
+            case "graphicalschema":
+            case "графическаясхема":
+                typeStr = "GraphicalSchema";
+                break;
+            case "activedocument":
+                typeStr = "ActiveDocument";
+                break;
+            case "geographicalschema":
+            case "географическаясхема":
+                typeStr = "GeographicalSchema";
+                break;
             case "datacompositionschema":
             case "скд":
             case "схемакомпоновкиданных":
                 typeStr = "DataCompositionSchema";
                 break;
+            case "help":
+            case "справка":
+                typeStr = "Help";
+                break;
+        }
+        if ("Help".equals(typeStr)) {
+            return typeStr;
         }
         TemplateType tt = TemplateType.valueByName(typeStr);
         if (tt == TemplateType.UNKNOWN) {
             throw new IllegalArgumentException("Unknown template type: '" + typeStr
-                    + "'. Supported: HTMLDocument, TextDocument, SpreadsheetDocument, BinaryData, DataCompositionSchema");
+                    + "'. Supported: HTMLDocument, TextDocument, SpreadsheetDocument, BinaryData, "
+                    + "DataCompositionSchema, AddIn, DataCompositionAppearanceTemplate, GraphicalSchema, "
+                    + "ActiveDocument, GeographicalSchema, Help");
         }
         return typeStr;
     }
@@ -279,6 +322,20 @@ public class TemplateWriter {
         if (!Files.exists(objectXml)) {
             throw new IllegalArgumentException(
                     "Object '" + object + "' not found. Expected XML at: " + objectXml.toAbsolutePath());
+        }
+        try {
+            ObjectContainerEditor editor = new ObjectContainerEditor(objectXml);
+            String actualType = editor.detectObjectType();
+            if ("Unknown".equals(actualType)) {
+                throw new IllegalArgumentException("Expected a supported 1C metadata object XML, got unknown object type: "
+                        + objectXml);
+            }
+            if (!object.getType().equals(actualType)) {
+                throw new IllegalArgumentException("Object '" + object + "' type mismatch. Expected "
+                        + object.getType() + ", got " + actualType + " in " + objectXml);
+            }
+        } catch (IOException e) {
+            throw new IllegalArgumentException("Cannot read object XML: " + objectXml + " — " + e.getMessage(), e);
         }
     }
 

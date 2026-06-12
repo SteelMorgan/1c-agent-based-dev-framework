@@ -1,5 +1,6 @@
 package io.github.onec.xmlgen.writer;
 
+import io.github.onec.xmlgen.model.ConfigurationXmlReader;
 import io.github.onec.xmlgen.model.UuidGenerator;
 
 import java.io.IOException;
@@ -14,7 +15,7 @@ import java.nio.file.Path;
  * Создаёт минимальную структуру:
  * - Configuration.xml (extension-specific properties)
  * - Languages/Русский.xml (заимствованный язык)
- * - Roles/<prefix>ОсновнаяРоль.xml (опционально)
+ * - Roles/<prefix>ОсновнаяРоль.xml + Roles/<prefix>ОсновнаяРоль/Ext/Rights.xml (опционально)
  */
 public class ExtensionWriter {
 
@@ -87,6 +88,19 @@ public class ExtensionWriter {
         String ver = version != null ? version : "";
         String vnd = vendor != null ? vendor : "";
         String baseLangUuid = "00000000-0000-0000-0000-000000000000";
+        //++agent TASK-174 [07.06.2026 13:50:00]
+        // Версия формата сериализации: при наличии --config-path берём из Configuration.xml
+        // базовой конфигурации (расширение выгружается той же платформой, что и база),
+        // иначе дефолт 2.17. Раньше — безусловный хардкод 2.17; на платформе 8.3.27
+        // (формат 2.20) это рассинхрон версии расширения с базой.
+        String formatVersion = ConfigurationXmlReader.DEFAULT_FORMAT_VERSION;
+        //++agent TASK-174
+        //++agent TASK-175 [07.06.2026 18:55:00]
+        // XG-36 (72bad1aa cfe-init v1.1, сосед cf-init): режим интерфейса расширения должен
+        // совпадать с базой — иначе Designer ругается при загрузке CFE. Дефолт без
+        // --config-path — TaxiEnableVersion8_2 (как в upstream else-ветке).
+        String interfaceCompat = "TaxiEnableVersion8_2";
+        //++agent TASK-175
 
         // Auto-resolve from base config
         if (configPath != null) {
@@ -97,11 +111,22 @@ public class ExtensionWriter {
                     cmp = resolvedCompat;
                     out.println("[INFO] Base config CompatibilityMode: " + cmp);
                 }
+                //++agent TASK-175 [07.06.2026 18:55:00]
+                String resolvedInterfaceCompat = readInterfaceCompatibilityMode(cfgFile);
+                if (resolvedInterfaceCompat != null) {
+                    interfaceCompat = resolvedInterfaceCompat;
+                    out.println("[INFO] Base config InterfaceCompatibilityMode: " + interfaceCompat);
+                }
+                //++agent TASK-175
                 String resolvedLangUuid = readLanguageUuid(cfgFile.getParent());
                 if (resolvedLangUuid != null) {
                     baseLangUuid = resolvedLangUuid;
                     out.println("[INFO] Base config Language UUID: " + baseLangUuid);
                 }
+                //++agent TASK-174 [07.06.2026 13:50:00]
+                formatVersion = ConfigurationXmlReader.readFormatVersion(cfgFile);
+                out.println("[INFO] Base config format version: " + formatVersion);
+                //++agent TASK-174
             }
         } else {
             out.println("[WARN] Language ExtendedConfigurationObject set to zeros. "
@@ -111,15 +136,20 @@ public class ExtensionWriter {
         String roleName = pfx + "ОсновнаяРоль";
 
         // 1. Configuration.xml
+        //**agent TASK-175 [07.06.2026 18:55:00]
+        //writeConfigurationXml(outputDir, name, syn, pfx, purp, cmp, ver, vnd,
+        //        baseLangUuid, roleName, noRole, formatVersion);
         writeConfigurationXml(outputDir, name, syn, pfx, purp, cmp, ver, vnd,
-                baseLangUuid, roleName, noRole);
+                baseLangUuid, roleName, noRole, formatVersion, interfaceCompat);
+        //**agent TASK-175
 
         // 2. Languages/Русский.xml
-        writeLanguageXml(outputDir, baseLangUuid);
+        writeLanguageXml(outputDir, baseLangUuid, formatVersion);
 
         // 3. Role (optional)
         if (!noRole) {
-            writeRoleXml(outputDir, roleName);
+            writeRoleXml(outputDir, roleName, formatVersion);
+            writeRoleRightsXml(outputDir, roleName, formatVersion);
         }
 
         // Summary
@@ -132,15 +162,20 @@ public class ExtensionWriter {
 
     // ─── Configuration.xml ──────────────────────────────────────────────
 
+    //**agent TASK-175 [07.06.2026 18:55:00]
+    // XG-36: + параметр interfaceCompat (режим интерфейса из базы либо дефолт)
     private void writeConfigurationXml(Path outputDir, String name, String synonym,
                                        String prefix, String purpose, String compat,
                                        String version, String vendor, String baseLangUuid,
-                                       String roleName, boolean noRole) throws IOException {
+                                       String roleName, boolean noRole,
+                                       String formatVersion, String interfaceCompat) throws IOException {
+    //**agent TASK-175
         String cfgUuid = UuidGenerator.generate();
 
         StringBuilder sb = new StringBuilder();
         sb.append("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n");
-        sb.append("<MetaDataObject ").append(XMLNS).append(" version=\"2.17\">\n");
+        // TASK-174: версия формата из базовой конфигурации (раньше хардкод 2.17)
+        sb.append("<MetaDataObject ").append(XMLNS).append(" version=\"").append(formatVersion).append("\">\n");
         sb.append("\t<Configuration uuid=\"").append(cfgUuid).append("\">\n");
 
         // InternalInfo — 7 ContainedObjects
@@ -191,7 +226,11 @@ public class ExtensionWriter {
         sb.append("\t\t\t<Copyright/>\n");
         sb.append("\t\t\t<VendorInformationAddress/>\n");
         sb.append("\t\t\t<ConfigurationInformationAddress/>\n");
-        sb.append("\t\t\t<InterfaceCompatibilityMode>TaxiEnableVersion8_2</InterfaceCompatibilityMode>\n");
+        //**agent TASK-175 [07.06.2026 18:55:00]
+        // XG-36: режим интерфейса наследуется от базовой конфигурации (раньше хардкод)
+        //sb.append("\t\t\t<InterfaceCompatibilityMode>TaxiEnableVersion8_2</InterfaceCompatibilityMode>\n");
+        sb.append("\t\t\t<InterfaceCompatibilityMode>").append(esc(interfaceCompat)).append("</InterfaceCompatibilityMode>\n");
+        //**agent TASK-175
         sb.append("\t\t</Properties>\n");
 
         // ChildObjects
@@ -210,14 +249,15 @@ public class ExtensionWriter {
 
     // ─── Languages/Русский.xml ──────────────────────────────────────────
 
-    private void writeLanguageXml(Path outputDir, String baseLangUuid) throws IOException {
+    private void writeLanguageXml(Path outputDir, String baseLangUuid, String formatVersion) throws IOException {
         Path langDir = outputDir.resolve("Languages");
         Files.createDirectories(langDir);
 
         String langUuid = UuidGenerator.generate();
         StringBuilder sb = new StringBuilder();
         sb.append("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n");
-        sb.append("<MetaDataObject ").append(XMLNS).append(" version=\"2.17\">\n");
+        // TASK-174: версия формата из базовой конфигурации (раньше хардкод 2.17)
+        sb.append("<MetaDataObject ").append(XMLNS).append(" version=\"").append(formatVersion).append("\">\n");
         sb.append("\t<Language uuid=\"").append(langUuid).append("\">\n");
         sb.append("\t\t<InternalInfo/>\n");
         sb.append("\t\t<Properties>\n");
@@ -235,14 +275,15 @@ public class ExtensionWriter {
 
     // ─── Role ───────────────────────────────────────────────────────────
 
-    private void writeRoleXml(Path outputDir, String roleName) throws IOException {
+    private void writeRoleXml(Path outputDir, String roleName, String formatVersion) throws IOException {
         Path roleDir = outputDir.resolve("Roles");
         Files.createDirectories(roleDir);
 
         String roleUuid = UuidGenerator.generate();
         StringBuilder sb = new StringBuilder();
         sb.append("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n");
-        sb.append("<MetaDataObject ").append(XMLNS).append(" version=\"2.17\">\n");
+        // TASK-174: версия формата из базовой конфигурации (раньше хардкод 2.17)
+        sb.append("<MetaDataObject ").append(XMLNS).append(" version=\"").append(formatVersion).append("\">\n");
         sb.append("\t<Role uuid=\"").append(roleUuid).append("\">\n");
         sb.append("\t\t<Properties>\n");
         sb.append("\t\t\t<Name>").append(esc(roleName)).append("</Name>\n");
@@ -253,6 +294,24 @@ public class ExtensionWriter {
         sb.append("</MetaDataObject>");
 
         writeWithBom(roleDir.resolve(roleName + ".xml"), sb.toString());
+    }
+
+    private void writeRoleRightsXml(Path outputDir, String roleName, String formatVersion) throws IOException {
+        Path rightsDir = outputDir.resolve("Roles").resolve(roleName).resolve("Ext");
+        Files.createDirectories(rightsDir);
+
+        StringBuilder sb = new StringBuilder();
+        sb.append("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n");
+        sb.append("<Rights xmlns=\"http://v8.1c.ru/8.2/roles\" ")
+                .append("xmlns:xs=\"http://www.w3.org/2001/XMLSchema\" ")
+                .append("xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\" ")
+                .append("xsi:type=\"Rights\" version=\"").append(formatVersion).append("\">\n");
+        sb.append("\t<setForNewObjects>false</setForNewObjects>\n");
+        sb.append("\t<setForAttributesByDefault>true</setForAttributesByDefault>\n");
+        sb.append("\t<independentRightsOfChildObjects>false</independentRightsOfChildObjects>\n");
+        sb.append("</Rights>");
+
+        writeWithBom(rightsDir.resolve("Rights.xml"), sb.toString());
     }
 
     // ─── Config path resolution ─────────────────────────────────────────
@@ -281,6 +340,24 @@ public class ExtensionWriter {
         }
         return null;
     }
+
+    //++agent TASK-175 [07.06.2026 18:55:00]
+    // XG-36 (72bad1aa): зеркально readCompatibilityMode — извлечение режима интерфейса базы.
+    // Теги не путаются: подстрока «<CompatibilityMode>» (с угловой скобкой) не входит
+    // в «<InterfaceCompatibilityMode>», и наоборот.
+    private String readInterfaceCompatibilityMode(Path cfgFile) {
+        try {
+            String content = Files.readString(cfgFile, StandardCharsets.UTF_8);
+            var m = java.util.regex.Pattern
+                    .compile("<InterfaceCompatibilityMode>(\\w+)</InterfaceCompatibilityMode>")
+                    .matcher(content);
+            if (m.find()) return m.group(1);
+        } catch (IOException e) {
+            out.println("[WARN] Could not read base config: " + e.getMessage());
+        }
+        return null;
+    }
+    //++agent TASK-175
 
     private String readLanguageUuid(Path configDir) {
         Path langFile = configDir.resolve("Languages").resolve("Русский.xml");

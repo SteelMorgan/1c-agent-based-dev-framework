@@ -41,6 +41,17 @@ public class FormEditApplier {
      * если {@code formXmlPath} задан и есть отложенные handler'ы.
      */
     public void apply(FormEditDsl spec) {
+        apply(spec, true);
+    }
+
+    /**
+     * Применить спецификацию к форме с управляемым моментом записи BSL-заглушек.
+     *
+     * <p>CLI использует {@code flushBsl=false}, чтобы сначала провалидировать и
+     * сохранить {@code Form.xml}; иначе ошибка XML-валидации оставляла бы уже
+     * изменённый {@code Module.bsl}.</p>
+     */
+    public void apply(FormEditDsl spec, boolean flushBsl) {
         if (spec == null) return;
 
         if (spec.getAttributes() != null) {
@@ -69,7 +80,11 @@ public class FormEditApplier {
             }
         }
 
-        flushBslStubs();
+        if (flushBsl) {
+            flushBslStubs();
+        } else {
+            lastBslStubsAdded = List.of();
+        }
     }
 
     /** Список handler-имён, ранее отсутствовавших и дописанных в Module.bsl на прошлом apply(). */
@@ -89,7 +104,9 @@ public class FormEditApplier {
                 a.getType(),
                 a.getMain(),
                 a.getSavedData(),
-                a.getColumns()
+                a.getColumns(),
+                a.getFillChecking(),
+                a.getUseAlwaysField()
         );
     }
 
@@ -97,7 +114,8 @@ public class FormEditApplier {
         if (c.getName() == null) {
             throw new IllegalArgumentException("command.name is required");
         }
-        editor.addCommand(c.getName(), c.getTitle(), c.getAction());
+        editor.addCommand(c.getName(), c.getTitle(), c.getAction(),
+                c.getTooltip(), c.getShortcut(), c.getPicture(), c.getRepresentation());
     }
 
     private void applyElement(FormEditDsl.Element e, String parentOverride) {
@@ -109,7 +127,11 @@ public class FormEditApplier {
                 "element.kind is required (e.g. input, table, button, group, pages, или XML-тег InputField)");
         }
         String parent = parentOverride != null ? parentOverride : e.getInto();
-        editor.addElement(e.getKind(), e.getName(), e.getDataPath(), parent, e.getAfter());
+        //**agent TASK-174 [05.06.2026 00:00:00]
+        // XG-02: пробрасываем command в FormEditor (раньше терялся → кнопка без CommandName).
+        editor.addElement(e.getKind(), e.getName(), e.getDataPath(), parent,
+                e.getAfter(), e.getBefore(), e.getCommand());
+        //**agent TASK-174
 
         // Привязать события к только что созданному элементу
         if (e.getOn() != null && !e.getOn().isEmpty()) {
@@ -152,11 +174,11 @@ public class FormEditApplier {
         pendingHandlers.add(ref);
     }
 
-    private void flushBslStubs() {
+    public List<String> flushBslStubs() {
         if (bslStubWriter == null || pendingHandlers.isEmpty()) {
             lastBslStubsAdded = List.of();
             pendingHandlers.clear();
-            return;
+            return lastBslStubsAdded;
         }
         try {
             lastBslStubsAdded = bslStubWriter.appendStubs(pendingHandlers);
@@ -164,6 +186,7 @@ public class FormEditApplier {
             throw new RuntimeException("Failed to write BSL stubs: " + e.getMessage(), e);
         }
         pendingHandlers.clear();
+        return lastBslStubsAdded;
     }
 
     private XmlNode findElement(String name) {

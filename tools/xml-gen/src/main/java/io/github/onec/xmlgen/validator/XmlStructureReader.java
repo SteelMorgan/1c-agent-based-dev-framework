@@ -5,6 +5,7 @@ import javax.xml.stream.XMLStreamConstants;
 import javax.xml.stream.XMLStreamException;
 import javax.xml.stream.XMLStreamReader;
 import java.io.*;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.*;
@@ -46,6 +47,8 @@ public class XmlStructureReader {
                 && content[0] == UTF8_BOM[0]
                 && content[1] == UTF8_BOM[1]
                 && content[2] == UTF8_BOM[2];
+        int contentOffset = hasBom ? 3 : 0;
+        String xmlDeclaration = extractXmlDeclaration(content, contentOffset);
 
         // Если есть BOM, пропускаем его при парсинге
         InputStream is = hasBom
@@ -65,7 +68,7 @@ public class XmlStructureReader {
         }
 
         try {
-            return doParse(reader, file, hasBom);
+            return doParse(reader, file, hasBom, xmlDeclaration);
         } catch (XMLStreamException e) {
             throw new XmlParseException("XML parse error at line " + e.getLocation().getLineNumber()
                     + ": " + e.getMessage(), e);
@@ -74,28 +77,14 @@ public class XmlStructureReader {
         }
     }
 
-    private XmlDocument doParse(XMLStreamReader reader, Path file, boolean hasBom) throws XMLStreamException {
-        // Capture XML declaration from reader
-        String xmlDeclaration = null;
-        String version = reader.getVersion();
-        String encoding = reader.getCharacterEncodingScheme();
-        if (version != null) {
-            StringBuilder decl = new StringBuilder("<?xml version=\"").append(version).append("\"");
-            if (encoding != null) {
-                decl.append(" encoding=\"").append(encoding).append("\"");
-            }
-            if (reader.standaloneSet()) {
-                decl.append(" standalone=\"").append(reader.isStandalone() ? "yes" : "no").append("\"");
-            }
-            decl.append("?>");
-            xmlDeclaration = decl.toString();
-        }
-
+    private XmlDocument doParse(XMLStreamReader reader, Path file, boolean hasBom,
+                                String xmlDeclaration) throws XMLStreamException {
         // Ищем корневой элемент
         while (reader.hasNext()) {
             int event = reader.next();
             if (event == XMLStreamConstants.START_ELEMENT) {
                 XmlNode root = parseElement(reader);
+                ensureDocumentEndsAfterRoot(reader);
                 return new XmlDocument(
                         file,
                         hasBom,
@@ -109,6 +98,37 @@ public class XmlStructureReader {
             }
         }
         throw new XMLStreamException("No root element found");
+    }
+
+    private void ensureDocumentEndsAfterRoot(XMLStreamReader reader) throws XMLStreamException {
+        while (reader.hasNext()) {
+            int event = reader.next();
+            if (event == XMLStreamConstants.START_ELEMENT) {
+                throw new XMLStreamException("Multiple root elements are not allowed",
+                        reader.getLocation());
+            }
+            if ((event == XMLStreamConstants.CHARACTERS || event == XMLStreamConstants.CDATA)
+                    && !reader.getText().isBlank()) {
+                throw new XMLStreamException("Non-whitespace content after root element",
+                        reader.getLocation());
+            }
+        }
+    }
+
+    private String extractXmlDeclaration(byte[] content, int offset) {
+        if (content.length <= offset) {
+            return null;
+        }
+        int maxLen = Math.min(content.length - offset, 256);
+        String head = new String(content, offset, maxLen, StandardCharsets.UTF_8);
+        if (!head.startsWith("<?xml")) {
+            return null;
+        }
+        int end = head.indexOf("?>");
+        if (end < 0) {
+            return null;
+        }
+        return head.substring(0, end + 2);
     }
 
     /**

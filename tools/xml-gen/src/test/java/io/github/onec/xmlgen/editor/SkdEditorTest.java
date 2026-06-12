@@ -65,9 +65,7 @@ class SkdEditorTest {
     }
     private XmlNode findField(String dataPath) {
         for (XmlNode ds : document.getRoot().children("dataSet")) {
-            XmlNode fields = ds.child("fields");
-            if (fields == null) continue;
-            for (XmlNode f : fields.children("field")) {
+            for (XmlNode f : ds.children("field")) {
                 if (dataPath.equals(f.childText("dataPath"))) return f;
             }
         }
@@ -90,8 +88,9 @@ class SkdEditorTest {
     @Test
     void testAddFieldLegacy() {
         editor.addField("MainDS", "ItemRef", "Items.Ref", "Номенклатура");
-        XmlNode fields = document.getRoot().children("dataSet").get(0).child("fields");
-        assertEquals(1, fields.getChildren().size());
+        XmlNode ds = document.getRoot().children("dataSet").get(0);
+        assertNull(ds.child("fields"));
+        assertEquals(1, ds.children("field").size());
     }
 
     @Test
@@ -110,6 +109,26 @@ class SkdEditorTest {
         var r = editor.addField(fd, null, null, false);
         assertTrue(r.changed);
         assertNotNull(findField("Цена"));
+        XmlNode ds = document.getRoot().children("dataSet").get(0);
+        assertNull(ds.child("fields"));
+        assertThat(ds.getChildren().indexOf(findField("Цена")))
+                .isLessThan(ds.getChildren().indexOf(ds.child("query")));
+    }
+
+    @Test
+    void testAddFieldRestrictionsUseCanonicalNamesAndTrueValues() {
+        editor.addField(SkdShorthandParser.parseField(
+                "Служебное: string #noFilter #noOrder #noGroup #noField"),
+                null, null, true);
+
+        XmlNode restriction = findField("Служебное").child("useRestriction");
+
+        assertEquals("true", restriction.childText("condition"));
+        assertEquals("true", restriction.childText("order"));
+        assertEquals("true", restriction.childText("group"));
+        assertEquals("true", restriction.childText("field"));
+        assertNull(restriction.child("noFilter"));
+        assertNull(restriction.child("noOrder"));
     }
 
     @Test
@@ -216,9 +235,38 @@ class SkdEditorTest {
         editor.setFieldRole(d, null);
         XmlNode role = findField("СуммаНач").child("role");
         assertNotNull(role);
+        assertEquals("http://v8.1c.ru/8.1/data-composition-system/common",
+                role.attr("xmlns:dcscom"));
         assertEquals("true", role.childText("balance"));
         assertEquals("Сумма", role.childText("balanceGroupName"));
         assertEquals("OpeningBalance", role.childText("balanceType"));
+        assertEquals("dcscom", role.child("balance").getPrefix());
+        assertEquals("dcscom", role.child("balanceGroupName").getPrefix());
+    }
+
+    @Test
+    void testSetFieldRole_PeriodUsesDcsCommonPeriodNodes() {
+        editor.addField(SkdShorthandParser.parseField("Период: date"), null, null, true);
+        var d = SkdShorthandParser.parseFieldRole("Период @period");
+        editor.setFieldRole(d, null);
+        XmlNode role = findField("Период").child("role");
+        assertNotNull(role);
+        assertEquals("1", role.childText("periodNumber"));
+        assertEquals("Main", role.childText("periodType"));
+        assertEquals("dcscom", role.child("periodNumber").getPrefix());
+        assertEquals("dcscom", role.child("periodType").getPrefix());
+    }
+
+    @Test
+    void testAddFieldWithInlineRoleDeclaresDcsCommonNamespace() {
+        editor.addField(SkdShorthandParser.parseField("Организация: CatalogRef.Организации @dimension"),
+                null, null, true);
+        XmlNode role = findField("Организация").child("role");
+        assertNotNull(role);
+        assertEquals("http://v8.1c.ru/8.1/data-composition-system/common",
+                role.attr("xmlns:dcscom"));
+        assertEquals("true", role.childText("dimension"));
+        assertEquals("dcscom", role.child("dimension").getPrefix());
     }
 
     @Test
@@ -239,7 +287,29 @@ class SkdEditorTest {
         var p = SkdShorthandParser.parseParameter("Период: StandardPeriod = LastMonth");
         var r = editor.addParameter(p);
         assertTrue(r.changed);
-        assertNotNull(findParameter("Период"));
+        XmlNode period = findParameter("Период");
+        assertNotNull(period);
+        XmlNode value = period.child("value");
+        assertEquals("v8:StandardPeriod", value.attr("xsi:type"));
+        assertEquals("LastMonth", value.childText("variant"));
+        assertEquals("v8:StandardPeriodVariant", value.child("variant").attr("xsi:type"));
+    }
+
+    @Test
+    void testAddParameterAutoDatesCreatesDerivedParameters() {
+        var p = SkdShorthandParser.parseParameter("Период: StandardPeriod = LastMonth @autoDates");
+
+        var r = editor.addParameter(p);
+
+        assertTrue(r.changed);
+        assertNotNull(findParameter("ДатаНачала"));
+        assertNotNull(findParameter("ДатаОкончания"));
+        assertEquals("&Период.ДатаНачала", findParameter("ДатаНачала").childText("expression"));
+        assertEquals("false", findParameter("ДатаНачала").childText("availableAsField"));
+        assertEquals("true", findParameter("ДатаНачала").childText("useRestriction"));
+        assertEquals("Always", findParameter("Период").childText("use"));
+        assertEquals("true", findParameter("Период").childText("denyIncompleteValues"));
+        assertNull(findParameter("Период").child("useChoice"));
     }
 
     @Test
@@ -292,9 +362,23 @@ class SkdEditorTest {
                 "Округ availableValue=Окр3: тыс.");
         editor.modifyParameter(mp);
         XmlNode param = findParameter("Округ");
-        List<XmlNode> avs = param.children("availableValue");
+        assertTrue(param.children("availableValue").isEmpty());
+        List<XmlNode> avs = param.child("availableValues").children("item");
         assertEquals(1, avs.size()); // full replace
         assertEquals("Окр3", avs.get(0).childText("value"));
+    }
+
+    @Test
+    void testModifyParameterValueInfersExistingType() {
+        editor.addParameter(SkdShorthandParser.parseParameter("Период: StandardPeriod = LastMonth"));
+        var mp = SkdShorthandParser.parseModifyParameter("Период value=ThisMonth");
+
+        var r = editor.modifyParameter(mp);
+
+        assertTrue(r.changed);
+        XmlNode value = findParameter("Период").child("value");
+        assertEquals("v8:StandardPeriod", value.attr("xsi:type"));
+        assertEquals("ThisMonth", value.childText("variant"));
     }
 
     // ════════════════════════════════════════════════════════════════════
@@ -371,6 +455,9 @@ class SkdEditorTest {
         assertEquals("C", params.get(0).childText("name"));
         assertEquals("A", params.get(1).childText("name"));
         assertEquals("B", params.get(2).childText("name"));
+        assertThat(document.getRoot().getChildren().indexOf(params.get(2)))
+                .isLessThan(document.getRoot().getChildren().indexOf(
+                        document.getRoot().child("settingsVariant")));
     }
 
     @Test

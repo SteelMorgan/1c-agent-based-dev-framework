@@ -187,6 +187,18 @@ class XmlStructureReaderTest {
     }
 
     @Test
+    void testMultipleRootElementsThrowsParseException() throws Exception {
+        Path file = writeXml("two-roots.xml", false,
+                "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n" +
+                "<Rights xmlns=\"http://v8.1c.ru/8.2/roles\"/>\n" +
+                "<Rights xmlns=\"http://v8.1c.ru/8.2/roles\"/>\n");
+
+        assertThatThrownBy(() -> reader.parse(file))
+                .isInstanceOf(XmlStructureReader.XmlParseException.class)
+                .hasMessageContaining("line");
+    }
+
+    @Test
     void testEmptyFileThrowsParseException() throws Exception {
         Path file = tempDir.resolve("empty.xml");
         Files.writeString(file, "");

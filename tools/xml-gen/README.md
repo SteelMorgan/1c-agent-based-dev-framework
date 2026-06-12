@@ -23,7 +23,7 @@ Java-модуль для генерации XML метаданных 1С из JS
 ./gradlew build
 ```
 
-Fat JAR будет создан в `build/libs/xml-gen-0.1.0-SNAPSHOT.jar` (~5.6MB).
+Fat JAR будет создан в `build/libs/xml-gen-0.1.1-SNAPSHOT.jar` (~5.6MB).
 
 ## Использование
 

@@ -64,13 +64,9 @@ public class SkdValidator implements XmlValidator {
             return;
         }
 
-        // SKD-002: ≥1 <dataSource>
-        List<XmlNode> dataSources = root.children("dataSource");
-        if (dataSources.isEmpty()) {
-            issues.add(ValidationIssue.warning("SKD-002",
-                    "No <dataSource> elements found",
-                    root.getLine(), "/DataCompositionSchema"));
-        }
+        // SKD-002: no global dataSource is valid for empty/helper schemas in
+        // Designer canon. DataSetQuery references are checked separately when
+        // data sets exist.
 
         // SKD-003 + SKD-004: DataSets
         List<XmlNode> dataSets = root.children("dataSet");
@@ -183,21 +179,24 @@ public class SkdValidator implements XmlValidator {
                 }
             }
 
-            // SKD-108: calculatedField должен иметь expression + valueType.
+            // SKD-108: calculatedField должен иметь expression. valueType в 1c-dcs-spec §6 необязателен.
             List<XmlNode> calcFields = ds.children("calculatedField");
             for (int j = 0; j < calcFields.size(); j++) {
                 XmlNode cf = calcFields.get(j);
                 String cfPath = dsPath + "/calculatedField[" + (j + 1) + "]";
+                //**agent TASK-176 [08.06.2026 12:20:00]
+                // S-07 (XG-47, upstream efdf5669): пустой <expression> декларативного
+                // calculatedField легитимен у vendor-схем (формулу может давать соседний
+                // totalField того же dataPath). Java здесь была СТРОЖЕ upstream (error) —
+                // ложный позитив. Понижаем до warning: коллизия всё ещё видна, но не валит
+                // валидацию. Полная totalField-twin-логика (подавление warning при наличии
+                // близнеца) — вынесена в бэклог (граница объёма A-5), здесь только downgrade.
                 if (cf.childText("expression") == null || cf.childText("expression").isEmpty()) {
-                    issues.add(ValidationIssue.error("SKD-108",
-                            "calculatedField missing <expression>",
+                    issues.add(ValidationIssue.warning("SKD-108",
+                            "calculatedField missing <expression> (declarative-only?)",
                             cf.getLine(), cfPath));
                 }
-                if (cf.child("valueType") == null) {
-                    issues.add(ValidationIssue.error("SKD-108",
-                            "calculatedField missing <valueType> (type required for calculated fields)",
-                            cf.getLine(), cfPath));
-                }
+                //**agent TASK-176
             }
 
             // Проверяем поля в settings/filter
@@ -361,8 +360,11 @@ public class SkdValidator implements XmlValidator {
             String xsiType = field.attr("xsi:type");
             if (xsiType != null && !xsiType.isEmpty()) {
                 // SKD-104: xsi:type должен быть валидным
-                // Допустимые: DataSetFieldField, DataSetFieldFolder
-                Set<String> knownFieldTypes = Set.of("DataSetFieldField", "DataSetFieldFolder");
+                // Допустимые платформенные варианты, встречающиеся в Designer XML.
+                Set<String> knownFieldTypes = Set.of(
+                        "DataSetFieldField",
+                        "DataSetFieldFolder",
+                        "DataSetFieldNestedDataSet");
                 if (!knownFieldTypes.contains(xsiType)) {
                     issues.add(ValidationIssue.warning("SKD-104",
                             "Unknown field xsi:type '" + xsiType + "'",

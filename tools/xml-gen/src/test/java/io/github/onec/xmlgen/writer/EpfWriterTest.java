@@ -5,6 +5,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -120,15 +121,16 @@ class EpfWriterTest {
         writer.init("ТестоваяОбработка", "Тестовая обработка", tempDir);
         writer.addTemplate("ТестоваяОбработка", "Справка", "Справка", "HTMLDocument", tempDir);
         
-        Path templateBody = tempDir.resolve("ТестоваяОбработка/Templates/Справка/Ext/Template.html");
-        assertThat(templateBody).exists();
+	        Path templateBody = tempDir.resolve("ТестоваяОбработка/Templates/Справка/Ext/Template.xml");
+	        Path htmlPayload = tempDir.resolve("ТестоваяОбработка/Templates/Справка/Ext/Template/ru.html");
+	        assertThat(templateBody).exists();
+	        assertThat(htmlPayload).exists();
 
-        // TASK-171 D1/W5: тело HTML теперь из единого источника ObjectContainerEditor.getTemplateBody
-        // (минимальный валидный каркас; персональный <title> в каноне не предусмотрен).
-        String body = readStrippingBom(templateBody);
-        assertThat(body).contains("<!DOCTYPE html>");
-        assertThat(body).contains("<meta charset=\"UTF-8\">");
-        assertThat(body).contains("<html>");
+	        // Designer HTMLDocument: wrapper body is Help-like Template.xml, actual HTML is under Template/ru.html.
+	        String body = readStrippingBom(templateBody);
+	        assertThat(body).contains("<Help xmlns=\"http://v8.1c.ru/8.3/xcf/extrnprops\"");
+	        assertThat(body).contains("<Page>ru</Page>");
+	        assertThat(Files.readString(htmlPayload, StandardCharsets.UTF_8)).contains("<html>");
     }
     
     @Test
@@ -186,7 +188,7 @@ class EpfWriterTest {
 
     @Test
     void task171_templateBodiesHaveBom() throws Exception {
-        // TASK-171: тела макетов (Template.xml/.html/.txt) должны писаться с UTF-8 BOM,
+	        // TASK-171: тела макетов (Template.xml/.txt) должны писаться с UTF-8 BOM,
         // как реальные демо-макеты Designer. Раньше Files.writeString писал без BOM.
         EpfWriter writer = new EpfWriter(OutputFormat.DESIGNER);
         writer.init("ТестоваяОбработка", "Тестовая обработка", tempDir);
@@ -196,7 +198,7 @@ class EpfWriterTest {
 
         byte[] mxlBody = Files.readAllBytes(tempDir.resolve("ТестоваяОбработка/Templates/Макет/Ext/Template.xml"));
         assertBom(mxlBody);
-        byte[] htmlBody = Files.readAllBytes(tempDir.resolve("ТестоваяОбработка/Templates/Справка/Ext/Template.html"));
+	        byte[] htmlBody = Files.readAllBytes(tempDir.resolve("ТестоваяОбработка/Templates/Справка/Ext/Template.xml"));
         assertBom(htmlBody);
         byte[] txtBody = Files.readAllBytes(tempDir.resolve("ТестоваяОбработка/Templates/Текст/Ext/Template.txt"));
         assertBom(txtBody);
@@ -314,5 +316,26 @@ class EpfWriterTest {
         String root = Files.readString(tempDir.resolve("ОбычнаяОбработка.xml"));
         assertThat(root).doesNotContain("MainDataCompositionSchema");
         assertThat(root).contains("<Template>Схема</Template>");
+    }
+
+    @Test
+    void addFormAndTemplateInheritExistingExternalObjectFormatVersion() throws Exception {
+        EpfWriter writer = new EpfWriter(OutputFormat.DESIGNER);
+        writer.init("Версия220", "Версия 2.20", tempDir);
+
+        Path rootXml = tempDir.resolve("Версия220.xml");
+        String root = io.github.onec.xmlgen.model.ConfigurationXmlReader.readContent(rootXml)
+                .replace("version=\"2.17\"", "version=\"2.20\"");
+        Files.write(rootXml, io.github.onec.xmlgen.io.Crlf.withBom(root));
+
+        writer.addForm("Версия220", "Форма", "Форма", tempDir, true);
+        writer.addTemplate("Версия220", "ПФ_Макет", "Макет", "SpreadsheetDocument", tempDir);
+
+        assertThat(Files.readString(tempDir.resolve("Версия220/Forms/Форма.xml")))
+                .contains("version=\"2.20\"");
+        assertThat(Files.readString(tempDir.resolve("Версия220/Forms/Форма/Ext/Form.xml")))
+                .contains("version=\"2.20\"");
+        assertThat(Files.readString(tempDir.resolve("Версия220/Templates/ПФ_Макет.xml")))
+                .contains("version=\"2.20\"");
     }
 }

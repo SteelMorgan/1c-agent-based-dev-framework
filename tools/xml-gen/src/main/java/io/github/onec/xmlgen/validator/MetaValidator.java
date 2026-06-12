@@ -138,7 +138,7 @@ public class MetaValidator {
         if (objectDir != null && name != null && !name.isEmpty()) {
             validateFileStructure(objectDir, name, detectedType, typeDesc);
             // TASK-171, проверки 2-4: формы/шаблоны-фантомы + висячие Default*Form.
-            validatePhantomFormsTemplates(objectDir, name, co, props);
+            validatePhantomFormsTemplates(objectDir, name, detectedType, co, props);
         }
 
         return messages;
@@ -156,7 +156,7 @@ public class MetaValidator {
                 validateEnum(props, "CodeSeries",
                         "WholeCatalog", "WithinOwnerSubordination", "WithinSubordination");
                 validateEnum(props, "HierarchyType",
-                        "HierarchyFoldersAndItems", "HierarchyItemsOnly");
+                        "HierarchyFoldersAndItems", "HierarchyItemsOnly", "HierarchyOfItems");
                 validateEnum(props, "DefaultPresentation", "AsDescription", "AsCode");
                 validateEnum(props, "SubordinationUse",
                         "ToItems", "ToFolders", "ToFoldersAndItems");
@@ -404,7 +404,6 @@ public class MetaValidator {
 
         XmlNode stdAttrs = props.child("StandardAttributes");
         if (stdAttrs == null) {
-            warn(type + ": StandardAttributes section missing");
             return;
         }
 
@@ -437,7 +436,10 @@ public class MetaValidator {
             "ScheduledJob", Set.of("CodeLength", "DescriptionLength", "Hierarchical",
                     "NumberLength", "NumberType"),
             "EventSubscription", Set.of("CodeLength", "DescriptionLength", "Hierarchical",
-                    "NumberLength", "NumberType")
+                    "NumberLength", "NumberType"),
+            "DataProcessor", Set.of("MainDataCompositionSchema", "DefaultSettingsForm",
+                    "AuxiliarySettingsForm", "DefaultVariantForm", "VariantsStorage",
+                    "SettingsStorage")
     );
 
     private void validateForbiddenProperties(XmlNode props, String type) {
@@ -478,6 +480,7 @@ public class MetaValidator {
 
     private void validateChildObjects(XmlNode co, TypeDescriptor typeDesc) {
         Set<String> allowedChildren = new HashSet<>(typeDesc.childTypes());
+        String parentType = typeDesc.type();
 
         // Check for unknown child types
         for (XmlNode child : co.getChildren()) {
@@ -489,10 +492,10 @@ public class MetaValidator {
         }
 
         // Validate Attributes
-        validateNamedChildren(co, "Attribute");
+        validateNamedChildren(co, "Attribute", parentType, false);
 
         // Validate Dimensions
-        validateNamedChildren(co, "Dimension");
+        validateNamedChildren(co, "Dimension", parentType, false);
 
         // Validate Resources
         validateNamedChildren(co, "Resource");
@@ -500,7 +503,7 @@ public class MetaValidator {
         // Validate TabularSections
         Set<String> tsNames = new HashSet<>();
         for (XmlNode ts : co.children("TabularSection")) {
-            validateTabularSection(ts, tsNames, typeDesc.type());
+            validateTabularSection(ts, tsNames, parentType);
         }
 
         // Validate EnumValues
@@ -570,6 +573,11 @@ public class MetaValidator {
     }
 
     private void validateNamedChildren(XmlNode co, String childType) {
+        validateNamedChildren(co, childType, null, false);
+    }
+
+    private void validateNamedChildren(XmlNode co, String childType,
+                                       String parentType, boolean tabularSectionAttribute) {
         Set<String> names = new HashSet<>();
         for (XmlNode child : co.children(childType)) {
             // UUID check (presence + format)
@@ -599,9 +607,20 @@ public class MetaValidator {
                     || "ExtDimensionAccountingFlag".equals(childType)
                     || "AddressingAttribute".equals(childType)) {
                 XmlNode typeNode = p.child("Type");
-                if (typeNode == null) {
+                boolean recalculationDimension = "Dimension".equals(childType)
+                        && "Recalculation".equals(parentType)
+                        && p.child("RegisterDimension") != null;
+                if (typeNode == null && !recalculationDimension) {
                     error(childType + " '" + safe(name) + "': Type is required");
                 }
+            }
+
+            if ("Attribute".equals(childType)) {
+                validateAttributePropertyCompatibility(
+                        p,
+                        parentType,
+                        tabularSectionAttribute,
+                        childType + " '" + safe(name) + "'");
             }
         }
     }
@@ -649,6 +668,46 @@ public class MetaValidator {
                 if (aType == null) {
                     error("TabularSection '" + safe(name) + "' Attribute '" + safe(aName) + "': Type is required");
                 }
+                validateAttributePropertyCompatibility(
+                        ap,
+                        parentType,
+                        true,
+                        "TabularSection '" + safe(name) + "' Attribute '" + safe(aName) + "'");
+            }
+        }
+    }
+
+    private void validateAttributePropertyCompatibility(XmlNode props, String parentType,
+                                                        boolean tabularSectionAttribute,
+                                                        String subject) {
+        if (!"Report".equals(parentType) && !"DataProcessor".equals(parentType)) {
+            return;
+        }
+
+        if (tabularSectionAttribute) {
+            requireProperty(props, "FillFromFillingValue", subject, parentType);
+            requireProperty(props, "FillValue", subject, parentType);
+            forbidProperties(props, subject,
+                    "Indexing", "FullTextSearch", "DataHistory", "Use");
+        } else {
+            forbidProperties(props, subject,
+                    "FillFromFillingValue", "FillValue",
+                    "Indexing", "FullTextSearch", "DataHistory", "Use");
+        }
+    }
+
+    private void requireProperty(XmlNode props, String property, String subject, String parentType) {
+        if (props.child(property) == null) {
+            error(subject + ": property <" + property + "> is required for tabular-section "
+                    + "attributes of non-storable " + parentType + " objects");
+        }
+    }
+
+    private void forbidProperties(XmlNode props, String subject, String... properties) {
+        for (String property : properties) {
+            if (props.child(property) != null) {
+                error(subject + ": property <" + property
+                        + "> is not valid for Report/DataProcessor attributes");
             }
         }
     }
@@ -915,7 +974,7 @@ public class MetaValidator {
      * @param props     узел Properties
      */
     private void validatePhantomFormsTemplates(Path objectDir, String name,
-                                               XmlNode co, XmlNode props) {
+                                               String objectType, XmlNode co, XmlNode props) {
         Path objDir = objectDir.resolve(name);
         // Если нормальной структуры каталога нет — ФС-проверки пропускаем (не падаем).
         if (!Files.isDirectory(objDir)) return;
@@ -929,15 +988,19 @@ public class MetaValidator {
                 String formName = f.getText() != null ? f.getText().trim() : "";
                 if (formName.isEmpty()) continue;
                 declaredForms.add(formName);
-                Path wrapper = objDir.resolve("Forms").resolve(formName + ".xml");
-                Path extForm = objDir.resolve("Forms").resolve(formName)
-                        .resolve("Ext").resolve("Form.xml");
-                if (!Files.isRegularFile(wrapper) || !Files.isRegularFile(extForm)) {
-                    error("Form '" + formName + "': объявлена форма, но файлов определения нет "
-                            + "(Forms/" + formName + ".xml / Forms/" + formName
-                            + "/Ext/Form.xml) — форма-фантом.");
-                }
-            }
+	                Path wrapper = objDir.resolve("Forms").resolve(formName + ".xml");
+	                Path extForm = objDir.resolve("Forms").resolve(formName)
+	                        .resolve("Ext").resolve("Form.xml");
+	                boolean wrapperOk = Files.isRegularFile(wrapper);
+	                String formType = wrapperOk ? readFormType(wrapper) : null;
+	                boolean requiresBody = !"Ordinary".equals(formType);
+	                if (!wrapperOk || (requiresBody && !Files.isRegularFile(extForm))) {
+	                    error("Form '" + formName + "': объявлена форма, но файлов определения нет "
+	                            + "(Forms/" + formName + ".xml"
+	                            + (requiresBody ? " / Forms/" + formName + "/Ext/Form.xml" : "")
+	                            + ") — форма-фантом.");
+	                }
+	            }
             // Проверка 3: фантом-шаблон.
             for (XmlNode t : co.children("Template")) {
                 if (t.attr("uuid") != null || t.hasChild("Properties")) continue;
@@ -953,36 +1016,120 @@ public class MetaValidator {
 
         // Проверка 4: висячий Default*Form в Properties.
         if (props != null) {
-            String[] defaultFormProps = {
+            Set<String> defaultFormProps = new LinkedHashSet<>(List.of(
                     "DefaultObjectForm", "DefaultListForm", "DefaultChoiceForm",
                     "DefaultFolderForm", "DefaultFolderListForm", "DefaultRecordForm"
-            };
+            ));
+            if ("Report".equals(objectType) || "DataProcessor".equals(objectType)
+                    || "DocumentJournal".equals(objectType)) {
+                defaultFormProps.add("DefaultForm");
+                defaultFormProps.add("AuxiliaryForm");
+            }
+            if ("Report".equals(objectType)) {
+                defaultFormProps.add("DefaultSettingsForm");
+                defaultFormProps.add("AuxiliarySettingsForm");
+                defaultFormProps.add("DefaultVariantForm");
+            }
             for (String propName : defaultFormProps) {
                 XmlNode dn = props.child(propName);
                 if (dn == null) continue;
                 String ref = dn.getText() != null ? dn.getText().trim() : "";
                 if (ref.isEmpty()) continue; // пустой <Default…Form/> — игнорируем
-                // Формат: <Тип>.<Объект>.Form.<ИмяФормы>
-                int formIdx = ref.lastIndexOf(".Form.");
-                String formName = formIdx >= 0 ? ref.substring(formIdx + ".Form.".length()) : null;
-                if (formName == null || formName.isEmpty()) {
-                    error("Properties: " + propName + " = '" + ref
-                            + "' — не удалось извлечь имя формы (ожидается Тип.Объект.Form.Имя).");
+                String localPrefix = objectType + "." + name + ".Form.";
+                if (!ref.startsWith(localPrefix)) {
+                    // CommonForm.* and other shared-form references are valid references outside
+                    // the current object's Forms directory; this validator has no global resolver.
                     continue;
                 }
-                Path wrapper = objDir.resolve("Forms").resolve(formName + ".xml");
-                Path extForm = objDir.resolve("Forms").resolve(formName)
-                        .resolve("Ext").resolve("Form.xml");
-                boolean declared = declaredForms.contains(formName);
-                boolean filesOk = Files.isRegularFile(wrapper) && Files.isRegularFile(extForm);
-                if (!declared || !filesOk) {
-                    error("Properties: " + propName + " ссылается на форму '" + formName
-                            + "', которая не объявлена текст-ссылкой / не имеет файлов "
+	                String formName = ref.substring(localPrefix.length());
+	                Path wrapper = objDir.resolve("Forms").resolve(formName + ".xml");
+	                Path extForm = objDir.resolve("Forms").resolve(formName)
+	                        .resolve("Ext").resolve("Form.xml");
+	                String formType = Files.isRegularFile(wrapper) ? readFormType(wrapper) : null;
+	                boolean requiresBody = !"Ordinary".equals(formType);
+	                boolean declared = declaredForms.contains(formName);
+	                boolean filesOk = Files.isRegularFile(wrapper) && (!requiresBody || Files.isRegularFile(extForm));
+	                if (!declared || !filesOk) {
+	                    error("Properties: " + propName + " ссылается на форму '" + formName
+	                            + "', которая не объявлена текст-ссылкой / не имеет файлов "
                             + "(Forms/" + formName + ".xml) — висячая ссылка на форму.");
                 }
             }
+
+            if ("Report".equals(objectType)) {
+                validateReportMainDataCompositionSchema(objDir, name, co, props);
+            }
         }
     }
+
+    private void validateReportMainDataCompositionSchema(Path objDir, String reportName,
+                                                         XmlNode co, XmlNode props) {
+        XmlNode mainNode = props.child("MainDataCompositionSchema");
+        if (mainNode == null) return;
+        String ref = mainNode.getText() != null ? mainNode.getText().trim() : "";
+        if (ref.isEmpty()) return;
+
+        String prefix = "Report." + reportName + ".Template.";
+        if (!ref.startsWith(prefix)) {
+            error("Properties: MainDataCompositionSchema = '" + ref
+                    + "' — expected local report template reference '" + prefix + "<TemplateName>'.");
+            return;
+        }
+
+        String templateName = ref.substring(prefix.length());
+        Set<String> declaredTemplates = new HashSet<>();
+        if (co != null) {
+            for (XmlNode t : co.children("Template")) {
+                if (t.attr("uuid") != null || t.hasChild("Properties")) continue;
+                String name = t.getText() != null ? t.getText().trim() : "";
+                if (!name.isEmpty()) declaredTemplates.add(name);
+            }
+        }
+        if (!declaredTemplates.contains(templateName)) {
+            error("Properties: MainDataCompositionSchema points to template '" + templateName
+                    + "', but it is not declared as <Template>" + templateName
+                    + "</Template> in ChildObjects.");
+            return;
+        }
+
+        Path wrapper = objDir.resolve("Templates").resolve(templateName + ".xml");
+        if (!Files.isRegularFile(wrapper)) {
+            error("Properties: MainDataCompositionSchema points to template '" + templateName
+                    + "', but Templates/" + templateName + ".xml does not exist.");
+            return;
+        }
+
+        String templateType = readTemplateType(wrapper);
+        if (templateType != null && !"DataCompositionSchema".equals(templateType)) {
+            error("Properties: MainDataCompositionSchema template '" + templateName
+                    + "' has TemplateType '" + templateType
+                    + "', expected DataCompositionSchema.");
+        }
+    }
+
+	    private String readTemplateType(Path wrapper) {
+	        try {
+	            String content = Files.readString(wrapper);
+            java.util.regex.Matcher matcher = java.util.regex.Pattern
+                    .compile("<TemplateType>([^<]+)</TemplateType>")
+                    .matcher(content);
+            return matcher.find() ? matcher.group(1).trim() : null;
+        } catch (Exception e) {
+	            return null;
+	        }
+	    }
+
+	    private String readFormType(Path wrapper) {
+	        try {
+	            String content = Files.readString(wrapper);
+	            java.util.regex.Matcher matcher = java.util.regex.Pattern
+	                    .compile("<FormType>([^<]+)</FormType>")
+	                    .matcher(content);
+	            return matcher.find() ? matcher.group(1).trim() : null;
+	        } catch (Exception e) {
+	            return null;
+	        }
+	    }
 
     // ==================== Helpers ====================
 

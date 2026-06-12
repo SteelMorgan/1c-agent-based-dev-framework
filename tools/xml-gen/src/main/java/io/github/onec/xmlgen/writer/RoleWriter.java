@@ -3,6 +3,7 @@ package io.github.onec.xmlgen.writer;
 import com.github._1c_syntax.bsl.mdo.support.RoleRight;
 import com.github._1c_syntax.bsl.types.MDOType;
 import io.github.onec.xmlgen.dsl.RoleDsl;
+import io.github.onec.xmlgen.editor.ConfigEditor;
 import io.github.onec.xmlgen.format.OutputFormat;
 import io.github.onec.xmlgen.model.ConfigurationXmlReader;
 import io.github.onec.xmlgen.model.UuidGenerator;
@@ -11,7 +12,10 @@ import javax.xml.stream.XMLStreamException;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -52,6 +56,7 @@ public class RoleWriter extends XmlWriter {
         // outputDir — корень конфигурации (тут же лежит Configuration.xml и сюда пишутся Roles/).
         String formatVersion = ConfigurationXmlReader.readFormatVersion(
                 outputDir.resolve("Configuration.xml"));
+        preflightRegistration(outputDir.resolve("Configuration.xml"), name);
 
         // Создать структуру каталогов
         Path roleDir = outputDir.resolve("Roles").resolve(name);
@@ -63,6 +68,9 @@ public class RoleWriter extends XmlWriter {
 
         // 2. Создать Rights.xml
         createRightsXml(roleDir.resolve("Ext/Rights.xml"), dsl, formatVersion);
+
+        // 3. Зарегистрировать роль в Configuration.xml, если компиляция идёт из корня выгрузки.
+        registerInConfiguration(outputDir.resolve("Configuration.xml"), name);
         
         System.out.println("Created role: " + name);
         System.out.println("  Metadata: " + outputDir.resolve("Roles").resolve(name + ".xml"));
@@ -154,16 +162,54 @@ public class RoleWriter extends XmlWriter {
         writer.writeEndElement(); // Rights
         close();
     }
+
+    /**
+     * Зарегистрировать роль в {@code Configuration.xml/ChildObjects}, если файл конфигурации
+     * доступен рядом с {@code outputDir}. Без этой записи Designer не видит созданную роль
+     * как объект конфигурации.
+     */
+    private void registerInConfiguration(Path configurationXml, String name) {
+        if (!Files.isRegularFile(configurationXml)) {
+            System.err.println("WARN: Configuration.xml not found at " + configurationXml
+                    + " — role Role." + name + " was not registered in ChildObjects.");
+            return;
+        }
+        try {
+            ConfigEditor editor = new ConfigEditor(configurationXml);
+            editor.addChildObject("Role." + name);
+            editor.save();
+        } catch (IOException e) {
+            throw new RuntimeException("Failed to register Role." + name
+                    + " in Configuration.xml: " + e.getMessage(), e);
+        }
+    }
+
+    private void preflightRegistration(Path configurationXml, String name) {
+        if (!Files.isRegularFile(configurationXml)) {
+            return;
+        }
+        try {
+            ConfigEditor editor = new ConfigEditor(configurationXml);
+            editor.setSkipFileCheck(true);
+            editor.addChildObject("Role." + name);
+        } catch (IOException e) {
+            throw new RuntimeException("Failed to preflight Role." + name
+                    + " registration in Configuration.xml: " + e.getMessage(), e);
+        }
+    }
     
     /**
      * Записать права объекта.
      */
     private void writeObjectRights(RoleDsl.ObjectRights obj) throws XMLStreamException {
+        String objectName = RoleDsl.normalizeObjectName(obj.getName());
+        Map<String, String> rls = normalizeRls(obj.getRls());
+
         startElement("object");
-        writeElement("name", obj.getName());
+        writeElement("name", objectName);
         
         // Получить список прав
-        Map<String, Boolean> rights = resolveRights(obj);
+        Map<String, Boolean> rights = resolveRights(objectName, obj);
         
         // Записать права
         for (Map.Entry<String, Boolean> right : rights.entrySet()) {
@@ -172,9 +218,9 @@ public class RoleWriter extends XmlWriter {
             writeElement("value", String.valueOf(right.getValue()));
             
             // RLS (если есть)
-            if (obj.getRls() != null && obj.getRls().containsKey(right.getKey())) {
+            if (rls != null && rls.containsKey(right.getKey())) {
                 startElement("restrictionByCondition");
-                writeElement("condition", obj.getRls().get(right.getKey()));
+                writeElement("condition", rls.get(right.getKey()));
                 endElement(); // restrictionByCondition
             }
             
@@ -187,12 +233,12 @@ public class RoleWriter extends XmlWriter {
     /**
      * Разрешить права объекта (применить пресет + переопределения).
      */
-    private Map<String, Boolean> resolveRights(RoleDsl.ObjectRights obj) {
-        Map<String, Boolean> result = new HashMap<>();
+    private Map<String, Boolean> resolveRights(String objectName, RoleDsl.ObjectRights obj) {
+        Map<String, Boolean> result = new LinkedHashMap<>();
         
         // Применить пресет
         if (obj.getPreset() != null) {
-            result.putAll(getPresetRights(obj.getName(), obj.getPreset()));
+            result.putAll(getPresetRights(objectName, obj.getPreset()));
         }
         
         // Применить переопределения
@@ -200,14 +246,18 @@ public class RoleWriter extends XmlWriter {
             if (obj.getRights() instanceof Map) {
                 @SuppressWarnings("unchecked")
                 Map<String, Object> rightsMap = (Map<String, Object>) obj.getRights();
-                for (Map.Entry<String, Object> entry : rightsMap.entrySet()) {
-                    result.put(entry.getKey(), Boolean.valueOf(entry.getValue().toString()));
+                List<Map.Entry<String, Object>> entries = new ArrayList<>(rightsMap.entrySet());
+                entries.sort(Comparator.comparingInt(e ->
+                        roleRightOrder(RoleDsl.normalizeRightNameStrict(e.getKey()))));
+                for (Map.Entry<String, Object> entry : entries) {
+                    result.put(RoleDsl.normalizeRightNameStrict(entry.getKey()),
+                            Boolean.valueOf(entry.getValue().toString()));
                 }
             } else if (obj.getRights() instanceof List) {
                 @SuppressWarnings("unchecked")
                 List<String> rightsList = (List<String>) obj.getRights();
                 for (String right : rightsList) {
-                    result.put(right, true);
+                    result.put(RoleDsl.normalizeRightNameStrict(right), true);
                 }
             }
         }
@@ -221,7 +271,7 @@ public class RoleWriter extends XmlWriter {
             rights.put(r.fullName().getEn(), true);
         }
     }
-    
+
     /** Определить MDOType из имени объекта (Catalog.Товары → CATALOG). */
     private static MDOType resolveObjectType(String objectName) {
         String typePart = objectName.split("\\.")[0];
@@ -233,32 +283,46 @@ public class RoleWriter extends XmlWriter {
      * Использует enum-ы RoleRight и MDOType из mdclasses.
      */
     private Map<String, Boolean> getPresetRights(String objectName, String preset) {
-        Map<String, Boolean> rights = new HashMap<>();
+        Map<String, Boolean> rights = new LinkedHashMap<>();
         MDOType mdoType = resolveObjectType(objectName);
+        String typePart = objectName.split("\\.")[0];
         
+        // Keep presets within the top-level rights matrix from 1c-role-spec.md.
+        // Some types do not have Read/View or CRUD rights at all.
+        boolean isRegister = (mdoType == MDOType.INFORMATION_REGISTER
+                || mdoType == MDOType.ACCUMULATION_REGISTER
+                || mdoType == MDOType.ACCOUNTING_REGISTER);
+
         switch (preset.toLowerCase()) {
             case "view":
+                if (grantSimplePreset(rights, typePart, false)) {
+                    break;
+                }
                 grant(rights, RoleRight.READ, RoleRight.VIEW);
                 if (mdoType == MDOType.CATALOG || mdoType == MDOType.DOCUMENT) {
                     grant(rights, RoleRight.INPUT_BY_STRING);
                 }
-                if (mdoType == MDOType.DATA_PROCESSOR || mdoType == MDOType.REPORT) {
-                    grant(rights, RoleRight.USE);
-                }
                 break;
-                
+
             case "edit":
+                if (grantSimplePreset(rights, typePart, true)) {
+                    break;
+                }
+                if (isRegister) {
+                    grant(rights, RoleRight.READ, RoleRight.UPDATE, RoleRight.VIEW, RoleRight.EDIT);
+                    break;
+                }
                 grant(rights,
                     RoleRight.READ, RoleRight.INSERT, RoleRight.UPDATE, RoleRight.DELETE,
                     RoleRight.VIEW, RoleRight.EDIT,
                     RoleRight.INTERACTIVE_INSERT, RoleRight.INTERACTIVE_DELETE,
                     RoleRight.INTERACTIVE_SET_DELETION_MARK, RoleRight.INTERACTIVE_CLEAR_DELETION_MARK
                 );
-                
+
                 if (mdoType == MDOType.CATALOG || mdoType == MDOType.DOCUMENT) {
                     grant(rights, RoleRight.INPUT_BY_STRING, RoleRight.INTERACTIVE_DELETE_MARKED);
                 }
-                
+
                 if (mdoType == MDOType.DOCUMENT) {
                     grant(rights,
                         RoleRight.POSTING, RoleRight.UNDO_POSTING,
@@ -274,6 +338,65 @@ public class RoleWriter extends XmlWriter {
         }
         
         return rights;
+    }
+
+    private boolean grantSimplePreset(Map<String, Boolean> rights, String typePart, boolean editPreset) {
+        switch (typePart) {
+            case "DataProcessor", "Report" -> grant(rights, RoleRight.USE, RoleRight.VIEW);
+            case "CommonForm", "CommonCommand", "Subsystem", "FilterCriterion" -> grant(rights, RoleRight.VIEW);
+            case "DocumentJournal" -> grant(rights, RoleRight.READ, RoleRight.VIEW);
+            case "Sequence" -> {
+                grant(rights, RoleRight.READ);
+                if (editPreset) {
+                    grant(rights, RoleRight.UPDATE);
+                }
+            }
+            case "WebService", "HTTPService", "IntegrationService" -> grant(rights, RoleRight.USE);
+            case "SessionParameter" -> {
+                grant(rights, RoleRight.GET);
+                if (editPreset) {
+                    grant(rights, RoleRight.SET);
+                }
+            }
+            case "CommonAttribute" -> {
+                grant(rights, RoleRight.VIEW);
+                if (editPreset) {
+                    grant(rights, RoleRight.EDIT);
+                }
+            }
+            case "Constant" -> {
+                grant(rights, RoleRight.READ, RoleRight.VIEW);
+                if (editPreset) {
+                    grant(rights, RoleRight.UPDATE, RoleRight.EDIT);
+                }
+            }
+            case "CalculationRegister" -> grant(rights, RoleRight.READ, RoleRight.VIEW);
+            default -> {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private static Map<String, String> normalizeRls(Map<String, String> rls) {
+        if (rls == null) {
+            return null;
+        }
+        Map<String, String> result = new LinkedHashMap<>();
+        for (Map.Entry<String, String> entry : rls.entrySet()) {
+            result.put(RoleDsl.normalizeRightNameStrict(entry.getKey()), entry.getValue());
+        }
+        return result;
+    }
+
+    private static int roleRightOrder(String rightName) {
+        RoleRight[] values = RoleRight.values();
+        for (int i = 0; i < values.length; i++) {
+            if (values[i] != RoleRight.UNKNOWN && values[i].fullName().getEn().equals(rightName)) {
+                return i;
+            }
+        }
+        return Integer.MAX_VALUE;
     }
     
     /**

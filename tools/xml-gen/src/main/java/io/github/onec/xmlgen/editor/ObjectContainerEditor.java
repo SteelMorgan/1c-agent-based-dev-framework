@@ -1,5 +1,6 @@
 package io.github.onec.xmlgen.editor;
 
+import io.github.onec.xmlgen.model.ConfigurationXmlReader;
 import io.github.onec.xmlgen.model.UuidGenerator;
 
 import java.io.IOException;
@@ -215,16 +216,26 @@ public class ObjectContainerEditor {
      */
     public static void createFormScaffold(Path baseDir, String formName, String synonym,
                                           String objectType, String objectName) throws IOException {
+        createFormScaffold(baseDir, formName, synonym, objectType, objectName,
+                ConfigurationXmlReader.DEFAULT_FORMAT_VERSION);
+    }
+
+    public static void createFormScaffold(Path baseDir, String formName, String synonym,
+                                          String objectType, String objectName,
+                                          String formatVersion) throws IOException {
         Path formsDir = baseDir.resolve("Forms");
         Files.createDirectories(formsDir);
 
         String formUuid = UuidGenerator.generate();
         String syn = synonym != null ? synonym : formName;
         String generatedType = objectType + "Object." + objectName;
+        String fmt = effectiveFormatVersion(formatVersion);
 
         // 1. Form metadata: Forms/<formName>.xml
-        String metaXml = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
-                + "<MetaDataObject xmlns=\"http://v8.1c.ru/8.3/MDClasses\" xmlns:v8=\"http://v8.1c.ru/8.1/data/core\" version=\"2.17\">\n"
+	        String metaXml = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
+	                + "<MetaDataObject xmlns=\"http://v8.1c.ru/8.3/MDClasses\" xmlns:v8=\"http://v8.1c.ru/8.1/data/core\" "
+	                + "xmlns:app=\"http://v8.1c.ru/8.2/managed-application/core\" "
+	                + "xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\" version=\"" + escapeXml(fmt) + "\">\n"
                 + "\t<Form uuid=\"" + formUuid + "\">\n"
                 + "\t\t<Properties>\n"
                 + "\t\t\t<Name>" + escapeXml(formName) + "</Name>\n"
@@ -234,10 +245,14 @@ public class ObjectContainerEditor {
                 + "\t\t\t\t\t<v8:content>" + escapeXml(syn) + "</v8:content>\n"
                 + "\t\t\t\t</v8:item>\n"
                 + "\t\t\t</Synonym>\n"
-                + "\t\t\t<Comment></Comment>\n"
-                + "\t\t\t<FormType>Managed</FormType>\n"
-                + "\t\t\t<IncludeHelpInContents>false</IncludeHelpInContents>\n"
-                + "\t\t</Properties>\n"
+	                + "\t\t\t<Comment></Comment>\n"
+	                + "\t\t\t<FormType>Managed</FormType>\n"
+	                + "\t\t\t<IncludeHelpInContents>false</IncludeHelpInContents>\n"
+	                + "\t\t\t<UsePurposes>\n"
+	                + "\t\t\t\t<v8:Value xsi:type=\"app:ApplicationUsePurpose\">PlatformApplication</v8:Value>\n"
+	                + "\t\t\t\t<v8:Value xsi:type=\"app:ApplicationUsePurpose\">MobilePlatformApplication</v8:Value>\n"
+	                + "\t\t\t</UsePurposes>\n"
+	                + "\t\t</Properties>\n"
                 + "\t</Form>\n"
                 + "</MetaDataObject>\n";
         writeWithBom(formsDir.resolve(formName + ".xml"), metaXml);
@@ -251,21 +266,27 @@ public class ObjectContainerEditor {
                 + "\txmlns:v8=\"http://v8.1c.ru/8.1/data/core\"\n"
                 + "\txmlns:v8ui=\"http://v8.1c.ru/8.1/data/ui\"\n"
                 + "\txmlns:xs=\"http://www.w3.org/2001/XMLSchema\"\n"
-                + "\txmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\">\n"
-                + "\t<AutoCommandBar>\n"
-                + "\t\t<name>АвтоКоманднаяПанель</name>\n"
-                + "\t</AutoCommandBar>\n"
+                + "\txmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\"\n"
+                + "\tversion=\"" + escapeXml(fmt) + "\">\n"
+                + "\t<Title>\n"
+                + "\t\t<v8:item>\n"
+                + "\t\t\t<v8:lang>ru</v8:lang>\n"
+                + "\t\t\t<v8:content>" + escapeXml(syn) + "</v8:content>\n"
+                + "\t\t</v8:item>\n"
+                + "\t</Title>\n"
+                + "\t<AutoCommandBar name=\"ФормаКоманднаяПанель\" id=\"-1\"/>\n"
                 + "\t<Events>\n"
                 + "\t\t<Event name=\"OnCreateAtServer\">ПриСозданииНаСервере</Event>\n"
                 + "\t</Events>\n"
                 + "\t<Attributes>\n"
-                + "\t\t<Attribute name=\"Объект\">\n"
+                + "\t\t<Attribute name=\"Объект\" id=\"1\">\n"
                 + "\t\t\t<MainAttribute>true</MainAttribute>\n"
                 + "\t\t\t<Type>\n"
                 + "\t\t\t\t<v8:Type>cfg:" + generatedType + "</v8:Type>\n"
                 + "\t\t\t</Type>\n"
                 + "\t\t</Attribute>\n"
                 + "\t</Attributes>\n"
+                + "\t<ChildItems/>\n"
                 + "</Form>\n";
         writeWithBom(formExtDir.resolve("Form.xml"), formXml);
 
@@ -296,15 +317,22 @@ public class ObjectContainerEditor {
      */
     public static void createTemplateScaffold(Path baseDir, String templateName, String synonym,
                                               String templateType) throws IOException {
+        createTemplateScaffold(baseDir, templateName, synonym, templateType,
+                ConfigurationXmlReader.DEFAULT_FORMAT_VERSION);
+    }
+
+    public static void createTemplateScaffold(Path baseDir, String templateName, String synonym,
+                                              String templateType, String formatVersion) throws IOException {
         Path templatesDir = baseDir.resolve("Templates");
         Files.createDirectories(templatesDir);
 
         String uuid = UuidGenerator.generate();
         String syn = synonym != null ? synonym : templateName;
+        String fmt = effectiveFormatVersion(formatVersion);
 
         // 1. Template metadata
         String metaXml = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
-                + "<MetaDataObject xmlns=\"http://v8.1c.ru/8.3/MDClasses\" xmlns:v8=\"http://v8.1c.ru/8.1/data/core\" version=\"2.17\">\n"
+                + "<MetaDataObject xmlns=\"http://v8.1c.ru/8.3/MDClasses\" xmlns:v8=\"http://v8.1c.ru/8.1/data/core\" version=\"" + escapeXml(fmt) + "\">\n"
                 + "\t<Template uuid=\"" + uuid + "\">\n"
                 + "\t\t<Properties>\n"
                 + "\t\t\t<Name>" + escapeXml(templateName) + "</Name>\n"
@@ -327,11 +355,14 @@ public class ObjectContainerEditor {
 
         String ext = getExtension(templateType);
         Path bodyPath = extDir.resolve("Template." + ext);
-        String body = getTemplateBody(templateType);
+        String body = getTemplateBody(templateType, fmt);
         // TASK-171 D7: тела макетов в Designer-выводе пишем с UTF-8 BOM — реальные демо-макеты
         // (src/xml/.../Templates/**/Ext/Template.xml) начинаются с ef bb bf, как и весь Designer-дамп.
         // BinaryData/TextDocument дают пустое тело — пишем только BOM (как в EPF-ветке).
         writeWithBom(bodyPath, body);
+        if ("Help".equals(templateType) || "HTMLDocument".equals(templateType)) {
+            createHelpTemplateHtml(extDir, "ru");
+        }
     }
 
     /**
@@ -341,15 +372,20 @@ public class ObjectContainerEditor {
      * @param lang    язык (по умолчанию "ru")
      */
     public static void createHelpScaffold(Path baseDir, String lang) throws IOException {
+        createHelpScaffold(baseDir, lang, ConfigurationXmlReader.DEFAULT_FORMAT_VERSION);
+    }
+
+    public static void createHelpScaffold(Path baseDir, String lang, String formatVersion) throws IOException {
         Path extDir = baseDir.resolve("Ext");
         Files.createDirectories(extDir);
+        String fmt = effectiveFormatVersion(formatVersion);
 
         // Help.xml
         String helpXml = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
                 + "<Help xmlns=\"http://v8.1c.ru/8.3/xcf/extrnprops\"\n"
                 + "\txmlns:xs=\"http://www.w3.org/2001/XMLSchema\"\n"
                 + "\txmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\"\n"
-                + "\tversion=\"2.17\">\n"
+                + "\tversion=\"" + escapeXml(fmt) + "\">\n"
                 + "\t<Page>" + escapeXml(lang) + "</Page>\n"
                 + "</Help>\n";
         writeWithBom(extDir.resolve("Help.xml"), helpXml);
@@ -443,6 +479,12 @@ public class ObjectContainerEditor {
                 .replace("\"", "&quot;").replace("'", "&apos;");
     }
 
+    private static String effectiveFormatVersion(String formatVersion) {
+        return formatVersion == null || formatVersion.isBlank()
+                ? ConfigurationXmlReader.DEFAULT_FORMAT_VERSION
+                : formatVersion;
+    }
+
     private static void writeWithBom(Path path, String content) throws IOException {
         //++agent TASK-172 [02.06.2026 07:15:00]
         // Канон Designer (_Демо): новые scaffold-файлы объекта (форма/макет/Help) — BOM + CRLF.
@@ -454,11 +496,13 @@ public class ObjectContainerEditor {
      * Расширение файла тела макета по типу (Designer-раскладка).
      * TASK-171: public static — единый источник истины для EpfWriter (EPF/ERF идут тем же путём, W5).
      */
-    public static String getExtension(String templateType) {
-        switch (templateType) {
-            case "HTMLDocument": return "html";
-            case "TextDocument": return "txt";
+	    public static String getExtension(String templateType) {
+	        switch (templateType) {
+	            case "HTMLDocument": return "xml";
+	            case "TextDocument": return "txt";
             case "BinaryData": return "bin";
+            case "AddIn": return "bin";
+            case "Help": return "xml";
             default: return "xml"; // SpreadsheetDocument, DataCompositionSchema
         }
     }
@@ -470,6 +514,11 @@ public class ObjectContainerEditor {
      * (SpreadsheetDocument → корень {@code <document>}, DCS → {@code <DataCompositionSchema>}).
      */
     public static String getTemplateBody(String templateType) {
+        return getTemplateBody(templateType, ConfigurationXmlReader.DEFAULT_FORMAT_VERSION);
+    }
+
+    private static String getTemplateBody(String templateType, String formatVersion) {
+        String fmt = effectiveFormatVersion(formatVersion);
         switch (templateType) {
             case "SpreadsheetDocument":
                 return "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
@@ -487,14 +536,48 @@ public class ObjectContainerEditor {
                         + "\t\t<dataSourceType>Local</dataSourceType>\n"
                         + "\t</dataSource>\n"
                         + "</DataCompositionSchema>\n";
-            case "HTMLDocument":
-                return "<!DOCTYPE html>\n<html>\n<head>\n\t<meta charset=\"UTF-8\">\n</head>\n<body>\n</body>\n</html>\n";
+	            case "HTMLDocument":
+	                return "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
+	                        + "<Help xmlns=\"http://v8.1c.ru/8.3/xcf/extrnprops\"\n"
+	                        + "\txmlns:xs=\"http://www.w3.org/2001/XMLSchema\"\n"
+	                        + "\txmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\"\n"
+	                        + "\tversion=\"" + escapeXml(fmt) + "\">\n"
+	                        + "\t<Page>ru</Page>\n"
+	                        + "</Help>\n";
             case "TextDocument":
                 return "";
             case "BinaryData":
                 return "";
+            case "AddIn":
+                return "";
+            case "Help":
+                return "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
+                        + "<Help xmlns=\"http://v8.1c.ru/8.3/xcf/extrnprops\"\n"
+                        + "\txmlns:xs=\"http://www.w3.org/2001/XMLSchema\"\n"
+                        + "\txmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\"\n"
+                        + "\tversion=\"" + escapeXml(fmt) + "\">\n"
+                        + "\t<Page>ru</Page>\n"
+                        + "</Help>\n";
             default:
                 return "";
         }
+    }
+
+    private static void createHelpTemplateHtml(Path extDir, String lang) throws IOException {
+        Path helpDir = extDir.resolve("Template");
+        Files.createDirectories(helpDir);
+        String html = "<!DOCTYPE html PUBLIC \"-//W3C//DTD HTML 4.0 Transitional//EN\">\n"
+                + "<html>\n"
+                + "<head>\n"
+                + "\t<meta http-equiv=\"Content-Type\" content=\"text/html; charset=utf-8\"/>\n"
+                + "\t<link rel=\"stylesheet\" type=\"text/css\" href=\"v8help://service_book/service_style\"/>\n"
+                + "</head>\n"
+                + "<body>\n"
+                + "\t<h1>Справка</h1>\n"
+                + "\t<p>Описание макета справки.</p>\n"
+                + "</body>\n"
+                + "</html>\n";
+        Files.writeString(helpDir.resolve(lang + ".html"),
+                io.github.onec.xmlgen.io.Crlf.normalize(html), StandardCharsets.UTF_8);
     }
 }

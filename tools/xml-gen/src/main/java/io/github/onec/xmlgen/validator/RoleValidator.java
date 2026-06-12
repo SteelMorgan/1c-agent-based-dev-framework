@@ -15,20 +15,152 @@ public class RoleValidator implements XmlValidator {
 
     private static final String NS_ROLES = "http://v8.1c.ru/8.2/roles";
 
-    // Права, применимые только к Document
-    private static final Set<String> DOCUMENT_ONLY_RIGHTS = Set.of(
-            "Posting", "UndoPosting",
-            "InteractivePosting", "InteractivePostingRegular",
-            "InteractiveUndoPosting", "InteractiveChangeOfPosted"
+    private static final Set<String> CATALOG_RIGHTS = rights(
+            "Read", "Insert", "Update", "Delete", "View", "Edit", "InputByString",
+            "InteractiveInsert", "InteractiveSetDeletionMark", "InteractiveClearDeletionMark",
+            "InteractiveDelete", "InteractiveDeleteMarked", "InteractiveDeletePredefinedData",
+            "InteractiveSetDeletionMarkPredefinedData", "InteractiveClearDeletionMarkPredefinedData",
+            "InteractiveDeleteMarkedPredefinedData", "ReadDataHistory", "ViewDataHistory",
+            "UpdateDataHistory", "UpdateDataHistoryOfMissingData", "ReadDataHistoryOfMissingData",
+            "UpdateDataHistorySettings", "UpdateDataHistoryVersionComment",
+            "EditDataHistoryVersionComment", "SwitchToDataHistoryVersion");
+
+    private static final Set<String> DOCUMENT_RIGHTS = rights(
+            "Read", "Insert", "Update", "Delete", "View", "Edit", "InputByString",
+            "InteractiveInsert", "InteractiveSetDeletionMark", "InteractiveClearDeletionMark",
+            "InteractiveDelete", "InteractiveDeleteMarked", "ReadDataHistory", "ViewDataHistory",
+            "UpdateDataHistory", "UpdateDataHistoryOfMissingData", "ReadDataHistoryOfMissingData",
+            "UpdateDataHistorySettings", "UpdateDataHistoryVersionComment",
+            "EditDataHistoryVersionComment", "SwitchToDataHistoryVersion",
+            "Posting", "UndoPosting", "InteractivePosting", "InteractivePostingRegular",
+            "InteractiveUndoPosting", "InteractiveChangeOfPosted");
+
+    private static final Set<String> INFORMATION_REGISTER_RIGHTS = rights(
+            "Read", "Update", "View", "Edit", "TotalsControl", "ReadDataHistory",
+            "ViewDataHistory", "UpdateDataHistory", "UpdateDataHistoryOfMissingData",
+            "ReadDataHistoryOfMissingData", "UpdateDataHistorySettings",
+            "UpdateDataHistoryVersionComment", "EditDataHistoryVersionComment",
+            "SwitchToDataHistoryVersion");
+
+    private static final Set<String> REGISTER_RIGHTS = rights(
+            "Read", "Update", "View", "Edit", "TotalsControl");
+
+    private static final Set<String> CONSTANT_RIGHTS = rights(
+            "Read", "Update", "View", "Edit", "ReadDataHistory", "ViewDataHistory",
+            "UpdateDataHistory", "UpdateDataHistorySettings", "UpdateDataHistoryVersionComment",
+            "EditDataHistoryVersionComment", "SwitchToDataHistoryVersion");
+
+    private static final Set<String> CHART_OF_ACCOUNTS_RIGHTS = rights(
+            "Read", "Insert", "Update", "Delete", "View", "Edit", "InputByString",
+            "InteractiveInsert", "InteractiveSetDeletionMark", "InteractiveClearDeletionMark",
+            "InteractiveDelete", "InteractiveDeletePredefinedData",
+            "InteractiveSetDeletionMarkPredefinedData", "InteractiveClearDeletionMarkPredefinedData",
+            "InteractiveDeleteMarkedPredefinedData", "ReadDataHistory", "ReadDataHistoryOfMissingData",
+            "UpdateDataHistory", "UpdateDataHistoryOfMissingData", "UpdateDataHistorySettings",
+            "UpdateDataHistoryVersionComment");
+
+    private static final Set<String> CHART_OF_CHARACTERISTIC_TYPES_RIGHTS = rights(
+            "Read", "Insert", "Update", "Delete", "View", "Edit", "InputByString",
+            "InteractiveInsert", "InteractiveSetDeletionMark", "InteractiveClearDeletionMark",
+            "InteractiveDelete", "InteractiveDeletePredefinedData",
+            "InteractiveSetDeletionMarkPredefinedData", "InteractiveClearDeletionMarkPredefinedData",
+            "InteractiveDeleteMarkedPredefinedData", "ReadDataHistory", "ReadDataHistoryOfMissingData",
+            "UpdateDataHistory", "UpdateDataHistoryOfMissingData", "UpdateDataHistorySettings",
+            "UpdateDataHistoryVersionComment", "InteractiveDeleteMarked",
+            "EditDataHistoryVersionComment", "SwitchToDataHistoryVersion", "ViewDataHistory");
+
+    private static final Set<String> CHART_OF_CALCULATION_TYPES_RIGHTS = rights(
+            "Read", "Insert", "Update", "Delete", "View", "Edit", "InputByString",
+            "InteractiveInsert", "InteractiveSetDeletionMark", "InteractiveClearDeletionMark",
+            "InteractiveDelete", "InteractiveDeletePredefinedData",
+            "InteractiveSetDeletionMarkPredefinedData", "InteractiveClearDeletionMarkPredefinedData",
+            "InteractiveDeleteMarkedPredefinedData");
+
+    private static final Set<String> EXCHANGE_PLAN_RIGHTS = rights(
+            "Read", "Insert", "Update", "Delete", "View", "Edit", "InputByString",
+            "InteractiveInsert", "InteractiveSetDeletionMark", "InteractiveClearDeletionMark",
+            "InteractiveDelete", "InteractiveDeleteMarked", "ReadDataHistory", "ViewDataHistory",
+            "UpdateDataHistory", "ReadDataHistoryOfMissingData", "UpdateDataHistoryOfMissingData",
+            "UpdateDataHistorySettings", "UpdateDataHistoryVersionComment",
+            "EditDataHistoryVersionComment", "SwitchToDataHistoryVersion");
+
+    private static final Set<String> BUSINESS_PROCESS_RIGHTS = rights(
+            "Read", "Insert", "Update", "Delete", "View", "Edit", "InputByString",
+            "Start", "InteractiveInsert", "InteractiveSetDeletionMark",
+            "InteractiveClearDeletionMark", "InteractiveDelete", "InteractiveActivate",
+            "InteractiveStart");
+
+    private static final Set<String> TASK_RIGHTS = rights(
+            "Read", "Insert", "Update", "Delete", "View", "Edit", "InputByString",
+            "Execute", "InteractiveInsert", "InteractiveSetDeletionMark",
+            "InteractiveClearDeletionMark", "InteractiveDelete", "InteractiveActivate",
+            "InteractiveExecute");
+
+    private static final Set<String> CONFIGURATION_RIGHTS = rights(
+            "Administration", "DataAdministration", "UpdateDataBaseConfiguration",
+            "ConfigurationExtensionsAdministration", "ActiveUsers", "EventLog", "ExclusiveMode",
+            "ThinClient", "ThickClient", "WebClient", "MobileClient", "ExternalConnection",
+            "Automation", "Output", "SaveUserData", "TechnicalSpecialistMode",
+            "InteractiveOpenExtDataProcessors", "InteractiveOpenExtReports",
+            "AnalyticsSystemClient", "CollaborationSystemInfoBaseRegistration",
+            "MainWindowModeNormal", "MainWindowModeWorkplace", "MainWindowModeEmbeddedWorkplace",
+            "MainWindowModeFullscreenWorkplace", "MainWindowModeKiosk",
+            "AllFunctionsMode", "RemoteDesktopClient", "RemoteDesktopHost",
+            "SessionStandardAuthenticationChange", "SessionOSAuthenticationChange",
+            "StandardAuthenticationChange", "ExclusiveModeTerminationAtSessionStart");
+
+    private static final Map<String, Set<String>> TOP_LEVEL_TYPE_RIGHTS = Map.ofEntries(
+            Map.entry("Configuration", CONFIGURATION_RIGHTS),
+            Map.entry("Catalog", CATALOG_RIGHTS),
+            Map.entry("Document", DOCUMENT_RIGHTS),
+            Map.entry("InformationRegister", INFORMATION_REGISTER_RIGHTS),
+            Map.entry("AccumulationRegister", REGISTER_RIGHTS),
+            Map.entry("AccountingRegister", REGISTER_RIGHTS),
+            Map.entry("CalculationRegister", rights("Read", "View")),
+            Map.entry("Constant", CONSTANT_RIGHTS),
+            Map.entry("ChartOfAccounts", CHART_OF_ACCOUNTS_RIGHTS),
+            Map.entry("ChartOfCharacteristicTypes", CHART_OF_CHARACTERISTIC_TYPES_RIGHTS),
+            Map.entry("ChartOfCalculationTypes", CHART_OF_CALCULATION_TYPES_RIGHTS),
+            Map.entry("ExchangePlan", EXCHANGE_PLAN_RIGHTS),
+            Map.entry("BusinessProcess", BUSINESS_PROCESS_RIGHTS),
+            Map.entry("Task", TASK_RIGHTS),
+            Map.entry("DataProcessor", rights("Use", "View")),
+            Map.entry("Report", rights("Use", "View")),
+            Map.entry("CommonForm", rights("View")),
+            Map.entry("CommonCommand", rights("View")),
+            Map.entry("Subsystem", rights("View")),
+            Map.entry("FilterCriterion", rights("View")),
+            Map.entry("DocumentJournal", rights("Read", "View")),
+            Map.entry("Sequence", rights("Read", "Update")),
+            Map.entry("WebService", rights("Use")),
+            Map.entry("HTTPService", rights("Use")),
+            Map.entry("IntegrationService", rights("Use")),
+            Map.entry("SessionParameter", rights("Get", "Set")),
+            Map.entry("CommonAttribute", rights("View", "Edit"))
     );
 
-    // Права, применимые только к objects с подчинёнными (Catalog, ChartOfCharacteristicTypes и т.д.)
-    private static final Set<String> SUBORDINATE_ONLY_RIGHTS = Set.of(
-            "InputByString", "InteractiveDeleteMarked",
-            "InteractiveClearDeletionMark", "InteractiveSetDeletionMark",
-            "InteractiveDeletePredefinedData", "InteractiveSetDeletionMarkPredefinedData",
-            "InteractiveClearDeletionMarkPredefinedData"
+    // Типы объектов БЕЗ прав в ролях (спека: «не фигурируют в Rights.xml»).
+    private static final Set<String> TYPES_WITHOUT_RIGHTS = Set.of(
+            "Enum", "FunctionalOption", "DefinedType", "CommonModule",
+            "CommonPicture", "CommonTemplate", "SettingsStorage", "ExternalDataSource");
+
+    // Вложенные части объекта (предпоследний сегмент имени) → допустимые права.
+    // Спека 1c-role-spec §«Полная таблица: вложенные объекты и их права».
+    private static final Map<String, Set<String>> NESTED_KIND_RIGHTS = Map.ofEntries(
+            Map.entry("Attribute", Set.of("View", "Edit")),
+            Map.entry("StandardAttribute", Set.of("View", "Edit")),
+            Map.entry("TabularSection", Set.of("View", "Edit")),
+            Map.entry("Dimension", Set.of("View", "Edit")),
+            Map.entry("Resource", Set.of("View", "Edit")),
+            Map.entry("AddressingAttribute", Set.of("View", "Edit")),
+            Map.entry("Command", Set.of("View")),
+            Map.entry("Operation", Set.of("Use")),
+            Map.entry("URLTemplate", Set.of("Use")),
+            Map.entry("Method", Set.of("Use"))
     );
+    private static Set<String> rights(String... rights) {
+        return Set.of(rights);
+    }
 
     @Override
     public String objectType() {
@@ -79,9 +211,11 @@ public class RoleValidator implements XmlValidator {
         checkGlobalFlag(root, "setForNewObjects", issues);
         checkGlobalFlag(root, "setForAttributesByDefault", issues);
         checkGlobalFlag(root, "independentRightsOfChildObjects", issues);
+        checkObjectTemplateOrder(root, issues);
 
         // Проверяем каждый <object>
         List<XmlNode> objects = root.children("object");
+        Set<String> objectNames = new HashSet<>();
         for (int i = 0; i < objects.size(); i++) {
             XmlNode obj = objects.get(i);
             String objPath = "/Rights/object[" + (i + 1) + "]";
@@ -92,6 +226,10 @@ public class RoleValidator implements XmlValidator {
                 issues.add(ValidationIssue.error("ROLE-003",
                         "Object element missing <name>",
                         obj.getLine(), objPath));
+            } else if (!objectNames.add(objName)) {
+                issues.add(ValidationIssue.error("ROLE-006",
+                        "duplicate object name '" + objName + "'",
+                        obj.getLine(), objPath + "/name"));
             }
 
             // Проверяем каждый <right> внутри <object>
@@ -156,6 +294,23 @@ public class RoleValidator implements XmlValidator {
         }
     }
 
+    private void checkObjectTemplateOrder(XmlNode root, List<ValidationIssue> issues) {
+        boolean templateSeen = false;
+        int objectIndex = 0;
+        for (XmlNode child : root.getChildren()) {
+            if ("object".equals(child.getName())) {
+                objectIndex++;
+                if (templateSeen) {
+                    issues.add(ValidationIssue.warning("ROLE-108",
+                            "<object> must appear before all <restrictionTemplate> elements",
+                            child.getLine(), "/Rights/object[" + objectIndex + "]"));
+                }
+            } else if ("restrictionTemplate".equals(child.getName())) {
+                templateSeen = true;
+            }
+        }
+    }
+
     // ==================== Level 2: Semantic ====================
 
     private void validateSemantic(XmlDocument document, List<ValidationIssue> issues) {
@@ -178,13 +333,16 @@ public class RoleValidator implements XmlValidator {
             // (.Command. / .Attribute. / .Recalculation. и т.п.) — НЕ ошибка формата.
             // ERROR оставляем только для имени без единого разделителя (нет <Тип>.<Имя>),
             // кроме белого списка Configuration./Subsystem.*.
+            //**agent TASK-174 [07.06.2026 13:35:00]
+            // Прежний вложенный whitelist startsWith("Configuration.")/("Subsystem.") был
+            // недостижим (имя с точкой не попадает в ветку !contains(".")) — убран как dead code.
+            // Поведение не изменилось: ERROR только для имени без единого разделителя.
             if (!objName.contains(".")) {
-                if (!objName.startsWith("Configuration.") && !objName.startsWith("Subsystem.")) {
-                    issues.add(ValidationIssue.error("ROLE-105",
-                            "Object name must be in format '<MDOType>.<Name>', found '" + objName + "'",
-                            obj.getLine(), objPath + "/name"));
-                }
+                issues.add(ValidationIssue.error("ROLE-105",
+                        "Object name must be in format '<MDOType>.<Name>', found '" + objName + "'",
+                        obj.getLine(), objPath + "/name"));
             }
+            //**agent TASK-174
 
             // ROLE-102: Тип объекта — известный MDOType
             String typePart = objName.split("\\.")[0];
@@ -221,15 +379,8 @@ public class RoleValidator implements XmlValidator {
 
                 // ROLE-103: Право применимо к типу объекта
                 if (mdoType.isPresent() && mdoType.get() != MDOType.UNKNOWN) {
-                    MDOType type = mdoType.get();
-
-                    // Posting-права только для Document
-                    if (DOCUMENT_ONLY_RIGHTS.contains(rightName) && type != MDOType.DOCUMENT) {
-                        issues.add(ValidationIssue.warning("ROLE-103",
-                                "Right '" + rightName + "' is only applicable to Document objects, " +
-                                        "but object type is " + typePart,
-                                right.getLine(), rightPath + "/name"));
-                    }
+                    checkRightApplicability(objName, typePart, rightName,
+                            right.getLine(), rightPath, issues);
                 }
 
                 // ROLE-106: restrictionByCondition.condition непустой
@@ -242,6 +393,59 @@ public class RoleValidator implements XmlValidator {
                                 restriction.getLine(), rightPath + "/restrictionByCondition/condition"));
                     }
                 }
+            }
+        }
+    }
+
+    /**
+     * ROLE-103: применимость права к типу/части объекта по спеке 1c-role-spec.
+     * Все находки — WARNING: Designer часть таких прав молча игнорирует, часть отвергает;
+     * ERROR не ставим, чтобы не валить validate на нестандартных, но загружаемых ролях.
+     * Порядок проверок:
+     * 1) вложенная часть (предпоследний сегмент имени — Attribute/Command/...) → View/Edit | View;
+     * 2) тип без прав вовсе (Enum, CommonModule, ...) → любое право подозрительно;
+     * 3) верхнеуровневый тип из таблицы спеки → строгий whitelist.
+     */
+    private void checkRightApplicability(String objName, String typePart, String rightName,
+                                         int line, String rightPath,
+                                         List<ValidationIssue> issues) {
+        // 1) Вложенные части: ...<Kind>.<Имя> — предпоследний сегмент.
+        String[] segments = objName.split("\\.");
+        if (segments.length >= 4) {
+            String kind = segments[segments.length - 2];
+            Set<String> allowed = NESTED_KIND_RIGHTS.get(kind);
+            if (allowed != null) {
+                if (!allowed.contains(rightName)) {
+                    issues.add(ValidationIssue.warning("ROLE-103",
+                            "Right '" + rightName + "' is not applicable to nested " + kind
+                                    + " ('" + objName + "'); allowed: " + String.join(", ", allowed),
+                            line, rightPath + "/name"));
+                }
+                return; // вложенная часть обработана — проверки типа не нужны
+            }
+            // Неизвестный вид вложенности (Recalculation, Parameter...) —
+            // прав по спеке не сверяем, пропускаем без предупреждения.
+            return;
+        }
+
+        // 2) Типы без прав в ролях.
+        if (TYPES_WITHOUT_RIGHTS.contains(typePart)) {
+            issues.add(ValidationIssue.warning("ROLE-103",
+                    "Object type '" + typePart + "' does not carry rights in roles "
+                            + "(per 1c-role-spec), but right '" + rightName + "' is set for '"
+                            + objName + "'",
+                    line, rightPath + "/name"));
+            return;
+        }
+
+        // 3) Верхнеуровневые объекты — строгий whitelist по 1c-role-spec.md.
+        Set<String> allowed = TOP_LEVEL_TYPE_RIGHTS.get(typePart);
+        if (allowed != null) {
+            if (!allowed.contains(rightName)) {
+                issues.add(ValidationIssue.warning("ROLE-103",
+                        "Right '" + rightName + "' is not applicable to " + typePart
+                                + " objects; allowed: " + String.join(", ", allowed),
+                        line, rightPath + "/name"));
             }
         }
     }

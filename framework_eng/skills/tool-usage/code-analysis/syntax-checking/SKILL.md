@@ -3,6 +3,9 @@ name: syntax-checking
 description: "MUST use BEFORE committing or handing BSL code off for review. Defines a two-level process (LSP get_diagnostics → full Configurator check) as proof that there are no syntax errors."
 uses_capabilities:
   - get_diagnostics
+  - get_quality_diagnostics
+  - get_method_complexity
+  - get_module_health
   - syntax_check_designer_modules
   - syntax_check_designer_config
   - syntax_check_edt
@@ -33,6 +36,25 @@ Server-side verification is now done **only through the `v8-runner` CLI** — th
 | **Before commit / before PR** | **`v8-runner syntax …`** — final check |
 | **Task completion** | **`v8-runner syntax …`** — final verdict |
 
+## Quality self-check (beyond syntax)
+
+Syntax is the necessary minimum, but "it compiles" ≠ "it's good". Once `get_diagnostics`/`v8-runner syntax`
+confirm there are no errors, run a self-check over the changed files — it is cheap (LSP, seconds) and
+catches what syntax misses:
+
+| Capability | What it shows | When to apply |
+|------------|----------------|-----------------|
+| `get_diagnostics` | All BSL LS diagnostics for the file (more precise than workspace checks) | After edits — full list of findings for the file |
+| `get_quality_diagnostics` | Only security / performance / sql (query in a loop, disabling safe mode, missing aliases, etc.) | Before commit — targeted self-check by the coder for risks |
+| `get_method_complexity` | Cyclomatic + cognitive complexity per method, flags threshold overruns | After writing/editing a method — a "time to refactor" signal (cyclomatic > 20 / cognitive > 15) |
+| `get_module_health` | Combo: complexity + security/perf/sql merged per method and ranked "what to refactor first" | Triaging a whole module in one call — instead of separate complexity + quality_diagnostics + manual merge |
+
+> This is a **coder's self-check**, not a replacement for review. `get_quality_diagnostics`,
+> `get_method_complexity` and `get_module_health` rely on BSL LS; complexity metrics require the
+> complexity CodeLens to be enabled in the BSL LS config. For a single method's metrics use
+> `get_method_complexity`; for one risk category use `get_quality_diagnostics`; for whole-module
+> triage use `get_module_health` (the standalone ones are not superseded).
+
 ## Verification algorithm
 
 ### Intermediate check (after every change)
@@ -46,7 +68,7 @@ Server-side verification is now done **only through the `v8-runner` CLI** — th
 The command choice depends on `format`/`builder` in `v8project.yaml` (see `v8-runner/references/config-and-backends.md`):
 
 ```bash
-# Designer-модули (requires Designer + Designer-format)
+# Designer-модули (требует Designer + Designer-формат)
 v8-runner build
 v8-runner syntax designer-modules --server --thin-client
 

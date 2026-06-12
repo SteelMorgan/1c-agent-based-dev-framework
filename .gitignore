@@ -1,6 +1,14 @@
 # Generated artifacts (do not commit)
 output/
 
+# Review sandboxes (shared, per-session runtime — never commit)
+.review-sandboxes/
+
+# Local tool/browser session artifacts
+tools/.browser-session.json
+tools/error-shot.png
+tools/*.png
+
 # Reference sources (local only)
 src_temp/
 .venv-tokens/

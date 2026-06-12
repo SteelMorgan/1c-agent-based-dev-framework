@@ -250,6 +250,7 @@ public class ExtensionEditor {
 
         // Read extension Configuration.xml
         String extCfgContent = readString(extCfgFile);
+        String formatVersion = ConfigurationXmlReader.readFormatVersion(extCfgFile);
 
         // Parse object specs
         List<BorrowItem> items = parseObjectSpec(objectSpec);
@@ -283,9 +284,9 @@ public class ExtensionEditor {
                     out.println("[INFO] Parent " + item.typeName + "." + item.objName
                             + " not yet borrowed — borrowing first...");
                     extCfgContent = borrowObject(extDir, configDir, item.typeName,
-                            item.objName, dirName, extCfgContent);
+                            item.objName, dirName, extCfgContent, formatVersion);
                 }
-                borrowForm(extDir, configDir, item.typeName, item.objName, item.formName, dirName);
+                borrowForm(extDir, configDir, item.typeName, item.objName, item.formName, dirName, formatVersion);
                 if (mainAttributeMode != null) {
                     borrowMainAttributeInto(extDir, configDir, item.typeName, item.objName,
                             item.formName, dirName, mainAttributeMode);
@@ -294,7 +295,7 @@ public class ExtensionEditor {
             } else {
                 // Object borrowing
                 extCfgContent = borrowObject(extDir, configDir, item.typeName,
-                        item.objName, dirName, extCfgContent);
+                        item.objName, dirName, extCfgContent, formatVersion);
                 borrowedCount++;
             }
         }
@@ -316,8 +317,16 @@ public class ExtensionEditor {
     // ─── Object borrowing ─────────────────────────────────────────────
 
     private String borrowObject(Path extDir, Path configDir, String typeName,
-                                String objName, String dirName, String extCfgContent) throws IOException {
+                                String objName, String dirName, String extCfgContent,
+                                String formatVersion) throws IOException {
         out.println("[INFO] Borrowing " + typeName + "." + objName + "...");
+
+        Path targetDir = extDir.resolve(dirName);
+        Path targetFile = targetDir.resolve(objName + ".xml");
+        if (Files.isRegularFile(targetFile)) {
+            out.println("[WARN]   Already exists, not overwritten: " + targetFile);
+            return addToChildObjects(extCfgContent, typeName, objName);
+        }
 
         // Read source object UUID
         String sourceUuid = readSourceObjectUuid(configDir, dirName, objName, typeName);
@@ -330,12 +339,10 @@ public class ExtensionEditor {
         }
 
         // Generate borrowed object XML
-        String borrowedXml = buildBorrowedObjectXml(typeName, objName, sourceUuid, sourceProps);
+        String borrowedXml = buildBorrowedObjectXml(typeName, objName, sourceUuid, sourceProps, formatVersion);
 
         // Write to extension directory
-        Path targetDir = extDir.resolve(dirName);
         Files.createDirectories(targetDir);
-        Path targetFile = targetDir.resolve(objName + ".xml");
         writeWithBom(targetFile, borrowedXml);
         out.println("[INFO]   Created: " + targetFile);
         createdFiles.add(targetFile.toString());
@@ -349,7 +356,8 @@ public class ExtensionEditor {
     // ─── Form borrowing ───────────────────────────────────────────────
 
     private void borrowForm(Path extDir, Path configDir, String typeName,
-                            String objName, String formName, String dirName) throws IOException {
+                            String objName, String formName, String dirName,
+                            String formatVersion) throws IOException {
         out.println("[INFO] Borrowing form " + typeName + "." + objName + ".Form." + formName + "...");
 
         // 1. Read source form UUID
@@ -366,32 +374,26 @@ public class ExtensionEditor {
 
         // 3. Generate form metadata XML
         String newFormUuid = UuidGenerator.generate();
-        String formMetaXml = buildFormMetadataXml(formName, newFormUuid, sourceFormUuid);
+        String formMetaXml = buildFormMetadataXml(formName, newFormUuid, sourceFormUuid, formatVersion);
 
-        // 4. Write form metadata
+        // 4. Write form metadata without overwriting existing extension changes
         Path formMetaDir = extDir.resolve(dirName).resolve(objName).resolve("Forms");
         Files.createDirectories(formMetaDir);
         Path formMetaFile = formMetaDir.resolve(formName + ".xml");
-        writeWithBom(formMetaFile, formMetaXml);
-        out.println("[INFO]   Created: " + formMetaFile);
-        createdFiles.add(formMetaFile.toString());
+        writeIfMissing(formMetaFile, formMetaXml);
 
         // 5. Generate Form.xml with BaseForm
         String formXml = buildFormXmlWithBaseForm(srcFormContent);
         Path formXmlDir = formMetaDir.resolve(formName).resolve("Ext");
         Files.createDirectories(formXmlDir);
         Path formXmlFile = formXmlDir.resolve("Form.xml");
-        writeWithBom(formXmlFile, formXml);
-        out.println("[INFO]   Created: " + formXmlFile);
-        createdFiles.add(formXmlFile.toString());
+        writeIfMissing(formXmlFile, formXml);
 
         // 6. Create empty Module.bsl
         Path moduleDir = formXmlDir.resolve("Form");
         Files.createDirectories(moduleDir);
         Path moduleBslFile = moduleDir.resolve("Module.bsl");
-        writeWithBom(moduleBslFile, "");
-        out.println("[INFO]   Created: " + moduleBslFile);
-        createdFiles.add(moduleBslFile.toString());
+        writeIfMissing(moduleBslFile, "");
 
         // 7. Register form in parent object ChildObjects
         registerFormInObject(extDir, dirName, objName, formName);
@@ -446,11 +448,12 @@ public class ExtensionEditor {
     // ─── XML generation ───────────────────────────────────────────────
 
     private String buildBorrowedObjectXml(String typeName, String objName,
-                                          String sourceUuid, Map<String, String> sourceProps) {
+                                          String sourceUuid, Map<String, String> sourceProps,
+                                          String formatVersion) {
         String newUuid = UuidGenerator.generate();
         StringBuilder sb = new StringBuilder();
         sb.append("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n");
-        sb.append("<MetaDataObject ").append(XMLNS).append(" version=\"2.17\">\n");
+        sb.append("<MetaDataObject ").append(XMLNS).append(" version=\"").append(formatVersion).append("\">\n");
         sb.append("\t<").append(typeName).append(" uuid=\"").append(newUuid).append("\">\n");
 
         // InternalInfo with GeneratedTypes
@@ -512,10 +515,11 @@ public class ExtensionEditor {
         return sb.toString();
     }
 
-    private String buildFormMetadataXml(String formName, String newFormUuid, String sourceFormUuid) {
+    private String buildFormMetadataXml(String formName, String newFormUuid, String sourceFormUuid,
+                                        String formatVersion) {
         StringBuilder sb = new StringBuilder();
         sb.append("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n");
-        sb.append("<MetaDataObject ").append(XMLNS).append(" version=\"2.17\">\n");
+        sb.append("<MetaDataObject ").append(XMLNS).append(" version=\"").append(formatVersion).append("\">\n");
         sb.append("\t<Form uuid=\"").append(newFormUuid).append("\">\n");
         sb.append("\t\t<InternalInfo/>\n");
         sb.append("\t\t<Properties>\n");
@@ -556,9 +560,34 @@ public class ExtensionEditor {
             autoCommandBarXml = nsPattern.matcher(autoCommandBarXml).replaceAll("");
             autoCommandBarXml = autoCommandBarXml.replaceAll("<CommandName>[^<]*</CommandName>", "<CommandName>0</CommandName>");
             autoCommandBarXml = autoCommandBarXml.replace("<Autofill>true</Autofill>", "<Autofill>false</Autofill>");
+            //++agent TASK-175 [07.06.2026 18:45:00]
+            // XG-35: strip-операции безусловной ветки cfe-borrow.py @ HEAD (upstream 7abe26af, de7e943d).
+            // Ссылки на стандартные команды и пути данных базовой формы невалидны в расширении —
+            // Designer отказывается загружать форму. Набор для ACB отличается от набора для
+            // ChildItems (см. ниже) — НЕ объединять (риск 1 §7.2 дизайна TASK-175).
+            // Условный keep Объект.* (флаг -BorrowMainAttribute, f7695a95) — new-feature, не портирован.
+            autoCommandBarXml = autoCommandBarXml.replaceAll("\\s*<ExcludedCommand>[^<]*</ExcludedCommand>", "");
+            autoCommandBarXml = autoCommandBarXml.replaceAll("\\s*<DataPath>[^<]*</DataPath>", "");
+            // CommandSet, опустевший после strip ExcludedCommand, не несёт информации — убираем,
+            // иначе в выводе останется пустая обёртка, которой нет в каноне Designer
+            autoCommandBarXml = autoCommandBarXml.replaceAll("\\s*<CommandSet>\\s*</CommandSet>", "");
+            //++agent TASK-175
         }
         childItemsXml = nsPattern.matcher(childItemsXml).replaceAll("");
         childItemsXml = childItemsXml.replaceAll("<CommandName>[^<]*</CommandName>", "<CommandName>0</CommandName>");
+        //++agent TASK-175 [07.06.2026 18:45:00]
+        // XG-35: strip-набор для ChildItems формы (безусловная ветка cfe-borrow.py @ HEAD):
+        // DataPath/TitleDataPath ссылаются на реквизиты базовой формы (в расширении их нет),
+        // RowPictureDataPath и ExcludedCommand невалидны в расширении (7abe26af),
+        // TypeLink с человекочитаемым DataPath Items.* и element-level Events не переносимы.
+        childItemsXml = childItemsXml.replaceAll("\\s*<DataPath>[^<]*</DataPath>", "");
+        childItemsXml = childItemsXml.replaceAll("\\s*<TitleDataPath>[^<]*</TitleDataPath>", "");
+        childItemsXml = childItemsXml.replaceAll("\\s*<RowPictureDataPath>[^<]*</RowPictureDataPath>", "");
+        childItemsXml = childItemsXml.replaceAll("\\s*<ExcludedCommand>[^<]*</ExcludedCommand>", "");
+        childItemsXml = childItemsXml.replaceAll("(?s)\\s*<TypeLink>\\s*<xr:DataPath>Items\\.[^<]*</xr:DataPath>.*?</TypeLink>", "");
+        childItemsXml = childItemsXml.replaceAll("(?s)\\s*<Events>.*?</Events>", "");
+        childItemsXml = childItemsXml.replaceAll("\\s*<CommandSet>\\s*</CommandSet>", "");
+        //++agent TASK-175
 
         // Build output with \r\n line endings (as in Python reference)
         StringBuilder sb = new StringBuilder();
@@ -760,17 +789,33 @@ public class ExtensionEditor {
     private String extractTopLevelElement(String content, String tagName) {
         // Match top-level element (direct child of <Form>)
         // Support both tab and space indentation
+        //**agent TASK-175 [07.06.2026 18:45:00]
+        // XG-35 (находка 3b): раньше брали ПЕРВОЕ вхождение тега в документе — у форм, где
+        // AutoCommandBar идёт раньше form-level ChildItems (например, СообщениеSMS), извлекался
+        // <ChildItems> ВНУТРИ ACB, и дерево формы терялось целиком. Привязываемся к отступу
+        // прямых детей <Form> (первый отступ в документе): upstream (cfe-borrow.py) итерирует
+        // именно direct children корня.
+        String topIndent = "\t";
+        Matcher firstChild = Pattern.compile("(?m)^([ \\t]+)<\\w").matcher(content);
+        if (firstChild.find()) {
+            topIndent = firstChild.group(1);
+        }
+        String indentRe = Pattern.quote(topIndent);
+
         // Look for self-closing first
-        Pattern selfClose = Pattern.compile("(?m)^[ \\t]+<" + tagName + "\\s*/>");
+        //Pattern selfClose = Pattern.compile("(?m)^[ \\t]+<" + tagName + "\\s*/>");
+        Pattern selfClose = Pattern.compile("(?m)^" + indentRe + "<" + tagName + "\\s*/>");
         Matcher scm = selfClose.matcher(content);
         if (scm.find()) {
             return scm.group().stripLeading();
         }
 
         // Look for opening tag
-        Pattern openPattern = Pattern.compile("(?m)^[ \\t]+<" + tagName + "[\\s>]");
+        //Pattern openPattern = Pattern.compile("(?m)^[ \\t]+<" + tagName + "[\\s>]");
+        Pattern openPattern = Pattern.compile("(?m)^" + indentRe + "<" + tagName + "[\\s>]");
         Matcher om = openPattern.matcher(content);
         if (!om.find()) return null;
+        //**agent TASK-175
 
         int tagStart = content.indexOf('<', om.start());
         if (tagStart < 0) return null;
@@ -827,6 +872,16 @@ public class ExtensionEditor {
         // Канон Designer (_Демо): новые scaffold-файлы расширения (xml/.bsl) — BOM + CRLF.
         Files.write(path, io.github.onec.xmlgen.io.Crlf.withBom(content));
         //++agent TASK-172
+    }
+
+    private void writeIfMissing(Path path, String content) throws IOException {
+        if (Files.isRegularFile(path)) {
+            out.println("[WARN]   Already exists, not overwritten: " + path);
+            return;
+        }
+        writeWithBom(path, content);
+        out.println("[INFO]   Created: " + path);
+        createdFiles.add(path.toString());
     }
 
     private static String esc(String s) {
@@ -896,6 +951,8 @@ public class ExtensionEditor {
         List<String> tabularXmlBlocks = copyTabularSections
                 ? extractElementsByTopLevelName(baseObjContent, "TabularSection", null, existingTabular)
                 : Collections.emptyList();
+        attrXmlBlocks = toAdoptedChildBlocks(attrXmlBlocks);
+        tabularXmlBlocks = toAdoptedChildBlocks(tabularXmlBlocks);
 
         if (attrXmlBlocks.isEmpty() && tabularXmlBlocks.isEmpty()) {
             out.println("[WARN] Nothing to add: all referenced attributes/tabular sections already present.");
@@ -991,6 +1048,74 @@ public class ExtensionEditor {
             out.add(block);
         }
         return out;
+    }
+
+    private List<String> toAdoptedChildBlocks(List<String> blocks) {
+        List<String> result = new ArrayList<>(blocks.size());
+        for (String block : blocks) {
+            result.add(toAdoptedChildBlock(block));
+        }
+        return result;
+    }
+
+    private String toAdoptedChildBlock(String block) {
+        String sourceUuid = extractUuid(block);
+        String result = replaceElementUuid(block, UuidGenerator.generate());
+
+        if (!result.contains("<ObjectBelonging>")) {
+            result = insertAfter(result, "<Properties>",
+                    "\n\t\t\t\t<ObjectBelonging>Adopted</ObjectBelonging>");
+        }
+        if (sourceUuid != null && !result.contains("<ExtendedConfigurationObject>")) {
+            String extendedRef = "\n\t\t\t\t<ExtendedConfigurationObject>"
+                    + sourceUuid + "</ExtendedConfigurationObject>";
+            String afterComment = insertAfterFirstMatch(result,
+                    Pattern.compile("<Comment\\s*/>|</Comment>"), extendedRef);
+            if (afterComment != null) {
+                result = afterComment;
+            } else {
+                String afterName = insertAfterFirstMatch(result, Pattern.compile("</Name>"), extendedRef);
+                result = afterName != null ? afterName : insertAfter(result, "<Properties>", extendedRef);
+            }
+        }
+        return result;
+    }
+
+    private String extractUuid(String block) {
+        Matcher m = Pattern.compile("\\buuid=\"([^\"]+)\"").matcher(block);
+        return m.find() ? m.group(1) : null;
+    }
+
+    private String replaceElementUuid(String block, String newUuid) {
+        Matcher m = Pattern.compile("^<([A-Za-z]+)([^>]*)>").matcher(block);
+        if (!m.find()) {
+            return block;
+        }
+        String attrs = m.group(2);
+        if (attrs.contains("uuid=\"")) {
+            attrs = attrs.replaceFirst("\\s+uuid=\"[^\"]*\"", " uuid=\"" + newUuid + "\"");
+        } else {
+            attrs = " uuid=\"" + newUuid + "\"" + attrs;
+        }
+        return "<" + m.group(1) + attrs + ">" + block.substring(m.end());
+    }
+
+    private String insertAfter(String value, String marker, String insertion) {
+        int pos = value.indexOf(marker);
+        if (pos < 0) {
+            return value;
+        }
+        int insertPos = pos + marker.length();
+        return value.substring(0, insertPos) + insertion + value.substring(insertPos);
+    }
+
+    private String insertAfterFirstMatch(String value, Pattern pattern, String insertion) {
+        Matcher matcher = pattern.matcher(value);
+        if (!matcher.find()) {
+            return null;
+        }
+        int insertPos = matcher.end();
+        return value.substring(0, insertPos) + insertion + value.substring(insertPos);
     }
 
     /**
