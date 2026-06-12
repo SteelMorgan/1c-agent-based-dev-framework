@@ -166,9 +166,9 @@
     },
     "framework/skills/spec-writing/spec-standard/SKILL.md": {
       "ru_hash": "sha256:d080776b5221d7e6adeb86cb5fd7e186f01f2243c5f39f779ffbb233908f31fc",
-      "en_hash": "sha256:9dc1eedab5c0be83a5d168f0139480e9c15959639ec686ebe22db56f89646958",
-      "synced_at": "2026-06-04T15:54:27Z",
-      "status": "dirty"
+      "en_hash": "sha256:6fd62df18721819e9701673c4d105003ba78b049685dc29bd7307fba696bc23f",
+      "synced_at": "2026-06-12T08:11:57Z",
+      "status": "synced"
     },
     "framework/skills/spec-writing/technical-design-standard/SKILL.md": {
       "ru_hash": "sha256:d4e21e2fedf6c41f52c3b270a6a2c665636bb02c52ef6b4879aa135461fc7ed1",
@@ -417,9 +417,9 @@
       "status": "synced"
     },
     "framework/skills/tool-usage/code-analysis/code-navigation/SKILL.md": {
-      "ru_hash": "sha256:dc52ed69ff9f8bc76ac56c2e429109d6573942d97d3489c5c5d6d873bcf2f58d",
-      "en_hash": "sha256:fbe9fd1862351f239b7c21042d73a43fda463e34e68eef22fb388a8f1ae69c46",
-      "synced_at": "2026-06-10T23:32:47Z",
+      "ru_hash": "sha256:b5f2b87337bcd2c7f9e62f6021a429dd8d6ea4dd9d97f6d93e010555fecc8f7c",
+      "en_hash": "sha256:5b78c2d702fac74405ecd0e06605ac94d5474532e9b66174850a0bd5f2ad7405",
+      "synced_at": "2026-06-12T08:07:39Z",
       "status": "synced"
     },
     "framework/skills/tool-usage/code-analysis/search-before-write/SKILL.md": {
@@ -586,9 +586,9 @@
     },
     "framework/rules/protected-paths.md": {
       "ru_hash": "sha256:69e64fa5daba6cb170c4a44305d240b63ab23128983370603bf8c3ce4b7e41c0",
-      "en_hash": "sha256:3edaed2b4cee3143bb43a0b10846e985dd28904706916241722f8b87f8694201",
-      "synced_at": "2026-03-19T18:35:22Z",
-      "status": "dirty"
+      "en_hash": "sha256:5b25f9796775c55cf3f90b9c31a564f1e8b2387c59a9844a8663802eeeef47cc",
+      "synced_at": "2026-06-12T08:06:31Z",
+      "status": "synced"
     },
     "framework/rules/skill-learning-policy.md": {
       "ru_hash": "sha256:13190a982d8f6df74f093f548cf2ee090589fdb389826a21d8a186f953eaa37a",
@@ -640,9 +640,9 @@
     },
     "framework/skills/bsl-practices/test-writing/references/learned-patterns.md": {
       "ru_hash": "sha256:9b429e0c3014d49e969e778b0d0dc753ee7205607a3403d557450976493f6f93",
-      "en_hash": "sha256:1e8c539f2e34a6b4c1549855fe19aa96ee025a8a66e2402e84e43c86878ceda9",
-      "synced_at": "2026-06-05T08:13:55Z",
-      "status": "dirty"
+      "en_hash": "sha256:1b2ccf3bce539baca85b3192aaadcb4cfabef8bfd1d5b4128b34a3b44bd4e071",
+      "synced_at": "2026-06-12T08:07:54Z",
+      "status": "synced"
     },
     "framework/rules/no-direct-db-access.md": {
       "ru_hash": "sha256:40259f0f48e7528d161a749166e8ca283f44f4d48b3eb7e1eb1204ed1ba81e60",

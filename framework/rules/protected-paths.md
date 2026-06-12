@@ -10,7 +10,7 @@ alwaysApply: true
 
 ## Защищённые пути (deny-by-default)
 
-- `exts/YAXUNIT/**`
+- `**/exts/YAXUNIT/**`
 
 Любое совпадение = запрет на создание/изменение/удаление.
 

@@ -30,6 +30,7 @@ Do not guess where code is located - use LSP. Accurate results from the project 
 | Object structure / tabular sections / attributes, enum values, predefined items | `get_completion` after a dot (see «Metadata discovery») |
 | Where a metadata object is used in code | `search_ssl_functions` references on `Документы.X` + grep (see below) |
 | Estimate who a procedure/function change affects | `get_symbol_impact` (callers + references + classification) |
+| Parameter hints while writing a call | `signature_help` — cursor INSIDE the call parentheses (see «Parameter hints») |
 
 ## Algorithms
 
@@ -63,36 +64,56 @@ Do not guess where code is located - use LSP. Accurate results from the project 
 
 ### Metadata discovery via `get_completion`
 
-BSL LS Type System v2 serves configuration metadata through completion. One tool answers different questions — only the cursor position changes (after a dot). Each item's `detail` carries the signature and the return type.
+BSL LS Type System v2 exposes configuration metadata through completion. One tool answers different questions — only the cursor position changes (after a dot). In each item's `detail` is the signature and return type.
 
 | Question | Where to place the cursor | What you get |
 |----------|---------------------------|--------------|
 | Object attributes / tabular sections / columns | after `Объект.` (a typed variable) | attributes, tabular sections, their columns, methods — with types |
-| Enum values | after `Перечисления.ИмяПеречисления.` | the enum values |
+| Enum values | after `Перечисления.ИмяПеречисления.` | enum values |
 | Predefined items | after `Справочники.Имя.` / `ПланыСчетов.Имя.` | predefined items + manager methods |
-| Composition of a DefinedType | cursor on an attribute of type ОпределяемыйТип | `get_completion` + `get_hover_info` expand the composing types |
+| Composition of a DefinedType | cursor on an attribute of type ОпределяемыйТип | `get_completion` + `get_hover_info` reveal the composing types |
 
-**Inverse signal:** if `get_completion` after `перем.` returns nothing or lacks the expected member, the variable's type is inferred wrong/unknown. An absent completion here is a type-error indicator (a common 1C bug), not «no data».
+**Inverse signal:** if `get_completion` after `перем.` returns nothing or does not include the expected member, the variable type was inferred incorrectly/unknown. No completion here = a type error indicator (a common 1C bug), not «no data».
 
 ### Find where a metadata object is used in code
 
-The picture is hybrid (matching how the object is actually used in BSL):
+The picture is hybrid (how the object is used in BSL itself):
 
-1. `search_ssl_functions` (references mode) on the manager symbol `Документы.ИмяОбъекта` → **semantically precise** manager-access sites. References exclude matches in comments/strings/query text.
-2. **Complement with grep** for what is not a symbol and therefore invisible to references: string type literals (`"ДокументСсылка.ИмяОбъекта"`, `Тип("ДокументСсылка.…")`) and metadata paths inside query text (`ИЗ Документ.ИмяОбъекта`).
+1. `search_ssl_functions` (references mode) on the manager symbol `Документы.ИмяОбъекта` → **semantically precise** manager-access locations. References exclude matches in comments/strings/query text.
+2. **Complement with grep** for what is not a symbol and therefore is not visible to references: string type literals (`"ДокументСсылка.ИмяОбъекта"`, `Тип("ДокументСсылка.…")`) and metadata paths inside query text (`ИЗ Документ.ИмяОбъекта`).
 
-> For «where used», prefer references over a bare name grep: grep gives false positives in comments and strings. grep only picks up the string/query usages.
+> For “where used”, prefer references over a bare grep by name: grep produces false positives in comments and strings. Use grep only to pick up string/query usages.
 
 ### Change-impact analysis: `get_symbol_impact`
 
 Before renaming/changing a procedure, estimate the blast radius in one call:
 
 1. `navigate_symbol` → `uri`, `line`, `character` of the symbol.
-2. `get_symbol_impact(uri, line, character)` → incoming callers (call hierarchy) + all references + **caller classification by module type** (CommonModule / FormModule / ManagerModule / ObjectModule / …) — you see where the change is pulled from: UI, server, or background.
+2. `get_symbol_impact(uri, line, character)` → incoming callers (call hierarchy) + all references + **caller classification by module type** (CommonModule / FormModule / ManagerModule / ObjectModule / …) — shows where the change is pulled through from: UI, server, or background.
 
 **Two blind spots (built into the output, keep in mind):**
-- **Triggers.** Call hierarchy shows only direct calls. A method is also reached via event subscriptions, form handlers, scheduled jobs, extension `&Вместо/&Перед/&После` — NOT visible here (declarative; pick up via 1c-mcp/XML).
-- **Namesakes.** For shared object methods (`ОбработкаПроведения`, `ПередЗаписью`, present in hundreds of modules), anchor call hierarchy to the specific module — otherwise the result includes false edges from same-named methods of other objects.
+- **Triggers.** Call hierarchy shows only direct calls. A method is also reached via event subscriptions, form handlers, scheduled jobs, extension `&Вместо/&Перед/&После` — this is NOT visible here (declarative; pick up via 1c-mcp/XML).
+- **Namesakes.** For shared object methods (`ОбработкаПроведения`, `ПередЗаписью`, present in hundreds of modules), anchor call hierarchy to the specific module — otherwise the result will include false links from same-named methods of other objects.
+
+### Parameter hints at the call site: `signature_help`
+
+Returns the list of parameters for the called method and which argument the cursor is on. The contract is strict — an incorrect position yields an empty result that looks like "not supported", but in reality the position is wrong.
+
+**You MUST pass `line`/`character` as 0-based, with the cursor INSIDE the call parentheses** — between `(` and `)`, NOT on the method name and NOT before `(`. The provider finds the enclosing call (`doCall`), resolves the called method, and only then returns signatures.
+
+```
+// Line (1-based 8):  Аккаунт = ПолучитьАккаунт(ДокументОперации, ПараметрыОперации);
+signature_help(uri, line=7, character=29)   // immediately after "(" → param 0
+//   → ПолучитьАккаунт(ДокументОперации?, ПараметрыОперации?), Active parameter: 0
+signature_help(uri, line=7, character=47)   // after comma   → Active parameter: 1
+```
+
+**Empty result ≠ tool is broken.** `signature_help` returns signatures only when the called method resolves to a method with a known parameter list. It works reliably for **methods in the same module** (resolution from parsed source). It returns empty for:
+- cursor NOT inside the parentheses (on the name / before `(`) — the most common mistake;
+- cross-module call (`Модуль.Метод(`) — requires the configuration type index, and works only when BSL LS is pointed at a single configuration root (see “Common mistakes”: cross-module resolution);
+- global platform methods (`СтрШаблон(`, `ЗначениеЗаполнено(`) and platform object methods (`Запрос.УстановитьПараметр(`) — requires a loaded **1C platform context** (`.hbk` syntax helper). The mcp-lsp container is lightweight — the platform is NOT baked into the image, it is provisioned at runtime. The `bsl-ls` run script generates a global config and passes it through `-Dapp.globalConfiguration.path`: when `BSL_PLATFORM_BIN` is set (compose `docker-compose.platform.yml` mounts the `.hbk` directory read-only) — the explicit `v8platform.binPath` takes priority; when it is not set — BSL LS auto-detects the installed platform (including Windows). Without either, the startup log shows `Failed to load platform contexts: No 1C platform installations found`, and platform hover/completion/signatures are empty. With a loaded context (`Loaded N platform contexts from 1C syntax helper`) — they resolve with full parameter docs (in Russian when `language:ru`).
+
+For a confirmed parameter list regardless of call site - `getMember(typeId, member)` (platform types) or `navigate_symbol`→hover (the method's own declaration).
 
 ## Capabilities
 
@@ -108,6 +129,7 @@ Before renaming/changing a procedure, estimate the blast radius in one call:
 | `getConstructors` | Type constructors (`Новый`) |
 | `get_completion` | Metadata discovery: object/tabular-section members, enum values, predefined items, types |
 | `get_symbol_impact` | Impact analysis: incoming callers + references + caller classification by module type |
+| `signature_help` | Parameter hints at the call site (cursor inside parentheses) |
 
 ## Common mistakes
 
@@ -118,6 +140,8 @@ Before renaming/changing a procedure, estimate the blast radius in one call:
 | `get_call_graph` times out | Reduce `depth` |
 | `rename_symbol` is not applicable | Check cursor position; protected area → manual editing |
 | File is not indexed | Wait for LSP indexing |
+| `signature_help` returns empty | The cursor must be INSIDE the call parentheses (0-based), not on the method name; reliable for methods in the same module. For cross-module/global calls see the line below |
+| Cross-module `Модуль.Метод()` does not resolve (empty `signature_help`, cross-module call hierarchy loses links, false `QueryToMissingMetadata`) | BSL LS must index a SINGLE main configuration root `src/xml`, not the project root with 9 `Configuration.xml` files (main + extensions). Session-manager auto-detects the main configuration root under the passed workspace (`detectConfigurationRoot`), so this should be fixed. If it regresses, check the bsl-ls startup log for `Detected 1C configuration root: …/src/xml`; absence means detection failed (for example, the workspace has no main `Configuration.xml` or the binary is older than the fix) → reindexing is looking at the wrong tree |
 
 ---
 depends_on: []
