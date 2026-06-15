@@ -134,6 +134,31 @@ public class MetaEditor {
             return;
         }
 
+        //++agent TASK-165.4 [15.06.2026 10:05:00] XG-51
+        // Нормализация уже-битого объекта: вычистка БД-персистентных под-свойств
+        // (FillFromFillingValue/FillValue/Indexing/FullTextSearch/DataHistory) у
+        // реквизитов нехранимых объектов (DataProcessor/Report). Эти свойства
+        // невалидны для рантаймного Attribute (XG-50: генератор уже не эмитит их,
+        // но ранее сгенерированные файлы остались битыми, а штатной операции
+        // точечной вычистки под-свойства БЕЗ смены UUID реквизита не было).
+        // Операция не принимает --value, работает на всём content, идемпотентна.
+        // Обрабатываем до общего content-конвейера, т.к. это не verb-target над
+        // конкретным дочерним элементом, а нормализация всего объекта.
+        if ("normalize-runtime-attributes".equals(operation)) {
+            String normalized = normalizeRuntimeAttributes(content, objType);
+            if (modifyCount > 0) {
+                writeFileWithBom(xmlPath, normalized);
+                out.println("[INFO] Saved: " + xmlPath);
+            }
+            out.println();
+            out.println("=== meta-edit summary ===");
+            out.println("  Object:   " + objType + "." + objName);
+            out.println("  Modified: " + modifyCount + " (removed runtime-invalid attribute sub-properties)");
+            if (modifyCount == 0) out.println("  No changes applied (object is storable or already clean).");
+            return;
+        }
+        //++agent TASK-165.4 XG-51
+
         // Parse and execute operation
         String[] opParts = operation.split("-", 2);
         if (opParts.length != 2) {
@@ -264,10 +289,19 @@ public class MetaEditor {
 
         // FillFromFillingValue / FillValue — for non-register attributes
         boolean isRegister = MetadataTypeRegistry.isRegister(objType);
-        if (!isRegister && "Attribute".equals(xmlTag)) {
+        //**agent TASK-165.4 [15.06.2026 09:40:00] XG-50
+        // Реквизиты обработок/отчётов (DataProcessor/Report) рантаймные — их XDTO-схема
+        // Attribute НЕ содержит FillFromFillingValue/FillValue (как и Indexing/FTS/DataHistory
+        // ниже). Эмиссия для нехранимого объекта = "Неверное свойство ... Attribute" при
+        // загрузке Designer'ом. Канон _ДемоВыводСообщенийПользователю: хвост кончается на
+        // ChoiceHistoryOnInput, ни одного из 5 БД-свойств нет.
+        boolean isStorable = MetadataTypeRegistry.isStorable(objType);
+        //if (!isRegister && "Attribute".equals(xmlTag)) {
+        if (!isRegister && isStorable && "Attribute".equals(xmlTag)) {
             sb.append(indent).append("\t\t<FillFromFillingValue>true</FillFromFillingValue>\n");
             sb.append(indent).append("\t\t<FillValue xsi:nil=\"true\"/>\n");
         }
+        //**agent TASK-165.4 XG-50
         if (isRegister && "Dimension".equals(xmlTag) && "InformationRegister".equals(objType)) {
             boolean master = def.flags.contains("master");
             sb.append(indent).append("\t\t<FillFromFillingValue>").append(master).append("</FillFromFillingValue>\n");
@@ -327,29 +361,37 @@ public class MetaEditor {
             //++agent TASK-174
         }
 
-        // Indexing
-        String indexing = "DontIndex";
-        if (def.flags.contains("index")) indexing = "Index";
-        if (def.flags.contains("indexadditional")) indexing = "IndexWithAdditionalOrder";
-        sb.append(indent).append("\t\t<Indexing>").append(indexing).append("</Indexing>\n");
-        sb.append(indent).append("\t\t<FullTextSearch>Use</FullTextSearch>\n");
+        //**agent TASK-165.4 [15.06.2026 09:40:00] XG-50
+        // Indexing/FullTextSearch/DataHistory — БД-персистентные свойства. У реквизитов
+        // нехранимых объектов (DataProcessor/Report) их в XDTO-схеме Attribute НЕТ.
+        // Раньше Indexing+FullTextSearch писались безусловно → "Неверное свойство ... Attribute"
+        // при загрузке обработки/отчёта Designer'ом. Гейтим хвост по storable.
+        boolean emitStorageTail = isStorable || isRegister;
+        if (emitStorageTail) {
+            // Indexing
+            String indexing = "DontIndex";
+            if (def.flags.contains("index")) indexing = "Index";
+            if (def.flags.contains("indexadditional")) indexing = "IndexWithAdditionalOrder";
+            sb.append(indent).append("\t\t<Indexing>").append(indexing).append("</Indexing>\n");
+            sb.append(indent).append("\t\t<FullTextSearch>Use</FullTextSearch>\n");
 
-        // UseInTotals for AccumulationRegister dimensions
-        if ("Dimension".equals(xmlTag) && "AccumulationRegister".equals(objType)) {
-            boolean useInTotals = !def.flags.contains("nouseintotals");
-            sb.append(indent).append("\t\t<UseInTotals>").append(useInTotals).append("</UseInTotals>\n");
-        }
+            // UseInTotals for AccumulationRegister dimensions
+            if ("Dimension".equals(xmlTag) && "AccumulationRegister".equals(objType)) {
+                boolean useInTotals = !def.flags.contains("nouseintotals");
+                sb.append(indent).append("\t\t<UseInTotals>").append(useInTotals).append("</UseInTotals>\n");
+            }
 
-        //**agent TASK-174 [07.06.2026 12:00:00]
-        // Порт-аудит: DataHistory писался безусловно, но по грунт-труфу 2.20 у измерений/
-        // ресурсов Accumulation/Accounting/CalculationRegister элемента DataHistory НЕТ
-        // (есть только у InformationRegister и нерегистровых объектов). Лишний узел —
-        // риск XSD-отказа при full-load (тот же класс, что Master/MainFilter у AccumReg).
-        //sb.append(indent).append("\t\t<DataHistory>Use</DataHistory>\n");
-        if (!isRegister || "InformationRegister".equals(objType)) {
-            sb.append(indent).append("\t\t<DataHistory>Use</DataHistory>\n");
+            //++agent TASK-174 [07.06.2026 12:00:00]
+            // Порт-аудит: DataHistory писался безусловно, но по грунт-труфу 2.20 у измерений/
+            // ресурсов Accumulation/Accounting/CalculationRegister элемента DataHistory НЕТ
+            // (есть только у InformationRegister и нерегистровых объектов). Лишний узел —
+            // риск XSD-отказа при full-load (тот же класс, что Master/MainFilter у AccumReg).
+            if (!isRegister || "InformationRegister".equals(objType)) {
+                sb.append(indent).append("\t\t<DataHistory>Use</DataHistory>\n");
+            }
+            //++agent TASK-174
         }
-        //**agent TASK-174
+        //**agent TASK-165.4 XG-50
 
         sb.append(indent).append("\t</Properties>\n");
         sb.append(indent).append("</").append(xmlTag).append(">");
@@ -1246,7 +1288,7 @@ public class MetaEditor {
             for (String attrShorthand : attrDefs) {
                 AttrDef def = parseShorthand(attrShorthand.trim());
                 if (def.name.isEmpty()) continue;
-                buildTsAttribute(sb, indent + "\t\t", def);
+                buildTsAttribute(sb, indent + "\t\t", def, objType); //**agent TASK-165.4 XG-50
             }
             sb.append(indent).append("\t</ChildObjects>\n");
         } else {
@@ -1296,7 +1338,7 @@ public class MetaEditor {
         // Build attribute fragment
         String indent = "\t\t\t\t";
         StringBuilder sb = new StringBuilder();
-        buildTsAttribute(sb, indent, def);
+        buildTsAttribute(sb, indent, def, objType); //**agent TASK-165.4 XG-50
         String fragment = sb.toString();
 
         // Find insertion point within TS ChildObjects
@@ -1326,7 +1368,11 @@ public class MetaEditor {
         return content;
     }
 
-    private void buildTsAttribute(StringBuilder sb, String indent, AttrDef def) {
+    //**agent TASK-165.4 [15.06.2026 09:40:00] XG-50
+    // objType добавлен, чтобы у ТЧ-реквизитов нехранимых объектов (DataProcessor/Report)
+    // не эмитить БД-персистентные Indexing/FullTextSearch/DataHistory (см. addChildElement).
+    private void buildTsAttribute(StringBuilder sb, String indent, AttrDef def, String objType) {
+    //**agent TASK-165.4 XG-50
         sb.append(indent).append("<Attribute uuid=\"").append(uuid()).append("\">\n");
         sb.append(indent).append("\t<Properties>\n");
         sb.append(indent).append("\t\t<Name>").append(esc(def.name)).append("</Name>\n");
@@ -1358,9 +1404,15 @@ public class MetaEditor {
         sb.append(indent).append("\t\t<ChoiceForm/>\n");
         sb.append(indent).append("\t\t<LinkByType/>\n");
         sb.append(indent).append("\t\t<ChoiceHistoryOnInput>Auto</ChoiceHistoryOnInput>\n");
-        sb.append(indent).append("\t\t<Indexing>DontIndex</Indexing>\n");
-        sb.append(indent).append("\t\t<FullTextSearch>Use</FullTextSearch>\n");
-        sb.append(indent).append("\t\t<DataHistory>Use</DataHistory>\n");
+        //**agent TASK-165.4 [15.06.2026 09:40:00] XG-50
+        // У ТЧ-реквизитов нехранимых обработок/отчётов Indexing/FullTextSearch/DataHistory
+        // отсутствуют в XDTO-схеме Attribute — не эмитим (см. addChildElement / MetaWriter.writeTsAttribute).
+        if (MetadataTypeRegistry.isStorable(objType)) {
+            sb.append(indent).append("\t\t<Indexing>DontIndex</Indexing>\n");
+            sb.append(indent).append("\t\t<FullTextSearch>Use</FullTextSearch>\n");
+            sb.append(indent).append("\t\t<DataHistory>Use</DataHistory>\n");
+        }
+        //**agent TASK-165.4 XG-50
         sb.append(indent).append("\t</Properties>\n");
         sb.append(indent).append("</Attribute>\n");
     }
@@ -2051,6 +2103,70 @@ public class MetaEditor {
         throw new IllegalStateException("Cannot detect object name from XML");
     }
 
+    //++agent TASK-165.4 [15.06.2026 10:05:00] XG-51
+    /**
+     * БД-персистентные под-свойства реквизита, невалидные в XDTO-схеме Attribute
+     * нехранимого объекта (DataProcessor/Report). Designer репортит "Неверное
+     * свойство объекта метаданных", если они присутствуют у реквизита обработки/отчёта.
+     */
+    private static final String[] RUNTIME_INVALID_PROPERTIES = {
+            "FillFromFillingValue", "FillValue", "Indexing", "FullTextSearch", "DataHistory"
+    };
+
+    /**
+     * Нормализует уже-сгенерированный объект, удаляя у его реквизитов (как root-уровня,
+     * так и реквизитов табличных частей) БД-персистентные под-свойства, невалидные для
+     * рантаймных объектов DataProcessor/Report. Сохраняет UUID реквизитов, порядок и
+     * значения всех прочих свойств. Идемпотентна: повторный запуск на уже чистом файле
+     * не вносит изменений. Для хранимых объектов (Catalog/Document/InformationRegister
+     * и т.п.) — полный no-op (там эти свойства валидны).
+     *
+     * <p>Реализация — построчное удаление: каждое из пяти свойств всегда сериализуется
+     * платформой/генератором отдельной строкой внутри блока {@code <Properties>}
+     * (либо парный {@code <Tag>val</Tag>}, либо самозакрытый {@code <Tag .../>}).
+     * Удаление строки целиком не задевает соседние свойства, UUID или структуру.
+     *
+     * @param content исходный XML без BOM
+     * @param objType тип объекта (например DataProcessor, Report, Catalog)
+     * @return нормализованный XML; {@code modifyCount} увеличивается на число удалённых строк
+     */
+    String normalizeRuntimeAttributes(String content, String objType) {
+        // Хранимый объект — свойства валидны, нормализация не нужна (требование (д)).
+        if (MetadataTypeRegistry.isStorable(objType)) {
+            return content;
+        }
+
+        // Сохраняем оригинальный признак переноса строк, чтобы не сломать CRLF/LF
+        // (на диске CRLF гарантируется writeFileWithBom; здесь работаем с тем,
+        //  что вернул readFileContent — обычно \n после нормализации платформой).
+        StringBuilder removalPattern = new StringBuilder("(?:");
+        for (int i = 0; i < RUNTIME_INVALID_PROPERTIES.length; i++) {
+            if (i > 0) removalPattern.append('|');
+            removalPattern.append(Pattern.quote(RUNTIME_INVALID_PROPERTIES[i]));
+        }
+        removalPattern.append(')');
+
+        // Матчим целую строку свойства внутри Properties: ведущий whitespace (отступ),
+        // открывающий тег одного из пяти свойств, его содержимое (парный или
+        // самозакрытый вариант) и завершающий перевод строки. Удаляем строку целиком.
+        // [^\S\r\n]* — горизонтальный whitespace (табы/пробелы) без захвата перевода строк.
+        Pattern linePattern = Pattern.compile(
+                "[^\\S\\r\\n]*<" + removalPattern + "(?:\\s[^>]*)?(?:/>|>[^<]*</" + removalPattern + ">)\\r?\\n");
+
+        Matcher m = linePattern.matcher(content);
+        StringBuilder sb = new StringBuilder();
+        int removed = 0;
+        while (m.find()) {
+            m.appendReplacement(sb, "");
+            removed++;
+        }
+        m.appendTail(sb);
+
+        modifyCount += removed;
+        return sb.toString();
+    }
+    //++agent TASK-165.4 XG-51
+
     // ─── ROOT PROPERTY operations ────────────────────────────────────────
 
     /**
@@ -2621,7 +2737,7 @@ public class MetaEditor {
             def.flags.add("req");
         }
 
-        buildTsAttribute(sb, indent, def);
+        buildTsAttribute(sb, indent, def, objType); //**agent TASK-165.4 XG-50
         String fragment = sb.toString();
 
         // Insert into ChildObjects

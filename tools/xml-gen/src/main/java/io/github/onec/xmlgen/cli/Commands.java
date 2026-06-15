@@ -3963,10 +3963,28 @@ public class Commands {
             return;
         }
 
+        // ── Normalize mode (XG-51) ───────────────────────────────────────
+        // Идемпотентная нормализация объекта (DataProcessor/Report): вычистка
+        // рантайм-невалидных под-свойств реквизитов. --value НЕ требуется —
+        // операция работает на всём объекте.
+        if ("normalize-runtime-attributes".equals(operation)) {
+            if (objectPath == null) {
+                throw new IllegalArgumentException(
+                        "Usage: xml-gen meta edit <objectPath> --op normalize-runtime-attributes");
+            }
+            try {
+                new MetaEditor().edit(objectPath, operation, value == null ? "" : value);
+            } catch (IOException e) {
+                throw new RuntimeException("Failed to normalize metadata: " + e.getMessage(), e);
+            }
+            return;
+        }
+
         // ── Inline mode ─────────────────────────────────────────────────
         if (objectPath == null || operation == null || value == null) {
             throw new IllegalArgumentException(
                     "Usage: xml-gen meta edit <objectPath> --op <operation> --value <value>\n"
+                    + "       xml-gen meta edit <objectPath> --op normalize-runtime-attributes\n"
                     + "       xml-gen meta edit <objectPath> --batch <file.json>\n"
                     + "Operations: add-attribute, add-ts, add-dimension, add-resource, add-enumValue,\n"
                     + "  add-predefined (--value \"Имя[|Описание[|Код[|folder]]]\", батч через ;;),\n"
