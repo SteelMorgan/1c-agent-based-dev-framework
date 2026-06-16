@@ -202,7 +202,7 @@ public class MetaEditor {
         return switch (action) {
             case "add" -> executeAdd(content, objType, objName, target, value);
             case "remove" -> executeRemove(content, objType, target, value);
-            case "modify" -> executeModify(content, objType, target, value);
+            case "modify" -> executeModify(content, objType, objName, target, value);
             default -> {
                 warn("Unknown action: " + action);
                 yield content;
@@ -1498,11 +1498,27 @@ public class MetaEditor {
 
     // ─── MODIFY operations ──────────────────────────────────────────────
 
-    private String executeModify(String content, String objType, String target, String value) {
+    private String executeModify(String content, String objType, String objName,
+                                 String target, String value) {
         // Special case: modify-property handles root <Properties> of the object
         if ("property".equals(target)) {
             return modifyRootProperty(content, value);
         }
+
+        //++agent TASK-165 [16.06.2026 00:00:00] XG-54
+        // modify-column над колонкой (реквизитом) ТАБЛИЧНОЙ ЧАСТИ каталога: адрес
+        // "ИмяТЧ.ИмяКолонки: key=val" (точечная адресация как у add-ts-attribute).
+        // Колонка ТЧ в XDTO-каноне — это <Attribute> ВНУТРИ <TabularSection>, а не
+        // отдельный <Column> (тот живёт только в DocumentJournal). Старый modify-column
+        // искал <Column> на корне и не находил TS-реквизит → «0 operations».
+        if ("column".equals(target)) {
+            int dotIdx = value.indexOf('.');
+            int colonAfterDot = value.indexOf(':');
+            if (dotIdx > 0 && (colonAfterDot < 0 || dotIdx < colonAfterDot)) {
+                return modifyTsColumn(content, value);
+            }
+        }
+        //++agent TASK-165 XG-54
 
         // Format: "ElementName: key=val, key=val"
         String xmlTag = switch (target) {
@@ -1556,12 +1572,27 @@ public class MetaEditor {
                 elemBlock = elemBlock.replace(
                         "<Name>" + esc(elemName) + "</Name>",
                         "<Name>" + esc(val) + "</Name>");
-                // Update synonym if auto-generated
-                String oldSynonym = splitCamelCase(elemName);
-                String newSynonym = splitCamelCase(val);
-                elemBlock = elemBlock.replace(
-                        "<v8:content>" + esc(oldSynonym) + "</v8:content>",
-                        "<v8:content>" + esc(newSynonym) + "</v8:content>");
+                //**agent TASK-165 [16.06.2026 00:00:00] XG-52
+                // Синоним при rename трогаем ТОЛЬКО если он совпадает с авто-производным
+                // от СТАРОГО имени И пользователь не задал явный synonym= в этой же
+                // операции. Иначе вручную выставленный синоним молча затирался
+                // (XG-52: rename "АккаунтУправления"→"X" перетирал синоним "Аккаунт
+                // управления" на "X"). Совпадение с авто-старым = синоним «не трогали».
+                boolean explicitSynonym = changes.containsKey("synonym");
+                if (!explicitSynonym) {
+                    String oldSynonym = splitCamelCase(elemName);
+                    String newSynonym = splitCamelCase(val);
+                    elemBlock = elemBlock.replace(
+                            "<v8:content>" + esc(oldSynonym) + "</v8:content>",
+                            "<v8:content>" + esc(newSynonym) + "</v8:content>");
+                }
+                //**agent TASK-165 XG-52
+                // XG-53: при переименовании ТЧ согласованно правим связанные
+                // xr:GeneratedType (типы РядТабличнойЧасти/СтрокаТабличнойЧасти):
+                // суффикс ".<СтароеИмя>" в name= обоих GeneratedType → ".<НовоеИмя>".
+                if ("TabularSection".equals(xmlTag)) {
+                    elemBlock = renameTsGeneratedTypes(elemBlock, elemName, val);
+                }
                 info("Renamed " + xmlTag + ": " + elemName + " -> " + val);
                 modifyCount++;
             } else if ("type".equals(key)) {
@@ -1590,6 +1621,124 @@ public class MetaEditor {
 
         return content.substring(0, elemStart) + elemBlock + content.substring(elemEnd);
     }
+
+    //++agent TASK-165 [16.06.2026 00:00:00] XG-53
+    /**
+     * Согласованно переименовать связанные xr:GeneratedType при переименовании ТЧ.
+     * Табличная часть порождает 2 типа: CatalogTabularSection.<Obj>.<TS> (категория
+     * TabularSection — «СтрокаТабличнойЧасти» как ряд набора) и
+     * CatalogTabularSectionRow.<Obj>.<TS> (категория TabularSectionRow — «РядТабличнойЧасти»).
+     * Имя типа оканчивается на ".<ИмяТЧ>"; при переименовании ОБА суффикса должны
+     * следовать за новым именем, иначе платформа теряет связь типа с ТЧ.
+     * Работаем строго по суффиксу ".<old>" в атрибуте name= внутри блока самой ТЧ
+     * (elemBlock), чтобы не задеть одноимённые ТЧ других объектов.
+     */
+    private String renameTsGeneratedTypes(String elemBlock, String oldTsName, String newTsName) {
+        // name="...TabularSection.<Obj>.<oldTsName>"  →  ...".<newTsName>"
+        // Заменяем только хвост '.<old>"' (с закрывающей кавычкой), чтобы не зацепить
+        // вхождения <old> в середине имени объекта.
+        String result = elemBlock.replace(
+                "." + oldTsName + "\" category=\"TabularSection\"",
+                "." + newTsName + "\" category=\"TabularSection\"");
+        result = result.replace(
+                "." + oldTsName + "\" category=\"TabularSectionRow\"",
+                "." + newTsName + "\" category=\"TabularSectionRow\"");
+        return result;
+    }
+    //++agent TASK-165 XG-53
+
+    //++agent TASK-165 [16.06.2026 00:00:00] XG-54
+    /**
+     * Переименовать/изменить колонку (реквизит) табличной части каталога.
+     * Адрес: "ИмяТЧ.ИмяКолонки: key=val[, key=val]". Колонка ТЧ — это <Attribute>
+     * внутри <TabularSection>. Поддерживает те же ключи, что и modify-attribute:
+     * name (rename + авто-синоним с XG-52 guard), type, synonym, comment, скалярные.
+     */
+    private String modifyTsColumn(String content, String value) {
+        int colonIdx = value.indexOf(':');
+        if (colonIdx <= 0) {
+            warn("Invalid modify-column format (expected ИмяТЧ.Колонка: key=val): " + value);
+            return content;
+        }
+        String address = value.substring(0, colonIdx).trim();
+        String changesPart = value.substring(colonIdx + 1).trim();
+
+        int dotIdx = address.indexOf('.');
+        if (dotIdx <= 0) {
+            warn("Invalid modify-column address (expected ИмяТЧ.Колонка): " + address);
+            return content;
+        }
+        String tsName = address.substring(0, dotIdx).trim();
+        String colName = address.substring(dotIdx + 1).trim();
+
+        // Parse changes
+        Map<String, String> changes = new LinkedHashMap<>();
+        for (String pair : splitByCommaOutsideParens(changesPart)) {
+            pair = pair.trim();
+            int eqIdx = pair.indexOf('=');
+            if (eqIdx > 0) {
+                changes.put(pair.substring(0, eqIdx).trim(), pair.substring(eqIdx + 1).trim());
+            }
+        }
+
+        int tsStart = findChildByName(content, "TabularSection", tsName);
+        if (tsStart < 0) { warn("TabularSection '" + tsName + "' not found for modify-column"); return content; }
+        int tsEnd = findClosingTag(content, "TabularSection", tsStart);
+        if (tsEnd < 0) { warn("Malformed TabularSection XML: " + tsName); return content; }
+
+        String tsBlock = content.substring(tsStart, tsEnd);
+
+        int attrStart = findChildByName(tsBlock, "Attribute", colName);
+        if (attrStart < 0) {
+            warn("Column '" + colName + "' not found in TS '" + tsName + "'");
+            return content;
+        }
+        int attrEnd = findClosingTag(tsBlock, "Attribute", attrStart);
+        if (attrEnd < 0) { warn("Malformed Attribute in TS '" + tsName + "'"); return content; }
+
+        String attrBlock = tsBlock.substring(attrStart, attrEnd);
+
+        for (Map.Entry<String, String> entry : changes.entrySet()) {
+            String key = entry.getKey();
+            String val = entry.getValue();
+            if ("name".equals(key)) {
+                attrBlock = attrBlock.replace(
+                        "<Name>" + esc(colName) + "</Name>",
+                        "<Name>" + esc(val) + "</Name>");
+                // XG-52 guard: авто-синоним трогаем только если не задан явный synonym=
+                boolean explicitSynonym = changes.containsKey("synonym");
+                if (!explicitSynonym) {
+                    attrBlock = attrBlock.replace(
+                            "<v8:content>" + esc(splitCamelCase(colName)) + "</v8:content>",
+                            "<v8:content>" + esc(splitCamelCase(val)) + "</v8:content>");
+                }
+                info("Renamed column in TS '" + tsName + "': " + colName + " -> " + val);
+                modifyCount++;
+            } else if ("type".equals(key)) {
+                attrBlock = replaceTypeBlock(attrBlock, val);
+                info("Changed type of column '" + tsName + "." + colName + "': " + val);
+                modifyCount++;
+            } else if ("synonym".equals(key) || "comment".equals(key)) {
+                String mlTag = "synonym".equals(key) ? "Synonym" : "Comment";
+                attrBlock = replaceMlTextProperty(attrBlock, mlTag, val);
+                info("Changed " + mlTag + " of column '" + tsName + "." + colName + "': " + val);
+                modifyCount++;
+            } else {
+                String propPattern = "(<" + Pattern.quote(key) + ">)[^<]*(</" + Pattern.quote(key) + ">)";
+                if (attrBlock.matches("(?s).*" + propPattern + ".*")) {
+                    attrBlock = attrBlock.replaceFirst(propPattern, "$1" + esc(val) + "$2");
+                    info("Modified column '" + tsName + "." + colName + "'." + key + " = " + val);
+                    modifyCount++;
+                } else {
+                    warn("Column '" + tsName + "." + colName + "': property '" + key + "' not found");
+                }
+            }
+        }
+
+        String newTsBlock = tsBlock.substring(0, attrStart) + attrBlock + tsBlock.substring(attrEnd);
+        return content.substring(0, tsStart) + newTsBlock + content.substring(tsEnd);
+    }
+    //++agent TASK-165 XG-54
 
     // ─── XML text manipulation ──────────────────────────────────────────
 
@@ -2665,10 +2814,14 @@ public class MetaEditor {
     private String batchModifyTabularSection(String content, String objType, String objName,
                                              Operation op) {
         String tsName = requireName(op.getName(), "modify-tabularSection");
-        if (op.getOperations().isEmpty()) {
-            warn("modify-tabularSection '" + tsName + "': no nested operations");
+        //++agent TASK-165 [16.06.2026 00:00:00] XG-53
+        // Допускаем modify-tabularSection БЕЗ вложенных операций, если задан newName
+        // (переименование самой ТЧ). Прежде пустой operations давал только warn.
+        if (op.getOperations().isEmpty() && op.getNewName() == null && op.getSynonym() == null) {
+            warn("modify-tabularSection '" + tsName + "': no nested operations and no rename");
             return content;
         }
+        //++agent TASK-165 XG-53
 
         int tsStart = findChildByName(content, "TabularSection", tsName);
         if (tsStart < 0) {
@@ -2682,6 +2835,31 @@ public class MetaEditor {
         for (Operation nested : op.getOperations()) {
             tsBlock = applyNestedTsOperation(tsBlock, objType, objName, tsName, nested);
         }
+
+        //++agent TASK-165 [16.06.2026 00:00:00] XG-53
+        // Синоним самой ТЧ (по аналогии с batchModifyAttr). Применяем ДО rename,
+        // чтобы guard «явный synonym» работал на исходном теле.
+        if (op.getSynonym() != null) {
+            tsBlock = op.getSynonym().applyToBlock(tsBlock, "Synonym");
+            info("Batch modified Synonym of TabularSection '" + tsName + "'");
+            modifyCount++;
+        }
+        // Переименование самой ТЧ: <Name>, авто-синоним (XG-52 guard) и согласованно
+        // оба связанных xr:GeneratedType (XG-53).
+        if (op.getNewName() != null) {
+            String newName = op.getNewName();
+            tsBlock = tsBlock.replace("<Name>" + esc(tsName) + "</Name>",
+                                      "<Name>" + esc(newName) + "</Name>");
+            if (op.getSynonym() == null) {
+                tsBlock = tsBlock.replace(
+                        "<v8:content>" + esc(splitCamelCase(tsName)) + "</v8:content>",
+                        "<v8:content>" + esc(splitCamelCase(newName)) + "</v8:content>");
+            }
+            tsBlock = renameTsGeneratedTypes(tsBlock, tsName, newName);
+            info("Batch renamed TabularSection: " + tsName + " -> " + newName);
+            modifyCount++;
+        }
+        //++agent TASK-165 XG-53
 
         return content.substring(0, tsStart) + tsBlock + content.substring(tsEnd);
     }
@@ -2790,6 +2968,21 @@ public class MetaEditor {
             attrBlock = replaceTypeBlock(attrBlock, op.getType());
             modifyCount++;
         }
+        //++agent TASK-165 [16.06.2026 00:00:00] XG-54
+        // Переименование колонки ТЧ через batch (newName). Авто-синоним правим только
+        // если явный synonym= не задан (XG-52 guard).
+        if (op.getNewName() != null) {
+            attrBlock = attrBlock.replace("<Name>" + esc(name) + "</Name>",
+                                          "<Name>" + esc(op.getNewName()) + "</Name>");
+            if (op.getSynonym() == null) {
+                attrBlock = attrBlock.replace(
+                        "<v8:content>" + esc(splitCamelCase(name)) + "</v8:content>",
+                        "<v8:content>" + esc(splitCamelCase(op.getNewName())) + "</v8:content>");
+            }
+            info("Batch renamed column in TS '" + tsName + "': " + name + " -> " + op.getNewName());
+            modifyCount++;
+        }
+        //++agent TASK-165 XG-54
         info("Batch modified attr in TS '" + tsName + "': " + name);
         return tsBlock.substring(0, attrStart) + attrBlock + tsBlock.substring(attrEnd);
     }

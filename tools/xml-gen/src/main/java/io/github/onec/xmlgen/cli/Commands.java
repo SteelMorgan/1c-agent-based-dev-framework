@@ -3991,7 +3991,8 @@ public class Commands {
                     + "  add-exchange-content (--value \"Metadata[|AutoRecord]\", батч через ;; или @items.json),\n"
                     + "  add-column, add-form, add-template, add-command, add-ts-attribute,\n"
                     + "  remove-attribute, remove-ts, remove-dimension, ..., remove-ts-attribute,\n"
-                    + "  modify-attribute, modify-dimension, modify-resource, modify-enumValue, modify-column");
+                    + "  modify-attribute, modify-dimension, modify-resource, modify-enumValue, modify-column,\n"
+                    + "  modify-ts (rename TС + согласованные GeneratedType; --value \"OldTS: name=NewTS\")");
         }
 
         // TASK-155 A2 iter-2: fail-fast on unknown --op value.
@@ -4031,7 +4032,7 @@ public class Commands {
                     "ts-attribute", "property");
             case "remove" -> Set.of("attribute", "ts", "dimension", "resource", "enumValue",
                     "column", "form", "template", "command", "ts-attribute");
-            case "modify" -> Set.of("attribute", "dimension", "resource", "enumValue", "column", "property");
+            case "modify" -> Set.of("attribute", "dimension", "resource", "enumValue", "column", "ts", "property");
             default -> Set.of();
         };
         if (!supported.contains(target)) {
