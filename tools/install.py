@@ -2805,8 +2805,16 @@ def _sha256_of(path: Path) -> str:
     return h.hexdigest()
 
 
-def _extract_to(archive: Path, kind: str, dest_dir: Path) -> bool:
-    """Распаковывает архив в dest_dir. Для kind=raw — копирует файл как есть."""
+def _extract_to(archive: Path, kind: str, dest_dir: Path, binary: Optional[str] = None) -> bool:
+    """Распаковывает архив в dest_dir. Для kind=raw — копирует файл сразу под
+    целевым именем бинаря (`binary`), если оно задано.
+
+    Почему raw кладётся под именем `binary`, а не сохраняет имя ассета: raw-ассет
+    САМ является бинарём, но его имя в релизе обычно платформо-суффиксное
+    (например `v8-session-manager-linux-x86_64`). `_place_binary` ищет файл по
+    ТОЧНОМУ имени `binary` (`rglob(binary)`), и суффиксное имя не матчилось →
+    бинарь не клался, установка молча падала «не удалось найти бинарь»
+    (инцидент 2026-06-20, v8-session-manager). Кладём сразу правильно."""
     import tarfile, zipfile
     dest_dir.mkdir(parents=True, exist_ok=True)
     try:
@@ -2817,8 +2825,8 @@ def _extract_to(archive: Path, kind: str, dest_dir: Path) -> bool:
             with zipfile.ZipFile(archive) as zf:
                 zf.extractall(dest_dir)
         elif kind == "raw":
-            # Имя сохранится при копировании в `_place_binary`.
-            shutil.copy2(archive, dest_dir / archive.name)
+            target_name = binary or archive.name
+            shutil.copy2(archive, dest_dir / target_name)
         else:
             print(red(f"    Неизвестный тип архива: {kind}"))
             return False
@@ -2876,10 +2884,17 @@ def _select_release_source(spec: dict, asset_name: str) -> Optional[tuple[str, s
 
     Логика выбора (см. EXTERNAL_TOOLS[*]["fork_repo"]):
       1. Тянем Latest у upstream и fork (если fork_repo задан).
-      2. Если у форка есть нужный ассет И его published_at СТРОГО позже
-         upstream — берём форк.
-      3. Иначе берём upstream (включая случай «у форка нет ассета для
-         этой платформы», «форк недоступен», «форк старше или равен»).
+      2. Форк — ОСНОВНОЙ источник: если у него есть ассет под текущую
+         платформу — берём форк (вне зависимости от даты релиза upstream).
+      3. Upstream — ЗАПАСНОЙ: только когда форк недоступен или в его релизе
+         нет ассета для этой платформы.
+
+    ВНИМАНИЕ: раньше здесь сравнивались published_at и форк брался лишь когда
+    его релиз СТРОГО свежее upstream. Это приводило к молчаливой подмене: более
+    поздний upstream-релиз (v0.5.1, 2026-05-25) затирал форк-сборку v0.5.0-sm.1
+    (2026-05-22) с WS-режимом / unlock_code / --dynamic. Форк специально держит
+    PR-ы, которые upstream не принимает, поэтому он приоритетен по определению,
+    а не по дате (инцидент 2026-06-20).
     """
     upstream_repo = spec["repo"]
     fork_repo = spec.get("fork_repo")
@@ -2900,32 +2915,21 @@ def _select_release_source(spec: dict, asset_name: str) -> Optional[tuple[str, s
     fork_has = _has_asset(fork)
     upstream_has = _has_asset(upstream)
 
-    fork_date = (fork or {}).get("published_at") or ""
-    upstream_date = (upstream or {}).get("published_at") or ""
-
-    # ISO-8601 строки сравниваются лексикографически — это и есть сравнение времени.
-    fork_newer = bool(fork_date) and fork_date > upstream_date
-
-    if fork and fork_has and fork_newer:
-        print(dim(f"    Источник: fork ({fork_repo}) — релиз {fork.get('tag_name')} "
-                  f"свежее upstream {upstream.get('tag_name') if upstream else '(нет)'}"))
-        return ("fork", fork_repo, fork)
-
-    # Если fork-релиза нет/нет ассета/он не свежее — упадём на upstream
-    if upstream and upstream_has:
-        if fork:
-            reason = (
-                "форк старше или равен upstream" if not fork_newer
-                else "у форка нет ассета для этой платформы"
-            )
-            print(dim(f"    Источник: upstream ({upstream_repo}) — {reason}"))
-        return ("upstream", upstream_repo, upstream)
-
-    # Крайний случай: fork есть и подходит, но upstream вообще недоступен —
-    # тоже берём fork, лишь бы что-то поставить.
+    # Форк — основной источник: есть ассет под платформу → берём форк
+    # независимо от даты upstream-релиза.
     if fork and fork_has:
-        print(dim(f"    Источник: fork ({fork_repo}) — upstream недоступен"))
+        suffix = ""
+        if upstream and upstream_has:
+            up_tag = upstream.get("tag_name") or "?"
+            suffix = f" (upstream {up_tag} проигнорирован — форк приоритетен)"
+        print(dim(f"    Источник: fork ({fork_repo}) — релиз {fork.get('tag_name')}{suffix}"))
         return ("fork", fork_repo, fork)
+
+    # Upstream — запасной: форк недоступен или без ассета под эту платформу.
+    if upstream and upstream_has:
+        reason = "у форка нет ассета для этой платформы" if fork else "форк недоступен"
+        print(dim(f"    Источник: upstream ({upstream_repo}) — {reason}"))
+        return ("upstream", upstream_repo, upstream)
 
     return None
 
@@ -3027,7 +3031,7 @@ def install_external_tool(
             shutil.rmtree(tool_dir)
         tool_dir.mkdir(parents=True, exist_ok=True)
 
-        if not _extract_to(archive_path, kind, tool_dir):
+        if not _extract_to(archive_path, kind, tool_dir, binary):
             return False
 
         binary_path = _place_binary(tool_dir, binary)
@@ -3169,13 +3173,13 @@ def main():
 
     # Install xml-gen only
     if args.install_xml_gen:
-        install_xml_gen(script_dir=Path(__file__).resolve().parent, dry_run=False)
+        install_xml_gen(script_dir=Path(__file__).resolve().parent, dry_run=args.dry_run)
         print()
         return
 
     # Install external tools only
     if args.install_external_tools:
-        install_all_external_tools(script_dir=Path(__file__).resolve().parent, dry_run=False)
+        install_all_external_tools(script_dir=Path(__file__).resolve().parent, dry_run=args.dry_run)
         print()
         return
 
