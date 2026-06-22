@@ -419,9 +419,13 @@ public class SkdDsl {
             this.name = parsed.name;
             this.title = parsed.title;
             this.type = rawType(parsed.type);
-            this.value = parsed.value;
+            List<String> parsedValues = SkdShorthandParser.splitValueList(parsed.value);
+            this.value = parsedValues != null && !parsedValues.isEmpty()
+                    ? (parsedValues.size() > 1 ? parsedValues : parsedValues.get(0))
+                    : parsed.value;
             this.hidden = parsed.flags.contains("hidden") ? true : null;
-            this.valueListAllowed = parsed.flags.contains("valueList") ? true : null;
+            this.valueListAllowed = parsed.flags.contains("valueList")
+                    || (parsedValues != null && parsedValues.size() > 1) ? true : null;
             this.autoDates = parsed.flags.contains("autoDates") ? true : null;
             this.use = parsed.flags.contains("always") ? "Always" : null;
         }

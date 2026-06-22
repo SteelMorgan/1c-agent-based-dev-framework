@@ -57,6 +57,8 @@ import io.github.onec.xmlgen.editor.ReplaceTextEditor;
 //++agent TASK-155
 
 import java.io.IOException;
+import java.io.PrintStream;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -66,6 +68,7 @@ import java.util.Arrays;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
@@ -2140,28 +2143,35 @@ public class Commands {
         String name = null;
         int limit = 150;
         int offset = 0;
+        Integer batch = null;
+        Path outfile = null;
         //++agent TASK-176 [08.06.2026 12:50:00]
         // S-06 (XG-48): флаг --raw для печати запроса verbatim (lossless round-trip).
         boolean raw = false;
         //++agent TASK-176
 
         for (int i = 1; i < args.length; i++) {
-            if ("--raw".equals(args[i])) { //++agent TASK-176
+            String option = args[i].toLowerCase(Locale.ROOT);
+            if ("--raw".equals(option) || "-raw".equals(option)) { //++agent TASK-176
                 raw = true;                //++agent TASK-176
-            } else if ("--mode".equals(args[i]) && i + 1 < args.length) {
+            } else if (("--mode".equals(option) || "-mode".equals(option)) && i + 1 < args.length) {
                 mode = args[++i].toLowerCase();
-            } else if ("--name".equals(args[i]) && i + 1 < args.length) {
+            } else if (("--name".equals(option) || "-name".equals(option)) && i + 1 < args.length) {
                 name = args[++i];
-            } else if ("--dataSet".equals(args[i]) && i + 1 < args.length) {
+            } else if (("--dataset".equals(option) || "-dataset".equals(option)) && i + 1 < args.length) {
                 // --dataSet is an alias for --name when used with query/fields modes
                 name = args[++i];
-            } else if ("--variant".equals(args[i]) && i + 1 < args.length) {
+            } else if (("--variant".equals(option) || "-variant".equals(option)) && i + 1 < args.length) {
                 // --variant is an alias for --name when used with variant mode
                 name = args[++i];
-            } else if ("--limit".equals(args[i]) && i + 1 < args.length) {
+            } else if (("--limit".equals(option) || "-limit".equals(option)) && i + 1 < args.length) {
                 limit = Integer.parseInt(args[++i]);
-            } else if ("--offset".equals(args[i]) && i + 1 < args.length) {
+            } else if (("--offset".equals(option) || "-offset".equals(option)) && i + 1 < args.length) {
                 offset = Integer.parseInt(args[++i]);
+            } else if (("--batch".equals(option) || "-batch".equals(option)) && i + 1 < args.length) {
+                batch = Integer.parseInt(args[++i]);
+            } else if (("--outfile".equals(option) || "-outfile".equals(option)) && i + 1 < args.length) {
+                outfile = Paths.get(args[++i]);
             } else if (file == null) {
                 file = Paths.get(args[i]);
             }
@@ -2180,17 +2190,35 @@ public class Commands {
                     "Expected root <DataCompositionSchema>, got <" + rootEl + ">. " +
                     "The file does not appear to be a 1C data composition schema.");
             }
-            //**agent TASK-176 [08.06.2026 12:50:00]
-            // S-06 (XG-48): --raw с режимом query печатает запрос байт-в-байт (verbatim),
-            // минуя пагинацию/декорации; иначе обычный режим.
-            if (raw && "query".equals(mode)) {
-                new SkdInfoPrinter().printRawQuery(doc.getRoot(), name, System.out);
+            PrintStream out = System.out;
+            if (outfile != null) {
+                Path parent = outfile.toAbsolutePath().getParent();
+                if (parent != null) {
+                    Files.createDirectories(parent);
+                }
+                try (PrintStream fileOut = new PrintStream(
+                        Files.newOutputStream(outfile), true, StandardCharsets.UTF_8)) {
+                    printSkdInfo(doc, mode, name, limit, offset, batch, raw, fileOut);
+                }
             } else {
-                new SkdInfoPrinter().print(doc, mode, name, limit, offset, System.out);
+                printSkdInfo(doc, mode, name, limit, offset, batch, raw, out);
             }
-            //**agent TASK-176
         } catch (XmlStructureReader.XmlParseException e) {
             throw new RuntimeException("Failed to parse SKD XML: " + e.getMessage(), e);
+        } catch (IOException e) {
+            throw new RuntimeException("Failed to write SKD info output: " + e.getMessage(), e);
+        }
+    }
+
+    private static void printSkdInfo(XmlDocument doc, String mode, String name, int limit,
+                                     int offset, Integer batch, boolean raw, PrintStream out) {
+        // S-06 (XG-48): --raw с режимом query печатает запрос verbatim, минуя
+        // пагинацию/декорации; иначе обычный режим.
+        SkdInfoPrinter printer = new SkdInfoPrinter();
+        if (raw && "query".equals(mode)) {
+            printer.printRawQuery(doc.getRoot(), name, batch, out);
+        } else {
+            printer.print(doc, mode, name, limit, offset, batch, out);
         }
     }
 

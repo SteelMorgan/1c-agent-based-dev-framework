@@ -362,8 +362,8 @@ class SkdEditorTest {
                 "Округ availableValue=Окр3: тыс.");
         editor.modifyParameter(mp);
         XmlNode param = findParameter("Округ");
-        assertTrue(param.children("availableValue").isEmpty());
-        List<XmlNode> avs = param.child("availableValues").children("item");
+        assertNull(param.child("availableValues"));
+        List<XmlNode> avs = param.children("availableValue");
         assertEquals(1, avs.size()); // full replace
         assertEquals("Окр3", avs.get(0).childText("value"));
     }
@@ -379,6 +379,24 @@ class SkdEditorTest {
         XmlNode value = findParameter("Период").child("value");
         assertEquals("v8:StandardPeriod", value.attr("xsi:type"));
         assertEquals("ThisMonth", value.childText("variant"));
+    }
+
+    @Test
+    void testModifyParameterValueList() {
+        editor.addParameter(SkdShorthandParser.parseParameter("Орг: CatalogRef.Организации"));
+        var mp = SkdShorthandParser.parseModifyParameter(
+                "Орг value=Справочник.Организации.X, Справочник.Организации.Y");
+
+        var r = editor.modifyParameter(mp);
+
+        assertTrue(r.changed);
+        XmlNode param = findParameter("Орг");
+        List<XmlNode> values = param.children("value");
+        assertEquals(2, values.size());
+        assertEquals("dcscor:DesignTimeValue", values.get(0).attr("xsi:type"));
+        assertEquals("Справочник.Организации.X", values.get(0).getText());
+        assertEquals("Справочник.Организации.Y", values.get(1).getText());
+        assertEquals("true", param.childText("valueListAllowed"));
     }
 
     // ════════════════════════════════════════════════════════════════════

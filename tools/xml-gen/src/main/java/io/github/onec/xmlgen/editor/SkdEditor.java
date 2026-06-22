@@ -488,7 +488,10 @@ public class SkdEditor {
         if (p.availableValues != null) {
             // FULL replacement
             removeAllChildren(target, "availableValue");
-            replaceChild(target, "availableValues", buildAvailableValues(p.availableValues));
+            removeAllChildren(target, "availableValues");
+            for (SkdShorthandParser.AvailableValueItem item : p.availableValues) {
+                target.addChild(buildAvailableValue(item));
+            }
             changed = true;
         }
         // Flags (idempotent)
@@ -706,7 +709,9 @@ public class SkdEditor {
             replaceParameterValue(param, p.value, p);
         }
         if (p.availableValues != null) {
-            param.addChild(buildAvailableValues(p.availableValues));
+            for (SkdShorthandParser.AvailableValueItem item : p.availableValues) {
+                param.addChild(buildAvailableValue(item));
+            }
         }
         for (String flag : p.flags) {
             applyParameterFlag(param, flag);
@@ -716,9 +721,50 @@ public class SkdEditor {
 
     private void replaceParameterValue(XmlNode param, String rawValue,
                                        SkdShorthandParser.ParameterDescriptor p) {
+        List<String> values = SkdShorthandParser.splitValueList(rawValue);
+        if (values != null && values.size() > 1) {
+            replaceParameterValues(param, values, p);
+            replaceTextChildIfDifferent(param, "valueListAllowed", "true");
+            return;
+        }
+        replaceParameterValues(param, values != null && !values.isEmpty() ? values : List.of(rawValue), p);
+    }
+
+    private void replaceParameterValues(XmlNode param, List<String> rawValues,
+                                        SkdShorthandParser.ParameterDescriptor p) {
+        int insertAt = firstValueInsertIndex(param);
+        removeAllChildren(param, "value");
+        int offset = 0;
+        for (String rawValue : rawValues) {
+            param.getChildren().add(insertAt + offset, buildParameterValue(rawValue, param, p));
+            offset++;
+        }
+    }
+
+    private int firstValueInsertIndex(XmlNode param) {
+        List<XmlNode> children = param.getChildren();
+        for (int i = 0; i < children.size(); i++) {
+            if ("value".equals(children.get(i).getName())) {
+                return i;
+            }
+        }
+        for (int i = 0; i < children.size(); i++) {
+            String name = children.get(i).getName();
+            if ("useRestriction".equals(name) || "valueListAllowed".equals(name)
+                    || "availableAsField".equals(name) || "denyIncompleteValues".equals(name)
+                    || "use".equals(name) || "availableValue".equals(name)
+                    || "availableValues".equals(name)) {
+                return i;
+            }
+        }
+        return children.size();
+    }
+
+    private XmlNode buildParameterValue(String rawValue, XmlNode param,
+                                        SkdShorthandParser.ParameterDescriptor p) {
         XmlNode v = createNode("value");
         // Pick xsi:type from type
-        String xsi = parameterValueType(param, p);
+        String xsi = parameterValueType(param, p, rawValue);
         v.setAttribute("xsi:type", xsi);
         if ("v8:StandardPeriod".equals(xsi)) {
             XmlNode variant = simpleTextNode("v8:variant", rawValue);
@@ -727,10 +773,15 @@ public class SkdEditor {
         } else {
             v.setText(rawValue);
         }
-        replaceChild(param, "value", v);
+        return v;
     }
 
-    private String parameterValueType(XmlNode param, SkdShorthandParser.ParameterDescriptor p) {
+    private String parameterValueType(XmlNode param, SkdShorthandParser.ParameterDescriptor p,
+                                      String value) {
+        String detected = detectValueType(value);
+        if ("dcscor:DesignTimeValue".equals(detected)) {
+            return detected;
+        }
         if (p.type != null && p.type.size() == 1) {
             return p.type.get(0).xmlType;
         }
@@ -743,20 +794,32 @@ public class SkdEditor {
                 }
             }
         }
+        return detected;
+    }
+
+    private static final java.util.regex.Pattern DESIGN_TIME_VALUE_PATTERN =
+            java.util.regex.Pattern.compile(
+                    "^(Перечисление|Справочник|ПланСчетов|Документ|ПланВидовХарактеристик"
+                            + "|ПланВидовРасчета|БизнесПроцесс|Задача|РегистрСведений|ПланОбмена"
+                            + "|Catalog|Enum|Document|ChartOfAccounts|ChartOfCharacteristicTypes"
+                            + "|ChartOfCalculationTypes|BusinessProcess|Task|InformationRegister"
+                            + "|ExchangePlan)\\..+");
+
+    private String detectValueType(String value) {
+        if ("true".equalsIgnoreCase(value) || "false".equalsIgnoreCase(value)) return "xs:boolean";
+        if (value.matches("\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}")) return "xs:dateTime";
+        if (value.matches("-?\\d+(\\.\\d+)?")) return "xs:decimal";
+        if (DESIGN_TIME_VALUE_PATTERN.matcher(value).matches()) return "dcscor:DesignTimeValue";
         return "xs:string";
     }
 
-    private XmlNode buildAvailableValues(List<SkdShorthandParser.AvailableValueItem> values) {
-        XmlNode wrapper = createNode("availableValues");
-        for (SkdShorthandParser.AvailableValueItem item : values) {
-            XmlNode av = createNode("item");
-            av.addChild(simpleTextNode("value", item.value));
-            if (item.presentation != null) {
-                av.addChild(simpleTextNode("presentation", item.presentation));
-            }
-            wrapper.addChild(av);
+    private XmlNode buildAvailableValue(SkdShorthandParser.AvailableValueItem item) {
+        XmlNode av = createNode("availableValue");
+        av.addChild(simpleTextNode("value", item.value));
+        if (item.presentation != null) {
+            av.addChild(simpleTextNode("presentation", item.presentation));
         }
-        return wrapper;
+        return av;
     }
 
     private void insertRootChild(XmlNode node, String kind) {

@@ -27,7 +27,7 @@ description: "Use for генерации схем компоновки данн�
 xml-gen skd compile [--format designer|edt] <input.json> <output.xml>
 
 # Анализ: Template.xml → компактная сводка (11 режимов)
-xml-gen skd info <Template.xml> [--mode <mode>] [--name <name>] [--batch <N>]
+xml-gen skd info <Template.xml> [--mode <mode>] [--name <name>] [--batch <N>] [--outfile <path>]
 
 # Валидация структуры
 xml-gen validate --type skd <Template.xml> [--detailed] [--max-errors 20]
@@ -125,6 +125,8 @@ Shorthand: `"Имя [Заголовок]: тип = значение @флаги"
 
 Объектная форма: `title`, `hidden`, `valueListAllowed`, `availableAsField`, `denyIncompleteValues`, `use: "Always"`, `availableValues[]`.
 
+Значение по умолчанию может быть списком: `"value": ["Справочник.X.A", "Справочник.X.B"]`. В XML это несколько `<value>` подряд; `valueListAllowed=true` выставляется автоматически. Для ссылочных значений используется `dcscor:DesignTimeValue`.
+
 `"dataParameters": "auto"` в варианте настроек — выводит все не-hidden параметры с `userSettingID`. Параметры без значения по умолчанию отключаются (пользователь включит сам).
 
 ## Фильтры
@@ -219,7 +221,7 @@ String shorthand: `"structure": "Организация > Номенклатур
 | `trace` | — | Полная цепочка: набор → вычисление → ресурс |
 | `full` | overview + query + fields + resources + params + variant | — |
 
-Workflow: `overview` → `trace --name <поле>` → `query --name <набор>` → `variant --name <N>`. Параметры: `--mode`, `--name`, `--batch` (`0` = все пакеты), `--limit`/`--offset` (по умолч. 150), `--out-file`.
+Workflow: `overview` → `trace --name <поле>` → `query --name <набор>` → `variant --name <N>`. Параметры: `--mode`, `--name`, `--batch N` (1-based, только `query`; без флага выводятся все пакеты), `--raw` (verbatim query), `--limit`/`--offset` (по умолч. 150), `--outfile <path>`/`-OutFile <path>`.
 
 ## Пример — с внешним запросом, ресурсами, @autoDates
 

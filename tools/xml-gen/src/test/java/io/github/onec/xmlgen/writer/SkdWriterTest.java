@@ -558,6 +558,32 @@ class SkdWriterTest {
         assertThat(content).contains("<v8:variant xsi:type=\"v8:StandardPeriodVariant\">LastMonth</v8:variant>");
     }
 
+    @Test
+    void testParameterDefaultValueList() throws Exception {
+        String json = """
+                {
+                  "dataSets": [{ "type": "query", "name": "Н", "query": "ВЫБРАТЬ 1" }],
+                  "parameters": [{
+                    "name": "Виды",
+                    "type": "ChartOfCharacteristicTypesRef.ВидыСубконтоХозрасчетные",
+                    "value": [
+                      "ПланВидовХарактеристик.ВидыСубконтоХозрасчетные.Контрагенты",
+                      "ПланВидовХарактеристик.ВидыСубконтоХозрасчетные.Договоры"
+                    ]
+                  }]
+                }
+                """;
+        Path out = compile(json);
+        String content = Files.readString(out);
+        assertThat(content).contains(
+                "<value xsi:type=\"dcscor:DesignTimeValue\">"
+                        + "ПланВидовХарактеристик.ВидыСубконтоХозрасчетные.Контрагенты</value>");
+        assertThat(content).contains(
+                "<value xsi:type=\"dcscor:DesignTimeValue\">"
+                        + "ПланВидовХарактеристик.ВидыСубконтоХозрасчетные.Договоры</value>");
+        assertThat(content).contains("<valueListAllowed>true</valueListAllowed>");
+    }
+
     /** Тест 14: availableValues с representation. */
     @Test
     void testAvailableValues() throws Exception {
@@ -576,7 +602,8 @@ class SkdWriterTest {
                 """;
         Path out = compile(json);
         String content = Files.readString(out);
-        assertThat(content).contains("<availableValues>");
+        assertThat(content).doesNotContain("<availableValues>");
+        assertThat(content).contains("<availableValue>");
         assertThat(content).contains("<value>Окр1</value>");
         assertThat(content).contains("<presentation>руб.</presentation>");
         assertThat(content).contains("<presentation>тыс. руб</presentation>");

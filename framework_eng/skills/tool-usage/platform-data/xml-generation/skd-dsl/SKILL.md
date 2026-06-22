@@ -27,7 +27,7 @@ description: "Use for generating 1C data composition schemas (SKD) from scratch 
 xml-gen skd compile [--format designer|edt] <input.json> <output.xml>
 
 # Analysis: Template.xml → compact summary (11 modes)
-xml-gen skd info <Template.xml> [--mode <mode>] [--name <name>] [--batch <N>]
+xml-gen skd info <Template.xml> [--mode <mode>] [--name <name>] [--batch <N>] [--outfile <path>]
 
 # Structure validation
 xml-gen validate --type skd <Template.xml> [--detailed] [--max-errors 20]
@@ -125,6 +125,8 @@ Shorthand: `"Name [Title]: type = value @flags"`.
 
 Object form: `title`, `hidden`, `valueListAllowed`, `availableAsField`, `denyIncompleteValues`, `use: "Always"`, `availableValues[]`.
 
+A default value can be a list: `"value": ["Справочник.X.A", "Справочник.X.B"]`. XML output uses repeated `<value>` elements; `valueListAllowed=true` is emitted automatically. Reference values are written as `dcscor:DesignTimeValue`.
+
 `"dataParameters": "auto"` in a settings variant - outputs all non-hidden parameters with `userSettingID`. Parameters without a default value are disabled (the user will enable them manually).
 
 ## Filters
@@ -219,7 +221,7 @@ Full specification (cell syntax, styles, drilldown, groupTemplates) - [reference
 | `trace` | — | Full chain: dataset → calculation → resource |
 | `full` | overview + query + fields + resources + params + variant | — |
 
-Workflow: `overview` → `trace --name <field>` → `query --name <dataset>` → `variant --name <N>`. Parameters: `--mode`, `--name`, `--batch` (`0` = all batches), `--limit`/`--offset` (default 150), `--out-file`.
+Workflow: `overview` → `trace --name <field>` → `query --name <dataset>` → `variant --name <N>`. Parameters: `--mode`, `--name`, `--batch N` (1-based, `query` only; omitted means all batches), `--raw` (verbatim query), `--limit`/`--offset` (default 150), `--outfile <path>`/`-OutFile <path>`.
 
 ## Example - with external query, resources, @autoDates
 

@@ -302,6 +302,30 @@ public final class SkdShorthandParser {
         return sb.toString();
     }
 
+    public static List<String> splitValueList(String rawValue) {
+        if (rawValue == null) {
+            return null;
+        }
+        Cursor c = new Cursor(rawValue);
+        List<String> values = new ArrayList<>();
+        while (!c.eof()) {
+            c.skipWs();
+            String value = readValueToken(c);
+            if (!value.isEmpty()) {
+                values.add(value);
+            }
+            c.skipWs();
+            if (c.eof()) {
+                break;
+            }
+            if (c.peek() != ',') {
+                return List.of(rawValue);
+            }
+            c.advance();
+        }
+        return values;
+    }
+
     /**
      * Прочитать список availableValue. Элементы разделены ',', представление после ':'.
      * Поддерживает одинарные кавычки '...' с удвоением '' для экранирования.
@@ -366,6 +390,22 @@ public final class SkdShorthandParser {
             c.advance();
         }
         return sb.toString();
+    }
+
+    private static String readValueToken(Cursor c) {
+        if (c.peek() == '\'') {
+            return readAvToken(c);
+        }
+        StringBuilder sb = new StringBuilder();
+        while (!c.eof()) {
+            char ch = c.peek();
+            if (ch == ',') {
+                break;
+            }
+            sb.append(ch);
+            c.advance();
+        }
+        return sb.toString().trim();
     }
 
     // ====================================================================

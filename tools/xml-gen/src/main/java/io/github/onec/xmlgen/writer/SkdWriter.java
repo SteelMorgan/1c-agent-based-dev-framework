@@ -377,7 +377,6 @@ public class SkdWriter extends XmlWriter {
     }
 
     private void writeAvailableValues(List<Object> values) throws XMLStreamException {
-        startElement("availableValues");
         for (Object v : values) {
             String text;
             String presentation = null;
@@ -390,7 +389,7 @@ public class SkdWriter extends XmlWriter {
                 text = String.valueOf(v);
             }
             writer.writeCharacters("\t".repeat(indentLevel));
-            writer.writeStartElement("item");
+            writer.writeStartElement("availableValue");
             writer.writeCharacters("\n");
             indentLevel++;
             writeElement("value", text);
@@ -402,7 +401,6 @@ public class SkdWriter extends XmlWriter {
             writer.writeEndElement();
             writer.writeCharacters("\n");
         }
-        endElement();
     }
 
     // ============================================================
@@ -531,7 +529,7 @@ public class SkdWriter extends XmlWriter {
         }
 
         if (param.getValue() != null) {
-            writeParameterValue(param.getValue(), param.getType());
+            writeParameterValues(param.getValue(), param.getType());
         }
 
         //++agent TASK-175 [07.06.2026 19:30:00]
@@ -555,7 +553,7 @@ public class SkdWriter extends XmlWriter {
                         ? "true" : "false");
         //++agent TASK-175
 
-        if (Boolean.TRUE.equals(param.getValueListAllowed())) {
+        if (Boolean.TRUE.equals(param.getValueListAllowed()) || param.getValue() instanceof List) {
             writeElement("valueListAllowed", "true");
         }
         //**agent TASK-175 [07.06.2026 18:55:00]
@@ -616,11 +614,22 @@ public class SkdWriter extends XmlWriter {
     }
     //**agent TASK-174
 
+    private void writeParameterValues(Object value, String type) throws XMLStreamException {
+        if (value instanceof List) {
+            for (Object item : (List<?>) value) {
+                writeParameterValue(item, type);
+            }
+            return;
+        }
+        writeParameterValue(value, type);
+    }
+
     private void writeParameterValue(Object value, String type) throws XMLStreamException {
         writer.writeCharacters("\t".repeat(indentLevel));
         writer.writeStartElement("value");
 
-        String xsiType = "xs:string";
+        String text = value != null ? value.toString() : "";
+        String xsiType = detectValueType(text);
         if (type != null) {
             if ("StandardPeriod".equals(type) || "v8:StandardPeriod".equals(type)) xsiType = "v8:StandardPeriod";
             else if (type.contains("date")) xsiType = "xs:dateTime";
@@ -635,13 +644,13 @@ public class SkdWriter extends XmlWriter {
             writer.writeCharacters("\t".repeat(indentLevel));
             writer.writeStartElement("v8:variant");
             writer.writeAttribute("xsi:type", "v8:StandardPeriodVariant");
-            writer.writeCharacters(value.toString());
+            writer.writeCharacters(text);
             writer.writeEndElement();
             writer.writeCharacters("\n");
             indentLevel--;
             writer.writeCharacters("\t".repeat(indentLevel));
         } else {
-            writer.writeCharacters(value.toString());
+            writer.writeCharacters(text);
         }
         writer.writeEndElement();
         writer.writeCharacters("\n");

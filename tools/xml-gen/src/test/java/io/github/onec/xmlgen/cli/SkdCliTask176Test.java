@@ -105,6 +105,39 @@ class SkdCliTask176Test {
                 .isEqualTo(EXPECTED_RAW_QUERY);
     }
 
+    @Test
+    @DisplayName("integr-S06: skd info -OutFile пишет UTF-8 файл с кириллическим именем")
+    void s06_infoOutfile_writesUtf8File() throws Exception {
+        Path schema = writeBatchedSchema();
+        Path outFile = tempDir.resolve("выгрузка.txt");
+
+        ProcessResult r = runMain("skd", "info", schema.toString(),
+                "-Mode", "query", "-OutFile", outFile.toString());
+
+        assertThat(r.exitCode()).as(r.combinedOutput()).isEqualTo(0);
+        assertThat(r.stdout()).isEmpty();
+        assertThat(Files.readString(outFile, StandardCharsets.UTF_8))
+                .contains("=== Query: Главный")
+                .contains("ВЫБРАТЬ 1 КАК А ПОМЕСТИТЬ Врем");
+    }
+
+    @Test
+    @DisplayName("integr-S06: skd info --batch --raw печатает один пакет запроса")
+    void s06_infoBatchRaw_printsOnlyRequestedBatch() throws Exception {
+        Path schema = writeBatchedSchema();
+
+        ProcessResult r = runMain("skd", "info", schema.toString(),
+                "--mode", "query", "--batch", "2", "--raw");
+
+        assertThat(r.exitCode()).as(r.combinedOutput()).isEqualTo(0);
+        assertThat(stripSingleTrailingNewline(r.stdout()))
+                .isEqualTo("ВЫБРАТЬ 2 КАК Б ИЗ Врем");
+        assertThat(r.stdout())
+                .doesNotContain("ВЫБРАТЬ 1 КАК А")
+                .doesNotContain("////////////////////")
+                .doesNotContain("=== Query");
+    }
+
     /**
      * Red (S-06, F-03): lossless round-trip {@code --raw → set-query → --raw}. Вывод
      * первого {@code info --raw} подаётся обратно через {@code set-query @file}, затем
