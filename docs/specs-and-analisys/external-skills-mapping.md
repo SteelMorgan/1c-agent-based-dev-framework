@@ -1,7 +1,7 @@
 # Сводный маппинг внешних навыков → наш фреймворк
 
 > **Статус документа:** 🟢 живой (living document). Обновляется при каждой сверке с upstream и при каждом заимствовании.
-> **Последнее обновление:** `2026-05-22` (rev.6 — **весь backlog xml-gen закрыт**: 9/10 реализовано, #8 MXL миграция → Won't fix; консолидация skills под единый `xml-generation/` + осушение −31%)
+> **Последнее обновление:** `2026-06-22` (rev.7 — сверка SH `6e14f25` → `3d36c202`: support-контроль переносим в `xml-gen`, web-test runner переносим, form/SKD — выборочно; db-dt, 1cv8.exe resolve, Yandex Code Assistant — skipped)
 > **Ответственный:** orchestrator / архитектор фреймворка
 >
 > **Назначение:** единая таблица отслеживания того, какие навыки из внешних источников мы заимствовали, какие планируем взять, какие отвергли. Используется для:
@@ -15,7 +15,7 @@
 
 | ID | Репозиторий | URL | Последний просмотренный коммит | Дата сверки | Метод снапшота |
 |----|-------------|-----|--------------------------------|-------------|----------------|
-| **SH** | `Nikolay-Shirokov/cc-1c-skills` | https://github.com/Nikolay-Shirokov/cc-1c-skills | `6e14f25` (main, 2026-05-21) | 2026-05-21 | `gh api repos/.../contents/.claude/skills` |
+| **SH** | `Nikolay-Shirokov/cc-1c-skills` | https://github.com/Nikolay-Shirokov/cc-1c-skills | `3d36c202` (main / tag `w-2026-06-21`, 2026-06-21) | 2026-06-22 | `git clone` + `git diff 6e14f25..3d36c202` |
 | **UN** | `IngvarConsulting/unica` | https://github.com/IngvarConsulting/unica | `db254e4` (main, 2026-05-21) | 2026-05-21 | `gh api repos/.../contents/plugins/unica/skills` |
 | **CO** | `comol/cursor_rules_1c` | — | — (не отслеживается активно, см. sources-analysis.md §1) | 2026-02-12 | — |
 | **AE** | `AndreevED/1c-ai-feature-dev-workflow` | — | — (концепция фаз уже взята, см. §2) | 2026-02-12 | — |
@@ -122,6 +122,23 @@ gh api repos/IngvarConsulting/unica/commits?per_page=30 --jq '.[] | .commit.mess
 | `meta-edit` | JSON batch mode через `DefinitionFile` | ✅ Adopted 🔧 (rev.3): создан reference `meta-operations/references/batch-patch.md`. **🔧 ждёт Java** для `--batch <file.json>` |
 | `web-test` | Регресс-оркестратор (`f91b569`, `e93185c`) + видео с TTS | ✅ Adopted (rev.3): skill `browser-ui/web-test-1c/` дополнен references `regress.md` + `recording.md` |
 
+### 3.4. Изменения upstream после последней сверки (`6e14f25` → `3d36c202`)
+
+Сверка выполнена `2026-06-22`: upstream HEAD `3d36c202` (`w-2026-06-21`), дельта 432 commits, количество skills `66 → 71`. Новые skills: `db-dump-dt`, `db-load-dt`, `form-decompile`, `skd-decompile`, `support-edit`.
+
+| Кластер SH | Что изменилось | Решение для нашего фреймворка |
+|------------|----------------|-------------------------------|
+| `support-state` / `support-edit` / `support-guard` / hooks | Добавлен практический контур чтения `Ext/ParentConfigurations.bin`, определения объектов на поддержке и защиты от мутаций. `support-edit` меняет состояние поддержки, hooks используют guard. | 📋 **Planned P0 🔧**. Берём не как отдельные hook-скрипты, а как единый Java control layer внутри `xml-gen`: `support check/info/set`, parser `ParentConfigurations.bin`, policy `SupportGuard`, общий вызов `guardMutation()` перед XML-мутациями. Hooks должны вызывать `xml-gen support check`, чтобы не дублировать правила. Снятие поддержки допустимо только явной командой с подтверждением оператора. |
+| `form-decompile` | Новый навык обратного чтения формы в DSL. | 📋 **Planned P1/P2 🔧**, но не как основной round-trip. Основной путь остаётся `form info → form edit → validate`; compile используется для новых форм и scaffolding. Из `form-decompile` берём read-only projection / `form info --output json` / draft scaffold с явными предупреждениями о неполноте, sentinel-check и golden fixtures. |
+| Расширенный `form-compile` / `form-edit` | Расширены команды и покрытие элементов формы: `CommandInterface`, `choiceParameters/typeLink`, companion content, `columnGroup`, `buttonGroup`, `autoCmdBar`, report-form basics, special fields, type resolver. | 📋 **Planned P1/P2 🔧** выборочно. Берём операции, которые трудно и опасно писать руками в XML и которые имеют проверяемые fixtures. **Не берём массово** design-time настройки `Chart/Gantt/Planner` и `ConditionalAppearance` формы: решение пользователя `2026-06-22` — такие объекты проще и безопаснее создавать/настраивать кодом BSL; XML-поддержку добавлять только под конкретный кейс с oracle/golden тестами. |
+| `skd-decompile` + расширения `skd-compile/edit/info` | Появился decompile СКД и доработки compile/edit/info. | 📋 **Planned P0/P1 🔧**. Сначала исправить correctness-долг в Java: канонический `availableValue` вместо wrapper `availableValues`, multi-value defaults / `valueListAllowed`, фактическая поддержка `skd info --batch/--outfile`, sentinel-check в `skd compile`. После этого — экспериментальный `skd decompile` как scaffold с предупреждениями и `.sql` externalization, без обещания lossless round-trip. |
+| `web-test` modular runner | Старый набор команд переписан в модульный движок: discovery tests, hooks, retry, tags/grep, JSON/JUnit/Allure, screenshots, multi-context, улучшенные DOM/table helpers. | 📋 **Planned P1**. Переносим как развитие `browser-ui/web-test-1c/`: нужен реальный `test` command, модульный backend, CLI-документация и навык для сценариев 1С UI-регрессии. Замещает ручную оркестрацию через `start/run/exec/shot`, не замещает `v8-runner`, Vanessa, YaXUnit. |
+| `db-dump-dt` / `db-load-dt` | Новые навыки выгрузки/загрузки `.dt`. | ❌ **Skipped**. Анализ `2026-06-22`: сейчас не интересно; покрываем рабочие сценарии через `v8-runner`, DT-операции не добавляем в backlog. |
+| Надёжный резолв `1cv8.exe` | Улучшения поиска исполняемого файла платформы. | ❌ **Skipped**. Решение `2026-06-22`: не нужно, `v8-runner` в нашем контуре работает стабильно и проверен. |
+| `skill-suggester` / hook-инфраструктура | Подсказчик навыков и отдельные hook-скрипты. | 🔶 **Partial**. Идею guard берём через `xml-gen support check`; отдельный `skill-suggester` не переносим. |
+| Yandex Code Assistant в `switch.py` | Переключение внешнего ассистента. | ❌ **Skipped**. Не относится к нашему стеку. |
+| Мелкие фиксы портов/валидаторов | Локальные исправления Python-скриптов и валидаторов SH. | 🔶 **Partial / Watching**. Переносить только если совпадает с Java-CLI контрактом. `meta-edit -Path` для нас нерелевантен; role-compile parity уже покрыт. |
+
 ---
 
 ## 4. Полная матрица: Unica (UN) → наш фреймворк
@@ -224,6 +241,30 @@ gh api repos/IngvarConsulting/unica/commits?per_page=30 --jq '.[] | .commit.mess
 - UN `test-authoring` — наше покрытие шире
 - UN **`platform-help`** — дублируется с `buddy-prompting` + MCP `1c-copilot-proxy`. Берём только 3 stop rules в `buddy-prompting`
 
+### Rev.7 overlay: перенос SH delta (`2026-06-22`)
+
+**P0**
+
+- `xml-gen support` control layer: parser `ParentConfigurations.bin`, `support check/info/set`, `SupportGuard`, общий `guardMutation()` для всех XML-мутаций; hooks вызывают тот же CLI.
+- SKD correctness перед расширением decompile: `availableValue`, multi-value defaults / `valueListAllowed`, фактические `skd info --batch/--outfile`, sentinel-check.
+
+**P1**
+
+- `web-test` modular runner: настоящий `test` command, discovery, hooks, retry, tags/grep, отчёты, screenshots, multi-context, 1C table helpers; обновить skill-документацию под CLI.
+- Form selective transfer: `CommandInterface`, `choiceParameters/typeLink`, companion content, groups, report-form basics, special fields, type resolver extensions, golden fixtures.
+
+**P2 / experimental**
+
+- `form-decompile` только как read-only projection / draft scaffold, без обещания lossless round-trip.
+- `skd-decompile` только как scaffold с sentinel/warnings и внешними `.sql`.
+
+**Skipped**
+
+- `db-dump-dt` / `db-load-dt` — отказ `2026-06-22`, неактуально.
+- `1cv8.exe` resolve — отказ `2026-06-22`, используем `v8-runner`.
+- Yandex Code Assistant в `switch.py` — не переносим.
+- Массовые design-time настройки формы `Chart/Gantt/Planner` и `ConditionalAppearance` — не переносим массово; предпочтительный путь — создание и настройка через BSL-код, XML только под доказанный кейс с тестами.
+
 ---
 
 ## 6. Распределение P0/P1-навыков по subagents (target state, rev.2)
@@ -284,6 +325,7 @@ gh api repos/IngvarConsulting/unica/commits?per_page=30 --jq '.[] | .commit.mess
 
 | Дата | Версия | Что изменилось |
 |------|--------|----------------|
+| 2026-06-22 | **rev.7** | Сверка SH upstream `6e14f25` → `3d36c202` (`w-2026-06-21`, 432 commits, skills `66 → 71`). Зафиксированы решения: **(1)** `support-state` / `support-edit` / `support-guard` переносим в `xml-gen` как единый Java control layer и общий guard для CLI + hooks; **(2)** `form-decompile` не становится основным workflow, берём только read-only projection / draft scaffold; **(3)** расширения form compile/edit переносим выборочно, без массовых `Chart/Gantt/Planner` settings и `ConditionalAppearance`; **(4)** SKD сначала закрывает correctness-долг (`availableValue`, multi-value, `--batch/--outfile`, sentinel), затем получает экспериментальный decompile; **(5)** modular `web-test` runner переносим как развитие `browser-ui/web-test-1c`; **(6)** `db-dump-dt` / `db-load-dt`, `1cv8.exe` resolve, Yandex Code Assistant — ❌ skipped. |
 | 2026-05-21 | rev.1 | Документ создан. Базовый снапшот: SH @ `6e14f25`, UN @ `db254e4`. Все заимствования из ранее проанализированной xml-gen-группы перенесены сюда из [shirokov-to-xmlgen-mapping-2026-03-09.md](shirokov-to-xmlgen-mapping-2026-03-09.md) (сводно). Добавлены 19 уникальных навыков Unica и не-XML навыки Широкова (db-*, cfe-tools, template/help, web, БСП-обвязка, interface, img-grid, web-test). |
 | 2026-05-21 | **rev.2** | Детальный разбор каждого спорного навыка отдельными сабагентами + решения пользователя. Изменения: **(1)** вся db-* группа Широкова → ❌ Skipped (покрыто `v8-runner`); **(2)** CFE-навыки уточнены — 3 из 5 — дубли (init/validate/diff), берём только `--borrow-main-attribute` и `patch-method` как расширение CLI; **(3)** MXL — переход на полную переработку под канон Широкова (`docs/mxl-dsl-spec.md`); **(4)** SKD — Unica оказалась устаревшим фасадом, берём только у Широкова, разделяем на 4 skill; **(5)** `code-review` — **не создаём новый skill**, дополняем reviewer 5 категориями; **(6)** `db-auth-check` → reference внутри v8-runner, не отдельный skill; **(7)** `platform-help` → ❌ Skipped, 3 stop rules в `buddy-prompting`; **(8)** `security-auth-crypto` → 📋 Planned P1 (по решению пользователя), путь `bsl-practices/security/`; **(9)** `autonomous-server` → 👁 Watching как отдельный roadmap-трек (open-source `v8-runner-rust` + кастомное расширение БСП с TCP-сервером); **(10)** `log-analysis` → не оверлей, а `scenarios.md` reference; **(11)** `web-test` recording — добавляем references с приоритетом реализации через Vanessa; **(12)** концептуальные C1/C2 (stop rules) → понижены до 👁 Watching после критической самооценки. **Источники rev.2:** 11 отдельных отчётов сабагентов (autonomous-server, code-diagnostics, code-review, db-auth-check, db-performance, log-analysis, platform-help, security-auth-crypto, CFE, MXL, SKD compare). |
 | 2026-05-22 | **rev.6** | **Backlog xml-gen закрыт полностью.** #8 MXL миграция → ❌ **Won't fix** (функциональный паритет достигнут через 3 silent-loss фикса + 8 аддитивных заимствований из канона Широкова; оставшиеся отличия — только синтаксические, не функциональные; миграция оценена ~60-80ч за косметику). **Реализовано 9/10, Won't fix 1/10, осталось 0.** Параллельно — **консолидация skills**: все xml-gen-related skills (forms-toolkit, form-dsl, skd-dsl, skd-edit, mxl-dsl, role-dsl, config-operations, meta-operations, subsystem-interface, epf-full, extension-operations) объединены под единый router `xml-generation/SKILL.md` по принципу «1 CLI = 1 навык». Применено осушение по П1-П12 skill-drying: общий объём 2268 → 1561 строк (−31%), главный SKILL.md 239→160, skd-dsl 538→270 (−50%). Создан общий reference `references/universal-commands.md` (validate, edit replace-text, form/template/help add). Frontmatter всех 10 subagents обновлён (xml-generation вместо 13 отдельных подссылок). i18n зеркало `framework_eng/` пересинхронизировано (192/192 файла). |

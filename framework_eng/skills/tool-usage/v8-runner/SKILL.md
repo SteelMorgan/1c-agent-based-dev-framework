@@ -39,7 +39,9 @@ Keep this file as the entry point for decisions. Load only the reference file th
 
 ## Command Form
 
-Canonical binary path is `tools/external/v8-runner/v8-runner` (in the project this works through the `tools/` symlink to the framework). The framework installer pulls the latest release from [`alkoleft/v8-runner-rust`](https://github.com/alkoleft/v8-runner-rust) on every launch; manual reinstall is `python tools/install.py --install-external-tools`. If the binary is missing at that path and also not in `PATH`, ask the user for the path or use the project wrapper script.
+The canonical binary path is `tools/external/v8-runner/v8-runner` (in the project this works through the `tools/` symlink to the framework). The framework installer pulls the latest release from [`alkoleft/v8-runner-rust`](https://github.com/alkoleft/v8-runner-rust) (upstream) on every launch; manual reinstall is `python tools/install.py --install-external-tools`. If the binary is missing at this path and also not in `PATH`, ask the user for the path or use the project wrapper script.
+
+> **WS transport: the SteelMorgan fork is used.** For WS pairing with the session manager, the fork [`SteelMorgan/v8-runner-rust`](https://github.com/SteelMorgan/v8-runner-rust) is used instead of upstream `alkoleft/v8-runner-rust`, because PRs with WS support are not accepted upstream. The framework installer targets releases from this fork. Likewise, `onec-client-mcp-devkit` (the `mcp_client`, `test_client`, and other extensions) is taken from the fork [`SteelMorgan/onec-client-mcp-devkit`](https://github.com/SteelMorgan/onec-client-mcp-devkit).
 
 `v8project.yaml` is the default project config name. A neighboring `v8project.local.yaml` is loaded automatically for machine-local paths, credentials, tools, tests, and MCP settings. Do not pass `--config v8project.yaml` unless the user explicitly asks for a non-standard command form or the active config path differs from the default; never pass `v8project.local.yaml` through `--config`.
 
@@ -166,6 +168,50 @@ Fix: reduce the idle-handler interval from `1` to `0.1`:
 ```
 
 After the fix, yaxunit-Enterprise registers as `kind=yaxunit_runner` in the manager's `session_list` (confirmed in v8-runner stdout: `[MCP INFO ...] WS session registered: uid=... kind=yaxunit_runner ... tools=24`).
+
+## Headless Launch of an External Processing Object (.epf) with a Server Method Call
+
+Launching an external processing object in batch (headless) mode with automatic execution of its logic is done through `v8-runner launch <thin|thick|ordinary> --execute "<path to .epf>"` (this is `1cv8 ENTERPRISE /Execute<epf>`). The key nuance, without which the approach does not work:
+
+- **`/Execute<epf>` OPENS the processing form** (it emulates "Open processing"). By itself it does **NOT** call the object module's export method. Therefore, a **processing object without a form** (only an object module with an export procedure) will **not execute** its logic through `/Execute` - the entry point will never be called.
+- The canonical headless approach: the processing object **has a managed form**, and in its module there is a `&OnClient Procedure OnOpen(Cancel)` handler that recognizes batch mode by the **launch parameter**, calls an `&OnServer` method (which performs the work / invokes the object module's export procedure), and then cleanly terminates the session through `EndSystemWork(False)`.
+
+### Passing the Parameter and Suppressing the Security Warning
+
+- The launch parameter is passed with the `--c "<string>"` key (this is `/C"<string>"`) and read in BSL through `LaunchParameter()`. Use a sentinel string so that the form can distinguish headless launch from interactive opening and does not auto-execute when opened manually.
+- The **first launch** of an external processing object raises a security warning dialog (protection against dangerous actions) - in headless mode it will hang the process. It is suppressed with the `--raw-key /DisableUnsafeActionProtection` key. An alternative is to clear the user's "Protection against dangerous actions" flag or configure a security profile (but the CLI key is preferable for one-off runs).
+
+### Minimal Processing Skeleton
+
+```bsl
+// Processing form module
+&OnClient
+Procedure OnOpen(Cancel)
+    If LaunchParameter() = "BATCH_START" Then   // sentinel from --c
+        Log = PerformOperationOnServer();       // server work
+        // write Log to a known file for external verification
+        EndSystemWork(False);                   // clean exit without dialogs
+    EndIf;
+EndProcedure
+
+&OnServer
+Function PerformOperationOnServer()
+    // resolve all parameters on the SERVER side (not from form attributes - nobody filled them in headless),
+    // perform business logic, return the log text
+EndFunction
+```
+
+### Command and Verification
+
+```bash
+v8-runner launch thin --execute "<abs. path to .epf>" --c "BATCH_START" --raw-key /DisableUnsafeActionProtection
+```
+
+- The connection to the infobase is taken from `v8project.yaml` - no separate `/S`/`/F` is needed.
+- **Completion condition:** wait for the 1cv8 process to exit OR for the log file written by the processing object to appear. The process exit code alone is a weak signal.
+- **Verify the result by behavior, not by the fact of launch:** data delta (before/after query), log file contents, registration record in the event log. "The process ran without error" does not mean "the logic executed".
+
+> Alternative without `/Execute`: from an **already connected** server session - `ExternalProcessing.Create(<path>, False)` + call its export method (or BSP `LongOperations.ExecuteProcessingObjectModuleProcedure`). This requires a "run code on the server" channel (session manager / test runner), while `/Execute` is self-sufficient from the command line.
 
 ## Protective Rules
 

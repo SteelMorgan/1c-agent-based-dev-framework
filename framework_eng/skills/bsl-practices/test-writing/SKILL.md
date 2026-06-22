@@ -19,8 +19,8 @@ Tests are stored in a **separate configuration extension**: `<project root>/exts
 
 | Format | Module code | Metadata file |
 |--------|------------|-----------------|
-| EDT | `exts/TESTS/src/CommonModules/<ИмяМодуля>/Module.bsl` | `.../<ИмяМодуля>.mdo` |
-| DESIGNER | `exts/TESTS/src/CommonModules/<ИмяМодуля>/Ext/Module.bsl` | `.../<ИмяМодуля>.xml` |
+| EDT | `exts/TESTS/src/CommonModules/<ModuleName>/Module.bsl` | `.../<ModuleName>.mdo` |
+| DESIGNER | `exts/TESTS/src/CommonModules/<ModuleName>/Ext/Module.bsl` | `.../<ModuleName>.xml` |
 
 If the format is not obvious, check `application-*.yml` / `yaxunit-*.yml` at the project root.
 
@@ -42,12 +42,12 @@ Template: `<Prefix>_<ObjectName>[_<Suffix>]`
 
 | Object type | Prefix | Example |
 |-------------|---------|--------|
-| Общий модуль | `ОМ_` | `ОМ_ОбщегоНазначения` |
-| Документ | `Док_` | `Док_ПоступлениеТоваров` |
-| Справочник | `Спр_` | `Спр_Контрагенты` |
-| Регистр накопления | `РН_` | `РН_ОстаткиТоваров` |
-| Регистр сведений | `РС_` | `РС_КурсыВалют` |
-| Обработка | `Обр_` | `Обр_ЗакрытиеМесяца` |
+| Common module | `ОМ_` | `ОМ_ОбщегоНазначения` |
+| Document | `Док_` | `Док_ПоступлениеТоваров` |
+| Catalog | `Спр_` | `Спр_Контрагенты` |
+| Accumulation register | `РН_` | `РН_ОстаткиТоваров` |
+| Information register | `РС_` | `РС_КурсыВалют` |
+| Data processor | `Обр_` | `Обр_ЗакрытиеМесяца` |
 
 ### Suffixes by module type
 
@@ -153,7 +153,38 @@ Data created through `ЮТест.Данные()` is **automatically deleted** af
 
 ---
 
-## Mocking (Мокито)
+## Rules for filling test data (MUST)
+
+A test object must be valid just like a production one. An incomplete test object either fails in `ПроверитьЗаполнение()`/posting, or is written semantically incomplete and produces a false-green result (the test passes on data that do not exist in real life).
+
+| Requirement | Rule |
+|---|---|
+| **Owner for subordinate catalogs** | A catalog subordinate to an owner (metadata sets `Подчинение`/`Владельцы`) must ALWAYS fill `Владелец` in test data. A subordinate item without an owner is semantically invalid; code uniqueness is checked **within the owner scope** (hence `Код не уникально` collisions); queries and cleanup by owner break on such an item. |
+| **All mandatory fields** | Fill ALL fields whose metadata has `Проверка заполнения = Выдавать ошибку` (`FillChecking = ShowError`), plus mandatory standard fields. |
+| **Mandatory standard fields** | Catalog: `Наименование`/`Код` if they are marked by fill checking; subordinate - `Владелец`. Document: `Дата` (and `Номер` if there is no auto-numbering). Information register record set (`РС`): ALL dimensions. |
+| **Source of truth - metadata, NOT a neighboring test** | Before creating a test object, check the metadata description (`get_metadata_structure` / Configurator): which fields are `ShowError`, whether there is subordination. Copying a field set from a neighboring test without checking is forbidden - the object may have acquired a new mandatory field. |
+
+**Why by metadata, not by example:** field mandatory-ness is an object property (`Проверка заполнения`), and it changes when the configuration is updated. A test that fills fields "like the neighbor" silently stops covering a new mandatory field - and then either fails on posting or writes incomplete data. Checking against the metadata description makes the field set self-updating.
+
+```bsl
+// Подчинённый справочник: Владелец ОБЯЗАТЕЛЕН (Договор подчинён Контрагенту)
+Контрагент = ЮТест.Данные()
+    .КонструкторОбъекта("Справочник.Контрагенты")
+    .Установить("Наименование", "Тестовый контрагент")  // ShowError-реквизит
+    .Записать()
+    .Ссылка();
+
+Договор = ЮТест.Данные()
+    .КонструкторОбъекта("Справочник.ДоговорыКонтрагентов")
+    .Установить("Владелец", Контрагент)                 // подчинение: без владельца невалидно
+    .Установить("Наименование", "Тестовый договор")      // ShowError-реквизит
+    .Записать()
+    .Ссылка();
+```
+
+---
+
+## Mocking (Mokito)
 
 Pattern: Training -> Run -> Verify.
 
@@ -258,11 +289,65 @@ The fluent method `.ВТранзакции()` is called immediately after `До�
 КонецПроцедуры
 ```
 
-### Справочники - only through `ЮТест.Данные()`
+### Test object collector (mandatory teardown mechanism)
 
-Create catalog items through `ЮТест.Данные().СоздатьЭлемент(...)` or `КонструкторОбъекта(...).Записать()`. Such objects are tracked by YaxUnit and deleted automatically. A direct call to `Справочники.X.СоздатьЭлемент()` is an antipattern: the object is not tracked and remains in the database.
+The `test-zero-residue` rule requires every test that generates data to register EVERY created object in the collector at creation time. Teardown walks the collector and physically deletes everything that survived transaction rollback. This is the standard cleanup mechanism, not a database scan by names or prefixes.
 
-### Документы via `СоздатьДокумент()` - mandatory teardown
+**Why a collector, not YaxUnit auto-tracking:** `ЮТест.Данные()` auto-deletion works ONLY when the set calls `.УдалениеТестовыхДанных()`. Objects created through `КонструкторОбъекта(...).Записать()`, `Документы.X.СоздатьДокумент()`, `Справочники.X.СоздатьЭлемент()` or helpers are not tracked at all. The collector covers all creation paths uniformly by exact references.
+
+**Collector module contract** (common server module, for example `биг_ТестовыйКоллектор`):
+- `Зарегистрировать(Ссылка) Экспорт` - call immediately after EACH object creation.
+- `ОчиститьВсё() Экспорт` - call in teardown (`.После()` / final scenario step / `ПослеВсехТестов()`): walk in LIFO order, dependent objects before owners; read `Объект = Ссылка.ПолучитьОбъект()`; skip `Неопределено`; otherwise set `Объект.ОбменДанными.Загрузка = Истина` and delete under `Попытка` with logging. Clear the accumulator at the end.
+- **Accumulator storage trap:** a module-level `Перем` in a common server module does not survive separate `НаСервереБезКонтекста` calls used by YaxUnit to run tests. Store the accumulator in `ХранилищеОбщихНастроек` or an equivalent cross-call storage, not in `Перем`.
+- **Reverse walk trap (LIFO):** a 1C `Для` loop only counts upward. `Для Сч = Накопитель.ВГраница() По 0 Цикл` executes zero iterations for a non-empty accumulator. Use `Пока` with manual decrement before any `Продолжить`.
+
+```bsl
+// creation - register immediately
+Портфель = ЮТест.Данные().СоздатьЭлемент("Справочник.биг_Портфели").Установить(...).Объект().Ссылка;
+биг_ТестовыйКоллектор.Зарегистрировать(Портфель);
+...
+// teardown - one call for the whole accumulator
+Процедура ПослеВсехТестов() Экспорт
+    биг_ТестовыйКоллектор.ОчиститьВсё();
+КонецПроцедуры
+```
+
+**Canonical reverse walk in `ОчиститьВсё()` (LIFO: dependents before owners):**
+
+```bsl
+Процедура ОчиститьВсё() Экспорт
+    Накопитель = ПрочитатьНакопитель();
+
+    Сч = Накопитель.ВГраница();
+    Пока Сч >= 0 Цикл
+        Ссылка = Накопитель[Сч];
+        Сч = Сч - 1;                       // decrement BEFORE `Продолжить`
+        Если НЕ ЗначениеЗаполнено(Ссылка) Тогда
+            Продолжить;
+        КонецЕсли;
+        Попытка
+            Объект = Ссылка.ПолучитьОбъект();
+            Если Объект <> Неопределено Тогда
+                Объект.ОбменДанными.Загрузка = Истина;
+                Объект.Удалить();
+            КонецЕсли;
+        Исключение
+            ЗаписьЖурналаРегистрации("ТестовыйКоллектор", УровеньЖурналаРегистрации.Предупреждение,
+                , Ссылка, ОписаниеОшибки());
+        КонецПопытки;
+    КонецЦикла;
+
+    Сбросить();
+КонецПроцедуры
+```
+
+**Collector acceptance:** not "the test is green", but DELTA-0: counters for affected catalogs/documents/registers before and after the run are equal. Verify the delta with `КОЛИЧЕСТВО(*)` queries before/after, and load BSL changes through a full rebuild; dynamic build is a no-op for BSL.
+
+### Catalogs - create as tracked and register in collector
+
+Create catalog items through `ЮТест.Данные().СоздатьЭлемент(...)` or `КонструкторОбъекта(...).Записать()` and register them in the collector immediately. `КонструкторОбъекта(...).Записать()` and direct `Справочники.X.СоздатьЭлемент()` are not tracked by YaxUnit, and even `ЮТест.Данные()` does not auto-delete without `.УдалениеТестовыхДанных()`. A direct catalog creation outside the collector is an antipattern.
+
+### Documents via `СоздатьДокумент()` - mandatory teardown
 
 `ЮТест.Данные().СоздатьДокумент(...)` is tracked and deleted automatically. But if a document is created directly through `Документы.X.СоздатьДокумент()`, it is NOT tracked, and an explicit teardown in `.После("ИмяПроцедурыОчистки")` is required.
 

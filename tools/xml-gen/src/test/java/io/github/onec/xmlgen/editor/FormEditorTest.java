@@ -120,6 +120,59 @@ class FormEditorTest {
         assertNotNull(rootItems.child("Popup").child("ChildItems"));
     }
 
+    // TASK-174 XG-56: edit-путь эмитит <Title> у контейнерной группы.
+    // Раньше FormEditor.addElement не имел title-параметра → заголовок группы терялся.
+    @Test
+    void task174_xg56_addGroupWithTitle_emitsMultilingualTitle() {
+        editor.addElement("group", "ГруппаУправлениеАктивами", "Управление активами",
+                null, null, null, null, null);
+
+        XmlNode group = document.getRoot().child("ChildItems").child("UsualGroup");
+        assertNotNull(group, "Группа должна быть создана");
+        assertEquals("ГруппаУправлениеАктивами", group.attr("name"));
+
+        XmlNode title = group.child("Title");
+        assertNotNull(title, "<Title> должен эмититься edit-путём");
+        XmlNode item = title.child("item"); // v8:item
+        assertNotNull(item, "<Title> должен быть мультиязычным (<v8:item>)");
+        assertEquals("ru", item.child("lang").getText());
+        assertEquals("Управление активами", item.child("content").getText());
+
+        // ChildItems контейнерной группы цел (XG-15 не сломан).
+        assertNotNull(group.child("ChildItems"), "<ChildItems> группы должна сохраниться");
+    }
+
+    // TASK-174 XG-56: edit-путь эмитит <Title> у поля; порядок по схеме logform —
+    // DataPath ДО Title (как compile-путь writeInputField).
+    @Test
+    void task174_xg56_addInputWithTitle_emitsTitleAfterDataPath() {
+        editor.addElement("input", "Поле", "Заголовок поля", "Объект.биг_ТипДоговора",
+                null, null, null, null);
+
+        XmlNode field = document.getRoot().child("ChildItems").child("InputField");
+        assertNotNull(field);
+
+        XmlNode title = field.child("Title");
+        assertNotNull(title, "<Title> должен эмититься edit-путём");
+        assertEquals("Заголовок поля", title.child("item").child("content").getText());
+
+        // Канон logform: DataPath раньше Title в последовательности детей.
+        java.util.List<String> childNames = new java.util.ArrayList<>();
+        for (XmlNode c : field.getChildren()) childNames.add(c.getName());
+        int dataPathIdx = childNames.indexOf("DataPath");
+        int titleIdx = childNames.indexOf("Title");
+        assertTrue(dataPathIdx >= 0 && titleIdx >= 0);
+        assertTrue(dataPathIdx < titleIdx, "DataPath должен идти раньше Title (схема logform)");
+    }
+
+    // TASK-174 XG-56: без title (null/пусто) <Title> НЕ эмитится — обратная совместимость.
+    @Test
+    void task174_xg56_addElementWithoutTitle_noTitleEmitted() {
+        editor.addElement("input", "ПолеБезЗаголовка", "Объект.Реквизит", null, null);
+        XmlNode field = document.getRoot().child("ChildItems").child("InputField");
+        assertFalse(field.hasChild("Title"), "Без titleText <Title> эмититься не должен");
+    }
+
     // TASK-174 XG-02: edit-путь привязывает кнопку к команде (CommandName).
     // Раньше FormEditor игнорировал command → кнопка оставалась без CommandName.
     @Test

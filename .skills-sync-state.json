@@ -27,9 +27,9 @@
       "status": "synced"
     },
     "framework/rules/tdd-policy.md": {
-      "ru_hash": "sha256:191be49ac84b095f36b3f131188009508cf6fb1b83aa3d5dcf35f348a053f5ef",
-      "en_hash": "sha256:7604ef62522d249e8db0ff8f272fe72a3239d617467564caa972ddf4598a2990",
-      "synced_at": "2026-06-04T11:59:49Z",
+      "ru_hash": "sha256:3086543079a2ba156a42d941208da72adf29a1b679c866cd9144ee56acdc2415",
+      "en_hash": "sha256:05542a08086f7cd342671649fa26c17ff49e179b9d0146501e44c531dd00160f",
+      "synced_at": "2026-06-22T10:45:59Z",
       "status": "synced"
     },
     "framework/skills/_template-skill.md": {
@@ -75,9 +75,9 @@
       "status": "synced"
     },
     "framework/skills/bsl-practices/test-writing/SKILL.md": {
-      "ru_hash": "sha256:8e2f95cf2425092bd950a05851b1c13fc63b840bd6cd6fab60aa66d16acf0c83",
-      "en_hash": "sha256:eff363d57e64c0bae71b9b1c5d9fd3fc54c0ff934ecd71ab52d35894d4560445",
-      "synced_at": "2026-06-08T22:35:00Z",
+      "ru_hash": "sha256:68c99cf3679b4ee4c06a66e556e01634dddc1a85161ac20685188da9c581a287",
+      "en_hash": "sha256:1e7754fe2af18cf35fec4ee46422cee93a2372e039419c810d9afb22b9ebb53e",
+      "synced_at": "2026-06-22T10:55:00Z",
       "status": "synced"
     },
     "framework/skills/bsl-practices/test-writing/references/yaxunit-cheatsheet.md": {
@@ -471,9 +471,9 @@
       "status": "synced"
     },
     "framework/skills/tool-usage/vanessa/vanessa-authoring/SKILL.md": {
-      "ru_hash": "sha256:38cedfbedc8dbbb20c31265fad1b9297df6e40cbf18c4af6bee179403f6a133a",
-      "en_hash": "sha256:37237e5a2970797fa342e06807f1285a6bd6bb2d38951283d2f74a1d412dfb7d",
-      "synced_at": "2026-06-04T15:56:27Z",
+      "ru_hash": "sha256:9efdd04b9930678843ab4f267bef59e68d22fc677edc5b8a977ac9f8e5691e67",
+      "en_hash": "sha256:03db81346dc91794c23cce797ee537a8b4014fe46dfaa11f2f3a7a95c862092e",
+      "synced_at": "2026-06-22T10:48:50Z",
       "status": "synced"
     },
     "framework/skills/tool-usage/vanessa/vanessa-diagnostics/SKILL.md": {
@@ -513,9 +513,9 @@
       "status": "synced"
     },
     "framework/skills/framework-meta/skill-editing-from-project/SKILL.md": {
-      "ru_hash": "sha256:a6b118fea375191191b421199f65e8e494584caba357c19e639ecd1cabc52af2",
-      "en_hash": "sha256:a8e4b4d72adcd7ca47fb85a4e36cde791c8aed587f72607915dd8c783319bb26",
-      "synced_at": "2026-06-04T15:56:29Z",
+      "ru_hash": "sha256:faf202775a674abc4dfb8b49f1173ccf8610b34e828df6da68471f9b4e425a96",
+      "en_hash": "sha256:a996b7d47399d7ff60c04d8c657e7d7d0763ff0f3d80d8a301ba1ad47f71c20a",
+      "synced_at": "2026-06-22T10:46:04Z",
       "status": "synced"
     },
     "framework/skills/framework-meta/skill-drying/SKILL.md": {
@@ -543,9 +543,9 @@
       "status": "synced"
     },
     "framework/skills/tool-usage/vanessa/vanessa-authoring/references/steps-cheatsheet.md": {
-      "ru_hash": "sha256:217571eec3feefeeb7d88de436040b6b973081e9b81db6dbe64992bcb6c1e8f8",
-      "en_hash": "sha256:fa158a79a8e5a51a4b4f044987d59d034770785a91842ec876f24174cc51040c",
-      "synced_at": "2026-03-18T14:52:33Z",
+      "ru_hash": "sha256:99e550fe7dd435bc27b1aea1a1274d2991cf3c0da4317ad452775f7c18ffce3a",
+      "en_hash": "sha256:73d3b89554dfea7d779f5950f52e37eb9719d652e526b2270d9da249766496ae",
+      "synced_at": "2026-06-22T10:48:13Z",
       "status": "synced"
     },
     "framework/skills/tool-usage/platform-admin/rac-use/SKILL.md": {
@@ -591,9 +591,9 @@
       "status": "synced"
     },
     "framework/rules/skill-learning-policy.md": {
-      "ru_hash": "sha256:13190a982d8f6df74f093f548cf2ee090589fdb389826a21d8a186f953eaa37a",
-      "en_hash": "sha256:fd634e1928a4179e294002d0276e455c77d7c5acdfff641d76a1ad465914565f",
-      "synced_at": "2026-06-05T06:57:55Z",
+      "ru_hash": "sha256:34ee69203b995b729e5e3ba2429f8874e00dd5f48ef6cbfe6c7ab60f67b432ce",
+      "en_hash": "sha256:71c1f7938ecaa53bdd89481b503165ebe929a81bf6cea54647f28dde1b51093d",
+      "synced_at": "2026-06-22T10:45:47Z",
       "status": "synced"
     },
     "framework/rules/vanessa-diagnostics-policy.md": {
@@ -609,9 +609,9 @@
       "status": "synced"
     },
     "framework/rules/vanessa-scenario-policy.md": {
-      "ru_hash": "sha256:1ce70f01fc97fbdec9a475b0c29a76f2b7640c697ca729ba133fd4b635405ea7",
-      "en_hash": "sha256:43e329b560f554c7b1c0d16960b34bbc9c09bc4c54136e8fb81e5647f723537b",
-      "synced_at": "2026-06-04T12:04:31Z",
+      "ru_hash": "sha256:1d53ce463f736cf2d1f571dc49e690fa6529a2a6c4e7b494cbf9f5db969ce6ae",
+      "en_hash": "sha256:9be2e12af5381c2aab7a79e9cbb3cdcde8ba55f313610f44083202c40c526636",
+      "synced_at": "2026-06-22T10:46:29Z",
       "status": "synced"
     },
     "framework/rules/vanessa-security-warning.md": {
@@ -639,9 +639,9 @@
       "status": "synced"
     },
     "framework/skills/bsl-practices/test-writing/references/learned-patterns.md": {
-      "ru_hash": "sha256:9b429e0c3014d49e969e778b0d0dc753ee7205607a3403d557450976493f6f93",
-      "en_hash": "sha256:1b2ccf3bce539baca85b3192aaadcb4cfabef8bfd1d5b4128b34a3b44bd4e071",
-      "synced_at": "2026-06-12T08:07:54Z",
+      "ru_hash": "sha256:1198d9a4d835959b46028b66c296eecd49b9364af8fc2333d0cb650a6946e76a",
+      "en_hash": "sha256:1f7a1711085cd3fff95ebe912d2c5c517f621846292c1c9e2f9b1fdfdf905392",
+      "synced_at": "2026-06-22T10:46:28Z",
       "status": "synced"
     },
     "framework/rules/no-direct-db-access.md": {
@@ -747,9 +747,9 @@
       "status": "synced"
     },
     "framework/skills/tool-usage/v8-runner/SKILL.md": {
-      "ru_hash": "sha256:bf316eabb0d296b1fbeccb7a33bf0a699bc06d42736456a0bd74e51e6c47d46f",
-      "en_hash": "sha256:20dc2294f73f23345d7f9193698b202e947617620360084280ae27c0a8b0ec71",
-      "synced_at": "2026-06-04T15:58:12Z",
+      "ru_hash": "sha256:2a9e4c3c187fff59c78b505902354c9cf158287bdd46cafcc60e3bd862da958f",
+      "en_hash": "sha256:ad8cfe8035763841b6466cc416136d8e1746a9cf8bc3fc770f1c74a524b62b78",
+      "synced_at": "2026-06-22T10:47:52Z",
       "status": "synced"
     },
     "framework/skills/tool-usage/v8-runner/agents/openai.yaml": {
@@ -1287,9 +1287,9 @@
       "status": "synced"
     },
     "framework/skills/framework-meta/skill-learning/SKILL.md": {
-      "ru_hash": "sha256:75ea227037b352b8bb4afba09321d84801c9b2f47c0def9f0c321525c500e161",
-      "en_hash": "sha256:885ac3d7b842e6a75f054b8b8e3b3850c46cc50db8e11b6abda32d9826c2b4ce",
-      "synced_at": "2026-06-05T07:04:30Z",
+      "ru_hash": "sha256:e4b6a32e10c442d3a148c26b6fedfb10399577a6830d4c5bc0be545ef02fb570",
+      "en_hash": "sha256:830b50eea5f75e860cf9e6418f1b9ccdd6bc28e3aa3721c2855a92a49928c86e",
+      "synced_at": "2026-06-22T10:47:34Z",
       "status": "synced"
     },
     "framework/skills/framework-meta/source-of-truth/SKILL.md": {
@@ -1311,15 +1311,33 @@
       "status": "synced"
     },
     "framework/rules/test-zero-residue.md": {
-      "ru_hash": "sha256:eeaae1619fd1b11cfb3e2cb912ebd3da0f28039eebac4119ba34d41ce2ad7b31",
-      "en_hash": "sha256:c428a1245cf7a0d25265601700133d4a9f9481492153381fa42b85a3eba45123",
-      "synced_at": "2026-06-08T10:56:56Z",
+      "ru_hash": "sha256:2100d3407f6882a145b864cece59914762a4b244e27a720135ce01ea9c6d2f42",
+      "en_hash": "sha256:51f12198cc65bcda7b55ef10fcf00a90948dd18fd5a384c16355472fa9cc2c3e",
+      "synced_at": "2026-06-22T10:46:18Z",
       "status": "synced"
     },
     "framework/skills/tool-usage/platform-data/xml-generation/references/behavioral-oracles.md": {
       "ru_hash": "sha256:151e86537c8da74b5c50e7b8f22e146cecd9a001560023ce23ce865a49e81075",
       "en_hash": "sha256:f1e866a20da9846ca81f3896d279d67084c415f5c0e030c9748d3b243b26bb0a",
       "synced_at": "2026-06-08T22:24:46Z",
+      "status": "synced"
+    },
+    "framework/skills/bsl-practices/form-patterns/references/learned-patterns.md": {
+      "ru_hash": "sha256:361107c650164984eb61c985711be8551ab3351b5cc482cf2f50375dffd4d50e",
+      "en_hash": "sha256:3b31b91624bbad062bd561169a80857f504b21cfceefff2b96fd2c064ffaefd7",
+      "synced_at": "2026-06-22T10:45:32Z",
+      "status": "synced"
+    },
+    "framework/skills/tool-usage/diagnostics/agent-debug/references/learned-patterns.md": {
+      "ru_hash": "sha256:06aeff1698dcace04637ebfd467421144c681cf5fa553fd6a088374e8f059022",
+      "en_hash": "sha256:aca5adb5b5c7b31782b5dad83e2bf116ab1694117c4ceb2085a1c214aef0516b",
+      "synced_at": "2026-06-22T10:46:43Z",
+      "status": "synced"
+    },
+    "framework/skills/tool-usage/platform-data/xml-generation/epf-full/references/learned-patterns.md": {
+      "ru_hash": "sha256:ebb8216988f9f0ab547ca1956838c0e80b55cdd225836e103a6409f40fa694e5",
+      "en_hash": "sha256:380159f852a529358ed9690b013ee2c4670b30ec7656fd4cefc61c6efa306075",
+      "synced_at": "2026-06-22T10:47:25Z",
       "status": "synced"
     }
   }

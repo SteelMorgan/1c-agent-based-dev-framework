@@ -283,6 +283,18 @@ public class FormEditor {
 
     public void addElement(String type, String name, String dataPath, String parentName,
                            String afterName, String beforeName, String command) {
+        addElement(type, name, null, dataPath, parentName, afterName, beforeName, command);
+    }
+
+    //++agent TASK-174 [16.06.2026 00:00:00]
+    // XG-56: перегрузка с titleText. Прежде edit-путь (FormEditor.addElement) НЕ умел
+    // эмитить <Title> у создаваемого элемента (в частности у контейнерной UsualGroup) —
+    // ключ title из DSL молча игнорировался. Compile-путь (FormWriter.writeUsualGroup/
+    // writeInputField) Title умеет. Класс тот же, что XG-14/XG-15/XG-41: edit-путь не
+    // эмитит канонический под-элемент, который умеет compile-путь. Используем тот же
+    // helper multilingualTitle, что и addAttribute/addCommand.
+    public void addElement(String type, String name, String titleText, String dataPath,
+                           String parentName, String afterName, String beforeName, String command) {
         if (afterName != null && beforeName != null) {
             throw new IllegalArgumentException("Use either after or before, not both");
         }
@@ -343,6 +355,17 @@ public class FormEditor {
             XmlNode commandNode = createNode("CommandName");
             commandNode.setText(commandRef);
             element.addChild(commandNode);
+        }
+        //++agent TASK-174
+
+        //++agent TASK-174 [16.06.2026 00:00:00]
+        // XG-56: <Title> эмитим после DataPath/CommandName и ДО companion-элементов
+        // (ExtendedTooltip/ContextMenu) и <ChildItems> — строго по схеме logform
+        // (xs:sequence), как compile-путь: writeInputField (DataPath → Title) и
+        // writeUsualGroup (Title первым, до Representation/ExtendedTooltip/ChildItems;
+        // у группы DataPath/Type/CommandName отсутствуют, поэтому Title оказывается первым).
+        if (titleText != null && !titleText.isBlank()) {
+            element.addChild(multilingualTitle(titleText));
         }
         //++agent TASK-174
 

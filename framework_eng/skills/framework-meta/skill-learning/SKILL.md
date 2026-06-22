@@ -1,6 +1,6 @@
 ---
 name: skill-learning
-description: MUST use AFTER a work cycle with ≥2 iterations (wrote → error → fixed → success). Provides the retrospective procedure and the format for recording practice/anti-patterns in references/learned-patterns.md or {project}/.context/learned-patterns.md.
+description: MUST use AFTER a work cycle with ≥2 iterations (wrote → error → fixed → success). Provides the retrospective procedure and format for recording technique/anti-technique in references/learned-patterns.md or {project}/.context/learned-patterns.md.
 alwaysApply: false
 ---
 
@@ -14,16 +14,16 @@ alwaysApply: false
 ## Two levels of knowledge
 
 | Level | File | What it stores |
-|-------|------|----------------|
+|---------|------|------------|
 | Universal | `skill/references/learned-patterns.md` | Techniques that work in any 1C configuration |
 | Project | `{project}/.context/learned-patterns.md` | Techniques tied to a specific configuration / project |
 
 **Separation criterion:** if an entry mentions a specific metadata object, form name, attribute
-or configuration feature -> project-level. If it describes a general platform/framework pattern -> universal.
+or configuration feature → project-level. If it describes a general platform/framework pattern → universal.
 
 ## Using accumulated knowledge
 
-The reading trigger ("before working with the skill, read its lessons") is in the `skill-learning-policy` rule (always-on). Here is the split by level:
+The reading trigger ("before working with the skill, read its lessons") is in the `skill-learning-policy` rule (always-on). Here is the split by levels:
 
 - `references/learned-patterns.md` in the skill directory — universal techniques;
 - `{project}/.context/learned-patterns.md` — project techniques.
@@ -37,48 +37,60 @@ If the task is solved on the first attempt, a retrospective is not needed.
 
 ## Procedure
 
-1. **Reconstruct the iteration chain** — what was done → what failed → how it was fixed → what passed
+1. **Reconstruct the iteration chain** — what was done → what failed → root cause → how it was fixed → what passed.
 
-2. **For each nontrivial fix**, formulate an entry:
+2. **Abstract to a class.** Name the CLASS of the error one level above the incident, not the incident itself:
+   - bad (instance): "``биг_Модуль.Метод:142`` crashed because `ИдентификаторСтроки` was empty";
+   - good (class): "accessing a record set field without checking whether it is filled before writing".
+
+   The anti-technique is formulated as a generalized prohibition/check that can be carried over to not-yet-seen special cases. Concrete `file:line` references go in the `source` field, NOT in the body of the technique/anti-technique.
+
+3. **Test the abstraction.** Ask: "To what other situation, besides the one that produced it, does this anti-technique apply?" No answer → this is an instance, not a class: reformulate it higher or reject the entry.
+
+4. **Formulate the entry** (technique and anti-technique are **one entry**, two sides of one discovery):
 
 ```
 status: candidate | confirmed
-область: <free-form wording>
-приём: <what to do — verified by success>
-антиприём: <what NOT to do — verified by failure>
-почему: <what happens when the rule is violated>
+класс: <named class of error>
+приём: <general rule — what to do, verified by success>
+антиприём: <general prohibition — what NOT to do, verified by failure>
+почему: <what happens when violated>
 шаги: <concrete steps/code, if applicable>
-источник: <task, iteration>
+источник: <task, iteration, file:line example>
 ```
 
-The technique and the anti-technique are **one entry**, two sides of one discovery. Do not duplicate.
+5. **Filter out** — NOT a lesson:
+   - Typos and accidental syntax errors;
+   - One-off environment failures without a reproducible class;
+   - An incident that did not pass the abstraction test (an instance without a class).
 
-3. **Filter out** — exclude:
-   - Typos and accidental syntax errors
-   - One-off environment failures
+6. **Determine the level and the owning skill:**
+   - mentions a specific metadata object / configuration → **project-level** → `{project}/.context/learned-patterns.md` (Russian, without mapping and synchronization);
+   - general platform / framework pattern → **universal** → `references/learned-patterns.md` of the owning skill in the **RU source of the framework**;
+   - the owning skill is the one to which the class belongs by content.
 
-4. **Determine the level and the owning skill:**
-   - Mentions a specific metadata object / configuration -> **project-level** -> `{project}/.context/learned-patterns.md`
-   - General platform / framework pattern -> **universal** -> `references/learned-patterns.md` of the owning skill
-   - Owning skill: the skill to which the technique belongs by content.
-     Path to the RU version: `.install-session.json` → `component_map` → `skill/{name}` → `ru_path`.
+7. **Find the RU directory of the universal lesson** (using the `skill-editing-from-project` skill):
+   `.install-session.json` → `component_map` → `skill/{owning-skill-name}` → `ru_path` → its directory → `references/learned-patterns.md`. Write to `framework/` (RU), NOT to the installed ENG symlink `framework_eng/` — it will be overwritten by synchronization.
 
-5. **Read the existing entries** from the target file:
-   - Similar technique already exists -> do not duplicate
-   - There is a `candidate` with the same area -> promote to `confirmed`
+8. **Reconciliation cascade** (read the target file before writing):
+   - a similar class already exists → DO NOT duplicate; update the existing entry (expand the anti-technique boundaries, add the source), result = `refined`;
+   - there is a `candidate` with the same class → promote to `confirmed`, result = `refined`;
+   - there is no class → new `candidate` entry, result = `new`.
 
-6. **Append** the entry to the target file.
-   If the file does not exist, create it. Do not overwrite existing entries.
+9. **Append** to the target file; if the file does not exist, create it; do not overwrite existing entries. For a universal lesson, after writing, **synchronize the ENG mirror** via `sync_script` from `.install-session.json` (see `skill-editing-from-project`).
 
 ## MUST
 
 | Requirement | Description |
-|-------------|-------------|
-| Do not modify the skill body | Entries are only in `references/learned-patterns.md`, not in `SKILL.md` |
-| Do not duplicate | Read existing techniques before writing |
-| First occurrence = candidate | A single occurrence gets `status: candidate` |
-| Repeat = confirmed | When a similar situation repeats, promote to `confirmed` |
+|------------|----------|
+| One level above the incident | The entry is about the CLASS of the error + anti-technique, not a specific incident; the abstraction test is mandatory |
+| Do not change the body of the skill | Entries go only into `references/learned-patterns.md`, not into `SKILL.md` |
+| Reconciliation / update | Read the target file before writing; do not create duplicates, update the existing class; result `matched`/`refined`/`new` |
+| RU source for universal | Write the universal lesson into the `framework/` (RU) directory of the owning skill via `skill-editing-from-project`, NOT into `framework_eng/`; after writing, synchronize to ENG |
+| First case = candidate | A single case gets `status: candidate` |
+| Repeat = confirmed | When a similar situation repeats, promote it to `confirmed` |
 
 ---
-depends_on: []
+depends_on:
+  - skill-editing-from-project
 ---
