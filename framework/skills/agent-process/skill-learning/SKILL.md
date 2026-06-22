@@ -93,5 +93,5 @@ status: candidate | confirmed
 
 ---
 depends_on:
-  - skill-editing-from-project
+  - framework/skills/framework-meta/skill-editing-from-project/SKILL.md
 ---

@@ -5,7 +5,7 @@ alwaysApply: true
 ---
 # Протокол контекста агента
 
-> **Триггер:** старт любого агента (оркестратор или сабагент) и любое его завершение (`completed`, `clarification_needed`, `implementation_error`). При срабатывании — применить навык `agent-context` (`framework/skills/framework-meta/agent-context/SKILL.md`): расположение `.context/`, структура файла, таблица имён по ролям, механизм resume, экономия контекста через делегирование.
+> **Триггер:** старт любого агента (оркестратор или сабагент) и любое его завершение (`completed`, `clarification_needed`, `implementation_error`). При срабатывании — применить навык `agent-context` (`framework/skills/agent-process/agent-context/SKILL.md`): расположение `.context/`, структура файла, таблица имён по ролям, механизм resume, экономия контекста через делегирование.
 
 ## Инвариант (всегда)
 
@@ -16,5 +16,5 @@ alwaysApply: true
 
 ---
 depends_on:
-  - agent-context
+  - framework/skills/agent-process/agent-context/SKILL.md
 ---

@@ -5,7 +5,7 @@ alwaysApply: true
 ---
 # Git Workflow Policy
 
-> **Trigger:** working with git (commits, branches, task merge, rollback). When triggered, apply the `git-workflow` skill (`framework/skills/framework-meta/git-workflow/SKILL.md`): branch strategy, phase-based commit format, squash-merge, rollback.
+> **Trigger:** working with git (commits, branches, task merge, rollback). When triggered, apply the `git-workflow` skill (`framework/skills/agent-process/git-workflow/SKILL.md`): branch strategy, phase-based commit format, squash-merge, rollback.
 
 The guardrail below must always be visible, regardless of whether the skill is loaded or not.
 
@@ -23,8 +23,8 @@ Details of the "how" (creating the task branch, what to commit, message format, 
 
 ---
 depends_on:
-  - git-workflow
+  - framework/skills/agent-process/git-workflow/SKILL.md
   - agent-code-marking
-  - agent-context-protocol
-  - protected-paths
+  - framework/rules/agent-context-protocol/SKILL.md
+  - framework/rules/protected-paths/SKILL.md
 ---

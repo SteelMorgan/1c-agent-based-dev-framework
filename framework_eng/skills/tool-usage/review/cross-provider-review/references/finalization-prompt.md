@@ -31,7 +31,7 @@ The orchestrator must provide:
    - `framework/workflows/orchestrator/SKILL.md`
    - `framework/rules/agent-context-protocol/SKILL.md`
    - `framework/workflows/full-cycle/SKILL.md`
-   - `framework/skills/framework-meta/quick-fix/SKILL.md`
+   - `framework/skills/agent-process/quick-fix/SKILL.md`
    - `framework/rules/source-of-truth/SKILL.md`
    - `.claude/CLAUDE.md` (project-level overrides, if any)
 

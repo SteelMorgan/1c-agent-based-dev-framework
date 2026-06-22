@@ -221,9 +221,9 @@ Phase 3a (Scenario-Author) и Phase 3b (Developer-Tests) выполняются 
 ---
 depends_on:
   - agent-code-marking
-  - agent-context-protocol
-  - protected-paths
-  - framework/skills/framework-meta/quick-fix/SKILL.md
+  - framework/rules/agent-context-protocol/SKILL.md
+  - framework/rules/protected-paths/SKILL.md
+  - framework/skills/agent-process/quick-fix/SKILL.md
   - framework/workflows/full-cycle/SKILL.md
   - framework/workflows/orchestrator/SKILL.md
 ---

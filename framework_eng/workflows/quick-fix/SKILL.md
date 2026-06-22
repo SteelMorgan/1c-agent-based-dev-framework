@@ -2,24 +2,24 @@
 name: quick-fix
 description: >
   Redirect. quick-fix has been moved into a skill — use the Skill tool or read it directly:
-  framework/skills/framework-meta/quick-fix/SKILL.md
+  framework/skills/agent-process/quick-fix/SKILL.md
 alwaysApply: false
 ---
 
 # quick-fix → skill
 
 > This file is a fallback redirect. The current body of the quick-fix skill (steps, guard, escalation)
-> lives in `framework/skills/framework-meta/quick-fix/SKILL.md`.
+> lives in `framework/skills/agent-process/quick-fix/SKILL.md`.
 
 Use the **Skill tool** (`quick-fix`) or read it directly:
 
 ```
-framework/skills/framework-meta/quick-fix/SKILL.md
+framework/skills/agent-process/quick-fix/SKILL.md
 ```
 
 ---
 depends_on:
-  - framework/skills/framework-meta/quick-fix/SKILL.md
+  - framework/skills/agent-process/quick-fix/SKILL.md
   - framework/subagents/orchestrator.md
   - framework/workflows/full-cycle/SKILL.md
   - framework/subagents/explorer.md

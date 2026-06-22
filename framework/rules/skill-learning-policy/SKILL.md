@@ -7,7 +7,7 @@ alwaysApply: true
 
 ## TRIGGER — ЗАПИСАТЬ урок (MUST, жёстко)
 
-> Завершён цикл работы с **≥2 итерациями** (написал → ошибка → нашёл корректный путь → успех) → ретроспектива **ОБЯЗАТЕЛЬНА**. Применить навык `skill-learning` (`framework/skills/framework-meta/skill-learning/SKILL.md`) и провести её.
+> Завершён цикл работы с **≥2 итерациями** (написал → ошибка → нашёл корректный путь → успех) → ретроспектива **ОБЯЗАТЕЛЬНА**. Применить навык `skill-learning` (`framework/skills/agent-process/skill-learning/SKILL.md`) и провести её.
 >
 > Задача решена с первой попытки → ретроспектива НЕ нужна, триггер не срабатывает.
 >
@@ -34,6 +34,6 @@ alwaysApply: true
 
 ---
 depends_on:
-  - skill-learning
-  - skill-editing-from-project
+  - framework/skills/agent-process/skill-learning/SKILL.md
+  - framework/skills/framework-meta/skill-editing-from-project/SKILL.md
 ---

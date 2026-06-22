@@ -46,7 +46,7 @@ description: >
 depends_on:
   - framework/subagents/orchestrator.md
   - framework/workflows/full-cycle/SKILL.md
-  - framework/skills/framework-meta/quick-fix/SKILL.md
+  - framework/skills/agent-process/quick-fix/SKILL.md
   - framework/rules/agent-context-protocol/SKILL.md
   - framework/rules/source-of-truth/SKILL.md
   - framework/skills/tool-usage/review/cross-provider-review/SKILL.md

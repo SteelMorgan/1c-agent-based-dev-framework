@@ -316,7 +316,7 @@ Bootstrap и quick-fix ссылаются на orchestrator/full-cycle как н
 
 ### От G4 (bootstrap / профиль оркестратора / full-cycle / quick-fix)
 - **F-02 расширена (тип agent):** `name: orchestrator` теперь у `framework/subagents/orchestrator.md` (профиль/agent) И `framework/workflows/orchestrator/SKILL.md` (указатель/workflow). Полный охват F-02: коллизия имени возможна между типами rule|skill|workflow|agent. install.py обязан ключевать component_map по паре (тип, имя). Проверить в G5.
-- **F-03 (проверить перед коммитом):** хук `skills-i18n-sync` — зеркалит ли он НОВЫЕ файлы (новый профиль `subagents/orchestrator.md`, новые навыки framework-meta/*, новые правила-триггеры) в `framework_eng/`, или только переводит правки существующих? Если новые файлы не подхватываются — нужна ручная сверка EN-зеркала перед коммитом.
+- **F-03 (проверить перед коммитом):** хук `skills-i18n-sync` — зеркалит ли он НОВЫЕ файлы (новый профиль `subagents/orchestrator.md`, новые навыки `agent-process/*`, новые правила-триггеры) в `framework_eng/`, или только переводит правки существующих? Если новые файлы не подхватываются — нужна ручная сверка EN-зеркала перед коммитом.
 - **Решение G4 (не перерешивать без причины):** `workflows/orchestrator.md` НЕ удалён, превращён в указатель (таблица «где что живёт» + поток + scoped-запрет), тело манинга — в профиле. Удаление запрещено git-workflow без явного разрешения; depends_on целы.
 
 ### От G3 (ужатие 9 существующих правил)
@@ -337,7 +337,7 @@ Bootstrap и quick-fix ссылаются на orchestrator/full-cycle как н
 - **F-04 / F-05 / B(установщик):** в работе (агенты H1 / H3 / H4).
 
 - **F-04 ЗАКРЫТА (H1):** 4 куска перенесены в навыки — двухсессийный сплит → `vanessa-authoring/SKILL.md`; мониторинг прогона + pre-run check → `v8-runner/references/testing.md`; pre-commit/CI защита → `xml-generation/SKILL.md` §7; слои/границы TDD → `test-writing/SKILL.md`. Литералы дословно, без дублирования.
-- **F-05 ЗАКРЫТА (H3):** `quick-fix` → `framework/skills/framework-meta/quick-fix/SKILL.md` (Skill-тул-вызываем), `workflows/quick-fix.md` → редирект, 5 ссылок обновлены. Keystone не тронут кроме depends_on.
+- **F-05 ЗАКРЫТА (H3):** `quick-fix` → `framework/skills/agent-process/quick-fix/SKILL.md` (Skill-тул-вызываем), `workflows/quick-fix.md` → редирект, 5 ссылок обновлены. Keystone не тронут кроме depends_on.
 - **B ЗАКРЫТА (H4):** install.py — `print_tree` и TUI-чеклист делят правила на always-on (→ навык) и on-demand (component_map); +2 теста, 8/8 зелёных.
 
 ### Валидация (оркестратор)

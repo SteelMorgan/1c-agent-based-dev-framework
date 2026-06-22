@@ -82,7 +82,7 @@ Tester runs all tests, adds edge cases, integration tests, and regression tests.
 ---
 depends_on:
   - framework/subagents/orchestrator.md
-  - framework/skills/framework-meta/quick-fix/SKILL.md
+  - framework/skills/agent-process/quick-fix/SKILL.md
   - framework/subagents/explorer.md
   - framework/subagents/analyst.md
   - framework/subagents/architect.md

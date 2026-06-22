@@ -5,7 +5,7 @@ alwaysApply: true
 ---
 # Agent Context Protocol
 
-> **Trigger:** start of any agent (orchestrator or subagent) and any of its terminations (`completed`, `clarification_needed`, `implementation_error`). When triggered, apply the `agent-context` skill (`framework/skills/framework-meta/agent-context/SKILL.md`): location of `.context/`, file structure, role name table, resume mechanism, saving context through delegation.
+> **Trigger:** start of any agent (orchestrator or subagent) and any of its terminations (`completed`, `clarification_needed`, `implementation_error`). When triggered, apply the `agent-context` skill (`framework/skills/agent-process/agent-context/SKILL.md`): location of `.context/`, file structure, role name table, resume mechanism, saving context through delegation.
 
 ## Invariant (always)
 
@@ -16,5 +16,5 @@ alwaysApply: true
 
 ---
 depends_on:
-  - agent-context
+  - framework/skills/agent-process/agent-context/SKILL.md
 ---

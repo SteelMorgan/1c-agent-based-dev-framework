@@ -67,7 +67,7 @@ profile (Layer 1). This rule does NOT duplicate them so as not to bloat the alwa
 ---
 depends_on:
 - framework/subagents/orchestrator.md
-- framework/skills/framework-meta/quick-fix/SKILL.md
+- framework/skills/agent-process/quick-fix/SKILL.md
 - framework/workflows/full-cycle/SKILL.md
 - framework/rules/source-of-truth/SKILL.md
 - framework/rules/protected-paths/SKILL.md

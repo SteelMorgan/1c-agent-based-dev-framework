@@ -7,7 +7,7 @@ alwaysApply: true
 
 ## TRIGGER — WRITE a lesson (MUST, strict)
 
-> A work cycle with **≥2 iterations** has completed (wrote → error → found the correct path → success) → a retrospective is **MANDATORY**. Apply the `skill-learning` skill (`framework/skills/framework-meta/skill-learning/SKILL.md`) and perform it.
+> A work cycle with **≥2 iterations** has completed (wrote → error → found the correct path → success) → a retrospective is **MANDATORY**. Apply the `skill-learning` skill (`framework/skills/agent-process/skill-learning/SKILL.md`) and perform it.
 >
 > The task was solved on the first attempt → a retrospective is NOT needed, the trigger does not fire.
 >
@@ -34,6 +34,6 @@ The retrospective procedure (reconstructing the chain of iterations, abstracting
 
 ---
 depends_on:
-  - skill-learning
-  - skill-editing-from-project
+  - framework/skills/agent-process/skill-learning/SKILL.md
+  - framework/skills/framework-meta/skill-editing-from-project/SKILL.md
 ---

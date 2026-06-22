@@ -5,7 +5,7 @@ alwaysApply: true
 ---
 # Политика работы с Git
 
-> **Триггер:** работа с git (коммиты, ветки, merge задачи, откат). При срабатывании — применить навык `git-workflow` (`framework/skills/framework-meta/git-workflow/SKILL.md`): стратегия веток, формат коммитов по фазам, squash-merge, откат.
+> **Триггер:** работа с git (коммиты, ветки, merge задачи, откат). При срабатывании — применить навык `git-workflow` (`framework/skills/agent-process/git-workflow/SKILL.md`): стратегия веток, формат коммитов по фазам, squash-merge, откат.
 
 Guardrail ниже обязан быть виден всегда — независимо от того, загружен навык или нет.
 
@@ -23,8 +23,8 @@ Guardrail ниже обязан быть виден всегда — незав�
 
 ---
 depends_on:
-  - git-workflow
+  - framework/skills/agent-process/git-workflow/SKILL.md
   - agent-code-marking
-  - agent-context-protocol
-  - protected-paths
+  - framework/rules/agent-context-protocol/SKILL.md
+  - framework/rules/protected-paths/SKILL.md
 ---
