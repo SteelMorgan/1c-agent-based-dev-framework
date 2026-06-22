@@ -36,6 +36,7 @@ The URL comes from `.v8-project.json` (the `webUrl` field) or is set explicitly.
 ```bash
 node $RUN run <url> script.js           # autonomous — runs and exits
 node $RUN start <url>                   # interactive — starts a session
+node $RUN test tests/<app>/ --url=<url> # regression suite *.test.mjs
 cat <<'SCRIPT' | node $RUN exec -       # run a script in the session
   const form = await getFormState();
 SCRIPT
@@ -124,6 +125,8 @@ Tree rows are marked `_kind: 'group'|'parent'`, `_tree: 'expanded'|'collapsed'`,
 When you need to cover a 1C solution with a series of automated tests — running multiple `.test.mjs` scenarios in sequence, aggregating results, retrying flaky cases, screenshots on failures, Allure/JUnit reports — switch to `test` mode. More details: [regress.md](regress.md).
 
 By default, use `run`/`exec` for one-off automation — `test` is a specialized mode for project-wide coverage.
+
+Current runtime limitation: `test` supports one browser context; multi-user scenarios from `regress.md` remain the target contract until the modular engine is ported.
 
 ## Video recording and subtitles
 

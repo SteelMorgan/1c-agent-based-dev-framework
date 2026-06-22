@@ -5,8 +5,10 @@ Use this document when you need to cover a 1C solution with automated regression
 The runner is the same `run.mjs`. The mode is `test`:
 
 ```bash
-node $RUN test [url] <dir|file> [флаги]
+node $RUN test <dir|file> [--url=<url>] [flags]
 ```
+
+The current implementation in this repository is a single-context runner: `url`, discovery, hooks, `step`, `assert`, `--tags`, `--grep`, `--retry`, JSON/JUnit/Allure-smoke reports, and failure screenshots are supported. Multi-user `contexts` below describe the target contract, but are not enabled yet in the `tools/web-test` runtime.
 
 Tests live next to the project they cover, not inside the skill. Convention: `tests/` at the project root, `_hooks.mjs` and `webtest.config.mjs` at the suite root.
 
@@ -115,8 +117,9 @@ assert.*         // see "Assertions" below
   attempt,       // 1..maxAttempts
   maxAttempts,   // 1 + retry
   param,         // { ... } | undefined (only when export const params is set)
-  contexts: { clerk: { url, ... }, manager: { ... } },
-  primaryContext // the active context name on test entry
+  // planned after the modular engine is ported:
+  // contexts: { clerk: { url, ... }, manager: { ... } },
+  // primaryContext: 'clerk'
 }
 ```
 

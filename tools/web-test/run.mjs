@@ -17,6 +17,7 @@
  */
 import http from 'http';
 import * as browser from './browser.mjs';
+import { cmdTest } from './test-runner.mjs';
 import { readFileSync, writeFileSync, unlinkSync, existsSync } from 'fs';
 import { resolve, dirname } from 'path';
 import { fileURLToPath } from 'url';
@@ -35,6 +36,7 @@ switch (cmd) {
   case 'shot':   await cmdShot(args[0]); break;
   case 'stop':   await cmdStop(); break;
   case 'status': cmdStatus(); break;
+  case 'test':   await cmdTest(rawArgs, { out, die }); break;
   default:       usage();
 }
 
@@ -369,6 +371,7 @@ Commands:
   start <url>              Launch browser and connect to 1C web client
   run <url> <file|->       Autonomous: connect, execute script, disconnect
   exec <file|-> [options]  Execute script (file path or - for stdin)
+  test <dir|file>...        Run *.test.mjs regression suite
   shot [file]              Take screenshot (default: shot.png)
   stop                     Logout and close browser
   status                   Check session status

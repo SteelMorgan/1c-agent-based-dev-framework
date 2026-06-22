@@ -5,8 +5,10 @@
 Раннер — тот же `run.mjs`. Режим — `test`:
 
 ```bash
-node $RUN test [url] <dir|file> [флаги]
+node $RUN test <dir|file> [--url=<url>] [флаги]
 ```
+
+Текущая реализация в этом репозитории — single-context runner: `url`, discovery, hooks, `step`, `assert`, `--tags`, `--grep`, `--retry`, JSON/JUnit/Allure-smoke отчёты и скриншоты на падении поддерживаются. Multi-user `contexts` ниже описывает целевой контракт, но пока не включён в runtime `tools/web-test`.
 
 Тесты живут рядом с проектом, который покрывают (не внутри навыка). Соглашение: `tests/` в корне проекта, `_hooks.mjs` и `webtest.config.mjs` в корне сьюта.
 
@@ -115,8 +117,9 @@ assert.*         // см. «Утверждения» ниже
   attempt,       // 1..maxAttempts
   maxAttempts,   // 1 + retry
   param,         // { ... } | undefined (только когда export const params задан)
-  contexts: { clerk: { url, ... }, manager: { ... } },
-  primaryContext // имя контекста активного при входе в тест
+  // planned после переноса modular engine:
+  // contexts: { clerk: { url, ... }, manager: { ... } },
+  // primaryContext: 'clerk'
 }
 ```
 
