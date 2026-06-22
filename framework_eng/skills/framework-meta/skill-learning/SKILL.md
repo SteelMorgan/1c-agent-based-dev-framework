@@ -1,6 +1,7 @@
 ---
 name: skill-learning
 description: MUST use AFTER a work cycle with ≥2 iterations (wrote → error → fixed → success). Provides the retrospective procedure and format for recording technique/anti-technique in references/learned-patterns.md or {project}/.context/learned-patterns.md.
+installable: true
 alwaysApply: false
 ---
 

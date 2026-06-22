@@ -1,6 +1,7 @@
 ---
 name: source-of-truth
 description: MUST use BEFORE вынесения суждения о причине конфликта, падения теста или спора артефактов. Defines метод сквозной проверки L1→L6 и классификацию первого сломанного звена.
+installable: true
 alwaysApply: false
 ---
 

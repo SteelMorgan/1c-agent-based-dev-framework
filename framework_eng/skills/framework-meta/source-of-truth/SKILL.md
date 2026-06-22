@@ -1,6 +1,7 @@
 ---
 name: source-of-truth
 description: MUST use BEFORE drawing conclusions about the cause of a conflict, a test failure, or an artifact dispute. Defines the L1→L6 end-to-end verification method and the classification of the first broken link.
+installable: true
 alwaysApply: false
 ---
 

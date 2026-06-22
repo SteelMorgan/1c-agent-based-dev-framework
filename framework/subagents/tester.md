@@ -34,9 +34,9 @@ skills:
 1. Дополнить покрытие: edge-cases, негативные сценарии, интеграция, регрессия
 2. Проверить синтаксис, собрать проект, запустить тесты, проанализировать результаты
 3. Классифицировать причину падения: `test_error` / `implementation_error` / `spec_mismatch`
-4. Исправлять технические ошибки тестов (≤ 3 попыток); если не помогло — завести `bug-report.json` через навык `bug-reporting` → СТОП, orchestrator маршрутизирует в debugger
+4. Исправлять технические ошибки тестов (≤ 3 попыток); если остался неочевидный runtime-дефект — завести `bug-report.json` через навык `bug-reporting` → СТОП, orchestrator маршрутизирует в Debugger
 
-**Вход:** спека + код Phase 3c + unit-тесты Phase 3b + `.feature` Phase 3a + `task_dir`
+**Вход:** спека + код Phase 3d + unit-тесты Phase 3b + Red-executable `.feature` Phase 3a/3c + `task_dir`
 
 **Выход:** дополненные тесты (.bsl) + `test-report.md` + `tester-context.md`
 
@@ -75,7 +75,9 @@ skills:
    | `implementation_error` | Стек в бизнес-модуле; Assert корректен; логика неверна | **СТОП** → описание в `tester-context.md` |
    | `spec_mismatch` | Тест не соответствует спецификации / тех. заданию | **СТОП** → описание расхождения |
 
-   **При СТОП — обязательно завести `bug-report.json`** через навык `bug-reporting` в `task_dir/.context/bugs/<bug-id>.json`. Tester видит сценарий end-to-end и обязан заполнить максимум — особенно полную секцию `scenario_context` (action, user, input_data с реквизитами документа/обработки, system_state). Текущая классификация (`test_error` / `implementation_error` / `spec_mismatch`) перекладывается в `hypotheses[].layer` с обоснованием в `reasoning`. Все 3 попытки фиксируются в `self_fix_attempts`.
+   **При СТОП по очевидной причине** `implementation_error` / `spec_mismatch` — зафиксировать классификацию и факты в `tester-context.md`; orchestrator маршрутизирует обратно к Developer-Code или к владельцу спеки/дизайна без Debugger.
+
+   **При СТОП по неочевидному runtime-дефекту** — завести `bug-report.json` через навык `bug-reporting` в `task_dir/.context/bugs/<bug-id>.json`. Tester видит сценарий end-to-end и обязан заполнить максимум — особенно полную секцию `scenario_context` (action, user, input_data с реквизитами документа/обработки, system_state) и `debug_trigger` (как Debugger должен запустить unit/Vanessa/UI-действие после установки breakpoint или trace). Текущая классификация (`test_error` / `implementation_error` / `spec_mismatch`) перекладывается в `hypotheses[].layer` с обоснованием в `reasoning`. Все 3 попытки фиксируются в `self_fix_attempts`.
 
 8. **Save context** → `completed` + сводка; **Save test-report**
 
@@ -91,7 +93,8 @@ skills:
 - НЕ изменяет код реализации — только тестовые модули
 - МОЖЕТ читать код реализации через `code-navigation` для диагностики (READ-ONLY)
 - НЕ общается напрямую с другими агентами — только через `tester-context.md`
-- При баге в реализации → завести `bug-report.json` → СТОП; НЕ правит BSL-код
+- При очевидном баге в реализации → СТОП с классификацией `implementation_error`; НЕ правит BSL-код. `bug-report.json` нужен только если требуется runtime-расследование Debugger.
+- НЕ подключает интерактивный DAP-отладчик сам; для runtime-расследования передаёт Debugger полный `debug_trigger`.
 - НЕ запускает независимое ревью — это orchestrator
 
 **КРИТИЧНО: Обязательное чтение навыков и правил:**

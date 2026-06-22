@@ -2,7 +2,8 @@
 name: developer-code
 description: Реализует BSL-код, чтобы существующие unit-тесты проходили успешно. Работает строго
   по утвержденной спецификации, technical design и заранее написанным тестам из developer-tests.
-  Используй этого агента в Phase 3c — ПОСЛЕ завершения Phase 3a (scenario-author) И Phase 3b (developer-tests).
+  Используй этого агента в Phase 3d — ПОСЛЕ завершения Phase 3a (scenario-author),
+  Phase 3b (developer-tests) И Phase 3c (scenario-coder).
 
 readonly: false
 skills:
@@ -40,7 +41,7 @@ skills:
 3. Искать существующий код до написания нового (`search-before-write`)
 4. Проверять синтаксис (статический анализ, без запуска 1С)
 
-**Вход:** спека + technical-design + task-breakdown.json + тесты Phase 3b + `.feature` Phase 3a + `task_dir`
+**Вход:** спека + technical-design + task-breakdown.json + тесты Phase 3b + Red-executable `.feature` Phase 3a/3c + `task_dir`
 
 **Выход:** BSL-модули (.bsl), XML метаданных (при необходимости), `developer-code-context.md`
 
@@ -49,12 +50,12 @@ skills:
 2. **Read spec + technical design + pre-written tests**
 3. **Identify blockers** — ВСЕ вопросы; если есть → `clarification_needed`
 4. **Implement code** — BSL по тех. дизайну; `search-before-write`
-5. **Check syntax** → **Build project** (если BSL/XML изменились) → **Run Phase 3b tests only**
+5. **Check syntax** → **Build project** (если BSL/XML изменились) → **Run Phase 3b tests + task scenarios Phase 3a/3c**
 6. **Log iterations** в `developer-code-context.md`: `[YYYY-MM-DD HH:MM] CODE_UPDATE|TEST_RUN_START|TEST_RUN_RESULT: details`
 7. **If test unclear** (hang/interactive error): `event-log-analysis` от `test_start_time` → `gui-control` при необходимости
 8. **Branch on failures (лимит 2 self-fix попытки):**
    - Причина в коде моей реализации текущей сессии И self-fix попыток ≤ 2 → исправить, повторить 4-7
-   - Причина не в моём коде (подозрение на тест/шаг/данные/спеку) ИЛИ 2 попытки исчерпаны без понимания → завести `bug-report.json` через навык `bug-reporting` (`task_dir/.context/bugs/<bug-id>.json`) → СТОП
+   - Причина не в моём коде (подозрение на тест/шаг/данные/спеку) ИЛИ 2 попытки исчерпаны без понимания → завести `bug-report.json` через навык `bug-reporting` (`task_dir/.context/bugs/<bug-id>.json`), заполнить `debug_trigger` для запуска падающего теста/метода → СТОП
    - Инфраструктура/окружение (БД не запущена, файл не найден) → `environment_error` без bug-report → СТОП
    - Protected path → `blocked_by_protected_path` с обоснованием → СТОП
 9. **Update context** → `completed` с перечнем файлов и сводкой итераций (или ссылка на созданный bug-report при STOP)
@@ -64,8 +65,9 @@ skills:
 **Границы:**
 - НЕ пишет и НЕ изменяет тестовые модули
 - НЕ изменяет protected paths (`exts/YAXUNIT/**`); при необходимости → блокировка
-- Запускает только тесты Phase 3b, не полный regression
+- Запускает только тесты Phase 3b и сценарии текущей задачи Phase 3a/3c, не полный regression
 - НЕ исправляет тесты/инфраструктуру — заводит `bug-report.json` → orchestrator маршрутизирует к debugger
+- НЕ подключает интерактивный DAP-отладчик сам. Если нужны stack/locals/step — оформить bug-report с `debug_trigger`; orchestrator маршрутизирует Debugger.
 - self-fix лимит = 2 попытки в собственном коде; дальше только bug-report
 - НЕ принимает архитектурные решения — строго по technical design
 - НЕ изменяет спецификацию или тех. дизайн

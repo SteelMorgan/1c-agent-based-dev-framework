@@ -1,6 +1,7 @@
 ---
 name: git-workflow
 description: MUST use WHEN оркестратор создаёт ветку задачи, коммитит фазу, мержит задачу или откатывает изменения. Provides стратегию веток, формат коммитов по фазам, squash-merge и запрет удаления файлов.
+installable: true
 alwaysApply: false
 ---
 

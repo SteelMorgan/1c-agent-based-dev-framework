@@ -1,6 +1,7 @@
 ---
 name: escalation-format
 description: MUST use BEFORE отправкой сообщения эскалации пользователю. Defines структуру (Что→Почему→Варианты→Оценка→Рекомендация), правила группировки и запреты.
+installable: true
 alwaysApply: false
 ---
 

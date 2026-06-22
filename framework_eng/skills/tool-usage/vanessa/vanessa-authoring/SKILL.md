@@ -1,44 +1,44 @@
 ---
 name: vanessa-authoring
-description: "Use for creating and refining Vanessa Automation feature scenarios based on real project requirements."
+description: "Use for authoring and refining Vanessa Automation feature scenarios from real project requirements."
 uses_capabilities:
   - run_vanessa
   - build_project
 ---
 
-# Vanessa Automation scenario authoring
+# Vanessa Automation Scenario Authoring
 
-## Writing algorithm
+## Writing Algorithm
 
-1. Determine the requirement source - a specification or a business case (`vanessa-scenario-policy`).
-2. Determine **which user** executes the scenario (see "User context").
-3. Find suitable steps: first in the Vanessa library, then in the project scenarios.
-4. **Inspect the interface and fill out the form manually in the web client** (`gui-control` / `screenshot` / `chrome-devtools` snapshot) - per the "Manual form filling before the scenario" section: record the exact names and captions of elements, fields, buttons, and tabs **before** referencing them in steps; do not guess identifiers (Title caption vs name - see `vanessa-scenario-policy`).
-5. Write one smoke scenario: open -> one action -> one observable consequence.
-6. If there is no step, mark `# unknown_step_candidate`, do not invent a BSL step.
-7. Pass the scenario for a run through `v8-runner` (`v8-runner test va`).
+1. Identify the requirement source: a specification or a business case (`vanessa-scenario-policy`).
+2. Determine **which user** runs the scenario (see "User Context").
+3. Find suitable steps: first in the Vanessa library, then in the project's scenarios.
+4. **Inspect the interface and fill out the form manually in the web client** (`gui-control` / `screenshot` / `chrome-devtools` snapshot) - according to the section "Manual Form Filling Before the Scenario": record the exact names and titles of elements, fields, buttons, and tabs **before** referencing them in steps; do not guess identifiers (Title vs name - see `vanessa-scenario-policy`).
+5. Write one smoke scenario: open -> one action -> one observable outcome.
+6. If a step does not exist, mark `# unknown_step_candidate`; do not invent a BSL step.
+7. Submit the scenario for execution through `v8-runner` (`v8-runner test va`).
 
 ---
 
-## Manual form filling before the scenario (MUST)
+## Manual Form Filling Before the Scenario (MUST)
 
-> Before writing a NEW scenario from a document, the agent first fills out the form **manually in the web client**, checking the real form composition at each step. The `.feature` file is written only AFTER successful manual filling.
+> Before writing a NEW scenario for a document, the agent first fills out the form **manually in the web client**, checking the real form structure at each step. The `.feature` file is written only AFTER successful manual filling.
 
 | Requirement | Description |
 |-----------|----------|
-| Snapshot after each field | After changing **each** field, take the form composition snapshot again (`take_snapshot` / `screenshot`): a field value changes the visibility, availability, and **requiredness** of other fields (`ПриИзменении` handlers). The full set of required fields is discovered **iteratively**, not guessed in advance |
-| Study the Help and reference data | Before filling, read the document Help/tooltip and the reference data - understand the usage scenarios and filling order. They may be empty, but typical objects often have them populated |
-| All key header fields | Fill them based on a semantic assessment of the document purpose (Organization, Counterparty, Agreement, Warehouse, etc. - whatever the document semantics require) |
-| Required tabular sections | Fill required tabular sections (usually items / according to document semantics) **with at least a few rows**; verify that all row fields are filled |
-| Scrollbars | During visual analysis, remember that the form and tabular sections may have **scrollbars that hide some fields** - scroll to see all elements, not just the visible area |
-| Reusable building blocks | Format filling scenarios as reusable subscenarios (`@exportscenarios`), so other tests with the same document can be assembled from them like building blocks. One document may have several filling scenarios |
-| Save and post | During a manual run, **save and post** the document (if the test meaning requires it) - make sure the filling actually succeeds, not just appears complete |
-| Analyzing filling errors | Save/post can produce errors - **popup messages in the bottom part of the screen** (they may have their own scrollbar - scroll and read everything). Analyze each one, adjust the filling, and repeat until the document saves/posts cleanly |
-| Order | First successful manual filling with composition verification, **saving and posting** the document and eliminating popup errors -> then write the `.feature` file |
+| Snapshot after each field | After changing **each** field, take the form structure snapshot again (`take_snapshot` / `screenshot`): changing a field affects the visibility, availability, and **requiredness** of other fields (`ПриИзменении` handlers). The full set of required fields is discovered **iteratively**, not guessed in advance |
+| Study Help and reference data | Before filling out the form, read the document Help/tooltip and reference data to understand the usage scenarios and filling order. They may be empty, but typical objects often have them populated |
+| All key header fields | Fill out fields according to the document's intended purpose (Organization, Counterparty, Agreement, Warehouse, etc. - whatever the document semantics require) |
+| Required tabular sections | Fill out required tabular sections (usually goods / according to the document semantics) with **at least several rows**; verify that all row fields are filled in |
+| Scrollbars | During visual analysis, remember that the form and tabular sections may have **scrollbars that hide some fields** - scroll to see all elements, not only the visible area |
+| Reusable "building blocks" | Package filling scenarios as reusable subscenarios (`@exportscenarios`) so that other tests with the same document are assembled from them like construction blocks. One document may have several filling scenarios |
+| Save and post | During a manual run, the document must be **saved and posted** (if the test intent requires it) - make sure the filling really succeeds, not just appears complete |
+| Analyze filling errors | Saving/posting may produce errors - **popup messages at the bottom of the screen** (they may have their own scrollbar - scroll and read everything). Analyze each one, adjust the filling, and repeat until the document saves/posts cleanly |
+| Order | First successful manual filling with structure verification, **saving and posting** of the document, and resolution of popup errors -> then write the `.feature` file |
 
 ---
 
-## Anatomy of a feature file
+## Feature File Anatomy
 
 ```gherkin
 # language: ru
@@ -61,22 +61,22 @@ uses_capabilities:
     Тогда <ожидаемый результат>
 ```
 
-- `Context:` is executed **before each** scenario in the file.
-- Step keywords such as `Given`, `When`, `Then`, and `And` are syntactically interchangeable.
-- Strings are in apostrophes or quotes; special characters: `\'`, `\"`, `\\`.
-- `Scenario structure:` + `Examples:` - runs the scenario for each row of the parameter table.
-- `@tree` in the header - enables Turbo Gherkin: Tab indentation defines a tree of steps (spaces are not allowed!).
-- `@exportscenarios` - makes the scenario available as a subscenario from another feature file.
+- `Context:` runs **before every** scenario in the file.
+- Step keywords: `Дано`, `Когда`, `Тогда`, `И`, `Затем` are syntactically interchangeable.
+- Strings are enclosed in apostrophes or double quotes; special characters: `\'`, `\"`, `\\`.
+- `Scenario structure:` + `Examples:` runs the scenario for each row in the parameter table.
+- `@tree` in the header enables Turbo Gherkin: Tab indentation defines the step tree (spaces are not allowed!).
+- `@exportscenarios` makes the scenario available as a subscenario from another feature file.
 
 ---
 
-## User context
+## User Context
 
 **MUST:** each scenario runs under a specific business user, not under admin/AgentAI.
-The only exception is when the function under test is available exclusively to an administrator.
+Exception - only if the function under test is available exclusively to an administrator.
 
 **How to determine the user:**
-1. Specified in the task description -> use it.
+1. Specified in the task description -> use that user.
 2. Not specified -> **ask the person** before writing the scenario.
 
 **One user** (in the `Context:` section):
@@ -90,27 +90,27 @@ The only exception is when the function under test is available exclusively to a
 И я подключаю TestClient "Руководитель" логин "Director" пароль "456"
 
 И я активизирую TestClient "Менеджер"
-# ... шаги от имени менеджера ...
+# ... steps on behalf of the manager ...
 
 И я активизирую TestClient "Руководитель"
-# ... шаги от имени руководителя ...
+# ... steps on behalf of the director ...
 
 И я закрываю TestClient "Менеджер"
 И я закрываю TestClient "Руководитель"
 ```
 
-> Password is plain text in the feature file. Test users must have a simple or empty password (`password ""`).
+> The password is plain text in the feature file. Test users should have a simple or empty password (`пароль ""`).
 
 ---
 
-## Two-session split (MUST)
+## Two-Session Split (MUST)
 
-The `.feature` file is logically divided into two parts:
+The `.feature` file is logically split into two parts:
 
-1. **Setup / infrastructure** - runs under a technical user (`AgentAI` in this project): preparation of test data (creating documents, catalog items, register records), `VAExtension` (`Extension`) steps, BSL fixtures from `vanessa-tests/support/`, and everything that requires technical roles outside normal business-user access.
+1. **Setup / infrastructure** - runs under the technical user (`AgentAI` in this project): preparing test data (creating documents, catalog items, register records), `VAExtension (Extension)` steps, BSL fixtures from `vanessa-tests/support/`, everything that requires technical roles outside the business user's normal access.
 2. **Business flow (verification)** - runs under a specific business user (for example `Gavrilova Natalia` for OC-23400): only steps that verify user behavior under test. The business user **must not receive** technical roles (for example roles from `VAExtension.cfe`) just to make a step pass.
 
-Session switch:
+Session switching:
 ```gherkin
 И я закрываю сеанс TESTCLIENT
 ```
@@ -118,18 +118,18 @@ or
 ```gherkin
 И я закрываю TestClient "<имя>"
 ```
-after which a new session is opened:
+after which a new session opens:
 ```gherkin
 Дано я подключаю TestClient "<роль>" логин "<пользователь>" пароль "<пароль>"
 ```
 
-**Rationale** (Infostart id=249957, id=249958): if the business flow runs with full rights, the test stops checking real role restrictions and gives a false sense of correctness. Granting technical roles to a business user just to satisfy an infrastructure step is the same antipattern in another form.
+**Rationale** (Infostart id=249957, id=249958): if the business flow runs with full rights, the test no longer checks real role restrictions and creates a false sense of correctness. Granting the business user technical roles just to satisfy an infrastructure step is the same antipattern in another form.
 
-**Antipattern:** placing `(Extension)` / fixture steps into the business-user session and then "fixing" the failure by granting that user technical roles. Instead, move the step into the setup block under the technical user.
+**Antipattern:** placing `(Extension)` steps / fixtures into the business user's session and then "fixing" the failure by granting technical roles. Instead, move the step into the setup block under the technical user.
 
 ---
 
-## Step search
+## Finding Steps
 
 Library: `/opt/onescript/2.0.0/lib/add/features/libraries/`
 
@@ -138,19 +138,19 @@ Library: `/opt/onescript/2.0.0/lib/add/features/libraries/`
 | Interface, fields, buttons, tabs | `UITestRunner/РаботаСИнтерфейсом.feature` |
 | Tables (tabular sections) | `UITestRunner/РаботаСТаблицами.feature` |
 | Form element state | `UITestRunner/СостояниеЭлементаФормы.feature` |
-| Flags / switches | `UITestRunner/РаботаСФлагами.feature` |
+| Flags / toggles | `UITestRunner/РаботаСФлагами.feature` |
 | User messages | `UITestRunner/РаботаСОкномСообщений.feature` |
-| Data in the DB, catalogs | `Данные/ЗапросыКБД.feature` |
+| Data in DB, catalogs | `Данные/ЗапросыКБД.feature` |
 | One / multiple TestClient | `UITestRunner/ОткрытьTestClient.feature`, `UITestRunner/ПодключениеНесколькихКлиентовТестирования.feature` |
 | Conditions, variables | `Условие/Условие.feature` |
 | Pause | `Пауза/СделатьПаузу.feature` |
 
 Cheat sheet of common steps with syntax -> `references/steps-cheatsheet.md`.
 
-**Full library:** `references/steps.json` (1116 steps). **Do not read it in full** - use `grep` to search by keywords from the task. The structure of each entry:
-- `StepName` - sample call with parameters
+**Full library:** `references/steps.json` (1116 steps). **Do not read it in full** - use `grep` to search by keywords from the task. Structure of each entry:
+- `StepName` - example call with parameters
 - `StepDescription` - what the step does
-- `FullStepType` - category (UI, Miscellaneous, Files, Variables, etc.)
+- `FullStepType` - category (UI, Misc, Files, Variables, etc.)
 
 ---
 
@@ -159,13 +159,13 @@ Cheat sheet of common steps with syntax -> `references/steps-cheatsheet.md`.
 | Tag | Meaning |
 |-----|---------|
 | `@task-<ID>` | Link to the tracker task (MUST, `vanessa-scenario-policy`) |
-| `@draft` / `@Draft@` | Exclude from execution when running the catalog |
-| `@manual-data` | The scenario depends on data created manually |
+| `@draft` / `@Draft@` | Exclude from the run when launching the catalog |
+| `@manual-data` | The scenario depends on manually created data |
 | `@regression` | Regression test |
 | `@ui` | UI test through TestClient |
 | `@tree` | Turbo Gherkin: Tab indentation = nesting (spaces are forbidden) |
-| `@exportscenarios` | The scenario is called as a subscenario from another file |
-| `@IgnoreOnXxx` | System: skip in the specified environment |
+| `@exportscenarios` | The scenario is invoked as a subscenario from another file |
+| `@IgnoreOnXxx` | System tag: skip in the specified environment |
 
 ---
 
@@ -173,11 +173,11 @@ Cheat sheet of common steps with syntax -> `references/steps-cheatsheet.md`.
 
 | Antipattern | Consequence |
 |-------------|-------------|
-| Scenario under admin without justification | Does not check real user permissions |
-| The step checks an internal detail (method call, direct DB query) | Fragile: there is no observable UI behavior |
-| An invented step instead of searching the library | Does not resolve at runtime |
-| Long scenario (7+ actions) | Hard to localize the failure |
-| Data preparation is mixed with verification | Breaks the Given/Then separation |
+| Scenario under admin without justification | Does not verify real user rights |
+| Step checks an internal detail (method call, direct DB query) | Fragile: no observable UI behavior |
+| Invented step instead of searching the library | Will not resolve when executed |
+| Long scenario (7+ actions) | Hard to localize a failure |
+| Data preparation mixed with verification | Breaks Given/Then separation |
 
 ---
 depends_on:

@@ -1,6 +1,7 @@
 ---
 name: quick-fix
 description: MUST use WHEN задача классифицирована как простая (< 20 строк, 1 файл, без новых объектов метаданных, без архитектурных решений). Provides short-цикл из 3 шагов с guard на self-путь и обязательным verify.
+installable: true
 alwaysApply: false
 ---
 
