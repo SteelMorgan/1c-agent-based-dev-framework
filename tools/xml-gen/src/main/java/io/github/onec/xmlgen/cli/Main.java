@@ -109,6 +109,7 @@ public class Main {
         System.out.println("  help                  - BSP help operations");
         System.out.println("  edit replace-text     - Byte-safe text replacement in XML files");
         System.out.println("  validate              - Validate 1C XML files");
+        System.out.println("  support check|info    - Inspect 1C vendor support state and guard mutations");
         System.out.println("  oracle mxl            - Run behavioral oracle for MXL DSL and CLI reconstruction modes");
         System.out.println("  oracle demo           - Run parallel validation audit for _Демо XML classes");
         System.out.println("  oracle predefined-data - Run behavioral oracle for Ext/Predefined.xml via public meta CLI");

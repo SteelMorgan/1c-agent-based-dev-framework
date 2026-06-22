@@ -1095,9 +1095,9 @@
       "status": "synced"
     },
     "framework/skills/tool-usage/platform-data/xml-generation/SKILL.md": {
-      "ru_hash": "sha256:0ac119b11514a8edcab589b43318744f55fcfb04f9e96ac75ea64ac9d44ec2f7",
-      "en_hash": "sha256:99e68d207b7fb4a5f39c506482bfa4e7a46f9d1831b9b11daaddfd0c5b9293f6",
-      "synced_at": "2026-06-08T22:25:02Z",
+      "ru_hash": "sha256:a3c99d28026b92dbf29360b2cc362ead320847c6190cf4352129c6be927b36af",
+      "en_hash": "sha256:cb796d8a719a5166f5acdcd33aed0ea1c8f5f82fa6e6cb6e48ade5747950758a",
+      "synced_at": "2026-06-22T11:12:00Z",
       "status": "synced"
     },
     "framework/skills/tool-usage/platform-data/xml-generation/epf-full/SKILL.md": {

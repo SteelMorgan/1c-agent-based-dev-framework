@@ -24,6 +24,7 @@ Install: `python tools/install.py --install-xml-gen` (requires JDK 17+).
 
 - **JSON DSL surface** — `mxl/skd/form/role/meta compile` and available decompilers, for example `mxl decompile`. Use this when the artifact is easier to describe declaratively and compile into Designer XML.
 - **Operational CLI surface** — public commands `epf init`, `epf add-template`, `form add-element`, `meta edit`, `template add`, `validate`. Use this when you need to create or modify an existing metadata tree with explicit CLI actions.
+- **Support safety surface** — `support check/info` and the built-in mutation guard. `xml-gen` reads `Ext/ParentConfigurations.bin` and blocks direct XML edits of vendor configuration objects still protected by supplier support.
 
 For maintaining the tool itself, `xml-gen` includes diagnostic oracle commands. They are not needed in normal XML generation/editing tasks; the reference for them is provided separately: [references/behavioral-oracles.md](references/behavioral-oracles.md).
 
@@ -47,13 +48,13 @@ Details are in §2 and the sub-skills. Universal commands (`validate`, `form/tem
 | `epf-full` | external processing and reports (`epf init/add-form/add-template/bsp-init`) | create EPF / ERF from scratch, including BSP variants | [epf-full/SKILL.md](epf-full/SKILL.md) |
 | `extension-operations` | configuration extensions / CFE (`extension init/borrow/diff`) | create a CFE, borrow objects, compare an extension with its base | [extension-operations/SKILL.md](extension-operations/SKILL.md) |
 
-> Universal commands (`xml-gen form add`, `template add`, `help add`, `edit replace-text`, `validate`) are described in §3 below and do not have a separate sub-skill.
+> Universal commands (`xml-gen form add`, `template add`, `help add`, `edit replace-text`, `validate`, `support check/info`) are described in §3 below and do not have a separate sub-skill.
 
 ## §3 Universal commands
 
-Four groups: **validate** (structural/semantic validation of any XML), **form/template/help add** (adding forms, layouts, help to any metadata object), **edit replace-text** (byte-for-byte replacement without line ending normalization).
+Five groups: **validate** (structural/semantic validation of any XML), **support check/info** (supplier support-state checks), **form/template/help add** (adding forms, layouts, help to any metadata object), **edit replace-text** (byte-for-byte replacement without line ending normalization).
 
-When to use: validate — before and after each modification; form/template/help add — when you need to register a new artifact without rebuilding; edit replace-text — for targeted XML edits with multiline text in `<v8:content>` (tooltips, descriptions) or any replacement where preserving line endings matters.
+When to use: validate — before and after each modification; support check/info — before an explicit edit of a vendor configuration under support or from hooks; form/template/help add — when you need to register a new artifact without rebuilding; edit replace-text — for targeted XML edits with multiline text in `<v8:content>` (tooltips, descriptions) or any replacement where preserving line endings matters.
 
 → [references/universal-commands.md](references/universal-commands.md)
 
@@ -70,6 +71,7 @@ Oracle commands are intended to support `xml-gen` and verify behavior on canonic
 5. **Batch operations** — the JSON format for `form edit` / `meta edit` / `subsystem edit` accepts arrays of operations; use that instead of repeated CLI calls.
 6. **EPF layout** — root XML: `output/MyProcessor.xml`. EPF forms: `output/MyProcessor/Forms/MainForm/Ext/Form.xml`.
 7. **Oracle sandboxing** — `xml-gen oracle ...` reads the canonical source and writes generated XML only under `--out`; do not point oracle output inside `src/xml`.
+8. **Vendor support guard** — mutation commands inside `xml-gen` check `Ext/ParentConfigurations.bin`: `G=1` blocks the whole configuration, `f1=0` blocks the object, deletion requires `f1=2`. CFE extensions are not blocked.
 
 ## §5 Quick examples (entry-level workflows)
 
@@ -118,6 +120,16 @@ xml-gen extension diff output_ext/ output/
 ```
 
 Details — [extension-operations/SKILL.md](extension-operations/SKILL.md).
+
+### Check support state before editing
+
+```bash
+xml-gen support info "src/Catalogs/Номенклатура.xml"
+xml-gen support check "src/Catalogs/Номенклатура.xml" --require editable
+xml-gen support check "src/Catalogs/Номенклатура.xml" --require removed --output json
+```
+
+`support check` fails the command when mutation is forbidden. Deleting an object first requires an explicit, agreed off-support state change; `xml-gen` does not remove supplier support implicitly.
 
 ## §6 Anti-patterns (correct / incorrect)
 

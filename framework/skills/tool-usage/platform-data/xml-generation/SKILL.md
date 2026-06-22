@@ -24,6 +24,7 @@ metadata:
 
 - **JSON DSL surface** — `mxl/skd/form/role/meta compile` и доступные декомпиляторы, например `mxl decompile`. Используй, когда артефакт удобнее описать декларативно и скомпилировать в Designer XML.
 - **Operational CLI surface** — публичные команды `epf init`, `epf add-template`, `form add-element`, `meta edit`, `template add`, `validate`. Используй, когда нужно создать или изменить существующее дерево метаданных явными CLI-действиями.
+- **Support safety surface** — `support check/info` и встроенный guard мутаций. `xml-gen` читает `Ext/ParentConfigurations.bin` и блокирует прямую XML-правку объектов типовой конфигурации на поддержке поставщика.
 
 Для сопровождения самого инструмента в `xml-gen` есть диагностические oracle-команды. В обычных задачах генерации/правки XML они не нужны; справочник по ним вынесен отдельно: [references/behavioral-oracles.md](references/behavioral-oracles.md).
 
@@ -47,13 +48,13 @@ metadata:
 | `epf-full` | внешние обработки и отчёты (`epf init/add-form/add-template/bsp-init`) | создание EPF / ERF с нуля, включая БСП-варианты | [epf-full/SKILL.md](epf-full/SKILL.md) |
 | `extension-operations` | расширения конфигурации / CFE (`extension init/borrow/diff`) | создать CFE, заимствовать объекты, сравнить расширение с основой | [extension-operations/SKILL.md](extension-operations/SKILL.md) |
 
-> Универсальные команды (`xml-gen form add`, `template add`, `help add`, `edit replace-text`, `validate`) описаны в §3 ниже и не имеют отдельного под-skill-а.
+> Универсальные команды (`xml-gen form add`, `template add`, `help add`, `edit replace-text`, `validate`, `support check/info`) описаны в §3 ниже и не имеют отдельного под-skill-а.
 
 ## §3 Универсальные команды
 
-Четыре группы: **validate** (структурная/семантическая проверка любого XML), **form/template/help add** (добавление форм, макетов, справки к любому объекту метаданных), **edit replace-text** (побайтовая замена без нормализации line endings).
+Пять групп: **validate** (структурная/семантическая проверка любого XML), **support check/info** (проверка состояния поддержки поставщика), **form/template/help add** (добавление форм, макетов, справки к любому объекту метаданных), **edit replace-text** (побайтовая замена без нормализации line endings).
 
-Когда применять: validate — перед и после каждой модификации; form/template/help add — когда нужно зарегистрировать новый артефакт без пересборки; edit replace-text — при точечной правке XML с мультилайн в `<v8:content>` (тултипы, описания) или любой замене, где важно сохранить line endings.
+Когда применять: validate — перед и после каждой модификации; support check/info — перед осознанной правкой типовой конфигурации на поддержке или в hook-ах; form/template/help add — когда нужно зарегистрировать новый артефакт без пересборки; edit replace-text — при точечной правке XML с мультилайн в `<v8:content>` (тултипы, описания) или любой замене, где важно сохранить line endings.
 
 → [references/universal-commands.md](references/universal-commands.md)
 
@@ -70,6 +71,7 @@ Oracle-команды предназначены для сопровождени
 5. **Batch operations** — JSON-формат для `form edit` / `meta edit` / `subsystem edit` принимает массивы операций; используй вместо повторных вызовов CLI.
 6. **EPF layout** — корневой XML: `output/MyProcessor.xml`. Формы EPF: `output/MyProcessor/Forms/MainForm/Ext/Form.xml`.
 7. **Oracle sandboxing** — `xml-gen oracle ...` читает канон и пишет сгенерированные XML только под `--out`; не указывай oracle output внутрь `src/xml`.
+8. **Vendor support guard** — команды мутации внутри `xml-gen` проверяют `Ext/ParentConfigurations.bin`: `G=1` блокирует всю конфигурацию, `f1=0` блокирует объект, удаление требует `f1=2`. Расширения CFE не блокируются.
 
 ## §5 Быстрые примеры (entry-level workflows)
 
@@ -118,6 +120,16 @@ xml-gen extension diff output_ext/ output/
 ```
 
 Детали — [extension-operations/SKILL.md](extension-operations/SKILL.md).
+
+### Проверить состояние поддержки перед правкой
+
+```bash
+xml-gen support info "src/Catalogs/Номенклатура.xml"
+xml-gen support check "src/Catalogs/Номенклатура.xml" --require editable
+xml-gen support check "src/Catalogs/Номенклатура.xml" --require removed --output json
+```
+
+`support check` завершает команду ошибкой, если мутация запрещена. Для удаления объекта сначала нужен явный перевод объекта в состояние off-support внешним согласованным действием; `xml-gen` не снимает поддержку неявно.
 
 ## §6 Антипаттерны (правильно / неправильно)
 
