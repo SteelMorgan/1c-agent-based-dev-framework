@@ -260,15 +260,15 @@ See `references/output-template.md` — it is used both as the final output form
 
 ---
 
-## User communication
+## Communication with the user
 
-The basic dialogue rule is described above in the **"Principle of dialogue"** section (gate table + self-check). Here are the format additions:
+The basic dialogue rule is described in the **"Principle of dialogue"** section above (gate table + self-check). Here are additions on format:
 
-- At each gate, keep the message short, not a lecture. 3–10 lines of output + 1 question
-- For discrete choices (finalist, sampling strategy), use `AskUserQuestion` instead of a text question
-- The final result should be compact: 3 options in a single format (see `references/output-template.md`), rejected branches as a list, recommendation with justification
-- When Phase 6 is enabled, explicitly warn: "I will send the finalists to external criticism; this will take N minutes"
-- If the user explicitly says "no gates, let's do everything at once", that is their conscious refusal, record it and continue. But do **not** assume such a refusal silently
+- At each gate, keep it short, not a lecture. 3–10 lines of output + 1 question
+- For a discrete choice (finalist, sampling strategy), use `AskUserQuestion` instead of a text question
+- Final output should be concise: 3 options in a unified format (see `references/output-template.md`), rejected branches as a list, recommendation with rationale
+- If Phase 6 is enabled, explicitly warn: "I will send the finalists to external criticism; this will take N minutes"
+- If the user explicitly says "no gates, let's do everything at once" - that is their informed refusal, record it and continue. But do **not** silently assume such a refusal
 
 ---
 
@@ -277,27 +277,27 @@ The basic dialogue rule is described above in the **"Principle of dialogue"** se
 For hard tasks, you can delegate phases to different agents:
 
 - **Generator** (Phase 3) — high temperature, focus on diversity
-- **Critic** (Phase 4) — separate challenge in the role of a skeptic, without seeing the generation
-- **Synthesizer** (Phase 5) — independent evaluation by criteria
+- **Critic** (Phase 4) — a separate call in the role of skeptic, without visible generation
+- **Synthesizer** (Phase 5) — independent evaluation against the criteria
 
-This is more expensive, but results in less "diversity theater". For lightweight tasks, one agent goes through all phases on its own.
+This is more expensive, but yields less "diversity theater". For light tasks, one agent goes through all phases on its own.
 
 ---
 
-## Relationship to other skills and rules
+## Relation to other skills and rules
 
-| Skill/rule | Relationship |
-|------------|--------------|
-| `spec-standard` | The brainstorm final output maps to the Considered Options/ADR section of the specification in `output-template.md` format |
-| `cross-provider-review` | Used in Phase 6 (optionally) for an external red team of finalists |
-| `framework/workflows/full-cycle.md` | In phase 1 (Analyst), brainstorm is an internal analysis step |
-| `agent-context-protocol` | The `brainstorm.md` memory file lives next to `{role}-context.md` in `.context/` |
+| Skill/rule | Relation |
+|---------------|-------|
+| `spec-standard` | The final brainstorm output goes into the Considered Options/ADR section of the specification in `output-template.md` format |
+| `cross-provider-review` | Used in Phase 6 (optional) for an external red team of the finalists |
+| `framework/workflows/full-cycle/SKILL.md` | In phase 1 (Analyst), brainstorm is an internal analysis step |
+| `agent-context-protocol` | The memory file `brainstorm.md` lives next to `{role}-context.md` in `.context/` |
 
 ---
 depends_on:
   - framework/skills/spec-writing/spec-standard/SKILL.md
   - framework/skills/tool-usage/review/cross-provider-review/SKILL.md
-  - framework/rules/agent-context-protocol.md
+  - framework/rules/agent-context-protocol/SKILL.md
 references:
   - references/prompt-techniques.md
   - references/output-template.md

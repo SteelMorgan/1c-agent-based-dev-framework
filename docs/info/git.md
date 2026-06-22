@@ -241,8 +241,8 @@ Git сам по себе не назначает роли, но в команд�
 
 Полезные материалы проекта:
 - Общий обзор: [README.md](../../README.md)
-- Базовый workflow: [framework/workflows/full-cycle.md](../../framework/workflows/full-cycle.md)
-- Оркестрация фаз: [framework/workflows/orchestrator.md](../../framework/workflows/orchestrator.md)
+- Базовый workflow: [framework/workflows/full-cycle/SKILL.md](../../framework/workflows/full-cycle/SKILL.md)
+- Оркестрация фаз: [framework/workflows/orchestrator/SKILL.md](../../framework/workflows/orchestrator/SKILL.md)
 
 ---
 

@@ -321,5 +321,5 @@ depends_on:
   - framework/skills/tool-usage/platform-data/platform-data-core/SKILL.md
   - framework/skills/tool-usage/code-analysis/code-navigation/SKILL.md
   - framework/skills/tool-usage/code-analysis/syntax-checking/SKILL.md
-  - framework/rules/source-of-truth.md
+  - framework/rules/source-of-truth/SKILL.md
 ---

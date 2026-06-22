@@ -1,4 +1,4 @@
-# Finalization gate — prompt template for final review
+# Finalization gate — template prompt for final review
 
 This prompt is used when the orchestrator runs cross-provider-review **in gate mode** (not advisory) — before closing the task. A `verdict: PASS` from the reviewer is a mandatory condition for completion.
 
@@ -28,11 +28,11 @@ The orchestrator must provide:
 6. git-diff of all phases (from the initial state to the end)
 7. Raw stdout of all test runs (not just “green”, but output with exit codes)
 8. List of rule files in effect for the orchestrator:
-   - `framework/workflows/orchestrator.md`
-   - `framework/rules/agent-context-protocol.md`
-   - `framework/workflows/full-cycle.md`
+   - `framework/workflows/orchestrator/SKILL.md`
+   - `framework/rules/agent-context-protocol/SKILL.md`
+   - `framework/workflows/full-cycle/SKILL.md`
    - `framework/skills/framework-meta/quick-fix/SKILL.md`
-   - `framework/rules/source-of-truth.md`
+   - `framework/rules/source-of-truth/SKILL.md`
    - `.claude/CLAUDE.md` (project-level overrides, if any)
 
 If any item in the evidence pack is missing — immediately `verdict: FAIL` with the finding “missing evidence: <what exactly>”. Do not try to reconstruct the missing item — that is the orchestrator's responsibility.

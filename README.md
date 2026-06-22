@@ -80,7 +80,7 @@ IDE — я лично использую Cursor (начинал с него, п�
 - например, применено англоязычное зеркало, так как работа с кириллицей занимает у LLM больше токенов. Сейчас мы читаем и редактируем русскоязычную инструкцию, а агент автоматически синхронизирует её с англоязычным зеркалом
 - декомпозировать задачу на шаги и каждому агенту выделить свой кусок и навыки, необходимые только для этого куска. Тогда навыки съедят меньше контекста и агенту легче будет держать фокус на задаче (и учитывать и применять правила)
 
-Сабагентный путь начинается с правила [framework/rules/framework-bootstrap.mdc](framework/rules/framework-bootstrap.mdc). Детальную информацию об устройстве «рабочего процесса» можно извлечь из [framework/workflows/full-cycle.md](framework/workflows/full-cycle.md) и [framework/workflows/orchestrator.md](framework/workflows/orchestrator.md).
+Сабагентный путь начинается с правила [framework/rules/framework-bootstrap/SKILL.md](framework/rules/framework-bootstrap/SKILL.md). Детальную информацию об устройстве «рабочего процесса» можно извлечь из [framework/workflows/full-cycle/SKILL.md](framework/workflows/full-cycle/SKILL.md) и [framework/workflows/orchestrator/SKILL.md](framework/workflows/orchestrator/SKILL.md).
 
 Мульти-агентный режим пока не пробовал. По сути это развитие сабагентного варианта, должно быть интересно (в смысле улучшить результат).
 

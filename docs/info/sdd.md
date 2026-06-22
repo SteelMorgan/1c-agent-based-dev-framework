@@ -2,7 +2,7 @@
 
 SDD в этом фреймворке — это подход, где **спецификация создаётся до реализации** и используется как контракт на весь цикл разработки.
 
-Базовое правило: [framework/rules/sdd-policy.md](../../framework/rules/sdd-policy.md)
+Базовое правило: [framework/rules/sdd-policy/SKILL.md](../../framework/rules/sdd-policy/SKILL.md)
 
 ## Что это значит на практике
 
@@ -17,7 +17,7 @@ SDD в этом фреймворке — это подход, где **спец�
 - **SHOULD**: крупный рефакторинг.
 - **MAY**: форматирование, опечатки, простые локальные фиксы.
 
-См. классификацию в: [framework/rules/sdd-policy.md](../../framework/rules/sdd-policy.md)
+См. классификацию в: [framework/rules/sdd-policy/SKILL.md](../../framework/rules/sdd-policy/SKILL.md)
 
 ## Обязательный pipeline
 
@@ -39,8 +39,8 @@ SDD в этом фреймворке — это подход, где **спец�
 - `task_dir/.context/task-breakdown.json` — декомпозиция задач, зависимости, ссылки на разделы спеки
 
 Подробно о фазах и передаче артефактов:
-- [framework/workflows/full-cycle.md](../../framework/workflows/full-cycle.md)
-- [framework/workflows/orchestrator.md](../../framework/workflows/orchestrator.md)
+- [framework/workflows/full-cycle/SKILL.md](../../framework/workflows/full-cycle/SKILL.md)
+- [framework/workflows/orchestrator/SKILL.md](../../framework/workflows/orchestrator/SKILL.md)
 
 ## Что делать, если нужно отклониться от спеки
 
@@ -55,7 +55,7 @@ SDD в этом фреймворке — это подход, где **спец�
 ## Как это связано с другими правилами
 
 - Кросс-ревью: [framework/rules/cross-review-policy.md](../../framework/rules/cross-review-policy.md)
-- TDD-политика: [framework/rules/tdd-policy.md](../../framework/rules/tdd-policy.md)
+- TDD-политика: [framework/rules/tdd-policy/SKILL.md](../../framework/rules/tdd-policy/SKILL.md)
 - Стандарт спецификаций: [framework/skills/spec-writing/spec-standard/SKILL.md](../../framework/skills/spec-writing/spec-standard/SKILL.md)
 
 ---

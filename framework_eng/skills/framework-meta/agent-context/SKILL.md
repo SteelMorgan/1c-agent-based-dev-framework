@@ -1,12 +1,12 @@
 ---
 name: agent-context
-description: Procedure for maintaining {role}-context.md - file location, structure, name table, resume mechanism, context savings through delegation.
+description: MUST use WHEN the agent starts or finishes work. Provides the procedure for maintaining {role}-context.md (file location, structure, table of names, resume mechanism, context savings through delegation).
 alwaysApply: false
 ---
 
 # Agent Context Protocol (Procedure)
 
-> Every agent - **both the orchestrator and subagents** - MUST save context before finishing and MUST read it at startup. The orchestrator maintains `orchestrator-context.md`, subagents - `{role}-context.md`. This skill is a detailed procedure; the start-read / exit-write invariant is fixed in the rule `framework/rules/agent-context-protocol.md`.
+> Every agent - **both the orchestrator and subagents** - MUST save context before finishing and MUST read it at startup. The orchestrator maintains `orchestrator-context.md`, subagents - `{role}-context.md`. This skill is a detailed procedure; the start-read / exit-write invariant is fixed in the rule `framework/rules/agent-context-protocol/SKILL.md`.
 
 ## Document Language
 
@@ -27,7 +27,7 @@ The agent MUST create the `.context/` directory if it does not already exist (mk
 Each agent (orchestrator and subagents) MUST as the **first step**: check `task_dir/.context/{role}-context.md`, read it, and continue working without repeating completed steps.
 
 | Agent | Context File |
-|-------|--------------|
+|-------|----------------|
 | **orchestrator** | `orchestrator-context.md` |
 | analyst | `analyst-context.md` |
 | architect | `architect-context.md` |

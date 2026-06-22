@@ -290,14 +290,14 @@ Phase 2 — единственная необязательная останов
 |---------------|-------|
 | `spec-standard` | Финал брэйнсторма ложится в Considered Options/ADR спецификации в формате `output-template.md` |
 | `cross-provider-review` | Используется в Phase 6 (опционально) для внешней red team финалистов |
-| `framework/workflows/full-cycle.md` | В фазе 1 (Analyst) брэйнсторм — внутренний шаг анализа |
+| `framework/workflows/full-cycle/SKILL.md` | В фазе 1 (Analyst) брэйнсторм — внутренний шаг анализа |
 | `agent-context-protocol` | Файл памяти `brainstorm.md` лежит рядом с `{role}-context.md` в `.context/` |
 
 ---
 depends_on:
   - framework/skills/spec-writing/spec-standard/SKILL.md
   - framework/skills/tool-usage/review/cross-provider-review/SKILL.md
-  - framework/rules/agent-context-protocol.md
+  - framework/rules/agent-context-protocol/SKILL.md
 references:
   - references/prompt-techniques.md
   - references/output-template.md

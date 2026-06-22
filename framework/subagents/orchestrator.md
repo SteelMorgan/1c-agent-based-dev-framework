@@ -39,7 +39,7 @@ description: >
 Детальные процедуры (Слой 3) читаются **лениво по входу** в выбранный путь:
 - навык **`quick-fix`** — шаги короткого цикла (read-on-choice через Skill-тул);
 - воркфлоу **`full-cycle`** — фазовая механика и передача артефактов (read-on-choice по ссылке
-  `framework/workflows/full-cycle.md`). Форма фаз и дисциплина уже durable в Слое 2 ниже; сама
+  `framework/workflows/full-cycle/SKILL.md`). Форма фаз и дисциплина уже durable в Слое 2 ниже; сама
   пошаговая механика фазы вычитывается в момент входа в неё.
 
 ---
@@ -332,7 +332,7 @@ IDE/агента). Достаточно прочитать имена и опи�
 Передаёт выход фазы на вход следующей, **явно указывая `task_dir`**. Все контексты агентов — в
 `task_dir/.context/`. Пакет для ревьюера: [TASK]+[SPEC]+[ARTIFACT]+[CHECKLIST]+[review_scope].
 Структура `task_dir` и `sessions.json`: см. `references/orchestrator-structures.md`. Полная фазовая
-механика передачи артефактов — `framework/workflows/full-cycle.md` (read-on-choice).
+механика передачи артефактов — `framework/workflows/full-cycle/SKILL.md` (read-on-choice).
 
 ### 6. Реестр сессий (`sessions.json`)
 
@@ -376,9 +376,9 @@ agent в opposite-family reviewer (Claude → Codex, Codex → Claude). Рабо
 6. git-diff всех фаз (от исходного состояния до конца).
 7. Сырой stdout всех тест-прогонов (не «зелёные», а вывод с exit_code'ами).
 8. Список rule-файлов и профиля, действующих на оркестратора:
-   `framework/subagents/orchestrator.md` (этот профиль), `framework/rules/agent-context-protocol.md`,
-   `framework/workflows/full-cycle.md`, навык `quick-fix`,
-   `framework/rules/source-of-truth.md`, `.claude/CLAUDE.md` (если применимо).
+   `framework/subagents/orchestrator.md` (этот профиль), `framework/rules/agent-context-protocol/SKILL.md`,
+   `framework/workflows/full-cycle/SKILL.md`, навык `quick-fix`,
+   `framework/rules/source-of-truth/SKILL.md`, `.claude/CLAUDE.md` (если применимо).
 
 Если какой-либо пункт не собран — reviewer немедленно ответит `verdict: FAIL`. Собрать всё **до**
 запуска, не после.
@@ -529,7 +529,7 @@ Clarification: макс. 1 раунд вопросов → если снова `
 > Если ты не записал в лог — ты совершил ошибку. Перед любым `Task`/`Agent` — сначала append в лог.
 
 Ты не делаешь работу — ты запускаешь сабагента и обрабатываешь его результат. Пошаговая фазовая
-механика (что подаётся на вход каждой фазы, передача артефактов) — `framework/workflows/full-cycle.md`,
+механика (что подаётся на вход каждой фазы, передача артефактов) — `framework/workflows/full-cycle/SKILL.md`,
 read-on-choice по входу в фазу. Ниже — скелет, форма которого durable в профиле.
 
 ```
@@ -546,7 +546,7 @@ read-on-choice по входу в фазу. Ниже — скелет, форм�
 
 4. РЕШЕНИЕ: простая → short (навык quick-fix); средняя/сложная → full-cycle
 
-5. Для каждой фазы full-cycle (детальная механика — framework/workflows/full-cycle.md):
+5. Для каждой фазы full-cycle (детальная механика — framework/workflows/full-cycle/SKILL.md):
    a. ЛОГ ← PHASE: {роль}
    b. ЗАПУСТИТЬ сабагент {роль} (resume если agentId актуален) + записать agentId
       Входные данные + task_dir:
@@ -642,15 +642,15 @@ Reviewer + advisory cross-provider-review предыдущей.
 
 - **`quick-fix`** (навык) — детальные шаги короткого цикла. Lead поднимает его через Skill-тул при
   классификации «простая». Guard self-пути зафиксирован там и в §1.3 выше.
-- **`full-cycle`** (`framework/workflows/full-cycle.md`) — детальная фазовая механика и передача
+- **`full-cycle`** (`framework/workflows/full-cycle/SKILL.md`) — детальная фазовая механика и передача
   артефактов. Поднимается по входу в фазу. Форма фаз и дисциплина уже durable в Слое 2.
 
 ---
 depends_on:
-  - framework/workflows/full-cycle.md
+  - framework/workflows/full-cycle/SKILL.md
   - framework/skills/tool-usage/code-analysis/syntax-checking/SKILL.md
-  - framework/rules/agent-context-protocol.md
-  - framework/rules/source-of-truth.md
+  - framework/rules/agent-context-protocol/SKILL.md
+  - framework/rules/source-of-truth/SKILL.md
   - framework/skills/tool-usage/review/cross-provider-review/SKILL.md
   - framework/subagents/scenario-author.md
   - framework/subagents/scenario-coder.md

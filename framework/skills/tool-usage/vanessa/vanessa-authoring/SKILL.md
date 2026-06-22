@@ -181,10 +181,10 @@ uses_capabilities:
 
 ---
 depends_on:
-  - framework/rules/vanessa-scenario-policy.mdc
-  - framework/rules/vanessa-test-isolation-policy.mdc
-  - framework/rules/vanessa-tests-location.mdc
-  - framework/rules/vanessa-run-loop.mdc
+  - framework/rules/vanessa-scenario-policy/SKILL.md
+  - framework/rules/vanessa-test-isolation-policy/SKILL.md
+  - framework/rules/vanessa-tests-location/SKILL.md
+  - framework/rules/vanessa-run-loop/SKILL.md
   - framework/skills/tool-usage/vanessa/vanessa-diagnostics/SKILL.md
   - framework/skills/tool-usage/platform-data/xml-generation/SKILL.md
 requires:

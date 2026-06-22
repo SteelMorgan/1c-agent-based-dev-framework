@@ -1,6 +1,6 @@
 ---
 name: runtime-investigation
-description: "Runtime investigation algorithm for bugs in 1C BSL: call graph + key variables → probes → trace → hypothesis loop. Use when there is a bug-report and you need to determine what actually happens in the code and compare it with what should happen. The debugger is the primary consumer of this skill."
+description: "Runtime investigation algorithm for bug-report: call graph + key variables → probes → trace → hypothesis loop."
 ---
 
 # Runtime Investigation — investigating bugs at runtime
@@ -259,57 +259,57 @@ Saved in `task_dir/.context/debug/<bug-id>/debug-report.md`.
 ## Hypotheses
 
 ### H1: <формулировка>
-- Evidence_from_trace: <which fact from the trace it is based on>
-- Verification method: <fix / additional probes>
-- Run: <link to trace-run-N.md>
-- Result: CONFIRMED / DISPROVED
-- If disproved — why: <...>
+- Evidence_from_trace: <на каком факте из трассы основана>
+- Способ проверки: <фикс / доп.пробы>
+- Прогон: <ссылка на trace-run-N.md>
+- Результат: ПОДТВЕРЖДЕНА / ОПРОВЕРГНУТА
+- Если опровергнута — почему: <...>
 
 ### H2: ...
 ...
 
-## Verdict
-- Cause class: code / data / spec / test-scenario
-- Root cause: <...>
-- Affected source-of-truth layer (L1-L6): <see source-of-truth-policy>
+## Вердикт
+- Класс причины: код / данные / спека / тест/сценарий
+- Корневая причина: <...>
+- Затронутый слой источников правды (L1-L6): <см. source-of-truth-policy>
 
-## Action
-- OPTION A — Local fix:
-  - File(s): <...>
-  - Diff: ≤ 30 lines
-  - Verification: failed test is green, related tests are green
-  - Requires review: scope=debug
-- OPTION B — Return to orchestrator:
-  - Who to hand off to: <agent>
-  - Why the scope is large: <...>
-  - Fix recommendation: <...>
-- OPTION C — Escalation:
-  - 5/8 hypotheses not confirmed
-  - What was established for sure: <...>
-  - What we would like to check but could not: <...>
-  - Recommendation: who to go to (Architect / Analyst / user)
+## Действие
+- ВАРИАНТ A — Локальный фикс:
+  - Файл(ы): <...>
+  - Дифф: ≤ 30 строк
+  - Верификация: упавший тест зелёный, смежные тесты зелёные
+  - Подлежит ревью: scope=debug
+- ВАРИАНТ B — Возврат оркестратору:
+  - Кому передать: <agent>
+  - Почему масштаб большой: <...>
+  - Рекомендация по фиксу: <...>
+- ВАРИАНТ C — Эскалация:
+  - 5/8 гипотез не подтверждены
+  - Что точно установлено: <...>
+  - Что хотелось бы проверить, но не получилось: <...>
+  - Рекомендация: к кому идти (Architect / Analyst / пользователь)
 
-## Cleanup
-- [x] grep `//[AGENTDEBUG-` → 0 matches
-- [x] technical log restored (if enabled)
-- [x] syntax-checking passed
+## Очистка
+- [x] grep `//[AGENTDEBUG-` → 0 вхождений
+- [x] техжурнал восстановлен (если поднимался)
+- [x] syntax-checking пройден
 ```
 
 ---
 
-## 10. Anti-patterns
+## 10. Antipatterns
 
-| Anti-pattern | Consequence |
+| Antipattern | Consequence |
 |---|---|
 | Hypothesis without `evidence_from_trace` | Guessing; investigation resources are wasted |
-| Not removing the probes of a disproved hypothesis before the next one | Noise in the trace, confusion in interpretation |
-| Leaving a trial fix in place after a hypothesis was disproved | Accumulation of garbage in the code |
-| Dumping the entire object in an `agent-debug` point | Event log overflow, data leak |
-| Replacing the test object with a "similar" one from the database | The bug will not reproduce, false negative |
-| Raising the technical log without user consent | Policy violation; heavy process for nothing |
+| Failing to remove probes from a disproven hypothesis before the next one | Noise in the trace, confusion in interpretation |
+| Leaving a trial fix in place after a disproven hypothesis | Accumulation of garbage in the code |
+| Dumping the entire object at an `agent-debug` point | Event log overflow, data leakage |
+| Replacing the test object with a "similar" one from the database | The bug will not reproduce, false negative result |
+| Raising the technical log without the user's consent | Policy violation; expensive process for nothing |
 | 10+ H0 probes without clear key variables | Broad observation, unclear result → split into hypotheses |
 | Skipping cleanup before completion | `AGENTDEBUG` markers will end up in the commit |
-| Skipping verification after a local fix | False "fixed"; in reality adjacent functionality was broken |
+| Skipping verification after a local fix | False "fixed"; in reality, adjacent functionality was broken |
 
 ---
 depends_on:
@@ -320,5 +320,5 @@ depends_on:
   - framework/skills/tool-usage/platform-data/platform-data-core/SKILL.md
   - framework/skills/tool-usage/code-analysis/code-navigation/SKILL.md
   - framework/skills/tool-usage/code-analysis/syntax-checking/SKILL.md
-  - framework/rules/source-of-truth.md
+  - framework/rules/source-of-truth/SKILL.md
 ---

@@ -95,9 +95,9 @@ depends_on:
   - framework/skills/tool-usage/platform-data/platform-data-core/SKILL.md
   - framework/skills/tool-usage/platform-data/xml-generation/SKILL.md
   - framework/skills/tool-usage/v8-session-manager/SKILL.md
-  - framework/rules/agent-context-protocol.md
-  - framework/rules/capability-resolution.mdc
-  - framework/rules/no-direct-db-access.md
-  - framework/rules/skill-learning-policy.md
-  - framework/rules/source-of-truth.md
+  - framework/rules/agent-context-protocol/SKILL.md
+  - framework/rules/capability-resolution/SKILL.md
+  - framework/rules/no-direct-db-access/SKILL.md
+  - framework/rules/skill-learning-policy/SKILL.md
+  - framework/rules/source-of-truth/SKILL.md
 ---

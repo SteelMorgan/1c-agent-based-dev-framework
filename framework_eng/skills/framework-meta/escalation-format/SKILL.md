@@ -6,7 +6,7 @@ alwaysApply: false
 
 # Escalation Format for the User
 
-> This skill defines the **format** of an escalation message. The **“when to escalate” filter** is separate: it is in `framework/workflows/orchestrator.md` § 4 “Principle ‘delegate, don’t ask’”. Before applying the format, you MUST pass this filter and make sure the escalation is legitimate (admin operation / L1-L2 contract change / business decision / 3+ BLOCK / scope expansion). Technical choices and escalation diagnostics do NOT require it - they are solved by delegating to a subagent. Applying the format below to a technical question is an error.
+> This skill defines the **format** of an escalation message. The **“when to escalate” filter** is separate: it is in `framework/workflows/orchestrator/SKILL.md` § 4 “Principle ‘delegate, don't ask’”. Before applying the format, you MUST pass this filter and make sure the escalation is legitimate (admin operation / L1-L2 contract change / business decision / 3+ BLOCK / scope expansion). Technical choices and escalation diagnostics do NOT require it - they are solved by delegating to a subagent. Applying the format below to a technical question is an error.
 
 ## Hard
 
@@ -52,5 +52,5 @@ alwaysApply: false
 
 ---
 depends_on:
-  - framework/workflows/orchestrator.md
+  - framework/workflows/orchestrator/SKILL.md
 ---

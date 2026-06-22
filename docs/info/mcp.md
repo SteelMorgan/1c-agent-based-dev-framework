@@ -11,6 +11,7 @@
 ## Доступ «внутрь 1С» для агента
 1. MCP Server 1C: [RooLee10/1c-mcp-tools](https://github.com/RooLee10/1c-mcp-tools) — выполнение запросов, получение метаданных и др. <<КОД 1С>>
 2. **Расширения 1С с собственным MCP-сервером** — теперь это отдельный слой архитектуры: расширение 1С реализует tools и подключается к менеджеру сессий по WebSocket (см. ниже). Агент видит эти tools на единой MCP-витрине менеджера, а не как отдельный сервер на порт.
+3. MCP BSL Debugger: [liga-1c-command/1c-debug-mcp](https://github.com/liga-1c-command/1c-debug-mcp) — интерактивная отладка BSL через debug server 1С: targets, breakpoints, variables, step/continue. Установка и smoke-тест: [docs/info/mcp-bsl-debugger.md](./mcp-bsl-debugger.md).
 
 ## MCP-витрина менеджера сессий (v8-session-manager)
 
@@ -56,6 +57,7 @@
 | metadata-tools | [RooLee10/1c-mcp-tools](https://github.com/RooLee10/1c-mcp-tools) | platform-data-core |
 | batch-ops | [vladimir-kharin/1c-batch](https://github.com/vladimir-kharin/1c-batch) | — |
 | lsp-bridge | [SteelMorgan/mcp-bsl-lsp-bridge](https://github.com/SteelMorgan/mcp-bsl-lsp-bridge) | code-navigation |
+| 1c-debug-mcp | [liga-1c-command/1c-debug-mcp](https://github.com/liga-1c-command/1c-debug-mcp) | debug_bsl_code |
 | v8-session-manager | [1c-neurofish/v8-session-manager](https://github.com/1c-neurofish/v8-session-manager) | витрина для tools 1С-расширений (`vanessa_test_client`, `yaxunit_runner`, `v8_runner_client`) |
 | ~~test-runner~~ | ~~[alkoleft/mcp-onec-test-runner](https://github.com/alkoleft/mcp-onec-test-runner)~~ | **упразднён** — заменён CLI [v8-runner](https://github.com/SteelMorgan/v8-runner) (build / syntax / tests / dump) |
 
@@ -70,10 +72,10 @@
 
 Связанная информация:
 - [docs/info/skills.md](./skills.md)
+- [docs/info/mcp-bsl-debugger.md](./mcp-bsl-debugger.md)
 - [docs/info/ru-en-mirror.md](./ru-en-mirror.md)
 - [framework/capabilities/registry.yaml](../../framework/capabilities/registry.yaml)
 - [framework/skills/tool-usage](../../framework/skills/tool-usage)
-- [framework/rules/mandatory-tools.md](../../framework/rules/mandatory-tools.md)
-- [framework/rules/tdd-policy.md](../../framework/rules/tdd-policy.md)
-- [framework/rules/sdd-policy.md](../../framework/rules/sdd-policy.md)
-- [framework/workflows/full-cycle.md](../../framework/workflows/full-cycle.md)
+- [framework/rules/tdd-policy/SKILL.md](../../framework/rules/tdd-policy/SKILL.md)
+- [framework/rules/sdd-policy/SKILL.md](../../framework/rules/sdd-policy/SKILL.md)
+- [framework/workflows/full-cycle/SKILL.md](../../framework/workflows/full-cycle/SKILL.md)

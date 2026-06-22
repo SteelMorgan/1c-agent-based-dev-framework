@@ -97,8 +97,8 @@ next_action = choose another fixture or prepare stable test data
 
 ---
 depends_on:
-  - framework/rules/vanessa-diagnostics-policy.mdc
-  - framework/rules/vanessa-security-warning.mdc
+  - framework/rules/vanessa-diagnostics-policy/SKILL.md
+  - framework/rules/vanessa-security-warning/SKILL.md
   - framework/skills/tool-usage/v8-runner/SKILL.md
   - framework/skills/tool-usage/diagnostics/event-log-analysis/SKILL.md
   - framework/skills/tool-usage/diagnostics/tech-log-analysis/SKILL.md

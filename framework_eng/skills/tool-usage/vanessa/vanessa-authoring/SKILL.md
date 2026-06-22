@@ -11,12 +11,12 @@ uses_capabilities:
 ## Writing algorithm
 
 1. Determine the requirement source - a specification or a business case (`vanessa-scenario-policy`).
-2. Determine **which user** runs the scenario (see "User context").
+2. Determine **which user** executes the scenario (see "User context").
 3. Find suitable steps: first in the Vanessa library, then in the project scenarios.
-4. **Inspect the interface and fill out the form manually in the web client** (`gui-control` / `screenshot` / `chrome-devtools` snapshot) - following the section "Manual form filling before the scenario": record the exact element names and captions, fields, buttons, and tabs **before** referencing them in steps; do not guess identifiers (Title caption vs name - see `vanessa-scenario-policy`).
-5. Write one smoke scenario: open -> one action -> one observable result.
-6. If a step does not exist, mark `# unknown_step_candidate`, do not invent a BSL step.
-7. Pass the scenario for execution through `v8-runner` (`v8-runner test va`).
+4. **Inspect the interface and fill out the form manually in the web client** (`gui-control` / `screenshot` / `chrome-devtools` snapshot) - per the "Manual form filling before the scenario" section: record the exact names and captions of elements, fields, buttons, and tabs **before** referencing them in steps; do not guess identifiers (Title caption vs name - see `vanessa-scenario-policy`).
+5. Write one smoke scenario: open -> one action -> one observable consequence.
+6. If there is no step, mark `# unknown_step_candidate`, do not invent a BSL step.
+7. Pass the scenario for a run through `v8-runner` (`v8-runner test va`).
 
 ---
 
@@ -76,8 +76,8 @@ uses_capabilities:
 The only exception is when the function under test is available exclusively to an administrator.
 
 **How to determine the user:**
-1. Specified in the task description - use it.
-2. Not specified - **ask the person** before writing the scenario.
+1. Specified in the task description -> use it.
+2. Not specified -> **ask the person** before writing the scenario.
 
 **One user** (in the `Context:` section):
 ```gherkin
@@ -90,10 +90,10 @@ The only exception is when the function under test is available exclusively to a
 И я подключаю TestClient "Руководитель" логин "Director" пароль "456"
 
 И я активизирую TestClient "Менеджер"
-# ... steps in the manager's name ...
+# ... шаги от имени менеджера ...
 
 И я активизирую TestClient "Руководитель"
-# ... steps in the director's name ...
+# ... шаги от имени руководителя ...
 
 И я закрываю TestClient "Менеджер"
 И я закрываю TestClient "Руководитель"
@@ -107,7 +107,7 @@ The only exception is when the function under test is available exclusively to a
 
 The `.feature` file is logically divided into two parts:
 
-1. **Setup / infrastructure** - runs under a technical user (`AgentAI` in this project): preparing test data (creating documents, catalog items, register records), `VAExtension` (`Extension`) steps, BSL fixtures from `vanessa-tests/support/`, and everything that requires technical roles outside normal business-user access.
+1. **Setup / infrastructure** - runs under a technical user (`AgentAI` in this project): preparation of test data (creating documents, catalog items, register records), `VAExtension` (`Extension`) steps, BSL fixtures from `vanessa-tests/support/`, and everything that requires technical roles outside normal business-user access.
 2. **Business flow (verification)** - runs under a specific business user (for example `Gavrilova Natalia` for OC-23400): only steps that verify user behavior under test. The business user **must not receive** technical roles (for example roles from `VAExtension.cfe`) just to make a step pass.
 
 Session switch:
@@ -181,10 +181,10 @@ Cheat sheet of common steps with syntax -> `references/steps-cheatsheet.md`.
 
 ---
 depends_on:
-  - framework/rules/vanessa-scenario-policy.mdc
-  - framework/rules/vanessa-test-isolation-policy.mdc
-  - framework/rules/vanessa-tests-location.mdc
-  - framework/rules/vanessa-run-loop.mdc
+  - framework/rules/vanessa-scenario-policy/SKILL.md
+  - framework/rules/vanessa-test-isolation-policy/SKILL.md
+  - framework/rules/vanessa-tests-location/SKILL.md
+  - framework/rules/vanessa-run-loop/SKILL.md
   - framework/skills/tool-usage/vanessa/vanessa-diagnostics/SKILL.md
   - framework/skills/tool-usage/platform-data/xml-generation/SKILL.md
 requires:

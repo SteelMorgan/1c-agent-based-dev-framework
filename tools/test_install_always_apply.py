@@ -3,9 +3,8 @@
 Тесты фильтра alwaysApply для установщика фреймворка.
 
 Проверяет:
-  1. Правило с alwaysApply: true → в rules-каталоге IDE (claude-code / codex).
-  2. Правило без alwaysApply (или alwaysApply: false) → НЕ в rules-каталоге,
-     только в component_map в .install-session.json.
+  1. Правила и workflow устанавливаются как skills в форме, нужной IDE.
+  2. alwaysApply сохраняется в component_map и влияет на оценку контекста.
   3. Навыки всегда в skills_dir, флаг не влияет.
   4. estimate_context_usage: правило без флага в on-demand, а не в always.
 
@@ -35,16 +34,17 @@ def _make_fw(tmp_path: Path) -> tuple[Path, Path]:
     """Создаёт минимальный framework/ с тестовыми компонентами.
 
     Структура:
-      framework/rules/rule_always.md        — alwaysApply: true
-      framework/rules/rule_lazy.md          — без alwaysApply
-      framework/rules/rule_explicit_false.md — alwaysApply: false
+      framework/rules/rule-always/SKILL.md          — alwaysApply: true
+      framework/rules/rule-lazy/SKILL.md            — без alwaysApply
+      framework/rules/rule-explicit-false/SKILL.md  — alwaysApply: false
+      framework/workflows/my-workflow/SKILL.md      — workflow для проверки Codex
       framework/skills/my-skill/SKILL.md    — навык (always_apply не влияет)
     """
     fw = tmp_path / "framework"
 
     # Правило с alwaysApply: true
-    (fw / "rules").mkdir(parents=True)
-    (fw / "rules" / "rule_always.md").write_text(textwrap.dedent("""\
+    (fw / "rules" / "rule-always").mkdir(parents=True)
+    (fw / "rules" / "rule-always" / "SKILL.md").write_text(textwrap.dedent("""\
         ---
         name: rule-always
         description: Тестовое правило always-on.
@@ -55,7 +55,8 @@ def _make_fw(tmp_path: Path) -> tuple[Path, Path]:
     """), encoding="utf-8")
 
     # Правило без флага
-    (fw / "rules" / "rule_lazy.md").write_text(textwrap.dedent("""\
+    (fw / "rules" / "rule-lazy").mkdir(parents=True)
+    (fw / "rules" / "rule-lazy" / "SKILL.md").write_text(textwrap.dedent("""\
         ---
         name: rule-lazy
         description: Тестовое правило без alwaysApply.
@@ -65,7 +66,8 @@ def _make_fw(tmp_path: Path) -> tuple[Path, Path]:
     """), encoding="utf-8")
 
     # Правило с явным alwaysApply: false
-    (fw / "rules" / "rule_explicit_false.md").write_text(textwrap.dedent("""\
+    (fw / "rules" / "rule-explicit-false").mkdir(parents=True)
+    (fw / "rules" / "rule-explicit-false" / "SKILL.md").write_text(textwrap.dedent("""\
         ---
         name: rule-explicit-false
         description: Тестовое правило alwaysApply: false.
@@ -73,6 +75,17 @@ def _make_fw(tmp_path: Path) -> tuple[Path, Path]:
         ---
         # Rule Explicit False
         Содержимое правила с явным false.
+    """), encoding="utf-8")
+
+    # Воркфлоу
+    (fw / "workflows" / "my-workflow").mkdir(parents=True)
+    (fw / "workflows" / "my-workflow" / "SKILL.md").write_text(textwrap.dedent("""\
+        ---
+        name: my-workflow
+        description: Тестовый workflow.
+        ---
+        # My Workflow
+        Тело workflow.
     """), encoding="utf-8")
 
     # Навык
@@ -143,14 +156,19 @@ def test_is_always_on_rule():
     print("  OK  test_is_always_on_rule")
 
 
-# ─── Тест 3: install — правило с флагом попадает в rules_dir ─────────────────
+# ─── Тест 3: install — правила становятся skills ─────────────────────────────
 
 
-def _run_install(fw: Path, ide_key: str, project_dir: Path) -> tuple[int, int]:
+def _run_install(
+    fw: Path,
+    ide_key: str,
+    project_dir: Path,
+    use_symlinks: bool = False,
+) -> tuple[int, int]:
     """Запускает install_components (реальная установка без интерактивного подтверждения).
 
     Подтверждение обходится через подмену stdin строкой 'y'.
-    Использует копирование файлов (не симлинки) для надёжности тестов.
+    По умолчанию использует копирование файлов для надёжности тестов.
     """
     import io
     graph = _build_graph(fw)
@@ -166,7 +184,7 @@ def _run_install(fw: Path, ide_key: str, project_dir: Path) -> tuple[int, int]:
             existing_symlink_ids=set(),
             ide_key=ide_key,
             project_dir=project_dir,
-            use_symlinks=False,  # копируем, чтобы не было зависимости от симлинков
+            use_symlinks=use_symlinks,
             dry_run=False,
         )
     finally:
@@ -175,8 +193,8 @@ def _run_install(fw: Path, ide_key: str, project_dir: Path) -> tuple[int, int]:
     return installed, skipped
 
 
-def test_install_claude_code_always_in_rules_dir():
-    """Правило с alwaysApply:true → копируется в .claude/rules/."""
+def test_install_claude_code_rules_as_file_skills():
+    """Claude Code: все правила и workflow копируются как file-style skills."""
     with tempfile.TemporaryDirectory() as tmp:
         fw, base = _make_fw(Path(tmp))
         project_dir = base / "project"
@@ -187,23 +205,14 @@ def test_install_claude_code_always_in_rules_dir():
         rules_dir = project_dir / ".claude" / "rules"
         skills_dir = project_dir / ".claude" / "skills"
 
-        # rule-always должен быть в rules_dir
-        rule_always_file = rules_dir / "rule-always.md"
-        assert rule_always_file.exists(), (
-            f"rule-always.md ожидается в {rules_dir}, но его нет"
-        )
-
-        # rule-lazy НЕ должен быть в rules_dir
-        rule_lazy_file = rules_dir / "rule-lazy.md"
-        assert not rule_lazy_file.exists(), (
-            f"rule-lazy.md НЕ ожидается в {rules_dir} (нет alwaysApply:true), но он там есть"
-        )
-
-        # rule-explicit-false НЕ должен быть в rules_dir
-        rule_ef_file = rules_dir / "rule-explicit-false.md"
-        assert not rule_ef_file.exists(), (
-            f"rule-explicit-false.md НЕ ожидается в {rules_dir}, но он там есть"
-        )
+        for name in ("rule-always", "rule-lazy", "rule-explicit-false", "my-workflow"):
+            skill_file = skills_dir / f"{name}.md"
+            assert skill_file.exists(), (
+                f"{name}.md ожидается как file-style skill в {skills_dir}"
+            )
+            assert not (rules_dir / f"{name}.md").exists(), (
+                f"{name}.md НЕ ожидается в {rules_dir}"
+            )
 
         # Навык должен быть в skills_dir
         skill_dir = skills_dir / "my-skill"
@@ -211,7 +220,7 @@ def test_install_claude_code_always_in_rules_dir():
             f"Навык my-skill/SKILL.md ожидается в {skills_dir}"
         )
 
-    print("  OK  test_install_claude_code_always_in_rules_dir")
+    print("  OK  test_install_claude_code_rules_as_file_skills")
 
 
 def test_install_codex_rules_as_skills():
@@ -251,6 +260,55 @@ def test_install_codex_rules_as_skills():
     print("  OK  test_install_codex_rules_as_skills")
 
 
+def test_install_codex_rules_as_directory_symlinks():
+    """Codex symlink-mode: правило устанавливается symlink-ом на каталог навыка."""
+    with tempfile.TemporaryDirectory() as tmp:
+        fw, base = _make_fw(Path(tmp))
+        project_dir = base / "project_codex_symlinks"
+        project_dir.mkdir()
+
+        _run_install(fw, "codex", project_dir, use_symlinks=True)
+
+        rule_dir = project_dir / ".codex" / "skills" / "rule-always"
+        skill_file = rule_dir / "SKILL.md"
+
+        assert rule_dir.is_symlink(), (
+            f"Ожидается symlink каталога {rule_dir}, а не symlink файла SKILL.md"
+        )
+        assert skill_file.exists(), f"Через symlink каталога должен читаться {skill_file}"
+        assert not skill_file.is_symlink(), (
+            "SKILL.md не должен быть отдельным symlink-ом; symlink должен стоять на каталоге"
+        )
+
+    print("  OK  test_install_codex_rules_as_directory_symlinks")
+
+
+def test_install_codex_workflows_as_skills():
+    """Codex: workflow-файлы разворачиваются как навыки, а не в .codex/rules/."""
+    with tempfile.TemporaryDirectory() as tmp:
+        fw, base = _make_fw(Path(tmp))
+        project_dir = base / "project_codex_workflow"
+        project_dir.mkdir()
+
+        skills_dir = project_dir / ".codex" / "skills"
+        rules_dir = project_dir / ".codex" / "rules"
+        rules_dir.mkdir(parents=True)
+        legacy_workflow = rules_dir / "my-workflow.md"
+        legacy_workflow.write_text("legacy workflow", encoding="utf-8")
+
+        _run_install(fw, "codex", project_dir)
+
+        workflow_skill = skills_dir / "my-workflow" / "SKILL.md"
+        assert workflow_skill.exists(), (
+            f"Workflow my-workflow ожидается как навык {workflow_skill} (codex)"
+        )
+        assert not legacy_workflow.exists(), (
+            "my-workflow.md НЕ ожидается в .codex/rules/ (workflow идут в skills/)"
+        )
+
+    print("  OK  test_install_codex_workflows_as_skills")
+
+
 def test_install_codex_rule_skill_name_collision():
     """Codex: правило, одноимённое навыку, получает префикс rule_ (не пропускается).
 
@@ -259,8 +317,8 @@ def test_install_codex_rule_skill_name_collision():
     """
     with tempfile.TemporaryDirectory() as tmp:
         fw = Path(tmp) / "framework"
-        (fw / "rules").mkdir(parents=True)
-        (fw / "rules" / "coding_standards.md").write_text(textwrap.dedent("""\
+        (fw / "rules" / "coding-standards").mkdir(parents=True)
+        (fw / "rules" / "coding-standards" / "SKILL.md").write_text(textwrap.dedent("""\
             ---
             name: coding-standards
             description: Триггер-правило стандартов кодирования.
@@ -564,8 +622,10 @@ def main():
     tests = [
         test_always_apply_parsed,
         test_is_always_on_rule,
-        test_install_claude_code_always_in_rules_dir,
+        test_install_claude_code_rules_as_file_skills,
         test_install_codex_rules_as_skills,
+        test_install_codex_rules_as_directory_symlinks,
+        test_install_codex_workflows_as_skills,
         test_install_codex_rule_skill_name_collision,
         test_install_codex_agent_to_toml,
         test_session_log_component_map,

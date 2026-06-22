@@ -176,7 +176,7 @@ gh api repos/IngvarConsulting/unica/commits?per_page=30 --jq '.[] | .commit.mess
 
 > **Критическая самооценка (rev.2, 2026-05-21):**
 >
-> Идея «у каждого skill должна быть секция Stop rules» — **умеренной ценности**. У нас уже формализован «не обходи, эскалируй» через `framework/rules/no-direct-db-access.md`, `no-manual-xml-edit.md`, `escalation-format.md`, `agent-context-protocol.md`. Реальная новизна Unica — **структурное требование к самому формату SKILL.md** (как `## Use when` или `## Procedure`).
+> Идея «у каждого skill должна быть секция Stop rules» — **умеренной ценности**. У нас уже формализован «не обходи, эскалируй» через `framework/rules/no-direct-db-access/SKILL.md`, `no-manual-xml-edit.md`, `escalation-format.md`, `agent-context-protocol.md`. Реальная новизна Unica — **структурное требование к самому формату SKILL.md** (как `## Use when` или `## Procedure`).
 >
 > Это дёшево добавить в `skill-creator-ext` шаблоном, но **не критично** — у нас агент уже дисциплинирован существующими правилами. Эффект — упорядочение, а не закрытие функциональной дыры. Поэтому статус понижен до 👁 Watching: добавим, когда будет ближайший рефакторинг шаблона skill-creator. Отдельной задачей не открываем.
 

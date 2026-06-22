@@ -51,14 +51,14 @@ guard ниже.
 
 **Протокол эскалации:** зафиксировать состояние → **оркестратор у себя же поднимает фазовый манинг**.
 Дисциплина оркестрации и форма фаз уже durable в его профиле (`framework/subagents/orchestrator.md`,
-Слой 2); детальную фазовую механику он читает из `framework/workflows/full-cycle.md` по входу в фазу.
+Слой 2); детальную фазовую механику он читает из `framework/workflows/full-cycle/SKILL.md` по входу в фазу.
 Это НЕ «передача во внешний документ» и НЕ запуск другой сессии — Lead просто надевает шляпу
 оркестратора full-цикла и идёт с Phase 1 (или Phase 3, если спека уже есть).
 
 ---
 depends_on:
   - framework/subagents/orchestrator.md
-  - framework/workflows/full-cycle.md
+  - framework/workflows/full-cycle/SKILL.md
   - framework/subagents/explorer.md
   - framework/subagents/developer-code.md
   - framework/skills/bsl-practices/coding-standards/SKILL.md

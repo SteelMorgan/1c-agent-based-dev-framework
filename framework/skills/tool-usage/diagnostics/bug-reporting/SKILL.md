@@ -262,5 +262,5 @@ alwaysApply: false
 ---
 
 depends_on:
-  - framework/rules/source-of-truth.md
+  - framework/rules/source-of-truth/SKILL.md
 ---

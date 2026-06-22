@@ -43,7 +43,7 @@ This profile carries two durable manning layers:
 Detailed procedures (Layer 3) are read **lazily on entry** into the selected path:
 - skill **`quick-fix`** - steps of the short cycle (read-on-choice through Skill-tool);
 - workflow **`full-cycle`** - phase mechanics and artifact handoff (read-on-choice from the link
-  `framework/workflows/full-cycle.md`). The phase shape and discipline are already durable in
+  `framework/workflows/full-cycle/SKILL.md`). The phase shape and discipline are already durable in
   Layer 2 below; the step-by-step phase mechanics are read at the moment of entry into it.
 
 ---
@@ -341,7 +341,7 @@ them to a vote.
 Passes the output of one phase into the input of the next, **explicitly specifying `task_dir`**. All
 agent contexts are in `task_dir/.context/`. Reviewer package: [TASK]+[SPEC]+[ARTIFACT]+[CHECKLIST]+[review_scope].
 The structure of `task_dir` and `sessions.json`: see `references/orchestrator-structures.md`. The full
-phase mechanics of artifact handoff - `framework/workflows/full-cycle.md` (read-on-choice).
+phase mechanics of artifact handoff - `framework/workflows/full-cycle/SKILL.md` (read-on-choice).
 
 ### 6. Session Registry (`sessions.json`)
 
@@ -385,9 +385,9 @@ orchestrator handles them as ordinary feedback (`agree` / `partial` / `disagree`
 6. git diff of all phases (from the initial state to the end).
 7. Raw stdout of all test runs (not "green", but output with exit_code values).
 8. The list of rule files and the profile active for the orchestrator:
-   `framework/subagents/orchestrator.md` (this profile), `framework/rules/agent-context-protocol.md`,
-   `framework/workflows/full-cycle.md`, skill `quick-fix`,
-   `framework/rules/source-of-truth.md`, `.claude/CLAUDE.md` (if applicable).
+   `framework/subagents/orchestrator.md` (this profile), `framework/rules/agent-context-protocol/SKILL.md`,
+   `framework/workflows/full-cycle/SKILL.md`, skill `quick-fix`,
+   `framework/rules/source-of-truth/SKILL.md`, `.claude/CLAUDE.md` (if applicable).
 
 If any item is missing - the reviewer will immediately answer `verdict: FAIL`. Gather everything
 **before** launching, not after.
@@ -539,7 +539,7 @@ its meaning. Spot-check (point 3) is the only way to keep the data useful.
 
 You do not do the work - you launch a subagent and process its result. The step-by-step phase
 mechanics (what is fed into each phase, artifact handoff) are in
-`framework/workflows/full-cycle.md`, read-on-choice when entering a phase. Below is the skeleton,
+`framework/workflows/full-cycle/SKILL.md`, read-on-choice when entering a phase. Below is the skeleton,
 whose shape is durable in the profile.
 
 ```
@@ -556,7 +556,7 @@ whose shape is durable in the profile.
 
 4. РЕШЕНИЕ: простая → short (навык quick-fix); средняя/сложная → full-cycle
 
-5. Для каждой фазы full-cycle (детальная механика — framework/workflows/full-cycle.md):
+5. Для каждой фазы full-cycle (детальная механика — framework/workflows/full-cycle/SKILL.md):
    a. ЛОГ ← PHASE: {роль}
    b. ЗАПУСТИТЬ сабагент {роль} (resume если agentId актуален) + записать agentId
       Входные данные + task_dir:
@@ -637,15 +637,15 @@ Append to the existing log, do not overwrite.
 ## Final Report (`final-report.md`)
 
 ```markdown
-# Отчёт: TASK-XXX-название
-## Новые объекты метаданных
-## Изменённые объекты
-## Что сделано
-## Полезность Infostart
+# Report: TASK-XXX-name
+## New Metadata Objects
+## Modified Objects
+## What Was Done
+## Infostart Helpfulness
 ```
 
 Rules: new items are NOT duplicated in changed items; 1C notation `Type.Name`; subobjects with a dot;
-"What was done" - 3-7 sentences.
+"What Was Done" - 3-7 sentences.
 
 ---
 
@@ -653,15 +653,15 @@ Rules: new items are NOT duplicated in changed items; 1C notation `Type.Name`; s
 
 - **`quick-fix`** (skill) - detailed steps of the short cycle. Lead elevates it through the Skill-tool
   when classifying as "simple". The self-path guard is fixed there and in §1.3 above.
-- **`full-cycle`** (`framework/workflows/full-cycle.md`) - detailed phase mechanics and artifact handoff.
+- **`full-cycle`** (`framework/workflows/full-cycle/SKILL.md`) - detailed phase mechanics and artifact handoff.
   Elevated on phase entry. The phase shape and discipline are already durable in Layer 2.
 
 ---
 depends_on:
-  - framework/workflows/full-cycle.md
+  - framework/workflows/full-cycle/SKILL.md
   - framework/skills/tool-usage/code-analysis/syntax-checking/SKILL.md
-  - framework/rules/agent-context-protocol.md
-  - framework/rules/source-of-truth.md
+  - framework/rules/agent-context-protocol/SKILL.md
+  - framework/rules/source-of-truth/SKILL.md
   - framework/skills/tool-usage/review/cross-provider-review/SKILL.md
   - framework/subagents/scenario-author.md
   - framework/subagents/scenario-coder.md

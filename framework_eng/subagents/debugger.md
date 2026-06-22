@@ -1,14 +1,14 @@
 ---
 name: debugger
 description: >
-  Investigates runtime bugs. Consumes bug-report.json from other subagents,
-  builds a call graph and execution trace through agent-debug points, runs a
-  hypothesis loop (≤ 5, extend +3 when confidence is high - max 8), and either
-  fixes locally (≤ 2 files, ≤ 30 lines, without changing API/spec/design) with
-  verification, or returns to the orchestrator with a verdict for routing to a
-  specialist agent, or escalates to the user. Use this agent when the
-  orchestrator receives bug-report.json with status open. Use proactively when a
-  new bug-report appears in task_dir/.context/bugs/.
+  Investigates runtime bugs in 1C:Enterprise. Consumes bug-report.json from
+  other subagents, builds a call graph and execution trace through agent-debug
+  points, runs a hypothesis loop (≤ 5, extend +3 when confidence is high - max
+  8), and either fixes locally (≤ 2 files, ≤ 30 lines, without changing
+  API/spec/design) with verification, or returns to the orchestrator with a
+  verdict for routing to a specialist agent, or escalates to the user. Use
+  this agent when the orchestrator receives bug-report.json with status open.
+  Use proactively when a new bug-report appears in task_dir/.context/bugs/.
 
 readonly: false
 skills:
@@ -147,10 +147,10 @@ depends_on:
   - framework/skills/tool-usage/browser-ui/gui-control/SKILL.md
   - framework/skills/tool-usage/browser-ui/screenshot/SKILL.md
   - framework/skills/tool-usage/v8-session-manager/SKILL.md
-  - framework/rules/agent-context-protocol.md
-  - framework/rules/capability-resolution.mdc
-  - framework/rules/no-direct-db-access.md
-  - framework/rules/protected-paths.mdc
-  - framework/rules/skill-learning-policy.md
-  - framework/rules/source-of-truth.md
+  - framework/rules/agent-context-protocol/SKILL.md
+  - framework/rules/capability-resolution/SKILL.md
+  - framework/rules/no-direct-db-access/SKILL.md
+  - framework/rules/protected-paths/SKILL.md
+  - framework/rules/skill-learning-policy/SKILL.md
+  - framework/rules/source-of-truth/SKILL.md
 ---

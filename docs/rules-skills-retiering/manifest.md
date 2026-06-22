@@ -213,7 +213,7 @@ Bootstrap и quick-fix ссылаются на orchestrator/full-cycle как н
 **Что переписать при реализации (фиксируется как долг §3):**
 - `framework-bootstrap`: убрать «загружай orchestrator.md», заменить на «сложная → работа оркестратора (профиль); не-оркестратор → эскалация на запуск под профилем».
 - `quick-fix` (будущий навык): «эскалация → передать оркестратору» уточнить: оркестратор поднимает full-cycle из своего профиля, а не из внешнего документа.
-- `depends_on` у bootstrap (`framework/workflows/orchestrator.md`, `quick-fix.md`) — пометить, что orchestrator/full-cycle теперь профиль (component_map), а не загружаемое правило.
+- `depends_on` у bootstrap (`framework/workflows/orchestrator/SKILL.md`, `quick-fix.md`) — пометить, что orchestrator/full-cycle теперь профиль (component_map), а не загружаемое правило.
 
 ## §7.1. Пересмотр: вариант B (append) как УНИВЕРСАЛЬНЫЙ старт
 
@@ -307,7 +307,7 @@ Bootstrap и quick-fix ссылаются на orchestrator/full-cycle как н
 > Долг и риски, выявленные сабагентами при правках. Не терять через компакт.
 
 ### От G1a (escalation-format / agent-context / source-of-truth)
-- **F-01 (долг):** `depends_on` на старый путь `framework/workflows/source-of-truth-policy.md` стоит в **17 файлах** (subagents, workflows, ряд skills). Сейчас работает через файл-редирект. Отдельной подзадачей перенаправить эти ссылки на `framework/rules/source-of-truth.md` + навык `source-of-truth`, иначе редирект держать вечно.
+- **F-01 (долг):** `depends_on` на старый путь `framework/workflows/source-of-truth-policy/SKILL.md` стоит в **17 файлах** (subagents, workflows, ряд skills). Сейчас работает через файл-редирект. Отдельной подзадачей перенаправить эти ссылки на `framework/rules/source-of-truth/SKILL.md` + навык `source-of-truth`, иначе редирект держать вечно.
 - **F-02 (риск установщика → проверить в G5):** правило и навык теперь могут носить ОДНО `name` (`source-of-truth`, `escalation-format`) при разных типах компонентов (rule vs skill). `component_map` ОБЯЗАН ключеваться по паре (тип, имя), не по плоскому `name`, иначе коллизия ключей. Проверить/поправить логику install.py при разборе G5.
 
 ### От G1b (git-workflow / rlm-workflow / skill-learning)
@@ -315,7 +315,7 @@ Bootstrap и quick-fix ссылаются на orchestrator/full-cycle как н
 - **Заметка (не баг):** при коммите стейджить точечно по группам — в рабочем дереве параллельные правки нескольких G-групп.
 
 ### От G4 (bootstrap / профиль оркестратора / full-cycle / quick-fix)
-- **F-02 расширена (тип agent):** `name: orchestrator` теперь у `framework/subagents/orchestrator.md` (профиль/agent) И `framework/workflows/orchestrator.md` (указатель/workflow). Полный охват F-02: коллизия имени возможна между типами rule|skill|workflow|agent. install.py обязан ключевать component_map по паре (тип, имя). Проверить в G5.
+- **F-02 расширена (тип agent):** `name: orchestrator` теперь у `framework/subagents/orchestrator.md` (профиль/agent) И `framework/workflows/orchestrator/SKILL.md` (указатель/workflow). Полный охват F-02: коллизия имени возможна между типами rule|skill|workflow|agent. install.py обязан ключевать component_map по паре (тип, имя). Проверить в G5.
 - **F-03 (проверить перед коммитом):** хук `skills-i18n-sync` — зеркалит ли он НОВЫЕ файлы (новый профиль `subagents/orchestrator.md`, новые навыки framework-meta/*, новые правила-триггеры) в `framework_eng/`, или только переводит правки существующих? Если новые файлы не подхватываются — нужна ручная сверка EN-зеркала перед коммитом.
 - **Решение G4 (не перерешивать без причины):** `workflows/orchestrator.md` НЕ удалён, превращён в указатель (таблица «где что живёт» + поток + scoped-запрет), тело манинга — в профиле. Удаление запрещено git-workflow без явного разрешения; depends_on целы.
 
@@ -329,10 +329,10 @@ Bootstrap и quick-fix ссылаются на orchestrator/full-cycle как н
 
 ### Сведено оркестратором (после всех 6 групп)
 - **F-02 ЗАКРЫТА:** install.py ключует компоненты по `comp_id = "{type}/{name}"` (строка 434) → `rule/source-of-truth` и `skill/source-of-truth` не коллизируют. Скан: 122 компонента, все id уникальны, 18 пар «правило↔навык» делят имя между типами by design. Тесты G5 (6 шт.) зелёные.
-- **F-05 (зазор размещения quick-fix):** `framework/workflows/quick-fix.md` имеет frontmatter навыка и в bootstrap/профиле назван «навык `quick-fix` через Skill-тул», НО физически в `workflows/` → install.py типизирует как `workflow/quick-fix`, в каталог навыков не кладёт → **через Skill-тул невызываем**. Решение (рекомендация): перенести в `framework/skills/<категория>/quick-fix/SKILL.md` (настоящий навык), оставив по старому пути редирект (на `quick-fix.md` ссылаются depends_on в framework-bootstrap, full-cycle). Альтернатива: оставить в workflows/ и в bootstrap/профиле заменить «через Skill-тул» на «прочитать файл» (тогда это read-on-choice workflow-док, а не Skill-навык). По духу §7.2 (quick-fix = ленивый навык) — предпочтительна первая.
+- **F-05 (зазор размещения quick-fix):** `framework/workflows/quick-fix/SKILL.md` имеет frontmatter навыка и в bootstrap/профиле назван «навык `quick-fix` через Skill-тул», НО физически в `workflows/` → install.py типизирует как `workflow/quick-fix`, в каталог навыков не кладёт → **через Skill-тул невызываем**. Решение (рекомендация): перенести в `framework/skills/<категория>/quick-fix/SKILL.md` (настоящий навык), оставив по старому пути редирект (на `quick-fix.md` ссылаются depends_on в framework-bootstrap, full-cycle). Альтернатива: оставить в workflows/ и в bootstrap/профиле заменить «через Skill-тул» на «прочитать файл» (тогда это read-on-choice workflow-док, а не Skill-навык). По духу §7.2 (quick-fix = ленивый навык) — предпочтительна первая.
 
 ### Закрытие долга (оркестратор, доделка)
-- **F-01 ЗАКРЫТА:** 17 файлов перенацелены `framework/workflows/source-of-truth-policy.md` → `framework/rules/source-of-truth.md` (sed, .md). Старых ссылок не осталось (кроме самого редирект-файла). Редирект `workflows/source-of-truth-policy.md` оставлен.
+- **F-01 ЗАКРЫТА:** 17 файлов перенацелены `framework/workflows/source-of-truth-policy/SKILL.md` → `framework/rules/source-of-truth/SKILL.md` (sed, .md). Старых ссылок не осталось (кроме самого редирект-файла). Редирект `workflows/source-of-truth-policy.md` оставлен.
 - **F-03 ЗАКРЫТА (без правок кода):** хук `.git/hooks/pre-commit` берёт staged через `git diff --cached --diff-filter=ACMR` (A=Added включён) + `sync-skill.py --sync-structure` создаёт каталоги в `framework_eng/`; `sync-skill.py` переводит ЛЮБОЙ `.md`/`.mdc` под `framework/` (TRANSLATABLE_EXTS, не только skills, EXCLUDE=README.md). Новые файлы (профиль, навыки, правила) зеркалятся при коммите — нужно лишь застейджить их перед коммитом. Перевод идёт через Claude Haiku, при сбое коммит блокируется (штатно).
 - **F-04 / F-05 / B(установщик):** в работе (агенты H1 / H3 / H4).
 

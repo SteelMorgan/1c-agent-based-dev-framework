@@ -223,6 +223,6 @@ depends_on:
   - agent-context-protocol
   - protected-paths
   - framework/skills/framework-meta/quick-fix/SKILL.md
-  - framework/workflows/full-cycle.md
-  - framework/workflows/orchestrator.md
+  - framework/workflows/full-cycle/SKILL.md
+  - framework/workflows/orchestrator/SKILL.md
 ---

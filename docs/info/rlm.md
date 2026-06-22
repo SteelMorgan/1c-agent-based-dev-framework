@@ -42,7 +42,7 @@
 
 ## 4) Запись и чтение (коротко)
 
-Полный практикум — в навыке [`framework/skills/framework-meta/rlm-workflow/`](../../framework/skills/framework-meta/rlm-workflow/SKILL.md) и правиле [`framework/rules/rlm-workflow.md`](../../framework/rules/rlm-workflow.md). Здесь — суть.
+Полный практикум — в навыке [`framework/skills/framework-meta/rlm-workflow/`](../../framework/skills/framework-meta/rlm-workflow/SKILL.md) и правиле [`framework/rules/rlm-workflow/SKILL.md`](../../framework/rules/rlm-workflow/SKILL.md). Здесь — суть.
 
 **Запись.** Предусловие (MUST): `rlm_start_session()` до любых записей — иначе молчаливый провал.
 

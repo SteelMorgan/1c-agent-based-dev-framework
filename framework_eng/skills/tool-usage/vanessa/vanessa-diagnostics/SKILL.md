@@ -1,11 +1,11 @@
 ---
 name: vanessa-diagnostics
-description: "MUST use WHEN a feature scenario has failed, artifacts were not created, or you need to classify a failure after execution. Provides an algorithm for analyzing run artifacts and classifying the error type."
+description: "MUST use WHEN a feature scenario failed, artifacts were not created, or you need to classify a failure after the run. Provides an algorithm for analyzing run artifacts and classifying the error type."
 ---
 
 # Vanessa Automation Diagnostics
 
-Vanessa is run through `v8-runner test va` (see the `v8-runner` skill → `references/testing.md`). This skill is about how to analyze a failed run.
+Vanessa is launched through `v8-runner test va` (see the `v8-runner` skill → `references/testing.md`). This skill is about how to analyze a failed run.
 
 ## Run Artifacts
 
@@ -13,8 +13,8 @@ There are two layers - do not confuse them:
 
 | Layer | What writes it | Where it is located |
 |------|-----------|-----------|
-| Vanessa artifacts | the VA player itself (`va-status.json`, `vanessa-execution.log`, reports `junit/junit.xml`, `cucumber/CucumberJson.json`) | at the paths from the active `tests.va` / `va-params` profile, usually project-local (`<project_root>/vanessa-tests/reports/…`, `.../logs/…`) |
-| v8-runner run artifacts | `v8-runner` itself (internal run logs, 1cv8c stdout/stderr, run-id metadata) | `workPath/temp/<runner-id>/runs/<run-id>/` (`workPath` is taken from `v8project.yaml`) |
+| Vanessa artifacts | the VA player itself (`va-status.json`, `vanessa-execution.log`, reports `junit/junit.xml`, `cucumber/CucumberJson.json`) | by the paths from the active `tests.va` / `va-params` profile, usually project-local (`<project_root>/vanessa-tests/reports/…`, `.../logs/…`) |
+| Run artifacts from `v8-runner` | `v8-runner` itself (internal run logs, 1cv8c stdout/stderr, run-id metadata) | `workPath/temp/<runner-id>/runs/<run-id>/` (`workPath` is taken from `v8project.yaml`) |
 
 When a run fails, do not clean up **both** locations before diagnostics are complete. Read the exact Vanessa report paths from the active profile.
 
@@ -80,7 +80,7 @@ If `event-log` contains an entry about `Security Warning` for `bddRunner.epf` or
 | No `va-status.json`, GTK/X11 error | `environment_error` |
 | Step not found | `step_resolution_error` |
 | The form opened, expectation mismatch | `assertion_error` / `product_ui_error` |
-| Error from the business module in the registration log | `product_logic_error` |
+| Error from the business module in the event log | `product_logic_error` |
 | Document/object not found | `test_data_error` |
 
 ---
@@ -97,8 +97,8 @@ next_action = choose another fixture or prepare stable test data
 
 ---
 depends_on:
-  - framework/rules/vanessa-diagnostics-policy.mdc
-  - framework/rules/vanessa-security-warning.mdc
+  - framework/rules/vanessa-diagnostics-policy/SKILL.md
+  - framework/rules/vanessa-security-warning/SKILL.md
   - framework/skills/tool-usage/v8-runner/SKILL.md
   - framework/skills/tool-usage/diagnostics/event-log-analysis/SKILL.md
   - framework/skills/tool-usage/diagnostics/tech-log-analysis/SKILL.md

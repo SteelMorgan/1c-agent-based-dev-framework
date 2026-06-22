@@ -68,9 +68,9 @@ Weights in `rlm_search_facts`: semantic query → raise `semantic_weight`; searc
 
 ---
 depends_on:
-  - framework/rules/rlm-workflow.md
-  - framework/rules/agent-context-protocol.md
-  - framework/rules/search-before-write.md
+  - framework/rules/rlm-workflow/SKILL.md
+  - framework/rules/agent-context-protocol/SKILL.md
+  - framework/rules/search-before-write/SKILL.md
 upstream:
   - Arman-Kudaibergenov/rlm-workflow (examples/CLAUDE.md.example)
 ---
