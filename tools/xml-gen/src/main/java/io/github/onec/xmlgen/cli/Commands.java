@@ -12,6 +12,7 @@ import io.github.onec.xmlgen.dsl.SkdDsl;
 import io.github.onec.xmlgen.editor.*;
 import io.github.onec.xmlgen.format.OutputFormat;
 import io.github.onec.xmlgen.info.ConfigInfoPrinter;
+import io.github.onec.xmlgen.info.FormDecompiler;
 import io.github.onec.xmlgen.info.FormInfoPrinter;
 import io.github.onec.xmlgen.info.MxlDecompiler;
 import io.github.onec.xmlgen.info.MxlInfoPrinter;
@@ -847,12 +848,14 @@ public class Commands {
 
     private static void executeForm(String[] args) {
         if (args.length == 0) {
-            throw new IllegalArgumentException("Form subcommand required: info, add, remove, compile, edit, add-attribute, add-element, add-command, remove-element, move-element");
+            throw new IllegalArgumentException("Form subcommand required: info, decompile, add, remove, compile, edit, add-attribute, add-element, add-command, remove-element, move-element");
         }
 
         String subcommand = args[0];
         if ("info".equals(subcommand.toLowerCase())) {
             formInfo(args);
+        } else if ("decompile".equals(subcommand.toLowerCase())) {
+            formDecompile(args);
         } else if ("add".equals(subcommand.toLowerCase())) {
             formAdd(args);
         } else if ("remove".equals(subcommand.toLowerCase())) {
@@ -865,6 +868,37 @@ public class Commands {
             formEdit(args);
         } else {
             throw new IllegalArgumentException("Unknown Form subcommand: " + subcommand);
+        }
+    }
+
+    private static void formDecompile(String[] args) {
+        Path file = null;
+        Path output = null;
+
+        for (int i = 1; i < args.length; i++) {
+            if (("--output".equals(args[i]) || "-o".equals(args[i]) || "-OutputPath".equals(args[i]))
+                    && i + 1 < args.length) {
+                output = Paths.get(args[++i]);
+            } else if (file == null) {
+                file = Paths.get(args[i]);
+            } else if (output == null) {
+                output = Paths.get(args[i]);
+            } else {
+                throw new IllegalArgumentException("Unexpected positional argument for form decompile: " + args[i]);
+            }
+        }
+
+        if (file == null) {
+            throw new IllegalArgumentException("Form XML file is required: xml-gen form decompile <Form.xml> [output.json]");
+        }
+
+        try {
+            XmlDocument doc = new XmlStructureReader().parse(file);
+            new FormDecompiler().decompile(doc, output);
+        } catch (XmlStructureReader.XmlParseException e) {
+            throw new RuntimeException("Failed to parse form XML: " + e.getMessage(), e);
+        } catch (IOException e) {
+            throw new RuntimeException("Failed to decompile form XML: " + e.getMessage(), e);
         }
     }
     

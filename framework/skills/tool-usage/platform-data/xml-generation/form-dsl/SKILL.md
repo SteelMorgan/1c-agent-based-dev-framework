@@ -14,9 +14,12 @@ xml-gen form compile [--format designer|edt] <input.json> <output.xml>
 xml-gen form compile --from-object [--preset erp-standard] [--object <path>] <output.xml>
 
 xml-gen form info <Form.xml>
+xml-gen form decompile <Form.xml> [output.json]
 ```
 
 Редактирование существующих форм (add-attribute, add-element, move-element и др.) — см. [xml-generation](../SKILL.md) §3 Edit-команды
+
+`form decompile` выдаёт **черновой JSON** для scaffold по образцу. Это не lossless round-trip: точечные правки готовой формы делай через `form edit`, а не через цикл decompile → compile.
 
 ## Намеренно вне DSL — делать кодом
 
@@ -57,12 +60,20 @@ Guardrails: `ValueStorage`-атрибуты скипаются; `FormDataStructu
 |----------|---------|----------|
 | `input` | InputField | Поле ввода |
 | `group` | UsualGroup | Группа (`"group": "Vertical"/"Horizontal"`, `children`) |
+| `columnGroup` | ColumnGroup | Группа колонок |
+| `buttonGroup` | ButtonGroup | Группа кнопок, `children` |
 | `table` | Table | Таблица (`dataPath`, `columns`) |
 | `button` | Button | Кнопка (`commandName`) |
 | `label` | LabelDecoration | Декорация-надпись |
 | `checkbox` | CheckBoxField | Поле флажка |
+| `radio` | RadioButtonField | Радиокнопки, `choices` |
 | `pages` | Pages | Контейнер страниц |
 | `page` | Page | Страница (только внутри `pages`) |
+| `picture`, `picField`, `calendar` | PictureDecoration/PictureField/CalendarField | Базовые поля/декорации |
+| `spreadsheet`, `html`, `textDoc`, `formattedDoc` | document fields | Поля документов |
+| `progressBar`, `trackBar`, `periodField`, `graphicalSchema` | special fields | Простые спецполя без Chart/Gantt/Planner settings |
+
+`input` дополнительно поддерживает статические `choiceList`, `choiceParameters`, `choiceParameterLinks`, `typeLink`. Большие настройки диаграмм/планировщика/условного оформления намеренно не переносим в DSL: их проще и безопаснее создавать кодом формы.
 
 ### Команды и события
 

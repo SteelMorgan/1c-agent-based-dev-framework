@@ -447,9 +447,9 @@
       "status": "synced"
     },
     "framework/skills/tool-usage/platform-data/xml-generation/form-dsl/SKILL.md": {
-      "ru_hash": "sha256:3b6fbe6fda159a9035be2f1a8e38cad8fd31f9bacb46d1034422704f01bfff6c",
-      "en_hash": "sha256:ace71bce5fb5c7cb446dc2e10c3a8eb60052571a22d0a419399a2a5a653170b4",
-      "synced_at": "2026-06-04T15:55:36Z",
+      "ru_hash": "sha256:eae7f9a1e7432105cb1ddeda4e62087f10f534ba7f7795e004012ba557ccc18f",
+      "en_hash": "sha256:2841a3161a7781f9e1e3efc19231aaa52183b6ddcc587c86d1a4bc72b56d353d",
+      "synced_at": "2026-06-22T11:54:01Z",
       "status": "synced"
     },
     "framework/skills/tool-usage/platform-data/xml-generation/mxl-dsl/SKILL.md": {
@@ -1095,9 +1095,9 @@
       "status": "synced"
     },
     "framework/skills/tool-usage/platform-data/xml-generation/SKILL.md": {
-      "ru_hash": "sha256:a3c99d28026b92dbf29360b2cc362ead320847c6190cf4352129c6be927b36af",
-      "en_hash": "sha256:cb796d8a719a5166f5acdcd33aed0ea1c8f5f82fa6e6cb6e48ade5747950758a",
-      "synced_at": "2026-06-22T11:12:00Z",
+      "ru_hash": "sha256:8c607a148cf8190a4e43b04597df307ab1ed20fc19525ed338c042f90ab182a0",
+      "en_hash": "sha256:145b051b77d97b1dc5fbfa5a5bd44b79f262811a3689be980db178372ef31d2f",
+      "synced_at": "2026-06-22T11:54:01Z",
       "status": "synced"
     },
     "framework/skills/tool-usage/platform-data/xml-generation/epf-full/SKILL.md": {
@@ -1125,9 +1125,9 @@
       "status": "synced"
     },
     "framework/skills/tool-usage/platform-data/xml-generation/forms-toolkit/SKILL.md": {
-      "ru_hash": "sha256:040339bd06b93016c8842947cbd31a7622262b19b30f2124701fde3a4d4f16dd",
-      "en_hash": "sha256:ed86f78fdf9b68d4f4777db3d5115e020ba30c2e677e2e76186adf343c7f1ecb",
-      "synced_at": "2026-06-04T16:01:47Z",
+      "ru_hash": "sha256:1a3caa569a4453731c86240543e1665bc409659f66364e738f5045e7af0f7c59",
+      "en_hash": "sha256:99f9a61edef1196d16ef950216ab350643819e048b5b96c59e400eb3a0dd379d",
+      "synced_at": "2026-06-22T11:54:01Z",
       "status": "synced"
     },
     "framework/skills/tool-usage/platform-data/xml-generation/forms-toolkit/references/edit.md": {

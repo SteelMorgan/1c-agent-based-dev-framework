@@ -22,7 +22,7 @@ metadata:
 
 `xml-gen` имеет две дополняющие рабочие поверхности:
 
-- **JSON DSL surface** — `mxl/skd/form/role/meta compile` и доступные декомпиляторы, например `mxl decompile`. Используй, когда артефакт удобнее описать декларативно и скомпилировать в Designer XML.
+- **JSON DSL surface** — `mxl/skd/form/role/meta compile` и доступные декомпиляторы, например `mxl decompile`, `form decompile`. Используй, когда артефакт удобнее описать декларативно и скомпилировать в Designer XML. `form decompile` — только draft/scaffold, не lossless round-trip.
 - **Operational CLI surface** — публичные команды `epf init`, `epf add-template`, `form add-element`, `meta edit`, `template add`, `validate`. Используй, когда нужно создать или изменить существующее дерево метаданных явными CLI-действиями.
 - **Support safety surface** — `support check/info` и встроенный guard мутаций. `xml-gen` читает `Ext/ParentConfigurations.bin` и блокирует прямую XML-правку объектов типовой конфигурации на поддержке поставщика.
 
@@ -37,7 +37,7 @@ metadata:
 | Под-область | Что делает | Когда применять | Reference |
 |-------------|------------|-----------------|-----------|
 | `forms-toolkit` | info / edit / validate / element-mapping / epf-validate — операционный цикл работы с управляемыми формами и EPF | анализ структуры формы, добавление полей, валидация, маппинг Title→Name для Vanessa | [forms-toolkit/SKILL.md](forms-toolkit/SKILL.md) |
-| `form-dsl` | компиляция формы из JSON DSL (`form compile`, в т.ч. `--from-object`) | создать форму с нуля или сгенерировать по объекту | [form-dsl/SKILL.md](form-dsl/SKILL.md) |
+| `form-dsl` | компиляция формы из JSON DSL (`form compile`, в т.ч. `--from-object`) и draft `form decompile` | создать форму с нуля, сгенерировать по объекту или снять JSON-черновик по образцу | [form-dsl/SKILL.md](form-dsl/SKILL.md) |
 | `skd-dsl` | компиляция СКД из JSON (`skd compile`) | создать схему компоновки с нуля | [skd-dsl/SKILL.md](skd-dsl/SKILL.md) |
 | `skd-edit` | patch-операции по существующей СКД (`skd add-parameter`, `skd add-field`) | точечная правка Schema.xml | [skd-edit/SKILL.md](skd-edit/SKILL.md) |
 | `mxl-dsl` | макеты MXL / SpreadsheetDocument (`mxl compile`) | печатные формы, шаблоны | [mxl-dsl/SKILL.md](mxl-dsl/SKILL.md) |
@@ -100,7 +100,7 @@ xml-gen form add-element --type InputField --name Склад --path Объект
 xml-gen validate --type form "src/Catalogs/Контрагенты/Forms/ФормаЭлемента/Ext/Form.xml"
 ```
 
-Детали — [forms-toolkit/SKILL.md](forms-toolkit/SKILL.md) (info/edit/validate) и [form-dsl/SKILL.md](form-dsl/SKILL.md) (compile с нуля).
+Детали — [forms-toolkit/SKILL.md](forms-toolkit/SKILL.md) (info/edit/decompile/validate) и [form-dsl/SKILL.md](form-dsl/SKILL.md) (compile с нуля).
 
 ### Скомпилировать СКД из JSON
 

@@ -421,4 +421,57 @@ class FormWriterTest {
         assertThat(content).contains("<Attribute name=\"Параметр1\" id=\"1\">");
         assertThat(content).contains("<Command name=\"Выполнить\" id=\"1\">");
     }
+
+    @Test
+    void formCompile_supportsButtonGroupSimpleFieldsAndChoiceControls() throws Exception {
+        String json = """
+                {
+                  "title": "Расширенная форма",
+                  "elements": [
+                    {
+                      "type": "input",
+                      "name": "ПолеВыбора",
+                      "path": "Объект.Контрагент",
+                      "choiceList": [
+                        {"value": "A", "presentation": "Вариант A"}
+                      ],
+                      "choiceParameters": [
+                        {"name": "Owner", "value": "Объект.Владелец"}
+                      ],
+                      "choiceParameterLinks": [
+                        {"name": "Owner", "dataPath": "Объект.Владелец", "valueChange": "Clear"}
+                      ],
+                      "typeLink": {"dataPath": "Объект.Вид", "linkItem": 1}
+                    },
+                    {
+                      "type": "buttonGroup",
+                      "name": "ГруппаКоманд",
+                      "commandSource": "Form",
+                      "children": [
+                        {"type": "button", "name": "Кнопка", "command": "Выполнить"}
+                      ]
+                    },
+                    {"type": "spreadsheet", "name": "ПолеТабличногоДокумента", "path": "Объект.Макет"},
+                    {"type": "progressBar", "name": "Прогресс", "path": "Объект.Процент", "minValue": 0, "maxValue": 100}
+                  ]
+                }
+                """;
+
+        FormDsl dsl = new ObjectMapper().readValue(json, FormDsl.class);
+        Path outputXml = tempDir.resolve("Form.xml");
+
+        new FormWriter(OutputFormat.DESIGNER).create(dsl, outputXml);
+
+        String content = Files.readString(outputXml);
+        assertThat(content).contains("<ChoiceList>");
+        assertThat(content).contains("<ChoiceParameters>");
+        assertThat(content).contains("<ChoiceParameterLinks>");
+        assertThat(content).contains("<TypeLink>");
+        assertThat(content).contains("<ButtonGroup name=\"ГруппаКоманд\"");
+        assertThat(content).contains("<CommandSource>Form</CommandSource>");
+        assertThat(content).contains("<SpreadsheetDocumentField name=\"ПолеТабличногоДокумента\"");
+        assertThat(content).contains("<ProgressBarField name=\"Прогресс\"");
+        assertThat(content).contains("<MinValue>0</MinValue>");
+        assertThat(content).contains("<MaxValue>100</MaxValue>");
+    }
 }

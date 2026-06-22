@@ -89,6 +89,7 @@ public class Main {
         System.out.println("  epf add-attribute     - Add attribute to EPF");
         System.out.println("  epf add-tabular-section - Add tabular section to EPF");
         System.out.println("  form compile          - Compile form from JSON DSL or metadata (--from-object)");
+        System.out.println("  form decompile        - Decompile Form.xml to draft JSON scaffold");
         System.out.println("  form edit --json      - Apply JSON spec of mutations to existing form");
         System.out.println("  form add-attribute    - Add attribute to form");
         System.out.println("  form add-element      - Add element to form");

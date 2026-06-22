@@ -19,6 +19,7 @@ depends_on:
 
 ```
 form-info → form-edit → form-validate → form-info
+form-decompile → form-compile — only to scaffold a new form from a sample
 epf-validate — for EPF/ERF
 form-element-mapping — Title→Name mapping for Vanessa scenarios
 ```
@@ -28,6 +29,7 @@ form-element-mapping — Title→Name mapping for Vanessa scenarios
 | Trigger | Operation | Reference |
 |---------|----------|-----------|
 | Understand form structure | `form-info` | [references/info.md](references/info.md) |
+| Get a draft JSON for a new form from a sample | `form-decompile` | draft, not lossless |
 | Add a field / attribute / command | `form-edit` | [references/edit.md](references/edit.md) |
 | Check Form.xml after changes | `form-validate` | [references/validate.md](references/validate.md) |
 | Writing Vanessa steps (Title→Name) | `form-element-mapping` | [references/element-mapping.md](references/element-mapping.md) |
@@ -38,6 +40,7 @@ form-element-mapping — Title→Name mapping for Vanessa scenarios
 | Operation | Command | Key parameters |
 |----------|---------|-------------------|
 | `form-info` | `xml-gen form info "<FormPath>"` | `--limit N`, `--offset N` |
+| `form-decompile` | `xml-gen form decompile "<FormPath>" [out.json]` | scaffold JSON for `form compile` |
 | `form-edit` | `xml-gen form edit "<FormPath>" --json "<JsonPath>"` | JSON: elements / attributes / commands |
 | `form-validate` | `xml-gen validate --type form "<FormPath>"` | `--output json` |
 | `epf-validate` | `xml-gen validate --type epf "<ObjectPath>"` | `--output json` |
@@ -54,6 +57,9 @@ xml-gen form edit "src/.../Form.xml" --json "spec.json"
 
 # 3. Verify the result
 xml-gen validate --type form "src/.../Form.xml"
+
+# Scaffold a new form from a sample
+xml-gen form decompile "src/.../Form.xml" draft-form.json
 
 # EPF validation
 xml-gen validate --type epf "src/МояОбработка/"

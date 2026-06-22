@@ -14,9 +14,12 @@ xml-gen form compile [--format designer|edt] <input.json> <output.xml>
 xml-gen form compile --from-object [--preset erp-standard] [--object <path>] <output.xml>
 
 xml-gen form info <Form.xml>
+xml-gen form decompile <Form.xml> [output.json]
 ```
 
 Editing existing forms (add-attribute, add-element, move-element, etc.) - see [xml-generation](../SKILL.md) §3 Edit commands
+
+`form decompile` emits a **draft JSON** scaffold from a sample form. It is not a lossless round-trip: use `form edit` for targeted changes to an existing form, not a decompile → compile cycle.
 
 ## Intentionally outside the DSL - do it in code
 
@@ -57,12 +60,20 @@ Minimal form: `{"attributes": [], "elements": []}`
 |----------|---------|----------|
 | `input` | InputField | Input field |
 | `group` | UsualGroup | Group (`"group": "Vertical"/"Horizontal"`, `children`) |
+| `columnGroup` | ColumnGroup | Column group |
+| `buttonGroup` | ButtonGroup | Button group, `children` |
 | `table` | Table | Table (`dataPath`, `columns`) |
 | `button` | Button | Button (`commandName`) |
 | `label` | LabelDecoration | Label decoration |
 | `checkbox` | CheckBoxField | Checkbox field |
+| `radio` | RadioButtonField | Radio buttons, `choices` |
 | `pages` | Pages | Pages container |
 | `page` | Page | Page (only inside `pages`) |
+| `picture`, `picField`, `calendar` | PictureDecoration/PictureField/CalendarField | Basic fields/decorations |
+| `spreadsheet`, `html`, `textDoc`, `formattedDoc` | document fields | Document fields |
+| `progressBar`, `trackBar`, `periodField`, `graphicalSchema` | special fields | Simple special fields without Chart/Gantt/Planner settings |
+
+`input` also supports static `choiceList`, `choiceParameters`, `choiceParameterLinks`, and `typeLink`. Large chart/planner/conditional-appearance settings are intentionally not moved into the DSL: they are simpler and safer to create in form code.
 
 ### Commands and events
 
