@@ -190,7 +190,16 @@ Expected 1C launch shape assembled by the runner:
   /C"mcpMode=ws;manager_url=ws://127.0.0.1:4000/sessions;client_uid=<uid>;kind=vanessa_test_client;corr_id=<uid>;mcp_log_level=debug;mcp_ws_timeout_ms=5000"
 ```
 
-VA MCP session readiness criterion: `session_list` contains a live `kind=vanessa_test_client` session, and its tools include VA tools (`get_VanessaAutomation_state`, `connect_test_client`, `get_form_analysis`, `manage_command_interface`) or the tool count is greater than the base `client_mcp` set. The initial registration with base tools does not yet mean that `MCPVA.ЗарегистрироватьИнструментыMCP()` has run.
+VA MCP session readiness criterion: `session_list` contains a live `kind=vanessa_test_client` session, and its tools include VA tools (`get_VanessaAutomation_state`, `connect_test_client`, `get_window_list_os`, `get_window_screenshot_os`, `get_form_analysis`, `manage_command_interface`) or the tool count is greater than the base `client_mcp` set. The initial registration with base tools does not yet mean that `MCPVA.ЗарегистрироватьИнструментыMCP()` has run.
+
+The tested application in the VA contour is started by the test manager itself: call `connect_test_client` with the test-client profile name (`profileName`, for example `Codex thin AgentAI`). VA starts a separate `/TESTCLIENT -TPort <auto>` process from the profile and connects `ТестируемоеПриложение` to it. Do not start this `/TESTCLIENT` manually for the VA path unless you are debugging the profile mechanism itself.
+
+Treat the VA screenshot MCP tools (`get_window_list_os`, `get_window_screenshot_os`) as conditional, not guaranteed. They appear in MCP tools after `MCPVA.ЗарегистрироватьИнструментыMCP()`, but they actually work only if VA has filled the test client's PID/window handle. Verified on 2026-06-26 with 1C 8.3.27.2074 + Vanessa Automation 1.2.043.28 + Linux/X11:
+
+- with the project’s standard `VAParams` (`ИспользоватьКомпонентуVanessaExt=Ложь`, `ИспользоватьВнешнююКомпонентуДляСкриншотов=Ложь`), `connect_test_client` succeeds and `get_window_list_testclient` sees the windows, but `get_window_list_os` fails with `ACTION_FAILED: Не вышло получить PID процесса клиента тестирования`;
+- with temporary `ИспользоватьКомпонентуVanessaExt=Истина` and `ИспользоватьВнешнююКомпонентуДляСкриншотов=Истина`, the first launch is blocked by the external-component installation dialog; the second launch registers VA MCP tools, but the profile still remains with `PID=0`, and `get_window_screenshot_os` fails with the same error.
+
+Therefore the default for visual form control is: drive the form through VA/TestClient MCP, and take the visual screenshot with an external OS/noVNC/browser screenshot tool if `get_window_screenshot_os` has not passed a short smoke check in the current environment. The presence of the tool in `tools/list` or `session_list.tools` is not proof that screenshots work.
 
 The full payload, the JSON output form (`--json-message`), probe rules, and behavior when the manager is unavailable are in `references/project-workflows.md` (section "WS Mode with session-manager"). Bringing up the manager itself is **not** part of v8-runner — see the `v8-session-manager` skill.
 
