@@ -1,6 +1,6 @@
 ---
 name: v8-runner
-description: "Use for управления v8-runner на локальных 1С-проектах: настройка v8project.yaml, сборка, синтаксические проверки, тесты, выгрузка/загрузка ИБ, конвертация форматов, запуск клиентов 1С."
+description: "v8-runner: базы, сборка, проверки, тесты, клиенты 1С"
 provides_capabilities:
   - build_project
   - full_rebuild_project
@@ -63,6 +63,19 @@ v8-runner --json-message build
 - `--clean-before-execution` — очистить логи перед выполнением.
 - `--log-level <error|warn|info|debug|trace>` — для диагностики.
 - `--no-color` — простой текстовый вывод.
+
+## Жизненный цикл запущенных клиентов 1С
+
+Интерактивные клиенты 1С и MCP/VA-сессии, которые должны оставаться доступными после возврата команды агенту, запускай как самостоятельные процессы с явным управлением жизненным циклом. Не используй `sleep`, `tail -f`, бесконечный shell-loop или похожую wrapper-команду как способ «удержать» клиент 1С живым: при завершении wrapper'а терминал/PTY или окружение агента может закрыть дочерний процесс 1С, а `session-manager` увидит это как обрыв WS без нормального закрытия.
+
+Правильный порядок:
+
+1. Запусти клиент через штатную команду `v8-runner launch ...`.
+2. Если среда выполнения прибирает дочерние процессы после завершения shell-команды, запускай команду detached-средствами окружения (`nohup`, `setsid`, service/job runner или эквивалент проекта), сохрани PID и лог запуска.
+3. Готовность проверяй внешним наблюдаемым состоянием: `session_list`, появление нужных MCP-tools, окно 1С, файл-протокол или запись в ЖР.
+4. Завершай клиент явным действием: штатным инструментом session-manager/VA, командой закрытия клиента или точечным `kill <PID>` только для своего сохранённого PID.
+
+`sleep` допустим только как короткое ожидание между проверками готовности внутри скрипта/poll-loop. Он не должен быть владельцем жизненного цикла 1С-процесса.
 
 ## Первый проход
 
@@ -187,12 +200,70 @@ v8-runner launch mcp va \
   /N <пользователь>
   /P <пароль>
   /Execute <путь>/vanessa-automation.epf
-  /C"mcpMode=ws;manager_url=ws://127.0.0.1:4000/sessions;client_uid=<uid>;kind=vanessa_test_client;corr_id=<uid>;mcp_log_level=debug;mcp_ws_timeout_ms=5000"
+  /C"mcpMode=ws;manager_url=ws://127.0.0.1:4000/sessions;client_uid=<uid>;kind=vanessa_test_client;corr_id=<uid>;mcp_log_level=debug;mcp_ws_timeout_ms=5000;VAParams=<runtime va-params.json>"
 ```
 
-Критерий готовности VA MCP-сессии: в `session_list` появилась live-сессия `kind=vanessa_test_client`, и в её tools есть VA-инструменты (`get_VanessaAutomation_state`, `connect_test_client`, `get_form_analysis`, `manage_command_interface`) или число tools стало больше базового набора `client_mcp`. Первичная регистрация с базовыми tools ещё не означает, что `MCPVA.ЗарегистрироватьИнструментыMCP()` уже отработал.
+Обязательный смысл этой строки запуска: MCP-сессия должна жить на стороне процесса тест-менеджера с открытой внешней обработкой Vanessa Automation. Не запускай тестируемое приложение с формой `MCPVA`: `MCPVA` — внутренняя форма/модуль внешней обработки VA, и именно VA в процессе `/TESTMANAGER` должна выполнить `MCPVA.ЗарегистрироватьИнструментыMCP()`.
+
+Критерий готовности VA MCP-сессии: в `session_list` появилась live-сессия `kind=vanessa_test_client`, и в её tools есть VA-инструменты (`get_VanessaAutomation_state`, `connect_test_client`, `get_window_list_os`, `get_window_screenshot_os`, `get_form_analysis`, `manage_command_interface`) или число tools стало больше базового набора `client_mcp`. Первичная регистрация с базовыми tools ещё не означает, что `MCPVA.ЗарегистрироватьИнструментыMCP()` уже отработал.
+
+Тестируемое приложение в VA-контуре запускает сам тест-менеджер: вызови `connect_test_client` с именем профиля клиента тестирования (`profileName`, например `Codex thin AgentAI`). VA поднимет отдельный процесс `/TESTCLIENT -TPort <auto>` из профиля и подключит к нему `ТестируемоеПриложение`. Не запускай этот `/TESTCLIENT` вручную для VA-пути, если только не отлаживаешь сам механизм профилей.
+
+Скриншотные MCP-инструменты VA (`get_window_list_os`, `get_window_screenshot_os`) считай готовыми только после короткой smoke-проверки на текущем окружении: live-сессия должна оставаться активной, `inflight=0`, а PNG должен быть не пустым и не чёрным. Детальный порядок визуальной проверки и fallback-условия описаны в навыке `va-visual-check`.
 
 Полный payload, JSON-форму вывода (`--json-message`), правила probe и поведение при недоступности менеджера — в `references/project-workflows.md` (раздел «WS-режим к session-manager»). Подъём самого менеджера в v8-runner **не входит** — см. навык `v8-session-manager`.
+
+### UI MCP через платформенный тест-клиент
+
+Если задача — пройти интерфейс 1С через клиентские MCP-tools (`open_form`, `click`, `input`, `get_value`, `get_table_rows`, `test_client_start`), это default-путь для одноразовой UI-проверки и исследования, когда не нужен полноценный Vanessa `.feature`. Запускай управляющий клиент как обычный thin/thick/ordinary-клиент с WS-сопряжением и ключом `/TESTMANAGER`, затем отдельно запускай тестируемое приложение с `/TESTCLIENT`. Web-клиент выбирай только для browser-specific слоя: DOM/CSS/HTML, console/network, web-auth/publication, viewport/pixel rendering, browser extension или browser-only file/clipboard.
+
+Рабочая цепочка:
+
+1. Подними session-manager и проверь HTTP endpoint: `tools/call session_list` должен отвечать, даже если `sessions=[]`.
+2. Запусти управляющий MCP-клиент detached, обязательно с `/TESTMANAGER`:
+
+```bash
+uid=$(cat /proc/sys/kernel/random/uuid)
+setsid nohup v8-runner --no-color --log-level debug launch thin \
+  --mcp-transport ws \
+  --manager-url ws://127.0.0.1:4000/sessions \
+  --client-uid "$uid" \
+  --corr-id "ui-$uid" \
+  --mcp-log-level debug \
+  --mcp-ws-timeout-ms 5000 \
+  --raw-key /TESTMANAGER \
+  > "/tmp/ui-mcp-$uid.log" 2>&1 &
+```
+
+3. Дождись в `session_list` live-сессии `kind=1c-client`, `state=active`, `inflight=0`, `infobase_name=<нужная ИБ>`. Базовая проверка перед UI-вызовами: `infobase_info` должен быстро вернуть ответ.
+4. Запусти тестируемое приложение отдельным процессом с `/TESTCLIENT -TPort <порт>` и теми же параметрами подключения, пользователем и паролем, что в проектном запуске. Это предпочтительный путь: агент сам поднимает тестируемое приложение detached и сохраняет PID/лог, а `test_client_start` на следующем шаге используется как подключение управляющего `/TESTMANAGER` к уже слушающему порту. Если в проекте есть готовый launcher, он тоже должен передавать `/N`, `/P`, `/UC` и тот же connection string; иначе используй прямую форму платформы:
+
+```bash
+setsid nohup /opt/1cv8/x86_64/<version>/1cv8c ENTERPRISE \
+  /DisableStartupDialogs \
+  /IBConnectionString 'Srvr="<server>";Ref="<infobase>";' \
+  /N <user> /P <password> /UC <unlock_code> \
+  /TESTCLIENT -TPort 1538 \
+  > /tmp/test-client-1538.log 2>&1 &
+```
+
+5. Подключи тестируемое приложение через управляющую MCP-сессию:
+
+```json
+{"name":"test_client_start","arguments":{"session_id":"<1c-client session_id>","port":1538}}
+```
+
+Успешный критерий: `{"ok": true, "data": {"connected": true}}`.
+
+6. После этого выполняй UI MCP-tools только через `session_id` управляющей сессии: `open_form` → `click/input/select` → `get_value/get_table_rows`. Для элементов формы можно строить URI напрямую как `control://<urlencoded form name>/<urlencoded element name>`, если `find` нестабилен.
+
+Важно про визуальный контроль: стандартный платформенный контур `/TESTMANAGER` + `/TESTCLIENT` даёт структурное управление формами, но не обязан иметь MCP-инструмент скриншота. Если нужен визуальный скриншот через MCP, запускай VA MCP-контур выше (`kind=vanessa_test_client`) и проверяй доступность `get_window_screenshot_os`; если VA-контур недоступен, визуальный контроль выполняется внешним OS/browser screenshot-инструментом.
+
+Не делай так:
+
+- Не запускай управляющий клиент без `/TESTMANAGER`: при первом `test_client_start` платформа может упасть с `Тип не определен (ТестируемоеПриложение)`.
+- Не полагайся на `test_client_start` как на единственный способ запуска `/TESTCLIENT`, если он стартует клиента без `/N` и `/P`: такой процесс может остаться на входе в базу, а подключение вернёт `Отсутствует подходящий клиент тестирования`.
+- Не считай `tools/list` доказательством готовности: proxied tools могут быть только из кеша session-manager. Готовность подтверждает live-сессия в `session_list` и успешный простой вызов (`infobase_info`).
 
 ### Resolved: WS-сессии в `test yaxunit` (DRIVE 2026-05-11)
 
