@@ -13,12 +13,50 @@ uses_capabilities:
 1. Identify the requirement source: a specification or a business case (`vanessa-scenario-policy`).
 2. Determine **which user** runs the scenario (see "User Context").
 3. Find suitable steps: first in the Vanessa library, then in the project's scenarios.
-4. **Inspect the interface and fill out the form manually in the web client** (`gui-control` / `screenshot` / `chrome-devtools` snapshot) - according to the section "Manual Form Filling Before the Scenario": record the exact names and titles of elements, fields, buttons, and tabs **before** referencing them in steps; do not guess identifiers (Title vs name - see `vanessa-scenario-policy`).
+4. **Inspect the interface and fill out the form manually**. The preferred path is Vanessa Automation MCP tools through `v8-client-session-manager` (see "MCP Research through Vanessa Automation"). If they are unavailable, use the web client (`gui-control` / `screenshot` / `chrome-devtools` snapshot). In both cases, record the exact names and titles of elements, fields, buttons, and tabs **before** referencing them in steps; do not guess identifiers (Title vs name - see `vanessa-scenario-policy`).
 5. Write one smoke scenario: open -> one action -> one observable outcome.
 6. If a step does not exist, mark `# unknown_step_candidate`; do not invent a BSL step.
 7. Submit the scenario for execution through `v8-runner` (`v8-runner test va`).
 
 ---
+
+## MCP Research through Vanessa Automation
+
+This section captures the universal workflow verified on Vanessa Automation `1.2.043.28`. For another version, first reconcile behavior with the official VA instruction and live tool schemas.
+
+Official Vanessa Automation source: <https://github.com/Pr-Mex/vanessa-automation>. AI/MCP instructions are in `docs/AI/`. Take VA updates from the official repository/releases, not by editing vendor code in the project. WS startup uses our `v8-runner` fork <https://github.com/SteelMorgan/v8-runner-rust> and `v8-client-session-manager` <https://github.com/SteelMorgan/v8-client-session-manager>.
+
+### Version and readiness checks
+
+1. Start a VA manager session through `v8-runner launch mcp va --mcp-transport ws ...` (the detailed launch shape is in the `v8-runner` skill, section "Vanessa Automation MCP through session-manager").
+2. Through `session_list`, wait for a live `kind=vanessa_test_client` session where VA tools appeared: for example `get_VanessaAutomation_state`, `connect_test_client`, `get_form_analysis`, `manage_command_interface`.
+3. Call `get_environment_data` or the nearest available VA environment tool and record the Vanessa Automation version in the task context.
+4. If service data tools are needed (`get_table_data`, `get_object_attributes`), verify that the VA service extension is loaded into the tested infobase. Having fresh extension files in source is not enough: runtime tools look for forms in the connected database.
+
+### Mandatory operation sequence
+
+1. **Connect the test client.** Before any tools that read or control the tested application's UI, call `connect_test_client` with the test-client profile. Choose the profile from VA settings/profile table; do not guess the name.
+2. **Research the form through VA tools.** Use live tool schemas and descriptions from `session_list` / `tools/list`, because the tool set expands between VA versions. Do not freeze a closed list as complete. As of VA `1.2.043.28`, the main tool classes are: command interface, window list, active window data, form analysis, form element actions, object attribute reading, table/data reading, screenshots, user action recording, and `.feature` step execution.
+3. **Do not write data without a test purpose.** For filling research you may open a creation form, read attributes, and try navigation; save/post only when needed for validating filling or the scenario, and follow test-data isolation rules.
+4. **Close the test client.** After research, execution, or an error, always call `close_test_client` for the connected profile. If the VA manager session was started manually for research, stop it too after the work is done.
+
+Antipatterns:
+
+- calling `get_form_analysis`, `manage_command_interface`, `manage_form_elements`, `get_object_attributes`, screenshot/recording tools before `connect_test_client`;
+- treating a tool name in cached `tools/list` as proof of availability - check the live session of the required `kind`;
+- leaving the test client open after the operation;
+- editing vendor VA/VAExtension code when the issue is version, extension loading, or launch configuration.
+
+### Embedding into scenario authoring
+
+Before writing a `.feature` for a new form, first perform MCP research:
+
+1. Open the section/command through `manage_command_interface` or direct navigation.
+2. Get `get_active_window_data` and `get_form_analysis`.
+3. For an object form, get `get_object_attributes` in header-attributes and tabular-sections modes.
+4. If needed, get reference data through `get_table_data` to choose existing valid values.
+5. Based on the result, record exact commands, element names, required fields, conditional visibility/availability, and filling order in the scenario context.
+6. Only after that write Gherkin steps and subscenarios.
 
 ## Manual Form Filling Before the Scenario (MUST)
 

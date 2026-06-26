@@ -225,9 +225,9 @@
       "status": "synced"
     },
     "framework/workflows/full-cycle/SKILL.md": {
-      "ru_hash": "sha256:6165a1bd305f16769142779eac11b53e5e57ccf236ed0367550f2c85e80ba31b",
-      "en_hash": "sha256:1b3453306fffbf04fea9335c82d4bf254bd0552ab8ca98cffa3a4f65e69229fe",
-      "synced_at": "2026-06-22T22:04:14Z",
+      "ru_hash": "sha256:0bf1133da7e1a1541ff2d89feb5af6694e8c79399259664371ea238b60f27b44",
+      "en_hash": "sha256:32350e6c226e926ab89437d3d28674a40d9fd31c36f5caf943470b9645988058",
+      "synced_at": "2026-06-26T10:38:17Z",
       "status": "synced"
     },
     "framework/workflows/orchestrator/SKILL.md": {
@@ -471,9 +471,9 @@
       "status": "synced"
     },
     "framework/skills/tool-usage/vanessa/vanessa-authoring/SKILL.md": {
-      "ru_hash": "sha256:707e38d4232debc353aa184407c829590aab41bcca5b5edffabcda342dd8e9bb",
-      "en_hash": "sha256:72e918e38578dc092b9f394b04e7377525e2a6cb43d08c7703827bec557b2d75",
-      "synced_at": "2026-06-22T21:00:46Z",
+      "ru_hash": "sha256:6dbe76771ff092ea46b928a7595d78767bd1e4364bf472c67bb4fc9c149d6ab7",
+      "en_hash": "sha256:092f1f46e8aefd713341ad2f5a870e4392a1b0f0d161e21090e208ce7dfd14f4",
+      "synced_at": "2026-06-26T10:38:17Z",
       "status": "synced"
     },
     "framework/skills/tool-usage/vanessa/vanessa-diagnostics/SKILL.md": {
@@ -747,9 +747,9 @@
       "status": "synced"
     },
     "framework/skills/tool-usage/v8-runner/SKILL.md": {
-      "ru_hash": "sha256:2a9e4c3c187fff59c78b505902354c9cf158287bdd46cafcc60e3bd862da958f",
-      "en_hash": "sha256:ad8cfe8035763841b6466cc416136d8e1746a9cf8bc3fc770f1c74a524b62b78",
-      "synced_at": "2026-06-22T10:47:52Z",
+      "ru_hash": "sha256:4c75024011414b2cefc602da1152052349acbbd1c2676f22b03d897784f6dcbc",
+      "en_hash": "sha256:6debff5f12e65ac8d7295f41acdaa7068379f97806efa4462a4fb69a80cb4d30",
+      "synced_at": "2026-06-26T10:38:17Z",
       "status": "synced"
     },
     "framework/skills/tool-usage/v8-runner/agents/openai.yaml": {
@@ -888,18 +888,6 @@
       "ru_hash": "sha256:7266ab6e84347abf41b521e50920ec26e6066efd5c80d0688d124a1100a15537",
       "en_hash": "sha256:53e0bba9d2ad9c595f09b68bfb2378bf90c76c0d409600fdadee79330780da49",
       "synced_at": "2026-06-22T22:05:43Z",
-      "status": "synced"
-    },
-    "framework/skills/other/infostart-kb/SKILL.md": {
-      "ru_hash": "sha256:24076e4d10870d6fd7be63dd6df586ce37d853544af7a716e5fe3e4151c581ad",
-      "en_hash": "sha256:2f98f245a17338c45ee9224f3ef2b1059993904729d5166213990ae639017ec1",
-      "synced_at": "2026-06-04T15:59:40Z",
-      "status": "synced"
-    },
-    "framework/skills/other/infostart-kb/references/how-to-discover-environment.md": {
-      "ru_hash": "sha256:3abceef413dc21dbe2d6f70a4181789f84739d34bd0401babf5414fe9eeaeb83",
-      "en_hash": "sha256:b03e3931a89f0c7e059ee9ef1eb9929a8e0a468c5142a8534578ebd188db66c1",
-      "synced_at": "2026-05-21T21:40:08Z",
       "status": "synced"
     },
     "framework/skills/tool-usage/v8-runner/references/auth-guard.md": {

@@ -35,12 +35,14 @@ Input: approved spec + `explorer-context.md`. Architect -> `technical-design.md`
 
 Phases 3a-3d proceed strictly sequentially. Each next phase starts only after review of the previous one (and cross-provider-review in advisory).
 
-- **3a (Scenario-Author -> Mid):** intent scenarios from the spec -> `.feature` Vanessa with `# unknown_step_candidate` for steps not found. Review (scope=bdd).
+- **3a (Scenario-Author -> Mid):** before writing new UI/form scenarios, researches the form through the Vanessa MCP workflow (`vanessa-authoring`: start VA manager -> `connect_test_client` -> VA tools -> `close_test_client`) and records exact commands/elements/required fields in their context. Then spec intent scenarios -> `.feature` Vanessa with `# unknown_step_candidate` for steps not found. Review (scope=bdd).
 - **3b (Developer-Tests -> Mid/High):** MUST scenarios from the Test Plan -> unit/integration tests (Red). Review (scope=tests).
-- **3c (Scenario-Coder -> Mid):** makes the `.feature` from 3a executable - selects/implements Vanessa steps (`@exportscenarios` or, as an escape hatch, BSL steps in `vanessa-tests/support/`), replaces `unknown_step_candidate`. Red gate: `v8-runner test va` on the task scenarios shows failure on missing production logic, not on unknown steps. Review (scope=bdd-steps).
+- **3c (Scenario-Coder -> Mid):** makes the `.feature` from 3a executable - selects/implements Vanessa steps (`@exportscenarios` or, as an escape hatch, BSL steps in `vanessa-tests/support/`), replaces `unknown_step_candidate`. If a step depends on real UI state, checks it through the Vanessa MCP workflow and closes the test client after the check. Red gate: `v8-runner test va` on the task scenarios shows failure on missing production logic, not on unknown steps. Review (scope=bdd-steps).
 - **3d (Developer-Code -> High):** input - everything from Phase 2 + tests from 3b + Red-executable `.feature` from 3a/3c. Writes code (Green for Phase 3b unit tests AND 3a scenarios). On `test_failure` + `suspected_test_error` -> Reviewer arbitration -> routing (to 3b if unit test, to 3c if step, otherwise to 3d).
 
 **Why 3a and 3c are separated.** Scenario-Author is responsible for **what** should happen (business intent, readable Gherkin). Scenario-Coder is responsible for **how** this is expressed in Vanessa steps (technical implementation of the step library, reuse). Previously no one explicitly did this - steps either stayed `TODO`, or were finished by Developer-Code, blurring the Green gate. The role split gives: (a) a clean Red gate at the scenario level before any production code is written, (b) an owner for step-library quality and reuse, (c) the ability to parameterize steps by domain functionality, not by task.
+
+**Place of the vendor Vanessa MCP workflow.** The research MCP workflow does not replace Red/Green gates and is not a separate full-cycle phase. It is a mandatory technique inside 3a/3c for UI/form scenarios: first get the runtime map of the form and reference data through live VA tools, then write or fix Gherkin. If `v8-client-session-manager` or VA MCP is unavailable, record this as a diagnostic blocker/escape hatch; manual research through the web client is then allowed with the same artifacts in context.
 
 ### Phase 4: Coverage and Regression (Tester -> Mid/High)
 

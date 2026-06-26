@@ -35,12 +35,14 @@ Approval gate Phase 1 нужен, потому что спецификация �
 
 Фазы 3a–3d идут строго последовательно. Каждая следующая начинается только после ревью предыдущей (и cross-provider-review в advisory).
 
-- **3a (Scenario-Author → Mid):** intent-сценарии спеки → `.feature` Vanessa с пометкой `# unknown_step_candidate` для не найденных шагов. Ревью (scope=bdd).
+- **3a (Scenario-Author → Mid):** перед написанием новых UI/форменных сценариев проводит исследование формы через Vanessa MCP workflow (`vanessa-authoring`: запуск VA manager → `connect_test_client` → VA-tools → `close_test_client`) и фиксирует точные команды/элементы/обязательные поля в своём контексте. Затем intent-сценарии спеки → `.feature` Vanessa с пометкой `# unknown_step_candidate` для не найденных шагов. Ревью (scope=bdd).
 - **3b (Developer-Tests → Mid/High):** MUST-сценарии Test Plan → unit/интеграционные тесты (Red). Ревью (scope=tests).
-- **3c (Scenario-Coder → Mid):** делает `.feature` 3a исполняемыми — подбирает/реализует шаги Vanessa (`@exportscenarios` или, как escape hatch, BSL-шаги в `vanessa-tests/support/`), заменяет `unknown_step_candidate`. Red-гейт: `v8-runner test va` на сценариях задачи показывает падение на отсутствующей прод-логике, не на неизвестных шагах. Ревью (scope=bdd-steps).
+- **3c (Scenario-Coder → Mid):** делает `.feature` 3a исполняемыми — подбирает/реализует шаги Vanessa (`@exportscenarios` или, как escape hatch, BSL-шаги в `vanessa-tests/support/`), заменяет `unknown_step_candidate`. Если шаг зависит от реального UI-состояния, проверяет его через Vanessa MCP workflow и закрывает тест-клиент после проверки. Red-гейт: `v8-runner test va` на сценариях задачи показывает падение на отсутствующей прод-логике, не на неизвестных шагах. Ревью (scope=bdd-steps).
 - **3d (Developer-Code → High):** вход — всё из Phase 2 + тесты 3b + Red-executable `.feature` 3a/3c. Пишет код (Green для unit-тестов Phase 3b И сценариев 3a). При `test_failure` + `suspected_test_error` → Reviewer-арбитраж → маршрутизация (в 3b если юнит-тест, в 3c если шаг, иначе в 3d).
 
 **Зачем разделены 3a и 3c.** Scenario-Author отвечает за **что** должно произойти (бизнес-намерение, читаемый Gherkin). Scenario-Coder отвечает за **как** это выражено в шагах Vanessa (техническая реализация step-library, переиспользование). Раньше эту работу никто явно не делал — шаги либо висели `TODO`, либо доделывались Developer-Code с размытием Green-гейта. Разделение ролей даёт: (а) чистый Red-гейт на уровне сценариев до написания прод-кода, (б) ответственного за качество и переиспользование step-library, (в) возможность параметризовать шаги по функциональности предметной области, а не по задаче.
+
+**Место vendor workflow Vanessa MCP.** Исследовательский MCP workflow не заменяет Red/Green-гейты и не является отдельной фазой full-cycle. Он является обязательной техникой внутри 3a/3c для UI/форменных сценариев: сначала получить runtime-карту формы и справочных данных через live VA-tools, затем писать или чинить Gherkin. Если `v8-client-session-manager` или VA MCP недоступны, это фиксируется как диагностический blocker/escape hatch, после чего допускается ручное исследование через веб-клиент с теми же артефактами в контексте.
 
 ### Phase 4: Покрытие и регрессия (Tester → Mid/High)
 

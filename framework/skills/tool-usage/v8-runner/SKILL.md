@@ -89,7 +89,7 @@ v8-runner init
 - Переключение ветки, rebase, большие перемещения объектов, устаревшее состояние tool-расширения на основе исходников или подозрительное инкрементальное состояние: запусти `v8-runner build --full-rebuild`.
 - Синтаксическая проверка: посмотри `format` и `builder`, затем выбери `syntax designer-modules`, `syntax designer-config` или `syntax edt`.
 - Валидация поведения: запусти подходящую команду `v8-runner test ...`; тесты сначала собирают.
-- Отладка Vanessa Automation или написание сценариев: используй `v8-runner launch mcp va ...`, чтобы запустить клиентский MCP-сервер с загруженной VA.
+- Отладка Vanessa Automation, исследование форм и написание сценариев через MCP: используй `v8-runner launch mcp va ...`, чтобы запустить сеанс менеджера тестирования VA с MCP-инструментами. После старта проверяй готовность по `session_list`: нужен `kind=vanessa_test_client` и появление VA-tools, а не только первичная WS-регистрация.
 - Нужна синхронизация свойств расширений: используй `v8-runner extensions` или `extensions --name <SOURCE_SET>`.
 - Изменения в ИБ должны стать Git-видимыми файлами: проверь `git status`, затем запусти подходящую команду `v8-runner dump ...`.
 - Нужна конвертация исходников между Designer и EDT: используй `v8-runner convert`; это только CLI и не использует ИБ.
@@ -134,12 +134,13 @@ tools:
     ws_timeout_ms: 1000
 ```
 
-`kind` фиксируется точкой входа и из CLI не переопределяется ни в одном режиме.
+Для специализированных точек входа `kind` фиксируется точкой входа и из CLI не переопределяется. Для обычных UI-клиентов (`launch thin/thick/ordinary`) `kind` в `/C` не передаётся: расширение `client_mcp` само объявляет свой клиентский kind при `session.register`.
 
 ### Внутренний mapping `kind`
 
 | Команда | `kind` |
 |---|---|
+| `launch thin/thick/ordinary` | не передаётся; клиентская сторона объявляет дефолтный kind |
 | `launch mcp` | `v8_runner_client` |
 | `launch mcp va` | `vanessa_test_client` |
 | `test yaxunit ...` | `yaxunit_runner` |
@@ -151,7 +152,45 @@ tools:
 /C"mcpMode=ws;manager_url=<URL>;client_uid=<UUID>;kind=<KIND>;corr_id=<CORR>;mcp_log_level=<LVL>;mcp_ws_timeout_ms=<MS>"
 ```
 
-Для launch — это весь `/C`; для test-команд WS-фрагмент дописывается через `;` к существующему `RunUnitTests=…` / Vanessa-плееру (если transport=ws выбран через yaml-конфиг).
+Для `launch mcp` / `launch mcp va` — это весь `/C`. Для `launch thin/thick/ordinary` используется тот же WS-фрагмент, но **без** `kind=<KIND>`, и он дописывается через `;` к существующему `/C`, если он уже задан. Для test-команд WS-фрагмент дописывается через `;` к существующему `RunUnitTests=…` / Vanessa-плееру (если transport=ws выбран через yaml-конфиг).
+
+Обычный тонкий клиент в WS-режиме:
+
+```text
+/C"mcpMode=ws;manager_url=<URL>;client_uid=<UUID>;corr_id=<CORR>;mcp_log_level=<LVL>;mcp_ws_timeout_ms=<MS>"
+```
+
+Важно: в обычном `launch thin/thick/ordinary` не добавляй `kind`. Такой клиент регистрирует базовые инструменты `client_mcp`, но сам по себе не публикует MCP-инструменты Vanessa Automation.
+
+### Vanessa Automation MCP через session-manager
+
+Для workflow Vanessa Research/Scenario через наш `v8-client-session-manager` запускается не простой тонкий клиент, а сеанс менеджера тестирования с открытой обработкой Vanessa Automation:
+
+```bash
+v8-runner launch mcp va \
+  --mcp-transport ws \
+  --manager-url ws://127.0.0.1:4000/sessions \
+  --client-uid <uid> \
+  --corr-id <uid> \
+  --mcp-log-level debug \
+  --mcp-ws-timeout-ms 5000
+```
+
+Ожидаемая форма запуска 1С, которую должен собрать runner:
+
+```text
+1cv8c ENTERPRISE
+  /TESTMANAGER
+  /DisableStartupDialogs
+  /DisableUnsafeActionProtection
+  /IBConnectionString <строка подключения из v8project.yaml>
+  /N <пользователь>
+  /P <пароль>
+  /Execute <путь>/vanessa-automation.epf
+  /C"mcpMode=ws;manager_url=ws://127.0.0.1:4000/sessions;client_uid=<uid>;kind=vanessa_test_client;corr_id=<uid>;mcp_log_level=debug;mcp_ws_timeout_ms=5000"
+```
+
+Критерий готовности VA MCP-сессии: в `session_list` появилась live-сессия `kind=vanessa_test_client`, и в её tools есть VA-инструменты (`get_VanessaAutomation_state`, `connect_test_client`, `get_form_analysis`, `manage_command_interface`) или число tools стало больше базового набора `client_mcp`. Первичная регистрация с базовыми tools ещё не означает, что `MCPVA.ЗарегистрироватьИнструментыMCP()` уже отработал.
 
 Полный payload, JSON-форму вывода (`--json-message`), правила probe и поведение при недоступности менеджера — в `references/project-workflows.md` (раздел «WS-режим к session-manager»). Подъём самого менеджера в v8-runner **не входит** — см. навык `v8-session-manager`.
 
