@@ -190,7 +190,16 @@ v8-runner launch mcp va \
   /C"mcpMode=ws;manager_url=ws://127.0.0.1:4000/sessions;client_uid=<uid>;kind=vanessa_test_client;corr_id=<uid>;mcp_log_level=debug;mcp_ws_timeout_ms=5000"
 ```
 
-Критерий готовности VA MCP-сессии: в `session_list` появилась live-сессия `kind=vanessa_test_client`, и в её tools есть VA-инструменты (`get_VanessaAutomation_state`, `connect_test_client`, `get_form_analysis`, `manage_command_interface`) или число tools стало больше базового набора `client_mcp`. Первичная регистрация с базовыми tools ещё не означает, что `MCPVA.ЗарегистрироватьИнструментыMCP()` уже отработал.
+Критерий готовности VA MCP-сессии: в `session_list` появилась live-сессия `kind=vanessa_test_client`, и в её tools есть VA-инструменты (`get_VanessaAutomation_state`, `connect_test_client`, `get_window_list_os`, `get_window_screenshot_os`, `get_form_analysis`, `manage_command_interface`) или число tools стало больше базового набора `client_mcp`. Первичная регистрация с базовыми tools ещё не означает, что `MCPVA.ЗарегистрироватьИнструментыMCP()` уже отработал.
+
+Тестируемое приложение в VA-контуре запускает сам тест-менеджер: вызови `connect_test_client` с именем профиля клиента тестирования (`profileName`, например `Codex thin AgentAI`). VA поднимет отдельный процесс `/TESTCLIENT -TPort <auto>` из профиля и подключит к нему `ТестируемоеПриложение`. Не запускай этот `/TESTCLIENT` вручную для VA-пути, если только не отлаживаешь сам механизм профилей.
+
+Скриншотные MCP-инструменты VA (`get_window_list_os`, `get_window_screenshot_os`) считай условными, а не гарантированными. Они появляются в MCP tools после `MCPVA.ЗарегистрироватьИнструментыMCP()`, но фактически работают только если VA заполнила PID/дескриптор окна тест-клиента. Проверенная на 26.06.2026 связка 1C 8.3.27.2074 + Vanessa Automation 1.2.043.28 + Linux/X11:
+
+- при штатном проектном `VAParams` (`ИспользоватьКомпонентуVanessaExt=Ложь`, `ИспользоватьВнешнююКомпонентуДляСкриншотов=Ложь`) `connect_test_client` успешен, `get_window_list_testclient` видит окна, но `get_window_list_os` падает с `ACTION_FAILED: Не вышло получить PID процесса клиента тестирования`;
+- при временном включении `ИспользоватьКомпонентуVanessaExt=Истина` и `ИспользоватьВнешнююКомпонентуДляСкриншотов=Истина` первый запуск блокируется диалогом установки внешней компоненты, повторный запуск регистрирует VA MCP tools, но профиль всё равно остаётся с `PID=0`, и `get_window_screenshot_os` падает той же ошибкой.
+
+Поэтому default для визуального контроля формы: управляй формой через VA/TestClient MCP, а визуальный скриншот снимай внешним OS/noVNC/browser screenshot-инструментом, если `get_window_screenshot_os` не прошёл короткую smoke-проверку на текущем окружении. Наличие tool в `tools/list` или `session_list.tools` не является доказательством работоспособности скриншота.
 
 Полный payload, JSON-форму вывода (`--json-message`), правила probe и поведение при недоступности менеджера — в `references/project-workflows.md` (раздел «WS-режим к session-manager»). Подъём самого менеджера в v8-runner **не входит** — см. навык `v8-session-manager`.
 
