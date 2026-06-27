@@ -14,7 +14,7 @@ uses_capabilities:
 2. Determine **under which user** the scenario is executed (see "User Context").
 3. Find suitable steps: first in the Vanessa library, then in the project scenarios.
 4. **Inspect the interface and fill out the form manually**. The preferred path is the Vanessa Automation MCP tools through `v8-client-session-manager` (see "MCP Investigation through Vanessa Automation"). For UI/UX form checks, use `va-visual-check`: VA MCP screenshot route, Linux/Xvfb recipe, and browser fallback with reason logging. In any case, record the exact names and captions of elements, fields, buttons, and tabs **before** referencing them in steps; do not guess identifiers (Title vs name - see `vanessa-scenario-policy`).
-5. Write one smoke scenario: open -> one action -> one observable outcome.
+5. Write one smoke scenario: open → one action → one observable outcome.
 6. If a step does not exist - mark `# unknown_step_candidate`, do not invent a BSL step.
 7. Pass the scenario for execution through `v8-runner` (`v8-runner test va`).
 
@@ -28,7 +28,7 @@ Official Vanessa Automation source: <https://github.com/Pr-Mex/vanessa-automatio
 
 ### Version and readiness check
 
-1. Launch the VA manager session through `v8-runner launch mcp va --mcp-transport ws ...` (the detailed command is in the `v8-runner` skill, section "Vanessa Automation MCP via session-manager").
+1. If the VA manager session is not already running, start it strictly through the `v8-runner` skill (section "Vanessa Automation MCP via session-manager"); do not assemble the launch string in this skill.
 2. Through `session_list`, wait for a live session of `kind=vanessa_test_client`, where VA tools appear: for example `get_VanessaAutomation_state`, `connect_test_client`, `get_form_analysis`, `manage_command_interface`.
 3. Call `get_environment_data` or the nearest available VA environment tool and record the Vanessa Automation version in the task context.
 4. If service data tools are needed (`get_table_data`, `get_object_attributes`), verify that the VA service extension is loaded into the test database. The presence of fresh extension files in source is not enough: runtime tools look for forms in the connected database.
@@ -117,7 +117,7 @@ Before writing a `.feature` for a new form, first perform MCP investigation:
 Exception - only if the function being checked is available exclusively to an administrator.
 
 **How to determine the user:**
-1. Specified in the task description -> use it.
+1. Specified in the task description → use it.
 2. Not specified -> **ask the human** before writing the scenario.
 
 **One user** (in the `Context:` section):
@@ -140,7 +140,7 @@ Exception - only if the function being checked is available exclusively to an ad
 И я закрываю TestClient "Руководитель"
 ```
 
-> The password is plain text in the feature file. Test users must have a simple or empty password (`пароль ""`).
+> The password is plain text in the feature file. Test users must have a simple or empty password (`password ""`).
 
 ---
 
@@ -148,7 +148,7 @@ Exception - only if the function being checked is available exclusively to an ad
 
 The `.feature` file is logically split into two parts:
 
-1. **Setup / infrastructure** - executed under the technical user (`AgentAI` in this project): preparation of test data (creating documents, catalog items, register entries), `VAExtension (Расширение)` steps, BSL fixtures from `vanessa-tests/support/`, everything that requires technical roles outside normal business-user access.
+1. **Setup / infrastructure** - executed under the technical user (`AgentAI` in this project): preparation of test data (creating documents, catalog items, register entries), `VAExtension (Extension)` steps, BSL fixtures from `vanessa-tests/support/`, everything that requires technical roles outside normal business-user access.
 2. **Business flow (verification)** - executed under a specific business user (for example `Gavrilova Natalia` for OC-23400): only steps that verify user behavior under test. The business user **MUST NOT receive** technical roles (for example roles from `VAExtension.cfe`) just to make a step pass.
 
 Session switching:
@@ -166,7 +166,7 @@ after which a new session is opened:
 
 **Rationale** (Infostart id=249957, id=249958): if the business flow is executed with full rights, the test stops checking real role restrictions and creates a false sense of correctness. Granting the business user technical roles just to satisfy an infrastructure step is the same anti-pattern in another form.
 
-**Anti-pattern:** place `(Расширение)` steps / fixtures in the business-user session and then "fix" the failure by granting technical roles. Instead, move the step into the setup block under the technical user.
+**Anti-pattern:** place `(Extension)` steps / fixtures in the business-user session and then "fix" the failure by granting technical roles. Instead, move the step into the setup block under the technical user.
 
 ---
 
@@ -186,7 +186,7 @@ Library: `/opt/onescript/2.0.0/lib/add/features/libraries/`
 | Conditions, variables | `Условие/Условие.feature` |
 | Pause | `Пауза/СделатьПаузу.feature` |
 
-Cheat sheet of common steps with syntax -> `references/steps-cheatsheet.md`.
+Cheat sheet of common steps with syntax → `references/steps-cheatsheet.md`.
 
 **Full library:** `references/steps.json` (1116 steps). **Do not read it in full** - use `grep` to search by keywords from the task. Structure of each record:
 - `ИмяШага` - example call with parameters

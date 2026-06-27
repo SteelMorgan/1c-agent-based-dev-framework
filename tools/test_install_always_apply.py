@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
 """
-Тесты фильтра alwaysApply для установщика фреймворка.
+Тесты обработки alwaysApply для установщика фреймворка.
 
 Проверяет:
   1. Правила и workflow устанавливаются в форме, нужной IDE.
-  2. alwaysApply сохраняется в component_map и влияет на оценку контекста.
+  2. alwaysApply сохраняется в component_map и влияет на оценку контекста, но
+     не фильтрует физическую установку.
   3. Навыки всегда в skills_dir, флаг не влияет.
   4. estimate_context_usage: правило без флага в on-demand, а не в always.
 
@@ -194,7 +195,11 @@ def _run_install(
 
 
 def test_install_claude_code_rules_as_rule_files():
-    """Claude Code: always-on правила и workflow ставятся файловыми ссылками."""
+    """Claude Code: все правила и workflow ставятся файловыми ссылками.
+
+    alwaysApply не фильтрует состав установки: он используется только как
+    метаданное/подсказка загрузки для IDE и оценки контекста.
+    """
     with tempfile.TemporaryDirectory() as tmp:
         fw, base = _make_fw(Path(tmp))
         project_dir = base / "project"
@@ -209,21 +214,13 @@ def test_install_claude_code_rules_as_rule_files():
         rules_dir = project_dir / ".claude" / "rules"
         skills_dir = project_dir / ".claude" / "skills"
 
-        for name in ("rule-always", "my-workflow"):
+        for name in ("rule-always", "rule-lazy", "rule-explicit-false", "my-workflow"):
             rule_file = rules_dir / f"{name}.md"
             assert rule_file.exists(), (
                 f"{name}.md ожидается как файловая ссылка в {rules_dir}"
             )
             assert not (skills_dir / f"{name}.md").exists(), (
                 f"{name}.md НЕ ожидается в {skills_dir}"
-            )
-
-        for name in ("rule-lazy", "rule-explicit-false"):
-            assert not (rules_dir / f"{name}.md").exists(), (
-                f"{name}.md без alwaysApply не должен физически ставиться в {rules_dir}"
-            )
-            assert not (skills_dir / f"{name}.md").exists(), (
-                f"{name}.md без alwaysApply не должен ставиться как skill в {skills_dir}"
             )
 
         # Навык должен быть в skills_dir
@@ -238,8 +235,8 @@ def test_install_claude_code_rules_as_rule_files():
 def test_install_codex_rules_as_skills():
     """Codex: правила разворачиваются как навыки в .codex/skills/<name>/SKILL.md.
 
-    В отличие от claude-code, фильтр alwaysApply НЕ применяется — берутся ВСЕ
-    правила (и always-on, и lazy), т.к. Codex читает их как навыки по требованию.
+    Как и для claude-code, фильтр alwaysApply НЕ применяется — берутся ВСЕ
+    правила (и always-on, и lazy). Codex дополнительно читает их как навыки по требованию.
     Каталог .codex/rules/ не используется.
     """
     with tempfile.TemporaryDirectory() as tmp:
@@ -647,7 +644,7 @@ def main():
     ]
 
     print(f"\n{'─' * 60}")
-    print(f"  Тесты фильтра alwaysApply (install.py)")
+    print(f"  Тесты обработки alwaysApply (install.py)")
     print(f"{'─' * 60}\n")
 
     passed = 0

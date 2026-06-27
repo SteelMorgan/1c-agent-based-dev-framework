@@ -25,7 +25,7 @@ CLI alternative — `tools.client_mcp.*` in `v8project.yaml`:
 ```yaml
 tools:
   client_mcp:
-    transport: auto         # ws | legacy | auto
+    transport: auto         # mcp | ws | auto
     manager_url: ws://127.0.0.1:4000/sessions
     log_level: info
     ws_timeout_ms: 1000
@@ -40,7 +40,7 @@ Priority: CLI flag → yaml → internal defaults.
 If `yaxunit_runner` / `vanessa_test_client` does not appear in the manager's `session_list`:
 
 1. **Manager log** — `/tmp/v8sm/logs/mcp/actions.log` (path depends on the manager's `workPath`). Look for `WS connection accepted (handshake completed)` in the run window. Start the manager with `--log-level debug` if it is set to `info`.
-2. **`/C` payload** — start v8-runner with `--log-level=trace` (at the global options level) and check whether `mcpMode=ws;manager_url=...` was appended to `RunUnitTests=...`. If not, `decide_mcp_transport` returned `Legacy`.
+2. **`/C` payload** — start v8-runner with `--log-level=trace` (at the global options level) and check whether `mcpMode=ws;manager_url=...` was appended to `RunUnitTests=...`. If not, transport selection fell back to `mcp`.
 3. **1C Enterprise log** — `<workPath>/temp/yaxunit/runs/<run-id>/enterprise.out.log` and `runner.log`. Look for `[MCP INFO ...] Logging params applied` and `provider registration ...` — this is MCP initialization diagnostics from the BSL devkit side.
 4. **v8-runner stdout** — the diagnostic block `[MCP INFO ...]` appears in the `diagnostic` section of the `test` output (only when MCP client initialization succeeds).
 
@@ -128,17 +128,17 @@ echo $!
 {"name":"session_list","arguments":{}}
 ```
 
-Readiness criterion: `kind=vanessa_test_client`, `state=active`, `disconnected_secs_ago=null`, `inflight=0`, and VA tools have appeared (`connect_test_client`, `get_form_analysis`). Having the tool name only in cached `tools/list` does not count as readiness.
+Readiness criterion: `kind=vanessa_test_client`, `state=active`, `disconnected_secs_ago=null`, `inflight=0`, and VA tools have appeared (`connect_test_client`, `get_form_analysis`). Having the tool name only in cached `tools/list` does not count as readiness. Normal session and VA tool appearance after startup takes 10-90 seconds; poll `session_list` every 5-10 seconds and use 120 seconds as the diagnostic limit.
 
-4. Connect the application under test. The VA manager starts it according to the profile from VAParams; the agent must not separately launch `/TESTCLIENT` for this VA path:
+4. Connect the application under test. The VA manager starts it according to the profile from VAParams; the agent must not separately launch `/TESTCLIENT` for this VA path. `connect_test_client` takes the required `profileName` argument:
 
 ```json
 {"name":"connect_test_client","arguments":{"profileName":"<test-client-profile-name>"}}
 ```
 
-If there are multiple live sessions, pass the `session_id` of the VA manager session in every MCP call. A successful launch must yield the real test-client PID in the VA profile/log, not `0`.
+If there are multiple live sessions, pass the `session_id` of the VA manager session in every MCP call. A successful launch must yield the real test-client PID in the VA profile/log, not `0`. After that, VA client MCP methods are available: form analysis, command interface and form element control, data reading, screenshots, and VA action execution.
 
-5. After the investigation, close the test client:
+5. After the investigation, close the test client. `close_test_client` can be called with the same `profileName`; without it, the tool closes the currently connected profile:
 
 ```json
 {"name":"close_test_client","arguments":{"profileName":"<test-client-profile-name>"}}
@@ -191,7 +191,7 @@ v8-runner syntax edt
 
 Before starting `v8-runner test va`, the runner agent performs this procedure:
 
-1. Read `v8project.yaml` -> the `tests.va` section, active profile (`tests.va.profile` or the one passed via `--profile`).
+1. Read `v8project.yaml` → the `tests.va` section, active profile (`tests.va.profile` or the one passed via `--profile`).
 2. Compare the feature path in the profile with the expected `vanessa-tests/features/tasks/<taskID>/`.
 3. If it does not match, add a task-specific `tests.va.profiles.<taskID>` profile (either in `v8project.yaml` or through `v8project.local.yaml`) and run with it.
 4. When working with tags, remember: `filter_tags` / `ignore_tags` are written **without a leading `@`** in `СписокТеговОтбор` / `СписокТеговИсключение`.

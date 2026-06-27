@@ -129,7 +129,7 @@ WS-сопряжение с [v8-client-session-manager](https://github.com/SteelM
 
 ### CLI-флаги
 
-- `--mcp-transport={ws|legacy|auto}` — `auto` (по умолчанию) делает TCP-пробу `manager_url` ~200 ms; `ws` — строго WS, падает при недоступности; `legacy` — старый HTTP-режим без probe.
+- `--mcp-transport={mcp|ws|auto}` — `auto` (по умолчанию) делает TCP-пробу `manager_url` ~200 ms; `ws` — строго WS, падает при недоступности; `mcp` — локальный HTTP MCP-режим без probe.
 - `--manager-url <URL>` — переопределить `tools.client_mcp.manager_url` (дефолт `ws://127.0.0.1:4000/sessions`).
 - `--client-uid <UUID>` — переопределить автогенерированный UUID v4.
 - `--corr-id <STR>` — переопределить `vr-<первые 8 символов client_uid>`.
@@ -141,7 +141,7 @@ WS-сопряжение с [v8-client-session-manager](https://github.com/SteelM
 ```yaml
 tools:
   client_mcp:
-    transport: auto         # ws | legacy | auto
+    transport: auto         # mcp | ws | auto
     manager_url: ws://127.0.0.1:4000/sessions
     log_level: info
     ws_timeout_ms: 1000
@@ -158,6 +158,17 @@ tools:
 | `launch mcp va` | `vanessa_test_client` |
 | `test yaxunit ...` | `yaxunit_runner` |
 | `test va ...` | `vanessa_test_client` |
+
+### Режимы запуска клиентов и тестов
+
+| Режим | Назначение | MCP/VA поведение |
+|---|---|---|
+| `launch designer` | Открыть Конфигуратор. | Не запускает клиентские MCP-tools и не применяет enterprise additional keys. |
+| `launch thin`, `launch thick`, `launch ordinary` | Открыть обычный UI-клиент 1С. | При WS-сопряжении регистрирует базовый клиентский MCP-набор без `kind`; сам по себе не даёт VA-tools. |
+| `launch mcp` | Запустить onec-client-mcp-devkit внутри 1С без Vanessa. | `kind=v8_runner_client` для WS; локальный HTTP MCP при `--mcp-transport=mcp` или fallback из `auto`. |
+| `launch mcp va` | Запустить менеджер тестирования Vanessa для исследования, авторинга и клиентских MCP-tools VA. | `kind=vanessa_test_client`; runner добавляет `/TESTMANAGER`, `/DisableUnsafeActionProtection`, `/Execute <vanessa-automation.epf>`, runtime `VAParams`, отключает автозапуск/автозакрытие сценариев и не использует `StartFeaturePlayer`. |
+| `test yaxunit ...` | Выполнить YAxUnit тесты. | `kind=yaxunit_runner` в WS-режиме; это тестовый runner, а не интерактивная UI-сессия. |
+| `test va` | Выполнить Vanessa feature-сценарии. | `kind=vanessa_test_client`, но payload — `StartFeaturePlayer;VAParams=...`; это прогон сценариев, не режим исследования менеджера. |
 
 ### Что v8-runner подставляет в `/C` в WS-ветке
 
@@ -207,15 +218,17 @@ v8-runner launch mcp va \
 
 Критерий готовности VA MCP-сессии: в `session_list` появилась live-сессия `kind=vanessa_test_client`, и в её tools есть VA-инструменты (`get_VanessaAutomation_state`, `connect_test_client`, `get_form_analysis`, `manage_command_interface`) или число tools стало больше базового набора `client_mcp`. Первичная регистрация с базовыми tools ещё не означает, что `MCPVA.ЗарегистрироватьИнструментыMCP()` уже отработал.
 
-Сразу после `v8-runner launch mcp va` ответ `session_list=[]` или отсутствие VA-tools **не является ошибкой**: запуск тест-менеджера и регистрация инструментов занимают время. Обязательный readiness-loop:
+Сразу после `v8-runner launch mcp va` ответ `session_list=[]` или отсутствие VA-tools **не является ошибкой**: запуск тест-менеджера и регистрация инструментов штатно могут занимать 10-90 секунд. Обязательный readiness-loop:
 
 1. Опроси `session_list` каждые 5-10 секунд.
-2. Жди суммарно до 120 секунд с момента запуска.
+2. Жди суммарно до 120 секунд с момента запуска: 10-90 секунд — нормальный диапазон, 90-120 секунд — диагностический запас.
 3. Продолжай только при live-сессии `kind=vanessa_test_client`, `state=active`, `disconnected_secs_ago=null`, `inflight=0`, и наличии нужных VA-tools для текущей задачи.
 4. Имена tools из кеша MCP/showcase без live-сессии не доказывают готовность.
 5. Если условие не выполнено за 120 секунд — стоп и доклад `VA MCP readiness blocker`.
 
-Тестируемое приложение в VA-контуре запускает сам тест-менеджер: вызови `connect_test_client` с именем профиля клиента тестирования (`profileName`, например `Codex thin AgentAI`). VA поднимет отдельный процесс `/TESTCLIENT -TPort <auto>` из профиля и подключит к нему `ТестируемоеПриложение`. Не запускай этот `/TESTCLIENT` вручную для VA-пути, если только не отлаживаешь сам механизм профилей.
+После готовности WS-сессии тестируемое приложение в VA-контуре запускает сам тест-менеджер: вызови MCP-tool `connect_test_client` с аргументом `profileName` (имя профиля клиента тестирования, например `Codex thin AgentAI`). VA поднимет отдельный процесс `/TESTCLIENT -TPort <auto>` из профиля и подключит к нему `ТестируемоеПриложение`; после этого становятся доступны клиентские MCP-методы VA (`get_form_analysis`, `manage_command_interface`, `manage_form_elements`, screenshot/data tools и т.п.). Не запускай этот `/TESTCLIENT` вручную для VA-пути, если только не отлаживаешь сам механизм профилей.
+
+После исследования, прогона ручных действий или ошибки обязательно вызови MCP-tool `close_test_client`. Передавай тот же `profileName`, если работал с конкретным профилем; без `profileName` tool закрывает текущий подключенный профиль. Это освобождает test-client процесс и не оставляет лишние 1С-сессии перед следующим запуском.
 
 Скриншотные MCP-инструменты VA (`get_window_list_os`, `get_window_screenshot_os`) считай готовыми только после короткой smoke-проверки на текущем окружении: live-сессия должна оставаться активной, `inflight=0`, а PNG должен быть не пустым и не чёрным. Детальный порядок визуальной проверки и fallback-условия описаны в навыке `va-visual-check`.
 

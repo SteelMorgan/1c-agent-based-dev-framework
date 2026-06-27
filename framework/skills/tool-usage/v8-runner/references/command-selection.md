@@ -166,8 +166,8 @@ v8-runner launch mcp --mcp-config <FILE>
 
 ```bash
 v8-runner launch mcp --mcp-transport=ws --manager-url ws://127.0.0.1:4000/sessions
-v8-runner launch mcp --mcp-transport=legacy             # принудительно legacy без probe
+v8-runner launch mcp --mcp-transport=mcp                # принудительно локальный HTTP MCP без probe
 v8-runner launch mcp --mcp-log-level=debug --client-uid <UUID> --corr-id <STR>
 ```
 
-`--mcp-transport=auto` (по умолчанию) выполняет TCP-пробу `manager_url` на 200 ms и выбирает `ws` при успехе и `legacy` при отказе. Те же WS-флаги работают на `test yaxunit ...` и `test va ...`. Смотри полный раздел WS-режима в `project-workflows.md`, внутренний mapping `kind` и форму вывода `--json-message`.
+`--mcp-transport=auto` (по умолчанию) выполняет TCP-пробу `manager_url` на 200 ms и выбирает `ws` при успехе и `mcp` при отказе. Те же WS-флаги работают на `test yaxunit ...` и `test va ...`. Смотри полный раздел WS-режима в `project-workflows.md`, внутренний mapping `kind` и форму вывода `--json-message`.

@@ -129,7 +129,7 @@ Example (test): `v8-runner test --mcp-transport=ws --mcp-log-level=debug yaxunit
 
 ### CLI Flags
 
-- `--mcp-transport={ws|legacy|auto}` — `auto` (default) performs a TCP probe of `manager_url` for about 200 ms; `ws` is strict WS, and fails if unavailable; `legacy` is the old HTTP mode without probing.
+- `--mcp-transport={mcp|ws|auto}` — `auto` (default) performs a TCP probe of `manager_url` for about 200 ms; `ws` is strict WS, and fails if unavailable; `mcp` is the local HTTP MCP mode without probing.
 - `--manager-url <URL>` — overrides `tools.client_mcp.manager_url` (default `ws://127.0.0.1:4000/sessions`).
 - `--client-uid <UUID>` — overrides the auto-generated v4 UUID.
 - `--corr-id <STR>` — overrides `vr-<first 8 characters of client_uid>`.
@@ -141,7 +141,7 @@ Alternative: all of this can be set in `tools.client_mcp.*` in `v8project.yaml` 
 ```yaml
 tools:
   client_mcp:
-    transport: auto         # ws | legacy | auto
+    transport: auto         # mcp | ws | auto
     manager_url: ws://127.0.0.1:4000/sessions
     log_level: info
     ws_timeout_ms: 1000
@@ -158,6 +158,17 @@ For specialized entry points, `kind` is fixed by the entry point and cannot be o
 | `launch mcp va` | `vanessa_test_client` |
 | `test yaxunit ...` | `yaxunit_runner` |
 | `test va ...` | `vanessa_test_client` |
+
+### Client and Test Launch Modes
+
+| Mode | Purpose | MCP/VA behavior |
+|---|---|---|
+| `launch designer` | Open Designer. | Does not start client MCP tools and does not apply enterprise additional keys. |
+| `launch thin`, `launch thick`, `launch ordinary` | Open a regular 1C UI client. | With WS coupling, registers the base client MCP tool set without `kind`; by itself it does not publish VA tools. |
+| `launch mcp` | Start onec-client-mcp-devkit inside 1C without Vanessa. | `kind=v8_runner_client` for WS; local HTTP MCP with `--mcp-transport=mcp` or `auto` fallback. |
+| `launch mcp va` | Start the Vanessa test manager for research, authoring, and VA client MCP tools. | `kind=vanessa_test_client`; the runner adds `/TESTMANAGER`, `/DisableUnsafeActionProtection`, `/Execute <vanessa-automation.epf>`, runtime `VAParams`, disables automatic scenario start/close, and does not use `StartFeaturePlayer`. |
+| `test yaxunit ...` | Run YAxUnit tests. | `kind=yaxunit_runner` in WS mode; this is a test runner, not an interactive UI session. |
+| `test va` | Run Vanessa feature scenarios. | `kind=vanessa_test_client`, but the payload is `StartFeaturePlayer;VAParams=...`; this is scenario execution, not the manager research mode. |
 
 ### What v8-runner injects into `/C` in the WS branch
 
@@ -207,15 +218,17 @@ The required meaning of this launch string is: the MCP session must live on the 
 
 The readiness criterion for the VA MCP session is: a live `kind=vanessa_test_client` session appeared in `session_list`, and its tools contain VA tools (`get_VanessaAutomation_state`, `connect_test_client`, `get_window_list_os`, `get_window_screenshot_os`, `get_form_analysis`, `manage_command_interface`) or the number of tools became larger than the base `client_mcp` set. The initial registration with the base tools does not yet mean that `MCPVA.ЗарегистрироватьИнструментыMCP()` has already run.
 
-Immediately after `v8-runner launch mcp va`, the response `session_list=[]` or the absence of VA tools is **not an error**: starting the test manager and registering tools takes time. Mandatory readiness loop:
+Immediately after `v8-runner launch mcp va`, the response `session_list=[]` or the absence of VA tools is **not an error**: starting the test manager and registering tools normally takes 10-90 seconds. Mandatory readiness loop:
 
 1. Poll `session_list` every 5-10 seconds.
-2. Wait up to 120 seconds from the start.
+2. Wait up to 120 seconds from the start: 10-90 seconds is normal, 90-120 seconds is diagnostic headroom.
 3. Continue only when there is a live `kind=vanessa_test_client`, `state=active`, `disconnected_secs_ago=null`, `inflight=0` session, and the required VA tools for the current task are present.
 4. Tool names from the MCP/showcase cache without a live session do not prove readiness.
 5. If the condition is not satisfied within 120 seconds, stop and report `VA MCP readiness blocker`.
 
-The tested application in the VA context is started by the test manager itself: call `connect_test_client` with the name of the testing client profile (`profileName`, for example `Codex thin AgentAI`). VA will start a separate `/TESTCLIENT -TPort <auto>` process from the profile and connect `ТестируемоеПриложение` to it. Do not start this `/TESTCLIENT` manually for the VA path unless you are debugging the profile mechanism itself.
+After the WS session is ready, the tested application in the VA context is started by the test manager itself: call the MCP tool `connect_test_client` with the `profileName` argument (the testing client profile name, for example `Codex thin AgentAI`). VA will start a separate `/TESTCLIENT -TPort <auto>` process from the profile and connect `ТестируемоеПриложение` to it; after that, the VA client MCP methods become available (`get_form_analysis`, `manage_command_interface`, `manage_form_elements`, screenshot/data tools, etc.). Do not start this `/TESTCLIENT` manually for the VA path unless you are debugging the profile mechanism itself.
+
+After investigation, manual actions, or an error, always call the MCP tool `close_test_client`. Pass the same `profileName` when you worked with a specific profile; without `profileName`, the tool closes the currently connected profile. This releases the test-client process and avoids keeping extra 1C sessions before the next launch.
 
 Treat VA screenshot MCP tools (`get_window_list_os`, `get_window_screenshot_os`) as ready only after a short smoke check in the current environment: the live session must remain active, `inflight=0`, and the PNG must be non-empty and non-black. The detailed visual-check order and fallback conditions are described in the `va-visual-check` skill.
 
@@ -267,8 +280,8 @@ Successful criterion: `{"ok": true, "data": {"connected": true}}`.
 
 Do not do this:
 
-- Do not start the control client without `/TESTMANAGER`: on the first `test_client_start` the platform may fail with `Тип не определен (ТестируемоеПриложение)`.
-- Do not rely on `test_client_start` as the only way to start `/TESTCLIENT` if it starts the client without `/N` and `/P`: such a process may stay at the infobase login screen, and the connection will return `Отсутствует подходящий клиент тестирования`.
+- Do not start the control client without `/TESTMANAGER`: on the first `test_client_start` the platform may fail with `Type not defined (ТестируемоеПриложение)`.
+- Do not rely on `test_client_start` as the only way to start `/TESTCLIENT` if it starts the client without `/N` and `/P`: such a process may stay at the infobase login screen, and the connection will return `No suitable test client found`.
 - Do not treat `tools/list` as proof of readiness: proxied tools may come only from the session-manager cache. Readiness is confirmed by a live session in `session_list` and a successful simple call (`infobase_info`).
 
 ### Resolved: WS Sessions in `test yaxunit` (DRIVE 2026-05-11)

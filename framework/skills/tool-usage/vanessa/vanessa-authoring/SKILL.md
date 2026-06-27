@@ -28,7 +28,7 @@ uses_capabilities:
 
 ### Проверка версии и готовности
 
-1. Запусти VA manager-сессию через `v8-runner launch mcp va --mcp-transport ws ...` (детальная строка — в навыке `v8-runner`, раздел «Vanessa Automation MCP через session-manager»).
+1. Если VA manager-сессия ещё не поднята, запусти её строго по навыку `v8-runner` (раздел «Vanessa Automation MCP через session-manager»); не собирай строку запуска в этом навыке.
 2. Через `session_list` дождись live-сессии `kind=vanessa_test_client`, где появились VA-tools: например `get_VanessaAutomation_state`, `connect_test_client`, `get_form_analysis`, `manage_command_interface`.
 3. Вызови `get_environment_data` или ближайший доступный VA-инструмент окружения и зафиксируй версию Vanessa Automation в контексте задачи.
 4. Если нужны служебные data-tools (`get_table_data`, `get_object_attributes`), проверь, что служебное расширение VA загружено в тестируемую ИБ. Наличие свежих файлов расширения в source недостаточно: runtime-инструменты ищут формы в подключенной базе.

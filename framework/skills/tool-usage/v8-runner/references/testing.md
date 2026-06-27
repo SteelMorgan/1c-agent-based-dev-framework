@@ -25,7 +25,7 @@ v8-runner test yaxunit --mcp-transport=ws all                 # ❌
 ```yaml
 tools:
   client_mcp:
-    transport: auto         # ws | legacy | auto
+    transport: auto         # mcp | ws | auto
     manager_url: ws://127.0.0.1:4000/sessions
     log_level: info
     ws_timeout_ms: 1000
@@ -40,7 +40,7 @@ tools:
 Если yaxunit_runner / vanessa_test_client не появляется в `session_list` менеджера:
 
 1. **Лог менеджера** — `/tmp/v8sm/logs/mcp/actions.log` (путь зависит от `workPath` менеджера). Искать `WS connection accepted (handshake completed)` в окне прогона. Запустить менеджер с `--log-level debug`, если он стоит на `info`.
-2. **`/C`-payload** — поднять v8-runner с `--log-level=trace` (на уровне глобальных опций) и смотреть, дописался ли `mcpMode=ws;manager_url=...` к `RunUnitTests=...`. Если нет — `decide_mcp_transport` вернул `Legacy`.
+2. **`/C`-payload** — поднять v8-runner с `--log-level=trace` (на уровне глобальных опций) и смотреть, дописался ли `mcpMode=ws;manager_url=...` к `RunUnitTests=...`. Если нет — выбор транспорта ушёл в `mcp`.
 3. **Лог Enterprise-1С** — `<workPath>/temp/yaxunit/runs/<run-id>/enterprise.out.log` и `runner.log`. Искать `[MCP INFO ...] Logging params applied` и `Регистрация провайдера ...` — это диагностика MCP-инициализации со стороны BSL devkit.
 4. **Stdout v8-runner** — диагностический блок `[MCP INFO ...]` появляется в `diagnostic`-секции `test`-output (только при удачной MCP-инициализации клиента).
 
@@ -128,17 +128,17 @@ echo $!
 {"name":"session_list","arguments":{}}
 ```
 
-Критерий готовности: `kind=vanessa_test_client`, `state=active`, `disconnected_secs_ago=null`, `inflight=0`, появились VA-инструменты (`connect_test_client`, `get_form_analysis`). Наличие имени tool только в кешированном `tools/list` не считается готовностью.
+Критерий готовности: `kind=vanessa_test_client`, `state=active`, `disconnected_secs_ago=null`, `inflight=0`, появились VA-инструменты (`connect_test_client`, `get_form_analysis`). Наличие имени tool только в кешированном `tools/list` не считается готовностью. Нормальное появление сессии и VA-tools после старта занимает 10-90 секунд; опрашивай `session_list` каждые 5-10 секунд и держи диагностический предел 120 секунд.
 
-4. Подключи тестируемое приложение. Его запускает VA manager по профилю из VAParams; агент не должен отдельно запускать `/TESTCLIENT` для этого VA-пути:
+4. Подключи тестируемое приложение. Его запускает VA manager по профилю из VAParams; агент не должен отдельно запускать `/TESTCLIENT` для этого VA-пути. `connect_test_client` принимает обязательный аргумент `profileName`:
 
 ```json
 {"name":"connect_test_client","arguments":{"profileName":"<test-client-profile-name>"}}
 ```
 
-Если live-сессий несколько, передавай `session_id` VA manager-сессии в каждый MCP-вызов. Успешный запуск должен дать реальный PID тест-клиента в профиле/логе VA, не `0`.
+Если live-сессий несколько, передавай `session_id` VA manager-сессии в каждый MCP-вызов. Успешный запуск должен дать реальный PID тест-клиента в профиле/логе VA, не `0`. После этого доступны клиентские MCP-методы VA: анализ формы, управление командным интерфейсом и элементами формы, чтение данных, скриншоты и выполнение VA-действий.
 
-5. После исследования закрой тест-клиент:
+5. После исследования закрой тест-клиент. `close_test_client` можно вызвать с тем же `profileName`; без него tool закрывает текущий подключенный профиль:
 
 ```json
 {"name":"close_test_client","arguments":{"profileName":"<test-client-profile-name>"}}

@@ -9,13 +9,14 @@ description: "Vanessa/VA MCP: визуальная проверка форм 1С
 
 ## Основной маршрут
 
-1. Подними VA MCP manager-сессию через `v8-runner launch mcp va ...` и дождись live-сессии `kind=vanessa_test_client` в `session_list`.
+1. Если VA MCP manager-сессия ещё не поднята, подними её строго по навыку `v8-runner`; здесь проверяй только live-сессию `kind=vanessa_test_client` в `session_list`.
 2. Подключи тест-клиент через `connect_test_client` с профилем из настроек VA, не угадывай имя профиля.
 3. Убедись, что подключён реальный test-client: профиль/лог/состояние VA содержит PID, не `0`.
 4. Открой нужную форму через VA/TestClient tools.
 5. Получи структурное состояние формы (`get_form_analysis`, `get_window_list_testclient`, чтение элементов/таблиц).
 6. Получи список OS-окон через `get_window_list_os`.
-7. Сними PNG через `get_window_screenshot_os`:
+7. Критично: операции снятия скриншотов через VA MCP выполняй строго синхронно. Не запускай несколько `get_window_screenshot_os` параллельно и не используй для них `multi_tool_use.parallel`: отправь один запрос, дождись полного ответа и убедись через `session_list`, что сессия жива и `inflight=0`; только после этого отправляй следующий запрос.
+8. Сними PNG через `get_window_screenshot_os`:
 
 ```text
 get_window_screenshot_os {
@@ -25,7 +26,7 @@ get_window_screenshot_os {
 }
 ```
 
-8. Проверь PNG: файл создан, размер ожидаемый, изображение не пустое, не одноцветное и не чёрное.
+9. Проверь PNG: файл создан, размер ожидаемый, изображение не пустое, не одноцветное и не чёрное.
 
 ## Linux headless X11/Xvfb без window-manager
 

@@ -472,7 +472,7 @@ class FrameworkGraph:
 
             # alwaysApply: true → правило-guardrail/триггер.
             # Без флага → on-demand правило.
-            # Навыки (skill) флаг не используют — они всегда в skills_dir, не в rules_dir.
+            # Флаг не влияет на физическую установку компонента.
             always_apply = str(fm.get("alwaysApply", "")).strip().lower() == "true"
 
             if comp_type == "template":
@@ -549,9 +549,9 @@ class FrameworkGraph:
     def is_always_on_rule(self, comp_id: str) -> bool:
         """Возвращает True, если правило помечено alwaysApply: true.
 
-        Только правила (type=rule) из always-on каталога IDE становятся guardrail/триггерами.
-        Workflow-файлы и всё без флага — только component_map (on-demand).
-        Навыки (skill) этот метод не касается — они всегда в skills_dir.
+        Только правила (type=rule) с alwaysApply становятся guardrail/триггерами.
+        Workflow-файлы и всё без флага остаются on-demand для оценки контекста,
+        но всё равно физически устанавливаются.
         """
         comp = self.components.get(comp_id)
         if not comp:
@@ -697,8 +697,8 @@ def print_tree(graph: FrameworkGraph, selected: Optional[Set[str]] = None):
     - always-on правила (alwaysApply: true) выводятся со связанным навыком-парой
       (→ имя навыка), если такая пара существует по _build_trigger_skill_pairs.
     - on-demand правила (без alwaysApply или alwaysApply: false) выводятся в
-      отдельной подгруппе «on-demand (component_map)» с явной пометкой — чтобы
-      пользователь видел, что они НЕ попадут в always-on канал IDE.
+      отдельной подгруппе с явной пометкой — они устанавливаются, но не попадают
+      в always-on канал IDE/оценки контекста.
     """
     installable = graph.get_installable_for_user()
     fw_dir = graph.framework_dir
@@ -727,9 +727,9 @@ def print_tree(graph: FrameworkGraph, selected: Optional[Set[str]] = None):
             always_on = [c for c in comps if c.always_apply]
             on_demand = [c for c in comps if not c.always_apply]
 
-            # Подгруппа: always-on правила (попадают в rules_dir IDE)
+            # Подгруппа: always-on правила (автозагрузка/контекст IDE)
             if always_on:
-                print(f"\n    {dim('always-on (в rules-каталог IDE)')}")
+                print(f"\n    {dim('always-on (автозагрузка/контекст IDE)')}")
                 for c in sorted(always_on, key=lambda x: x.id):
                     marker = green(" ✓") if selected and c.id in selected else ""
                     linked = graph.get_linked_components(c.id)
@@ -741,9 +741,9 @@ def print_tree(graph: FrameworkGraph, selected: Optional[Set[str]] = None):
                     idx_map[idx] = c.id
                     idx += 1
 
-            # Подгруппа: on-demand правила (только component_map, НЕ в always-on канал)
+            # Подгруппа: on-demand правила (устанавливаются, но НЕ в always-on канал)
             if on_demand:
-                print(f"\n    {dim('on-demand (только component_map, НЕ в always-on канал IDE)')}")
+                print(f"\n    {dim('on-demand (устанавливаются, НЕ в always-on канал IDE)')}")
                 for c in sorted(on_demand, key=lambda x: x.id):
                     marker = green(" ✓") if selected and c.id in selected else ""
                     linked = graph.get_linked_components(c.id)
@@ -891,8 +891,8 @@ def _build_checklist_items(graph: FrameworkGraph) -> List:
     Для секции «Правила»:
     - always-on правила выводятся в подгруппе «always-on», со связанным навыком в описании
       (переиспользует _build_trigger_skill_pairs, не дублирует логику).
-    - on-demand правила выводятся в подгруппе «on-demand (component_map)» с явной пометкой
-      в описании — чтобы пользователь видел, что в always-on канал IDE они не попадут.
+    - on-demand правила выводятся в отдельной подгруппе с явной пометкой
+      в описании — они устанавливаются, но в always-on канал IDE не попадают.
     """
     items = []  # (id, label, description, is_header)
     installable = graph.get_installable_for_user()
@@ -918,9 +918,9 @@ def _build_checklist_items(graph: FrameworkGraph) -> List:
             always_on = [c for c in comps if c.always_apply]
             on_demand = [c for c in comps if not c.always_apply]
 
-            # Подгруппа: always-on (попадают в rules_dir IDE)
+            # Подгруппа: always-on (автозагрузка/контекст IDE)
             if always_on:
-                items.append(("", "    always-on (в rules-каталог IDE)", "", True))
+                items.append(("", "    always-on (автозагрузка/контекст IDE)", "", True))
                 for c in sorted(always_on, key=lambda x: x.id):
                     paired_skill = pairs_map.get(c.id)
                     desc = c.short_description()
@@ -928,9 +928,9 @@ def _build_checklist_items(graph: FrameworkGraph) -> List:
                         desc = f"{desc} → навык: {paired_skill.split('/')[-1]}"
                     items.append((c.id, c.id, desc, False))
 
-            # Подгруппа: on-demand (только component_map, НЕ в always-on канал)
+            # Подгруппа: on-demand (устанавливаются, но НЕ в always-on канал)
             if on_demand:
-                items.append(("", "    on-demand (component_map, не в always-on канал IDE)", "", True))
+                items.append(("", "    on-demand (устанавливаются, не в always-on канал IDE)", "", True))
                 for c in sorted(on_demand, key=lambda x: x.id):
                     desc = f"[on-demand] {c.short_description()}"
                     items.append((c.id, c.id, desc, False))
@@ -2263,7 +2263,7 @@ def install_components(
     # Показываем пары «триггер + навык» для наглядности
     print_trigger_skill_pairs(graph, all_ids)
 
-    # Подсчёт правил: сколько always-on, сколько only component_map
+    # Подсчёт правил: сколько always-on, сколько on-demand.
     always_on_rules = [cid for cid in all_ids
                        if graph.components.get(cid) and graph.components[cid].type == "rule"
                        and graph.components[cid].always_apply]
@@ -2324,8 +2324,7 @@ def install_components(
             continue
 
         # Удаляем хвосты прежнего ошибочного размещения rule/workflow как
-        # skills/<name>.md до alwaysApply-фильтра: lazy-правила тоже должны
-        # очищать старые ссылки, хотя физически больше не устанавливаются.
+        # skills/<name>.md до штатной установки в rules/workflows-каталоги.
         legacy_skill_target = _legacy_rule_workflow_file_skill_target_file(
             comp, ide_key, project_dir
         )
@@ -2334,29 +2333,6 @@ def install_components(
                 print(f"    ← remove legacy {legacy_skill_target}")
             else:
                 legacy_skill_target.unlink()
-
-        # Фильтр alwaysApply применим только к rules-каталогу IDE.
-        # Codex устанавливает правила как навыки, поэтому там физически размещаем все правила.
-        if (
-            comp.type == "rule"
-            and not comp.always_apply
-            and ide_key != "codex"
-            and not _rule_workflow_file_skill_mode(comp, ide_key)
-        ):
-            stale_rule_target = _component_target_file(
-                comp, ide_key, project_dir, use_symlinks=use_symlinks, graph=graph
-            )
-            if stale_rule_target.exists() or stale_rule_target.is_symlink():
-                if dry_run:
-                    print(f"    ← remove stale {stale_rule_target}")
-                else:
-                    stale_rule_target.unlink()
-            # Правило не-always-on: пропускаем физическое размещение, но включаем в component_map.
-            # Вывод только в dry-run для наглядности.
-            if dry_run:
-                print(f"    → (component_map only, alwaysApply missing) {comp_id}")
-            skipped += 1
-            continue
 
         source_file, source_path, _ = _component_source_paths(comp, graph.framework_dir, graph.mirror_dir)
         target_file = _component_target_file(comp, ide_key, project_dir, use_symlinks=use_symlinks, graph=graph)
