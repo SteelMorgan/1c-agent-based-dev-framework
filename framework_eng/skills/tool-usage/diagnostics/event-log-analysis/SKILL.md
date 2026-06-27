@@ -1,6 +1,6 @@
 ---
 name: event-log-analysis
-description: "Use for finding errors, events, and user actions in the registration log (RJ) via ClickHouse. Helps localize the time and context of a failure from the event log before turning to the tech log."
+description: "Diagnose errors and user actions in the event log"
 uses_capabilities:
   - search_event_log
   - logc_get_actual_log_timestamp

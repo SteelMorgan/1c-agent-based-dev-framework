@@ -1,6 +1,6 @@
 ---
 name: coding-standards
-description: "When writing or reviewing BSL code → apply the coding-standards skill"
+description: "When writing/reviewing BSL, apply coding standards"
 alwaysApply: true
 ---
 # BSL Coding Standards

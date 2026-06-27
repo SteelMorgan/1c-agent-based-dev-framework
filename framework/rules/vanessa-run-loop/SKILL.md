@@ -1,6 +1,6 @@
 ---
 name: vanessa-run-loop
-description: Изменил .feature / конфиг tests.va / MCP-расширение → обязателен прогон v8-runner test va. Применить навыки v8-runner и vanessa-diagnostics.
+description: "После правок feature/tests.va/MCP запускать VA tests"
 alwaysApply: true
 ---
 

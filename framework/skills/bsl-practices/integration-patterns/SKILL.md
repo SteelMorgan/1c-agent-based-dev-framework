@@ -1,6 +1,6 @@
 ---
 name: integration-patterns
-description: "Use for проектирования HTTP-сервисов и интеграций 1С (REST/SOAP/webhook). Helps зафиксировать контракт до кода, реализовать аутентификацию (Basic/OAuth/CertificateAuth), retry и безопасное хранение секретов."
+description: "Для 1C HTTP/REST/SOAP, auth, retry, webhooks"
 ---
 
 # Паттерны интеграции 1С

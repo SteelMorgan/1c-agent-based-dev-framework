@@ -1,6 +1,6 @@
 ---
 name: search-before-write
-description: "Перед созданием новой функции/запроса/обработки → применить навык search-before-write"
+description: "Перед новым кодом или запросом искать существующее"
 alwaysApply: true
 ---
 # Поиск перед написанием

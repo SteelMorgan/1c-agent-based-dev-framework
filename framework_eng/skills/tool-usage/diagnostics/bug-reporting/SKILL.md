@@ -1,6 +1,6 @@
 ---
 name: bug-reporting
-description: "MUST use WHEN the subagent has exhausted its self-recovery limit and must hand the problem to the orchestrator for investigation. Provides the standard bug-report.json form and the criteria for \"this is a bug for the debugger\"."
+description: "Escalate bugs after an agent self-recovery limit"
 alwaysApply: false
 ---
 

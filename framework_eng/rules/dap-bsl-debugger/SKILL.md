@@ -1,6 +1,6 @@
 ---
 name: dap-bsl-debugger
-description: "Interactive BSL debugging is needed for a reproducible runtime scenario when static analysis, ЖР/screenshots, and agent-debug do not reveal the execution path or variable values → apply the `dap-bsl-code-debug-procedure` skill."
+description: "When runtime path is unclear, use BSL DAP debugging"
 alwaysApply: true
 ---
 # DAP BSL Debugger

@@ -1,6 +1,6 @@
 ---
 name: no-manual-xml-edit
-description: Правишь 1С XML/MXL → применить навык xml-generation. Ручная правка запрещена; для агентов без PreToolUse-хука обязателен self-check через block-direct-xml-edit.py.
+description: "При правке XML/MXL 1С использовать xml-generation"
 alwaysApply: true
 ---
 

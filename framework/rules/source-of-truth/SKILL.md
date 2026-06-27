@@ -1,6 +1,6 @@
 ---
 name: source-of-truth
-description: Конфликт / падение теста / спор артефактов → проверь цепочку источников правды сверху вниз (L1→L6). Метод — в навыке source-of-truth.
+description: "При конфликтах и падениях следовать source-of-truth"
 alwaysApply: true
 ---
 # Политика источников правды (Source of Truth)

@@ -1,6 +1,6 @@
 ---
 name: xml-generation
-description: "MUST use WHEN нужно создать, изменить или валидировать любой XML метаданных 1С (формы, роли, объекты, MXL, СКД, EPF, расширения, конфигурация). Provides безопасную генерацию и точечную модификацию через CLI xml-gen, соблюдая правило no-manual-xml-edit."
+description: "Для любого XML метаданных 1С через xml-gen CLI"
 argument-hint: <domain> <operation> [<args>]
 allowed-tools:
   - Bash

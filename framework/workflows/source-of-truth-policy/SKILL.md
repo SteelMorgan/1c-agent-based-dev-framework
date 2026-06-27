@@ -1,6 +1,6 @@
 ---
 name: source-of-truth-policy
-description: Указатель-редирект. Always-on триггер переехал в framework/rules/source-of-truth/SKILL.md, метод — в навык source-of-truth.
+description: "Redirect: использовать source-of-truth rule и skill"
 alwaysApply: false
 ---
 # Политика источников правды — указатель

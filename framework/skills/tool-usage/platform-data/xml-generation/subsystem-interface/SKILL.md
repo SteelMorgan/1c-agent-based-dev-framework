@@ -1,6 +1,6 @@
 ---
 name: subsystem-interface
-description: "Use for создания подсистем, управления их составом и настройки CommandInterface.xml (видимость, порядок команд, размещение в группах). Helps поддерживать навигацию конфигурации через xml-gen subsystem/interface compile/edit/validate."
+description: "xml-gen subsystems and CommandInterface.xml"
 ---
 
 # Subsystem + Interface Operations

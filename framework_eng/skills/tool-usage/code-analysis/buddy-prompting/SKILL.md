@@ -1,6 +1,6 @@
 ---
 name: buddy-prompting
-description: "MUST use WHEN you need to query 1С Buddy (ask_ai_assistant) for platform API, ITS standards, version diffs, or BSL validation. Provides strict templates (SEARCH_DOCS / SEARCH_ITS / FETCH_ITS / DIFF_VERSIONS / VALIDATE_BSL) that match Buddy's internal instructions."
+description: "Before asking 1C Buddy: API, ITS, versions, BSL"
 uses_capabilities:
   - ask_ai_assistant
 alwaysApply: false

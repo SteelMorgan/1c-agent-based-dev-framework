@@ -1,6 +1,6 @@
 ---
 name: extension-operations
-description: "Use for создания расширений конфигурации (CFE), заимствования объектов, генерации перехватчиков методов и анализа состава расширения. Helps управлять CFE через xml-gen extension init/borrow/diff/validate."
+description: "xml-gen CFE: init, borrow, interceptors, validate"
 ---
 
 # Extension Operations (CFE)

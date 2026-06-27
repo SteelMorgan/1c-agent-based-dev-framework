@@ -1,6 +1,6 @@
 ---
 name: search-before-write
-description: "Before creating a new function/query/processing -> apply the `search-before-write` skill"
+description: "Before new code or query, search existing code"
 alwaysApply: true
 ---
 # Search Before Writing

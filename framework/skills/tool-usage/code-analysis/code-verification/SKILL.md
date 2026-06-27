@@ -1,6 +1,6 @@
 ---
 name: code-verification
-description: "MUST use WHEN BSL-код изменён перед коммитом или передачей на ревью. Provides трёхслойную проверку: LSP-диагностику, VALIDATE_BSL через Напарника и верификацию платформенного API через bsl-platform-context."
+description: "После правок BSL: LSP, Buddy/API, syntax checks"
 uses_capabilities:
   - get_diagnostics
   - ask_ai_assistant

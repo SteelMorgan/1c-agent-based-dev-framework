@@ -1,6 +1,6 @@
 ---
 name: codex-image-gen
-description: "Use for генерации и редактирования растровых изображений (UI mockup, wireframe, иллюстрация, диаграмма, иконка, тестовая фикстура). Helps делегировать создание картинок Codex/GPT через `codex exec image_generation`, складывая результат в `tasks/<id>/assets/`."
+description: "Для генерации и редактирования изображений и макетов"
 capabilities: content-generation,image-generation,cross-provider,delegation
 ---
 

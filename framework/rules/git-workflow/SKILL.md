@@ -1,6 +1,6 @@
 ---
 name: git-workflow
-description: Гард git для агентского цикла — субагенты не коммитят; запрет удаления/git rm без явного разрешения пользователя; коммит и merge только оркестратор/пользователь. Процедура → навык git-workflow.
+description: "Перед commit/delete применять git workflow guardrails"
 alwaysApply: true
 ---
 # Политика работы с Git

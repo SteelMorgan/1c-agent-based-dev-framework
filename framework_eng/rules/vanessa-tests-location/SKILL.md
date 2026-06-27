@@ -1,6 +1,6 @@
 ---
 name: vanessa-tests-location
-description: You create / update a Vanessa feature file → follow the location convention. Apply the `vanessa-authoring` skill for details.
+description: "When adding Vanessa features, follow location rules"
 alwaysApply: true
 ---
 

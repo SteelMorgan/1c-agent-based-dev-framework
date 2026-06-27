@@ -1,6 +1,6 @@
 ---
 name: buddy-prompting
-description: "Перед обращением к 1С Напарнику → применить навык buddy-prompting"
+description: "Перед запросом к 1C Buddy подготовить prompt"
 alwaysApply: true
 ---
 # Промпты к 1С Напарнику

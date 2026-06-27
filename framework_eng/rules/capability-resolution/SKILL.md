@@ -1,6 +1,6 @@
 ---
 name: capability-resolution
-description: Resolve capability → implementation (MCP tool or CLI). The agent uses registry.yaml for invocation.
+description: "Before choosing a tool, resolve capability first"
 alwaysApply: true
 ---
 
@@ -8,7 +8,7 @@ alwaysApply: true
 
 ## Model
 
-- Capability is a stable contract through which skills reference a capability ("what needs to be done").
+- Capability is a stable contract through which skills refer to a capability ("what needs to be done").
 - The capability implementation is fixed in `framework/capabilities/registry.yaml`:
   - `kind: mcp` — MCP server + tool;
   - `kind: cli` — CLI command.
@@ -26,9 +26,9 @@ alwaysApply: true
 4. If the capability is missing from the registry — inform the user and do not substitute a "similar" tool.
 5. If the MCP server is unavailable (not in the tool list) or the CLI binary is not found — inform the user; do not attempt workarounds.
 
-## v8-session-manager: runtime storefront
+## v8-session-manager: runtime showcase
 
-Some of the tools in v8-session-manager (`session_list`) are built-in and always available as long as the manager is running. The remaining tools are proxied from connected 1С clients and appear on the storefront only when a client with the required extension is connected to the manager via WS. If a capability with `server: v8-session-manager` is not available in `tools/list`, that means the corresponding client is not connected. Bringing up the client is the task of `v8-runner` (see SKILL.md in `framework/skills/tool-usage/v8-runner/`).
+Some of the tools in v8-session-manager (`session_list`) are built-in and always available as long as the manager is running. The remaining tools are proxied from connected 1С clients and appear on the showcase only when a client with the required extension is connected to the manager via WS. If a capability with `server: v8-session-manager` is not available in `tools/list`, that means the corresponding client is not connected. Bringing up the client is the task of `v8-runner` (see SKILL.md in `framework/skills/tool-usage/v8-runner/`).
 
 > Replacing a capability implementation (via `tools/capability-registry.py` or direct editing of `registry.yaml`) is a procedural how-to; see the documentation for `tools/capability-registry.py`.
 

@@ -1,8 +1,6 @@
 ---
 name: quick-fix
-description: >
-  Redirect. quick-fix has been moved into a skill — use the Skill tool or read it directly:
-  framework/skills/agent-process/quick-fix/SKILL.md
+description: "Use quick-fix for small safe changes"
 alwaysApply: false
 ---
 
@@ -11,7 +9,7 @@ alwaysApply: false
 > This file is a fallback redirect. The current body of the quick-fix skill (steps, guard, escalation)
 > lives in `framework/skills/agent-process/quick-fix/SKILL.md`.
 
-Use the **Skill tool** (`quick-fix`) or read it directly:
+Use the **Skill tool** (`quick-fix`) or read directly:
 
 ```
 framework/skills/agent-process/quick-fix/SKILL.md

@@ -1,6 +1,6 @@
 ---
 name: agent-debug
-description: "Стандартная диагностика (ЖР/скриншоты) не раскрыла реальное поведение → применить навык agent-debug (критичный триггер)"
+description: "Если ЖР/скриншоты не помогли, добавить agent-debug"
 alwaysApply: true
 ---
 # Отладочные сообщения (Agent Debug)

@@ -1,6 +1,6 @@
 ---
 name: yaxunit-isolation
-description: Пишешь серверный YaxUnit-тест, который пишет в БД → обязательная транзакционная изоляция через .ВТранзакции(). Применить навык test-writing.
+description: "Для DB-writing YaxUnit tests использовать transaction"
 alwaysApply: false
 ---
 

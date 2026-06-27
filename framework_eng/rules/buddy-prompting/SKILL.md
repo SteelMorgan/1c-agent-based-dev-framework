@@ -1,6 +1,6 @@
 ---
 name: buddy-prompting
-description: "Before contacting 1C Buddy -> apply the buddy-prompting skill"
+description: "Before asking 1C Buddy, shape the prompt"
 alwaysApply: true
 ---
 # Prompts for 1C Buddy

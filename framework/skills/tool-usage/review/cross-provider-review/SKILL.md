@@ -1,6 +1,6 @@
 ---
 name: cross-provider-review
-description: "Use for advisory second-opinion review между model families. Маршрутизирует GPT/Codex primary agents в Claude/Opus review и наоборот; поддерживает sandbox-сессии, follow-up, debate, sync, status, log, stats, show, close lifecycle."
+description: "Для второго ревью другой моделью и debate-сессий"
 capabilities: review,agent-governance,cross-provider
 ---
 

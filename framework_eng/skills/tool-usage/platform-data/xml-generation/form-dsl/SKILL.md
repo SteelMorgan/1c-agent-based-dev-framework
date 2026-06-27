@@ -1,6 +1,6 @@
 ---
 name: form-dsl
-description: "Use for generating 1C managed forms with UI elements, attributes, and commands through a JSON DSL. Helps describe the form structure and static properties for xml-gen form compile/edit."
+description: "xml-gen managed form DSL: compile/edit"
 ---
 
 # Form DSL

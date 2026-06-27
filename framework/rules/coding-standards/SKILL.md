@@ -1,6 +1,6 @@
 ---
 name: coding-standards
-description: "При написании или ревью BSL-кода → применить навык coding-standards"
+description: "При написании/ревью BSL применять coding standards"
 alwaysApply: true
 ---
 # Стандарты кодирования BSL

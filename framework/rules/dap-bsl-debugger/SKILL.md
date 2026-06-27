@@ -1,6 +1,6 @@
 ---
 name: dap-bsl-debugger
-description: "Интерактивная BSL-отладка нужна для воспроизводимого runtime-сценария, когда статический анализ, ЖР/скриншоты и agent-debug не раскрыли путь исполнения или значения переменных → применить навык dap-bsl-code-debug-procedure."
+description: "Когда runtime-путь неясен, включить DAP-отладку BSL"
 alwaysApply: true
 ---
 # DAP BSL Debugger

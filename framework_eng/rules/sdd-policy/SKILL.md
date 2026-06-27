@@ -1,6 +1,6 @@
 ---
 name: sdd-policy
-description: New feature / architectural change / complex bug -> spec before code. Apply spec-standard skill.
+description: "For features, architecture, complex bugs, write spec first"
 alwaysApply: true
 ---
 

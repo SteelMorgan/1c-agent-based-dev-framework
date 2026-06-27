@@ -1,6 +1,6 @@
 ---
 name: form-patterns
-description: "MUST use WHEN пишешь код модуля управляемой формы 1С. Provides правила выбора директив контекста (&НаСервереБезКонтекста и др.) и минимизации серверных round-trip."
+description: "При коде управляемых форм и серверных вызовах"
 alwaysApply: false
 ---
 

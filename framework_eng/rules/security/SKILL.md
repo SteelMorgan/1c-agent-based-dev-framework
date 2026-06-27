@@ -1,6 +1,6 @@
 ---
 name: security
-description: "Working with passwords/tokens/crypto/privileges → apply the security skill"
+description: "For secrets, tokens, crypto, privileges, use security"
 alwaysApply: true
 ---
 # 1C Security

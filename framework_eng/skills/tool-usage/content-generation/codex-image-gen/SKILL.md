@@ -1,6 +1,6 @@
 ---
 name: codex-image-gen
-description: "Use for generating and editing raster images (UI mockup, wireframe, illustration, diagram, icon, test fixture). Helps delegate image creation to Codex/GPT through `codex exec image_generation`, placing the result in `tasks/<id>/assets/`."
+description: "Generate or edit images, mockups, diagrams, fixtures"
 capabilities: content-generation,image-generation,cross-provider,delegation
 ---
 

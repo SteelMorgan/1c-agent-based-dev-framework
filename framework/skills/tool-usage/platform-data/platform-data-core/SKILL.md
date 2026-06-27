@@ -1,6 +1,6 @@
 ---
 name: platform-data-core
-description: "Use for исследования метаданных конфигурации, выполнения запросов к базе и разбора навигационных ссылок. Helps получить структуру объектов, сформировать запрос и построить nav link в едином рабочем цикле."
+description: "Platform data: metadata, nav links, safe queries"
 uses_capabilities:
   - list_metadata_objects
   - get_metadata_structure

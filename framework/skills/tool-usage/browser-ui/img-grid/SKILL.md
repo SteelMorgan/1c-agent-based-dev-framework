@@ -1,6 +1,6 @@
 ---
 name: "img-grid"
-description: "Use for измерения пропорций и span-ов колонок на скриншоте печатной формы (MXL). Helps точно определить границы ячеек перед генерацией макета табличного документа."
+description: "Замер сетки и колонок по скриншоту печатной формы MXL"
 argument-hint: "<ImagePath> [--cell-size 50] [--cols N] [-o OUTPUT]"
 allowed-tools:
   - Bash

@@ -1,6 +1,6 @@
 ---
 name: error-handling
-description: "BSL-код с транзакциями/Попытка/блокировками → применить навык error-handling"
+description: "Для Try, транзакций или блокировок применять error-handling"
 alwaysApply: true
 ---
 # Обработка ошибок и транзакции

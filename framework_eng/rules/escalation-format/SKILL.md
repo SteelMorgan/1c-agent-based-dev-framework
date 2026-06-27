@@ -1,6 +1,6 @@
 ---
 name: escalation-format
-description: Escalating a decision to the user -> apply the escalation-format skill (the What->Why->Options->Assessment->Recommendation structure).
+description: "When escalating decisions, give options and recommendation"
 alwaysApply: true
 ---
 # User Escalation Format

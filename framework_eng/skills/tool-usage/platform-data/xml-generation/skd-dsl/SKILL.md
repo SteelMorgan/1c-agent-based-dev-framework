@@ -1,6 +1,6 @@
 ---
 name: skd-dsl
-description: "Use for generating 1C data composition schemas (SKD) from scratch via JSON DSL: datasets, calculated fields, output templates, variants, conditional formatting. Helps build Schema.xml through xml-gen skd compile/info/validate."
+description: "xml-gen SKD schemas from JSON DSL"
 ---
 
 # SKD DSL
@@ -260,6 +260,17 @@ Workflow: `overview` → `trace --name <field>` → `query --name <dataset>` →
 ## Anti-patterns
 
 `"filter": ["Amount greater than 0"]` - **incorrect**: the parser accepts operators strictly from the fixed set (`=`, `<>`, `>`, `>=`, `<`, `<=`, `in`, `notIn`, `contains`, `filled`, `notFilled`, `InHierarchy`). `greater` is not recognized.
+
+Fields in `selection`/`order`/`filter`/`structure` must exist in `dataSets` or `calculatedFields` - otherwise the SKD will not compile.
+
+**Verification after compile:** `xml-gen validate --type skd <output.xml>` → `xml-gen skd info <output.xml>` → if needed `skd info --mode trace --name <field>`.
+
+## See also
+
+- [references/templates-dsl.md](references/templates-dsl.md) - templates, drilldown, styles.
+- [references/info-modes.md](references/info-modes.md) - 11 `skd info` modes with output examples.
+- [xml-generation](../SKILL.md) - `skd add-parameter`, `skd add-field`, replace-text.
+- [mxl-dsl](../mxl-dsl/) - print forms.
 
 ---
 depends_on: []

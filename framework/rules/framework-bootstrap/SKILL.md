@@ -1,6 +1,6 @@
 ---
 name: framework-bootstrap
-description: 1C BSL Agent Development Framework — портативный само-промотирующий стаб главного потока
+description: "На старте или компакте загрузить профиль оркестратора"
 alwaysApply: true
 ---
 # 1C BSL Agent Development Framework

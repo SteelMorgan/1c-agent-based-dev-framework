@@ -1,36 +1,36 @@
 ---
 name: yaxunit-isolation
-description: You are writing a server-side YaxUnit test that writes to the DB -> mandatory transactional isolation via .ВТранзакции(). Apply the test-writing skill.
+description: "For DB-writing YaxUnit tests, use transaction"
 alwaysApply: false
 ---
 
-# YaxUnit test isolation (transaction rollback)
+# YaxUnit Test Isolation (transaction rollback)
 
-> **Trigger:** a server test (`ДобавитьСерверныйТест`) writes to the DB - creates, posts, modifies, or deletes objects. When this happens, apply the `test-writing` skill (`framework/skills/bsl-practices/test-writing/SKILL.md`), section "Isolating test data".
+> **Trigger:** a server test (`ДобавитьСерверныйТест`) writes to the DB - it creates, posts, modifies, and deletes objects. When this happens, apply the `test-writing` skill (`framework/skills/bsl-practices/test-writing/SKILL.md`), section "Isolating test data".
 
 ## Principle
 
-A test that writes to the DB **must roll back its changes** - otherwise every run leaves garbage in the database, tests become non-idempotent, and the database gradually degrades. YaxUnit solves this with the built-in `.ВТранзакции()` mechanism: a transaction opens before each test and rolls back after the test.
+A test that writes to the DB **must roll back its changes** - otherwise each run leaves garbage in the database, tests become non-idempotent, and the database gradually degrades. YaxUnit solves this with the built-in `.ВТранзакции()` mechanism: before each test, a transaction is opened; after the test, it is rolled back.
 
 ## MUST
 
 | Requirement | Description |
 |---|---|
 | `.ВТранзакции()` by default | Any set of server tests that write to the DB is registered with `.ВТранзакции()` immediately after `ДобавитьТестовыйНабор()` |
-| Catalogs - via `ЮТест.Данные()` | Create catalog items only through `ЮТест.Данные().СоздатьЭлемент(...)` or `КонструкторОбъекта(...).Записать()` - then they are tracked and deleted automatically |
-| Exception -> explicit justification | A set without `.ВТранзакции()` MUST contain a comment before `ДобавитьТестовыйНабор()` stating the reason for the exception (one of the three below) + teardown via `.После("ИмяПроцедурыОчистки")` |
-| Documents without `.ВТранзакции()` -> teardown | Documents created through `Документы.X.СоздатьДокумент()` (not through `ЮТест.Данные()`) are NOT tracked by auto-cleanup - they require explicit teardown in `.После()` |
+| Catalogs via `ЮТест.Данные()` | Create catalog items only through `ЮТест.Данные().СоздатьЭлемент(...)` or `КонструкторОбъекта(...).Записать()` - then they are tracked and removed automatically |
+| Exception -> explicit rationale | A set without `.ВТранзакции()` MUST contain a comment before `ДобавитьТестовыйНабор()` stating the reason for the exception (one of the three below) + teardown via `.После("ИмяПроцедурыОчистки")` |
+| Documents without `.ВТранзакции()` -> teardown | Documents created via `Документы.X.СоздатьДокумент()` (not via `ЮТест.Данные()`) are NOT tracked by auto-cleanup - they require explicit teardown in `.После()` |
 | Client tests - without `.ВТранзакции()` | `ДобавитьКлиентскийТест` runs in the client context, where transactional rollback is unavailable |
 
-## Permitted exceptions to `.ВТранзакции()`
+## Allowed Exceptions from `.ВТранзакции()`
 
-### (a) Negative posting tests (expected Denial)
+### (a) Negative posting tests (expected Refusal)
 
-The test verifies that document posting is **forbidden** (`Отказ = Истина` is set in the handler). A nested write transaction that ends in an error **poisons** the outer one: subsequent reads return "Errors have already occurred in this transaction!". The solution is not to wrap such sets in `.ВТранзакции()`, to create objects through `ЮТест.Данные()` (they will be removed by `.УдалениеТестовыхДанных()`), and to additionally clean up the document in teardown.
+The test checks that posting a document is **forbidden** (`Отказ = Истина` is set in the handler). A nested write transaction with an error **poisons** the outer one: subsequent reads return "Errors have already occurred in this transaction!". The solution is not to wrap such sets in `.ВТранзакции()`, to create objects via `ЮТест.Данные()` (they will be removed by `.УдалениеТестовыхДанных()`), and to additionally clean up the document in teardown.
 
 ```bsl
-// Exception (a): negative posting test - the expected Denial poisons the outer transaction.
-// Isolation via ЮТест.Данные() + .УдалениеТестовыхДанных() + teardown in .После().
+// Исключение (а): негативный тест проведения — ожидаемый Отказ отравляет внешнюю транзакцию.
+// Изоляция через ЮТест.Данные() + .УдалениеТестовыхДанных() + teardown в .После().
 ЮТТесты
     .ДобавитьТестовыйНабор("Запрет проведения без договора")
         .УдалениеТестовыхДанных()
@@ -43,8 +43,8 @@ The test verifies that document posting is **forbidden** (`Отказ = Исти
 Some production procedures explicitly check for the absence of an active transaction (two-phase commits, real external API calls, writes to information registers with a unique key). Running such code inside `.ВТранзакции()` causes an error or unexpected behavior in the production code itself.
 
 ```bsl
-// Exception (b): production code contains a ТранзакцияАктивна() guard - it cannot run in a transaction.
-// Teardown performs manual cleanup via ЮТест.Данные().УстановитьЗначениеРеквизита().
+// Исключение (б): прод-код содержит гвард ТранзакцияАктивна() — нельзя запускать в транзакции.
+// Teardown выполняет ручную очистку через ЮТест.Данные().УстановитьЗначениеРеквизита().
 ЮТТесты
     .ДобавитьТестовыйНабор("Двухфазная фиксация позиции")
         .После("ОчиститьДанныеДвухфазнойФиксации")
@@ -53,11 +53,11 @@ Some production procedures explicitly check for the absence of an active transac
 
 ### (c) Client context
 
-`ДобавитьКлиентскийТест` - transactional rollback on the client is unavailable by platform architecture. Test data under client tests is created and cleaned up through `Перед`/`После` handlers in the server context.
+`ДобавитьКлиентскийТест` - transactional rollback on the client is unavailable by platform architecture. Test data under client tests is created and cleaned through `Перед`/`После` handlers in the server context.
 
-## Object re-read pattern when reposting
+## Object Re-reading Pattern for Reposting
 
-A test that changes a document's write mode (posting -> unposting -> reposting) **must re-read the object** between transitions via `ДокОбъект = Ссылка.ПолучитьОбъект()` - this models form behavior:
+A test that changes the document write mode (posting -> unposting -> reposting) **must reread the object** between mode changes via `ДокОбъект = Ссылка.ПолучитьОбъект()` - this mirrors form behavior:
 
 ```bsl
 // Провести
@@ -73,9 +73,9 @@ A test that changes a document's write mode (posting -> unposting -> reposting) 
 ДокОбъект.Записать(РежимЗаписиДокумента.Проведение);
 ```
 
-**Important (platform 8.3.27):** programmatic reposting in a server session can trigger the platform error `[ОшибкаХранимыхДанных]` (a stack with no application frames). Neither re-reading nor `.ВТранзакции()` fixes it - this is a platform limitation. In that case, reposting idempotence is verified at the **scenario layer** (Vanessa, the path through the form), and the unit test is written with `ЮТест.Пропустить()` and an explicit justification.
+**Important (platform 8.3.27):** programmatic reposting in a server session can trigger a platform error `[ОшибкаХранимыхДанных]` (stack without application frames). Neither rereading nor `.ВТранзакции()` fixes it - this is a platform limitation. In this case, reposting idempotence is checked at the **scenario layer** (Vanessa, path through the form), and the unit test is written with `ЮТест.Пропустить()` and an explicit rationale.
 
-## Example of correct registration with `.ВТранзакции()`
+## Example of Correct Registration with `.ВТранзакции()`
 
 ```bsl
 Процедура ИсполняемыеСценарии() Экспорт

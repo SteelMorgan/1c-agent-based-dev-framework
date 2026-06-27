@@ -1,6 +1,6 @@
 ---
 name: bug-reporting
-description: "Self-fix limit exhausted / cause is not in own code -> apply the bug-reporting skill"
+description: "When self-fix is exhausted, file bug-report"
 alwaysApply: true
 ---
 # Bug Report Formatting

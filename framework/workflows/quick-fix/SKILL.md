@@ -1,8 +1,6 @@
 ---
 name: quick-fix
-description: >
-  Редирект. quick-fix перенесён в навык — используй Skill-тул или читай напрямую:
-  framework/skills/agent-process/quick-fix/SKILL.md
+description: "Для малых безопасных правок применять quick-fix"
 alwaysApply: false
 ---
 

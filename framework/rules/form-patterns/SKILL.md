@@ -1,6 +1,6 @@
 ---
 name: form-patterns
-description: "Перед написанием модуля управляемой формы → применить навык form-patterns"
+description: "Перед модулем управляемой формы применить form-patterns"
 alwaysApply: true
 ---
 # Паттерны модуля управляемой формы

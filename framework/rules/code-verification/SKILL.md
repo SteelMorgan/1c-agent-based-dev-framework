@@ -1,6 +1,6 @@
 ---
 name: code-verification
-description: "После правки BSL → применить навыки code-verification + syntax-checking"
+description: "После правок BSL выполнить verification и syntax checks"
 alwaysApply: true
 ---
 # Верификация BSL после правок

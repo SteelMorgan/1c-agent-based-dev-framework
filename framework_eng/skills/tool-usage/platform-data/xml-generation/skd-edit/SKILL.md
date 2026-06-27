@@ -1,9 +1,9 @@
 ---
 name: skd-edit
-description: "Use for atomic editing of an existing Schema.xml SKD: add/remove fields, totals, parameters, rewrite a data set query, or change the variant structure. Helps fine-tune SKD without full recompilation via xml-gen skd edit."
+description: "xml-gen atomic edits of existing SKD Schema.xml"
 ---
 
-# SKD Edit - targeted editing of Schema.xml
+# SKD Edit — targeted editing of Schema.xml
 
 ## When to use
 

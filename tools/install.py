@@ -1811,8 +1811,14 @@ def _component_source_paths(
 #   agent → профиль: .codex/agents/<agent-name>.toml      (конвертация из *.md)
 
 def _rule_workflow_file_skill_mode(comp: Component, ide_key: str) -> bool:
-    """Для не-Codex платформ rule/workflow устанавливаются как file-style skills."""
-    return ide_key != "codex" and comp.type in ("rule", "workflow") and "skills_dir" in IDE_CONFIGS[ide_key]
+    """True, если IDE явно требует rule/workflow в каталоге skills как file-style skill.
+
+    По умолчанию rule/workflow идут в rules/workflows-каталоги IDE. Это важно
+    для Claude Code: правила оформлены в framework как skill-каталоги с SKILL.md,
+    но устанавливаются как файловые ссылки .claude/rules/<name>.md.
+    """
+    ide_cfg = IDE_CONFIGS[ide_key]
+    return bool(ide_cfg.get("rule_workflow_file_skill_mode")) and comp.type in ("rule", "workflow")
 
 def _codex_mode(comp: Component, ide_key: str) -> Optional[str]:
     """Режим codex-специфичной установки для компонента или None.
@@ -2064,6 +2070,23 @@ def _legacy_rule_workflow_rules_target_file(
     return project_dir / ide_cfg[dir_key] / f"{short_name}{ext}"
 
 
+def _legacy_rule_workflow_file_skill_target_file(
+    comp: Component,
+    ide_key: str,
+    project_dir: Path,
+) -> Optional[Path]:
+    """Ошибочный старый путь rule/workflow как .claude/.cursor skills/<name>.md."""
+    if comp.type not in ("rule", "workflow"):
+        return None
+    if _rule_workflow_file_skill_mode(comp, ide_key):
+        return None
+    ide_cfg = IDE_CONFIGS[ide_key]
+    if "skills_dir" not in ide_cfg:
+        return None
+    _, _, short_name = _component_source_paths(comp)
+    return project_dir / ide_cfg["skills_dir"] / f"{short_name}.md"
+
+
 def _norm_path(path: Path) -> str:
     """Нормализует путь для безопасного сравнения."""
     return str(path.resolve(strict=False))
@@ -2084,6 +2107,8 @@ def _component_expected_symlink_source(
     if _codex_mode(comp, ide_key) == "rule_skill" and use_symlinks_target:
         return source_path
     if _rule_workflow_file_skill_mode(comp, ide_key):
+        return source_file
+    if comp.type in ("rule", "workflow"):
         return source_file
     return source_file if not use_symlinks_target else source_path
 
@@ -2298,14 +2323,34 @@ def install_components(
             skipped += 1
             continue
 
-        # Фильтр alwaysApply применим только к старому rules-каталогу IDE.
-        # Когда rule/workflow устанавливается как skill, физически размещаем все правила.
+        # Удаляем хвосты прежнего ошибочного размещения rule/workflow как
+        # skills/<name>.md до alwaysApply-фильтра: lazy-правила тоже должны
+        # очищать старые ссылки, хотя физически больше не устанавливаются.
+        legacy_skill_target = _legacy_rule_workflow_file_skill_target_file(
+            comp, ide_key, project_dir
+        )
+        if legacy_skill_target and (legacy_skill_target.exists() or legacy_skill_target.is_symlink()):
+            if dry_run:
+                print(f"    ← remove legacy {legacy_skill_target}")
+            else:
+                legacy_skill_target.unlink()
+
+        # Фильтр alwaysApply применим только к rules-каталогу IDE.
+        # Codex устанавливает правила как навыки, поэтому там физически размещаем все правила.
         if (
             comp.type == "rule"
             and not comp.always_apply
             and ide_key != "codex"
             and not _rule_workflow_file_skill_mode(comp, ide_key)
         ):
+            stale_rule_target = _component_target_file(
+                comp, ide_key, project_dir, use_symlinks=use_symlinks, graph=graph
+            )
+            if stale_rule_target.exists() or stale_rule_target.is_symlink():
+                if dry_run:
+                    print(f"    ← remove stale {stale_rule_target}")
+                else:
+                    stale_rule_target.unlink()
             # Правило не-always-on: пропускаем физическое размещение, но включаем в component_map.
             # Вывод только в dry-run для наглядности.
             if dry_run:
@@ -2412,10 +2457,12 @@ def install_components(
         elif use_symlinks:
             try:
                 try:
-                    rel_path = os.path.relpath(source_path, target_file.parent)
+                    link_source = source_file if comp.type in ("rule", "workflow") else source_path
+                    rel_path = os.path.relpath(link_source, target_file.parent)
                     target_file.symlink_to(rel_path)
                 except ValueError:
-                    target_file.symlink_to(source_path)
+                    link_source = source_file if comp.type in ("rule", "workflow") else source_path
+                    target_file.symlink_to(link_source)
                 installed += 1
             except OSError as e:
                 print(red(f"  ✗ Ошибка симлинка {comp.id}: {e}"))
@@ -2427,6 +2474,8 @@ def install_components(
                 )
                 if comp.type == "skill" or _rule_workflow_file_skill_mode(comp, ide_key):
                     shutil.copy2(source_file, copy_target)
+                elif comp.type in ("rule", "workflow"):
+                    shutil.copy2(source_file, copy_target)
                 else:
                     shutil.copy2(source_path, copy_target)
                 print(yellow(f"    → скопирован как fallback"))
@@ -2434,6 +2483,8 @@ def install_components(
         else:
             # При копировании: для навыков копируем SKILL.md, для остальных — сам файл
             if comp.type == "skill" or _rule_workflow_file_skill_mode(comp, ide_key):
+                shutil.copy2(source_file, target_file)
+            elif comp.type in ("rule", "workflow"):
                 shutil.copy2(source_file, target_file)
             else:
                 shutil.copy2(source_path, target_file)

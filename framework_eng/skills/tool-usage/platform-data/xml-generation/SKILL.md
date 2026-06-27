@@ -1,6 +1,6 @@
 ---
 name: xml-generation
-description: "MUST use WHEN you need to create, modify, or validate any 1C metadata XML (forms, roles, objects, MXL, SKD, EPF, extensions, configuration). Provides safe generation and targeted modification through the xml-gen CLI, following the no-manual-xml-edit rule."
+description: "Use for any 1C metadata XML through xml-gen CLI"
 argument-hint: <domain> <operation> [<args>]
 allowed-tools:
   - Bash

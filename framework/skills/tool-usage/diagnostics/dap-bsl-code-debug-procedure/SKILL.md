@@ -1,6 +1,6 @@
 ---
 name: dap-bsl-code-debug-procedure
-description: "Use when нужно интерактивно отладить отдельно взятую BSL-процедуру через DAP/MCP: подключиться к debug server 1С, поставить/снять breakpoint, дождаться остановки, смотреть переменные, выполнить step_in/step_out/continue и корректно очистить отладочную сессию."
+description: "Интерактивная DAP-отладка одной BSL-процедуры"
 uses_capabilities:
   - debug_bsl_code
 ---

@@ -1,6 +1,6 @@
 ---
 name: escalation-format
-description: Эскалация решения пользователю → применить навык escalation-format (структура Что→Почему→Варианты→Оценка→Рекомендация).
+description: "При эскалации решения дать options и recommendation"
 alwaysApply: true
 ---
 # Формат эскалации пользователю

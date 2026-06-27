@@ -1,11 +1,11 @@
 ---
 name: mxl-dsl
-description: "Use for generating and refining 1С print forms (MXL) through JSON DSL. Helps describe areas, cells, and static styles for xml-gen mxl compile/decompile/info/validate."
+description: "xml-gen MXL print forms: compile/edit/info"
 ---
 
 # MXL DSL
 
-Compact JSON format for describing 1С tabular documents (SpreadsheetDocument). Claude describes **what** (areas, cells, styles, parameters), while the CLI guarantees XML **correctness** (palettes, indices, merges, namespace).
+Compact JSON format for describing 1C tabular documents (SpreadsheetDocument). Claude describes **what** (areas, cells, styles, parameters), while the CLI ensures XML **correctness** (palettes, indices, merges, namespace).
 
 The canon is taken from Shirokov's specification (cc-1c-skills) and extended with the `--format designer|edt` flag for two output formats.
 
@@ -15,14 +15,13 @@ The canon is taken from Shirokov's specification (cc-1c-skills) and extended wit
 |---------|----------|
 | Create a print form from scratch | `mxl compile` + JSON DSL → `references/dsl-spec.md` |
 | Refine an existing layout | `mxl decompile` → edit JSON → `mxl compile` |
-| Validate MXL tool behavior against canon XML | `xml-gen oracle mxl --mode dsl|cli|both` |
 | Understand the structure of someone else's layout (areas, parameters, drill-downs) | `mxl info` → `references/info-modes.md` |
 | Check the correctness of the assembled Template.xml | `xml-gen validate --type mxl` → `references/validate-classes.md` |
-| Reverse-engineer print output from a sample (screenshot/scan) | `mxl decompile` or build from scratch on a grid — define `page` + `"Nx"` widths |
+| Reverse-engineer print output from a sample (screenshot/scan) | `mxl decompile` or build from scratch on a grid — set `page` + `"Nx"` widths |
 
-## Intentionally outside the DSL - do it in code
+## Intentionally outside the DSL — do it in code
 
-The DSL covers **static** cell formatting — `font/align/valign/border/wrap/format` through the `styles` map. It intentionally does NOT generate **runtime-conditional** formatting: cell coloring/styling based on the displayed value. This is done programmatically when filling the tabular document — `Область.ТекстЦвет = …`, `Область.ЦветФона = …` on the populated area. The absence is a **design choice**, not a tool defect; see rule `no-manual-xml-edit.md` § "What is done in code, and NOT through xml-gen".
+The DSL covers **static** cell formatting — `font/align/valign/border/wrap/format` through the map of `styles`. It intentionally does NOT generate **runtime-conditional** formatting: cell coloring/styling depending on the displayed value. This is done programmatically when filling the tabular document — `Область.ТекстЦвет = …`, `Область.ЦветФона = …` on the populated area. The absence is a **design choice**, not a tool defect; see rule `no-manual-xml-edit.md` § "What is done in code, and NOT through xml-gen".
 
 ## Commands
 
@@ -38,9 +37,6 @@ xml-gen mxl info <Template.xml> [--with-text] [--limit N] [--offset N] [--format
 
 # Валидация
 xml-gen validate --type mxl <Template.xml> [--detailed] [--max-errors N]
-
-# Поведенческий оракул по реальному канону
-xml-gen oracle mxl --source <Template.xml|src/xml> --out build/oracle --mode dsl|cli|both [--include-all]
 ```
 
 **`output.xml`** for compile is the path to the layout in EPF/ERF: `.../Templates/<Name>/Ext/Template.xml`.
@@ -116,17 +112,6 @@ For **intersections** (Rows area + Columns area, for example labels/price tags),
 - If all empty cells in a row have the same style, it is collapsed into `rowStyle`, and the empty cells are removed from the output.
 - Template parameters (`[Name]` in text) are extracted into separate `template` cells.
 
-## Oracle modes
-
-`xml-gen oracle mxl` validates two independent modes:
-
-- `--mode dsl` decompiles canon `Template.xml` to JSON DSL, compiles a new sandbox `Template.xml`, and compares it with the canon. The canon file is never overwritten.
-- `--mode cli` decompiles canon into a `CommandPlan` of public commands: `epf init`, `epf add-template --type SpreadsheetDocument`, `mxl compile`, `validate`. The result inside the temporary EPF sandbox is compared with the canon separately from DSL mode.
-- `--mode both` runs both and reports separate `dsl` and `cli` summaries.
-- With a `src/xml` source, the default corpus is the `_Демо` pilot. Use `--include-all` only for a broad audit of all MXL `Template.xml` files.
-
-Use oracle for regression detection and coverage reports. Use normal `mxl compile/decompile/info/validate` for day-to-day generation and editing.
-
 ## Workflow (typical)
 
 1. (optional) If the layout is created from an image - overlay a grid, determine column proportions → set `page: "A4-landscape"` + `"Nx"` widths.
@@ -135,7 +120,6 @@ Use oracle for regression detection and coverage reports. Use normal `mxl compil
 4. `xml-gen validate --type mxl` → if there are errors, see `references/validate-classes.md`.
 5. `mxl info` → inspect the structure of areas and parameters with the agent's eyes.
 6. (for refining someone else's layout) `mxl decompile` → edit → compile.
-7. (for validating tool behavior) `xml-gen oracle mxl --source src/xml --out build/oracle --mode both`.
 
 ## Correct / Incorrect
 

@@ -1,6 +1,6 @@
 ---
 name: tdd-policy
-description: Пишешь тесты или код → тесты до реализации (Red→Green). Применить навык test-writing.
+description: "При коде или тестах идти Red -> Green"
 alwaysApply: true
 ---
 

@@ -1,11 +1,6 @@
 ---
 name: orchestrator
-description: >
-  Pointer to the orchestration prompting. After retiering (manifest §6, §7.2), the orchestrator's
-  operational prompting (Layer 1 — Lead/dispatcher, Layer 2 — discipline) moved into the MAIN THREAD
-  PROFILE framework/subagents/orchestrator.md. Detailed phase mechanics (Layer 3) —
-  framework/workflows/full-cycle/SKILL.md. This file is preserved as a stable entry point and a
-  carrier of depends_on links; it does NOT duplicate the body of the prompting.
+description: "Orchestrator routing for work and agent phases"
 ---
 
 # Orchestrator: meta-workflow (pointer)

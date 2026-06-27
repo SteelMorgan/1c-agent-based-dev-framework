@@ -1,6 +1,6 @@
 ---
 name: bug-reporting
-description: "Лимит самофикса исчерпан / причина не в своём коде → применить навык bug-reporting"
+description: "Когда self-fix исчерпан, оформить bug-report"
 alwaysApply: true
 ---
 # Оформление bug-report

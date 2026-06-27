@@ -1,6 +1,6 @@
 ---
 name: skd-dsl
-description: "Use for генерации схем компоновки данных 1С (СКД) с нуля через JSON DSL: наборы данных, вычисляемые поля, шаблоны вывода, варианты, условное оформление. Helps собрать Schema.xml через xml-gen skd compile/info/validate."
+description: "xml-gen SKD schemas from JSON DSL"
 ---
 
 # SKD DSL

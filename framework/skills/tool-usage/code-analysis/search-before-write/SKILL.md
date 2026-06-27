@@ -1,6 +1,6 @@
 ---
 name: search-before-write
-description: "MUST use BEFORE написанием нового BSL-кода или функции. Defines каскад поиска (LSP → метаданные → платформа → БСП) как доказательство того, что готовый аналог отсутствует."
+description: "Перед новым BSL-кодом найти существующий аналог"
 alwaysApply: false
 ---
 

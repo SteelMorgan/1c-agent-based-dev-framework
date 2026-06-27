@@ -1,6 +1,6 @@
 ---
 name: code-navigation
-description: "Use for навигации по BSL-коду через LSP (поиск определений, ссылок, граф вызовов, переименование). Helps точно находить символы по индексу проекта без угадывания расположения."
+description: "LSP-навигация BSL: definitions, refs, call graph"
 uses_capabilities:
   - navigate_symbol
   - get_call_graph

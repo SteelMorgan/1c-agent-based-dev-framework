@@ -1,6 +1,6 @@
 ---
 name: query-patterns
-description: "Перед написанием нового запроса → применить навык query-patterns"
+description: "Перед новым запросом 1С применить query-patterns"
 alwaysApply: true
 ---
 # Паттерны запросов (перед написанием)

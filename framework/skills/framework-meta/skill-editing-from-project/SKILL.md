@@ -1,7 +1,7 @@
 ---
 name: skill-editing-from-project
 installable: true
-description: Use for редактирования навыков фреймворка, находясь в каталоге проекта 1С (не в репозитории фреймворка). Helps найти RU-источник через симлинки и .install-session.json без переключения репозитория.
+description: "Правка framework skills из проекта через install-session"
 ---
 
 # Редактирование навыков фреймворка из проекта

@@ -1,6 +1,6 @@
 ---
 name: sdd-policy
-description: Новая фича / архитектурное изменение / сложный баг → спека до кода. Применить навык spec-standard.
+description: "Для features, архитектуры и сложных багов сначала spec"
 alwaysApply: true
 ---
 

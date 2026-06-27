@@ -1,6 +1,6 @@
 ---
 name: task-breakdown
-description: "Use for декомпозиции спецификации в Task Breakdown JSON. Covers два режима: linear (self-check, single-agent) и subagent (cross-review + BLOCK-итерации)."
+description: "Для декомпозиции спецификации в Task Breakdown JSON"
 depends_on:
   - framework/skills/spec-writing/spec-standard/SKILL.md
 metadata:

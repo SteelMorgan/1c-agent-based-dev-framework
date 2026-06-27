@@ -1,19 +1,19 @@
 ---
 name: framework-bootstrap
-description: 1C BSL Agent Development Framework — portable self-promoting main-thread stub
+description: "On start or compaction, load the orchestrator profile"
 alwaysApply: true
 ---
 # 1C BSL Agent Development Framework
 
-This is an agent development framework for 1C BSL. A minimal always-on anchor + a portable
-cross-harness bridge that raises the Lead/orchestrator role in the main thread. Detailed routing and
+This is an agent development framework for 1C BSL. A minimal always-on reference point + a portable
+cross-harness bridge that elevates the Lead/orchestrator role in the main thread. Detailed routing and
 orchestration management live in the **orchestrator profile** (`framework/subagents/orchestrator.md`),
 not here.
 
 ## Self-Promoting Stub (main thread)
 
-> The goal is to guarantee that the main thread HAS orchestration instructions, on any harness and after
-> any context loss. The condition is keyed on the **actual presence of the orchestrator instruction body in
+> The goal is to ensure that the main thread HAS orchestration instructions on any harness and after
+> any context loss. The condition keys off the **actual presence of the orchestrator instruction body in
 > the current context**, NOT on the belief “I am the orchestrator”: after compaction, the task state (“I
 > believe I am the orchestrator”) survives in the summary, while the instruction body is evicted. Keying on
 > belief would create a false read skip.
@@ -33,14 +33,14 @@ not here.
   как Lead. Это и есть портативная эмуляция профиля на харнесах без --agent/--append.
 ```
 
-**Re-trigger points:** session start · **after compaction** · resuming from
+**Trigger points:** session start · **after compaction** · resuming from
 `task_dir/.context/orchestrator-context.md`. In each of them, re-check the middle/third branch: if
 the management body is not in context, reread the profile before the first management action.
 
 ## Delivery on Different Harnesses (one portable carrier)
 
 - **Harness WITH profile** (Claude CLI, launched with `--append-system-prompt` or `--agent orchestrator`,
-  see `framework/subagents/orchestrator.md` § «Способ запуска» and the manifest §6.1) → management
+  see `framework/subagents/orchestrator.md` § "Launch Method" and the manifest §6.1) → management
   is preloaded into the system prompt → the second branch of the stub is true → stub **no-op**.
 - **Harness WITHOUT profile** (Codex / Cursor, etc.) → the third branch triggers: the main thread reads
   the profile itself. Durability is via re-trigger (this stub is always-on, survives compaction; the

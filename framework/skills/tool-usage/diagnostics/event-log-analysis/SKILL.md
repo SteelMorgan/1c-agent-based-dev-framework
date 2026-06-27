@@ -1,6 +1,6 @@
 ---
 name: event-log-analysis
-description: "Use for поиска ошибок, событий и действий пользователей в журнале регистрации (ЖР) через ClickHouse. Helps локализовать время и контекст сбоя по event-log до обращения к техжурналу."
+description: "Диагностика ошибок и действий в журнале регистрации"
 uses_capabilities:
   - search_event_log
   - logc_get_actual_log_timestamp

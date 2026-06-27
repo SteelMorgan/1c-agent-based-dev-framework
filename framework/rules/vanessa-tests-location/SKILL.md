@@ -1,6 +1,6 @@
 ---
 name: vanessa-tests-location
-description: Создаёшь / обновляешь Vanessa feature-файл → соблюдать конвенцию расположения. Применить навык vanessa-authoring для деталей.
+description: "При добавлении Vanessa features соблюдать location rules"
 alwaysApply: true
 ---
 

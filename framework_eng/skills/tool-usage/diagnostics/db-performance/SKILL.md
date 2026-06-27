@@ -1,6 +1,6 @@
 ---
 name: db-performance
-description: "1С database and query performance diagnostics. Use when you need to diagnose a slow scenario, slow query, DBMS plan, locks, deadlock, TEMPDB/WAL, table sizes, or SCD on large data."
+description: "Diagnose slow queries, locks, and DBMS plans"
 target_agents:
   - debugger
   - developer-code

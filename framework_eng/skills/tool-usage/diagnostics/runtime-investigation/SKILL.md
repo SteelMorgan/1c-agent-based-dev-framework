@@ -1,6 +1,6 @@
 ---
 name: runtime-investigation
-description: "Use for investigating bugs from bug-report: call graph + key variables -> DAP/agent-debug trace -> hypothesis cycle."
+description: "Runtime bug diagnostics: call graph, DAP, tracing"
 ---
 
 # Runtime Investigation — runtime bug investigation
@@ -325,6 +325,7 @@ Saved to `task_dir/.context/debug/<bug-id>/debug-report.md`.
 | Skipping verification after a local fix | False "fixed", while adjacent behavior actually broke |
 
 ---
+
 depends_on:
   - framework/skills/tool-usage/diagnostics/bug-reporting/SKILL.md
   - framework/skills/tool-usage/diagnostics/dap-bsl-code-debug-procedure/SKILL.md

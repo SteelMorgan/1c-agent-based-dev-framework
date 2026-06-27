@@ -1,6 +1,6 @@
 ---
 name: platform-data-core
-description: "Working with 1C platform data (Platform Data Core). The skill combines three operations: searching and analyzing configuration metadata, parsing navigation links, and executing database queries."
+description: "Platform data: metadata, nav links, safe queries"
 uses_capabilities:
   - list_metadata_objects
   - get_metadata_structure

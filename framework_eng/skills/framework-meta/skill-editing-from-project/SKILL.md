@@ -1,7 +1,7 @@
 ---
 name: skill-editing-from-project
 installable: true
-description: Use when editing framework skills while in a 1C project directory (not in the framework repository). Helps locate the RU source through symlinks and `.install-session.json` without switching repositories.
+description: "Edit framework skills from a project via install-session"
 ---
 
 # Editing Framework Skills from a Project

@@ -1,6 +1,6 @@
 ---
 name: tech-log-analysis
-description: "Use for managing the lifecycle of the 1C technological log (Tech Log): configuration, enablement, collection, analysis, restoration. Helps diagnose slow queries, locks, and platform exceptions not available in the Event Log."
+description: "Analyze 1C tech log: EXCP, SQL, locks, collection"
 uses_capabilities:
   - search_tech_log
   - configure_tech_log

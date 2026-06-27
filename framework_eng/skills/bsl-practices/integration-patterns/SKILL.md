@@ -1,6 +1,6 @@
 ---
 name: integration-patterns
-description: "1C integration patterns: HTTP/REST/SOAP services, authentication (Basic/Token/OAuth/CertificateAuth), idempotency, retry, secure secret storage, versioning. Use when you need to create an HTTP service, a REST/SOAP client, implement a webhook, define a contract, configure authentication, or handle errors from external interactions."
+description: "Use for 1C HTTP/REST/SOAP, auth, retry, webhooks"
 ---
 
 # 1C Integration Patterns
@@ -147,7 +147,7 @@ For details on each scheme, see [references/auth-schemes.md](references/auth-sch
 
 ## Rule 4: HTTP client - retry and timeout
 
-External calls are unreliable. Always wrap them in `Попытка/Исключение`. For mutating operations, use an idempotency key and protection against repeated execution.
+External calls are unreliable. Always wrap them in `try/except`. For mutating operations, use an idempotency key and protection against repeated execution.
 
 ```bsl
 Функция ВызватьВнешнийAPIСПовтором(URLПуть, ТелоЗапросаJSON, КлючИдемпотентности = "")

@@ -1,6 +1,6 @@
 ---
 name: security
-description: "MUST use WHEN working with passwords, tokens, electronic signatures, TLS, or privileged mode in 1C code. Provides rules for storing secrets in `БезопасноеХранилище`, cryptography (GOST/`МенеджерКриптографии`) and authentication."
+description: "Use for 1C secrets, tokens, TLS, signatures, privileges"
 alwaysApply: false
 ---
 

@@ -1,6 +1,6 @@
 ---
 name: query-optimize
-description: "MUST use WHEN нужно ускорить существующий запрос или переписать СКД dataset. Provides правила устранения query-in-loop, dot-dereference, виртуальных таблиц без параметров и излишних итогов."
+description: "Для оптимизации медленных запросов 1С и наборов СКД"
 target_agents:
   - developer-code
   - architect

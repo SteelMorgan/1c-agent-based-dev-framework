@@ -1,6 +1,6 @@
 ---
 name: data-exchange
-description: "Use for implementing and diagnosing 1C data exchange (РИБ, КД 2.0/3.0, EnterpriseData, БСП). Helps choose the exchange model, ensure packet idempotency, and explicit conflict resolution."
+description: "Use for 1C exchanges: RIB, KD, EnterpriseData, BSP"
 ---
 
 # 1C Data Exchange
@@ -15,7 +15,7 @@ Before implementation, you must determine the exchange model. The choice affects
 
 | Model | When to use | Mechanism |
 |--------|-------------------|----------|
-| РИБ (distributed information base) | Full copy of the configuration at the nodes; all data is transferred | `ПланыОбмена`, XML serialization, `ОбменДаннымиXML` |
+| РИБ (distributed infobase) | Full copy of the configuration at the nodes; all data is transferred | `ПланыОбмена`, XML serialization, `ОбменДаннымиXML` |
 | Selective exchange (БСП) | Rule-based exchange, object filtering, different configurations | БСП "Data exchange" subsystem, EnterpriseData format |
 | КД 2.0 | Complex conversion rules between different configurations | "Data Conversion" processing, XML rules |
 | КД 3.0 / EDT | Modern projects, rules in BSL, EnterpriseData support | Configuration "Data Conversion 3" |
@@ -281,9 +281,9 @@ A conflict occurs when the same object is changed in two nodes at the same time.
 
 ---
 
-## Rule 6: Exchange through the БСП "Data exchange" subsystem
+## Rule 6: Exchange through the БСП subsystem "Обмен данными"
 
-БСП provides ready-made infrastructure: node settings, exchange rules, transport (file, FTP, e-mail, WS), message queue, and conflict register.
+БСП provides ready-made infrastructure: node settings, exchange rules, transport (file, FTP, e-mail, WS), a message queue, and a conflict register.
 
 ### Key subsystem objects
 
@@ -339,9 +339,9 @@ EnterpriseData is a standardized XML format for exchange between 1C configuratio
 
 ## Rule 7: КД 2.0 - conversion rules
 
-КД 2.0 is used for exchange between different configurations using a conversion rules file (XML).
+КД 2.0 is used for exchange between different configurations with a conversion rule file (XML).
 
-### Loading pattern through КД 2.0
+### Load pattern via КД 2.0
 
 ```bsl
 // Загрузка данных с использованием обработки «Конвертация данных»
@@ -373,7 +373,7 @@ EnterpriseData is a standardized XML format for exchange between 1C configuratio
 | Rules | XML file | BSL modules in the КД 3 configuration |
 | EDT support | No | Yes |
 | Format | Proprietary XML | EnterpriseData (optional) |
-| Handlers | In the rules (code strings) | Full BSL, debugging |
+| Handlers | In rules (code strings) | Full BSL, debugging |
 | Recommendation | Existing projects | New projects |
 
 ---
@@ -384,8 +384,8 @@ EnterpriseData is a standardized XML format for exchange between 1C configuratio
 
 When diagnosing exchange, look for events:
 
-| Registration log event | What it means |
-|------------------------|---------------|
+| Event in the registration log | Meaning |
+|-----------|-------------|
 | `ОбменДанными` | General events of the БСП subsystem |
 | `ОбменДанными.Выгрузка` | Packet formation |
 | `ОбменДанными.Загрузка` | Packet reception and processing |
@@ -447,24 +447,24 @@ When diagnosing exchange, look for events:
 
 ---
 
-## Typical mistakes
+## Typical errors
 
 | Error | Consequence | How to avoid |
-|-------|-------------|--------------|
-| No `ОбменДанными.Загрузка` check | Business logic runs during load, data is corrupted or the exchange loops | In every `ПриЗаписи` handler, at the first lines |
-| Fixing `НомерОтправленного` before delivery confirmation | Changes are marked as sent but never reach the node; they will not be exported in the next session | Fix the number only after recipient confirmation |
+|--------|------------|--------------|
+| No `ОбменДанными.Загрузка` check | Business logic runs during loading, data gets corrupted or the exchange loops | In every `ПриЗаписи` handler, in the first lines |
+| Fixing `НомерОтправленного` before delivery confirmation | Changes are marked as sent, but never reach the node; they will not be exported in the next session | Fix the number only after receiver confirmation |
 | Loading without idempotency check | Duplicate documents, double register movements | Check `НомерСообщения <= НомерПринятого` before loading |
-| Conflict without logging | Data is silently overwritten, user changes are lost | Always write to the registration log on conflict with Warning level |
-| Registering changes inside a load handler | Infinite exchange: A->B->A->B | The `Загрузка = Истина` flag disables registration |
-| Long transaction when loading a large packet | Locks, timeouts, rollback of the entire packet | Load object by object with separate transactions or batches |
-| Not deleting change register entries after export | Accumulation of millions of records, performance degradation | `ПланыОбмена.УдалитьРегистрациюИзменений` after confirmation |
+| Conflict without logging | Data is silently overwritten, user edits are lost | Always write to the registration log with Warning level on conflict |
+| Registering changes inside a load handler | Infinite exchange: A→B→A→B | The `Загрузка = Истина` flag disables registration |
+| Long transaction during large packet loading | Locks, timeouts, rollback of the entire packet | Load object by object with separate transactions or batches |
+| Not deleting change-register entries after export | Accumulation of millions of records, performance degradation | `ПланыОбмена.УдалитьРегистрациюИзменений` after confirmation |
 
 ---
 
 ## Related resources
 
-- [error-handling](../error-handling/SKILL.md) - canonical transaction pattern, required during loading/export
-- [background-jobs](../background-jobs/SKILL.md) - data exchange is often performed in background jobs
+- [error-handling](../error-handling/SKILL.md) - canonical transaction pattern, mandatory during load/export
+- [background-jobs](../background-jobs/SKILL.md) - data exchange often runs in background jobs
 
 ---
 depends_on:

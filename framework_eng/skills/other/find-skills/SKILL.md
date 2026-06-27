@@ -1,6 +1,6 @@
 ---
 name: find-skills
-description: "Use for discovering and installing agent skills when the user asks whether there is a skill for X or wants to extend capabilities. Helps find a suitable skill through `npx skills find` and install it."
+description: "Find or install agent skills on user request"
 capabilities: skills-management
 ---
 

@@ -1,6 +1,6 @@
 ---
 name: runtime-investigation
-description: "Use for расследования багов по bug-report: граф вызовов + ключевые переменные → DAP/agent-debug трасса → цикл гипотез."
+description: "Runtime-диагностика бага: call graph, DAP, трассировка"
 ---
 
 # Runtime Investigation — расследование багов в рантайме

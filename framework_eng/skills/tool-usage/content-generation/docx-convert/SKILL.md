@@ -1,27 +1,27 @@
 ---
 name: docx-convert
-description: "Use for converting Word documents (.docx) to Markdown with extracted images (requirements, spec, instructions, vendor documentation). Helps obtain GFM text via pandoc with post-processing of HTML tables and image paths."
+description: "Convert DOCX to Markdown with extracted images"
 capabilities: content-generation,document-conversion
 ---
 
 # Word → Markdown Conversion
 
-A thin wrapper around `pandoc` for converting `.docx` to GitHub-Flavored Markdown with extraction of embedded images. It also post-processes the result: fixes image paths and turns HTML tables (which pandoc leaves as-is in complex cases) into Markdown pipe tables.
+A thin wrapper around `pandoc` for converting `.docx` to GitHub-Flavored Markdown with extraction of embedded images. It also post-processes the result: fixes image paths and turns HTML tables (which pandoc leaves in their original form for complex cases) into pipe Markdown tables.
 
 ## When to use
 
 | Situation | Action |
 |----------|----------|
-| The client sent requirements in `.docx`, and you need to put them in the repository as md | `docx2md.sh input.docx` |
+| The client sent a spec in `.docx`, and you need to put it in the repository as md | `docx2md.sh input.docx` |
 | Vendor documentation is in Word, and you need to feed it to the agent | `docx2md.sh input.docx output_dir` |
 | The document has complex tables and styles — pandoc skips them | mammoth (see below) |
-| You only need the text content without images | `pandoc input.docx --to=gfm -o out.md` directly |
+| You only need the text part without images | `pandoc input.docx --to=gfm -o out.md` directly |
 
 ## When NOT to use
 
-- You need HTML — use `pandoc --to=html`, the script is not needed.
-- You need PDF — use `pandoc --to=pdf` (requires LaTeX), the script is not needed.
-- The document was created with WordArt/SmartArt/shapes — these are lost during conversion, this is a limitation of pandoc.
+- You need HTML — `pandoc --to=html`, the script is not required.
+- You need PDF — `pandoc --to=pdf` (LaTeX is required), the script is not required.
+- The document was created using WordArt/SmartArt/shapes — they are lost during conversion, this is a limitation of pandoc.
 
 ## Dependencies
 

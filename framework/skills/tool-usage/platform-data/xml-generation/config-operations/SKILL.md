@@ -1,6 +1,6 @@
 ---
 name: config-operations
-description: "Use for создания конфигурации, анализа и изменения её свойств и ChildObjects, валидации Configuration.xml. Helps управлять составом и параметрами Configuration.xml через xml-gen config."
+description: "xml-gen Configuration.xml: свойства и ChildObjects"
 ---
 
 # Config Operations

@@ -1,6 +1,6 @@
 ---
 name: agent-context-protocol
-description: Старт агента → прочитай {role}-context.md; выход → запиши его. Процедура и структура — в навыке agent-context.
+description: "На старте/выходе агента читать и писать role context"
 alwaysApply: true
 ---
 # Протокол контекста агента

@@ -1,6 +1,6 @@
 ---
 name: form-patterns
-description: "Form module patterns. MUST use WHEN writing 1C managed form module code. Provides rules for choosing context directives (&НаСервереБезКонтекста and others) and minimizing server round-trips."
+description: "Use for managed form module code and server calls"
 alwaysApply: false
 ---
 

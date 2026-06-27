@@ -1,6 +1,6 @@
 ---
 name: no-manual-xml-edit
-description: You are editing 1C XML/MXL -> apply the xml-generation skill. Manual editing is forbidden; for agents without a PreToolUse hook, a self-check through block-direct-xml-edit.py is mandatory.
+description: "When editing 1C XML/MXL, use xml-generation"
 alwaysApply: true
 ---
 

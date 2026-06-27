@@ -1,6 +1,6 @@
 ---
 name: background-jobs
-description: "Use for designing, diagnosing, and fixing 1C background and scheduled jobs. Helps ensure idempotency, retry policy, checkpointing, mutexes, and separation of retryable/permanent errors."
+description: "Design or debug 1C background and scheduled jobs"
 skills:
   - architect
   - developer-code
@@ -297,7 +297,7 @@ v8 run --ib <путь_к_ИБ> --event-log --filter "ФоновоеЗадани�
 
 **Checking active background jobs in the event log:**
 
-Look for events named `background job`. A stuck job is a `Start` event without a paired `Finish` and without `Error` - this is a candidate for a stale lock.
+Look for events named `Background job`. A stuck job is a `Start` event without a paired `Finish` and without `Error` - this is a candidate for a stale lock.
 
 ---
 

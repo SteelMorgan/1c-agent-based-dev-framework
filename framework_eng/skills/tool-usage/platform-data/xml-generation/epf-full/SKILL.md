@@ -1,6 +1,6 @@
 ---
 name: epf-full
-description: "Use for creating external processors and reports (EPF/ERF), adding forms, templates, and help, and connecting to the BSP subsystem «Additional Reports and Processors». Helps go through the full init→add-form→template→BSP registration cycle via xml-gen."
+description: "xml-gen EPF/ERF external reports and processors"
 targets:
   - developer-code
   - architect

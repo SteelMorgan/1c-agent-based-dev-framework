@@ -1,6 +1,6 @@
 ---
 name: vanessa-run-loop
-description: Changed `.feature` / `tests.va` config / MCP extension -> `v8-runner test va` run is mandatory. Apply the `v8-runner` and `vanessa-diagnostics` skills.
+description: "After feature/tests.va/MCP changes, run VA tests"
 alwaysApply: true
 ---
 

@@ -1,6 +1,6 @@
 ---
 name: code-verification
-description: "MUST use WHEN BSL code is changed before commit or handoff for review. Provides a three-layer check: LSP diagnostics, VALIDATE_BSL through Buddy, and platform API verification via bsl-platform-context."
+description: "After BSL changes: LSP, Buddy/API, syntax checks"
 uses_capabilities:
   - get_diagnostics
   - ask_ai_assistant
@@ -14,33 +14,33 @@ alwaysApply: false
 
 # Code Verification
 
-The skill describes **the sequence for verifying BSL code after changes are made**.
-Three layers of checks, each catching its own class of errors.
+This skill describes **the sequence for verifying BSL code after changes**.
+Three verification layers, each catching its own class of errors.
 
-## When to apply
+## When to Use
 
 | Trigger | Action |
 |---------|----------|
-| After changing BSL code | Full cycle (all 3 layers) |
+| After modifying BSL code | Full cycle (all 3 layers) |
 | Reviewing someone else's code | Layer 2 + Layer 3 |
 | User asks "check syntax" | Full cycle |
 
-## Check Layers
+## Verification Layers
 
-### Layer 1 — LSP diagnostics (fast)
+### Layer 1 - LSP diagnostics (fast)
 
 Goal: immediate feedback on the changed file.
 
 1. `get_diagnostics(uri)` — get errors/warnings from the BSL Language Server.
-2. If there is an `error`-level issue — fix it before moving to layer 2.
-3. If LSP is unavailable — move to layer 2, noting that the LSP check was skipped.
+2. If there is an `error`-level issue, fix it before moving to layer 2.
+3. If LSP is unavailable, move to layer 2 and note that the LSP check was skipped.
 
-### Layer 2 — Buddy (VALIDATE_BSL)
+### Layer 2 - Buddy (VALIDATE_BSL)
 
 Goal: syntax validation, standards check, search for analogs in БСП.
 
-**What to pass:** entire procedures/functions in which changes were made.
-Not fragments, not individual lines — full method bodies.
+**What to pass:** the complete procedures/functions that were modified.
+Not fragments, not individual lines - full method bodies.
 
 **Call:** `ask_ai_assistant` with the VALIDATE_BSL template from buddy-prompting.
 
@@ -48,20 +48,20 @@ Not fragments, not individual lines — full method bodies.
 
 | Situation | Action |
 |----------|----------|
-| Buddy found errors | Analyze each one. Filter out false "undeclared variable" reports for global methods. Fix the rest or justify them. |
-| Buddy found no errors | **DO NOT treat this as proof of correctness.** Buddy has limited context — it cannot see the project. Move to layer 3. |
+| Buddy found errors | Analyze each one. Filter false "undeclared variable" reports for global methods. Fix or justify the rest. |
+| Buddy found no errors | **DO NOT treat this as proof of correctness.** Buddy has limited context - it cannot see the project. Move to layer 3. |
 | Buddy recommends replacing with a БСП function | Verify via `search_ssl_functions` that the recommended function exists. |
 
-### Layer 3 — Platform API verification
+### Layer 3 - Platform API verification
 
 Goal: confirm that every platform object, method, property, and constructor used in the code **really exists** on the specified type.
 
 **Algorithm:**
 
 1. Extract all platform API references from the changed code:
-   - `New <Type>(...)` — object creation
-   - `<Object>.<Method>(...)` — method calls
-   - `<Object>.<Property>` — property reads/writes
+   - `New <Type>(...)` - object creation
+   - `<Object>.<Method>(...)` - method calls
+   - `<Object>.<Property>` - property reads/writes
    - References to managers, enumerations, predefined values
 
 2. Verify each reference:
@@ -75,9 +75,9 @@ Goal: confirm that every platform object, method, property, and constructor used
    | Type is unclear | Search by name | `search_syntax_reference` → `getMembers` |
    | Variable/expression type is unknown | Get the type of the value under the cursor | `get_hover_info` |
 
-3. **Special attention to collection types.** The APIs of `Структура`, `Соответствие`, `ТаблицаЗначений`, `Массив` differ. Do not assume the same methods — verify on the specific type.
+3. **Special attention to collection types.** The APIs of `Структура`, `Соответствие`, `ТаблицаЗначений`, `Массив` differ. Do not assume the same methods - verify on the specific type.
 
-4. **Determining a variable type.** When it is unclear which type a variable has (and therefore which API is allowed on it), `get_hover_info(uri, line, character)` on the variable name returns the inferred BSL LS value type (Type System v2). This is the type inference for the **specific value** at this point, not help for all platform types. Then verify members of the resulting type through `getMember`/`getMembers`. If `get_hover_info` is unavailable — determine the type from the declaration/assignment site via `navigate_symbol`.
+4. **Determining a variable type.** When it is unclear which type a variable has (and therefore which API is allowed on it), `get_hover_info(uri, line, character)` on the variable name returns the inferred BSL LS value type (Type System v2). This is the type inference for the **specific value** at this point, not help for all platform types. Then verify members of the resulting type through `getMember`/`getMembers`. If `get_hover_info` is unavailable, determine the type from the declaration/assignment site via `navigate_symbol`.
 
 ## Trust Hierarchy
 
@@ -105,7 +105,7 @@ As a result of the check, provide a structured output:
 |----------|------------|
 | LSP unavailable | Skip layer 1, move to layer 2. Note it in the report. |
 | Buddy unavailable | Skip layer 2. Strengthen layer 3. |
-| `bsl-platform-context` does not know the type | Type from the project (not a platform type) — verify via `navigate_symbol`. |
+| `bsl-platform-context` does not know the type | Type from the project (not a platform type) - verify via `navigate_symbol`. |
 | False "undeclared variable" from Buddy | Normal for global methods — filter it out. |
 | `search_syntax_reference` is empty | Clarify the type name (Russian/English spelling), check the version. |
 | Buddy recommends a non-existent БСП function | Verify via `search_ssl_functions`. |

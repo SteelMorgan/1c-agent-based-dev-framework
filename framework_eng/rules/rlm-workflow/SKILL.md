@@ -1,6 +1,6 @@
 ---
 name: rlm-workflow
-description: Universal reusable knowledge (patterns, architecture decisions, domain facts) → RLM, NOT into context. Before a non-trivial task/decision in a domain, pull from RLM. Native memory is only a thin always-on core.
+description: "Before non-trivial domain work, read RLM knowledge"
 alwaysApply: true
 ---
 # Memory Layout and Working with RLM

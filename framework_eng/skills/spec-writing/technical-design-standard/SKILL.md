@@ -1,11 +1,11 @@
 ---
 name: technical-design-standard
-description: "The technical design standard for 1С development tasks. Defines the structure of technical-design.md, the rules for filling sections (MUST/SHOULD/MAY), the quality checklist, and guidance on the level of detail. Used by the architect (Phase 2) and the reviewer (scope=arch)."
+description: "Write 1C technical-design.md with MUST/SHOULD/MAY"
 ---
 
 # Technical Design Standard (Technical Design)
 
-Technical design (`technical-design.md`) is the bridge between the specification (WHAT) and the decomposition of tasks (HOW). It records architectural decisions, the modular structure, contracts, and cross-cutting concepts. It extends the high-level Technical Design section from the specification.
+Technical design (`technical-design.md`) is the bridge between the specification (WHAT) and task decomposition (HOW). It captures architectural decisions, the module structure, contracts, and cross-cutting concepts. It extends the high-level Technical Design section from the specification.
 
 Foundation: Google Design Docs, arc42, MADR 4.0, Stripe RFC (Drawbacks), C4 Model.
 
@@ -13,7 +13,7 @@ Foundation: Google Design Docs, arc42, MADR 4.0, Stripe RFC (Drawbacks), C4 Mode
 
 ## 2. Document language
 
-Technical design MUST be written in **Russian** — section headings, descriptions, justifications, tables. Exceptions: code and metadata identifiers (module names, attributes, variables, BSL signatures) and well-established terms (ADR, RFC 2119, C4, MUST/SHOULD/MAY).
+Technical design MUST be written in **Russian** — section headings, descriptions, justifications, tables. Exception: code and metadata identifiers (module names, attributes, variables, BSL signatures), as well as established terms (ADR, RFC 2119, C4, MUST/SHOULD/MAY).
 
 ---
 
@@ -182,8 +182,8 @@ Cross-cutting solutions that span all modules. **SHOULD** document the decision 
 
 | Aspect | Decision | Justification |
 |--------|---------|-------------|
-| **Error handling** | Попытка/Исключение с ЗаписьЖурналаРегистрации | coding-standards rule 18 |
-| **Logging** | ЖР through БСП (ЗаписьЖурналаРегистрации) | ssl-patterns: standard mechanism |
+| **Error handling** | Try/Except with ЗаписьЖурналаРегистрации | coding-standards rule 18 |
+| **Logging** | Registration log through БСП (ЗаписьЖурналаРегистрации) | ssl-patterns: standard mechanism |
 | **Access rights** | Role via xml-gen, RLS is not required | Data does not contain organization-level segregation |
 | **Transactions** | НачатьТранзакцию/Попытка for writing to registers | coding-standards rule 18 |
 | **Client/Server** | &НаСервереБезКонтекста for business logic | coding-standards rule 3 |
@@ -257,29 +257,29 @@ What becomes worse, more complex, or more expensive. If the drawbacks section is
 
 ### § 8. Assumptions and open questions
 
-**Assumptions** — assumptions accepted in the face of uncertainty. They do not block the design but may influence implementation:
+**Assumptions** — assumptions accepted in the face of uncertainty. They do not block the architecture, but may influence implementation:
 
 ```markdown
 - Предполагаем, что максимальное кол-во контрагентов < 500K
 - БСП версии 3.1+ (иначе нужен fallback для ДлительныеОперации)
 ```
 
-**Open questions** — unanswered items. They do not block the architecture but require clarification before or during implementation.
+**Open questions** — those left unanswered. They do not block the architecture, but require clarification before or during implementation.
 
 ---
 
 ### § 9. Migration and rollback (conditional)
 
-**Condition:** this section MUST if existing metadata objects are changed or data migration is required. Otherwise — `N/A: new objects, no migration required`.
+**Condition:** this section MUST be present if existing metadata objects are changed or data migration is required. Otherwise — `N/A: new objects, migration not required`.
 
 #### 9.1 Migration plan
 - Update order (configuration → data → rights)
-- Fill / data conversion processes
-- Phasing (if the rollout is staged)
+- Fill / convert data processing
+- Phasing (if phased rollout is used)
 
 #### 9.2 Rollback strategy
-- Whether the changes can be rolled back
-- What will happen to the data during rollback
+- Can the changes be rolled back
+- What happens to the data during rollback
 - Point of no return (if any)
 
 ---
@@ -296,13 +296,13 @@ Traceability matrix: requirement from the specification → design section → t
 | SHOULD-1: Отчёт по истории | §4.1 Metadata (SKD) | T-005 |
 ```
 
-**Rule:** every MUST from the specification MUST be covered by at least one design section and one task. SHOULD — SHOULD be covered.
+**Rule:** each MUST from the specification MUST be covered by at least one design section and one task. SHOULD — SHOULD be covered.
 
 ---
 
 ## 6. Quality criteria for technical-design.md
 
-Checklist for the reviewer (scope=arch):
+Reviewer checklist (scope=arch):
 
 ### Structure and completeness
 - [ ] All MUST sections are filled in (or N/A with a reason)
@@ -310,34 +310,34 @@ Checklist for the reviewer (scope=arch):
 - [ ] Status is correct (Draft when created)
 
 ### Overview (§1)
-- [ ] Goals describe technical goals and do not repeat specification requirements
-- [ ] Non-goals include at least 1 conscious exclusion
-- [ ] Background is based on explorer-context.md and does not duplicate it
-- [ ] Constraints account for: development mode (extension/configuration), platform/БСП version
+- [ ] Goals describe technical goals, not a restatement of the specification requirements
+- [ ] Non-goals contain at least 1 conscious exclusion
+- [ ] Background relies on explorer-context.md and does not duplicate it
+- [ ] Constraints account for the development mode (extension/configuration), platform/БСП version
 
 ### Solution strategy (§2)
 - [ ] The strategy answers each Goal from §1.1
 - [ ] The description is at the approach level, not the code level
 
 ### Structural blocks (§3)
-- [ ] The module map covers all modules from the specification scope
+- [ ] The module map covers all modules in the specification scope
 - [ ] Interfaces and contracts contain signatures with parameters, return values, and compilation directives
 - [ ] There are no implicit dependencies between modules
 
 ### Data and metadata (§4)
 - [ ] All metadata objects are listed with types and changes
-- [ ] Complex objects (forms, SKD, roles) have a link to the JSON DSL file
-- [ ] Data flow covers the key scenarios from the test plan
+- [ ] Complex objects (forms, SKD, roles) have a link to a JSON DSL file
+- [ ] The data flow covers the key scenarios from the test plan
 
 ### Cross-cutting concepts (§5)
 - [ ] Decisions for error handling, transactions, rights, and the client/server boundary
-- [ ] The use of or refusal to use БСП mechanisms is justified (ssl-patterns)
+- [ ] Use or rejection of БСП mechanisms is justified (ssl-patterns)
 - [ ] Platform limitations with workarounds (if any)
 
 ### Key decisions (§6)
-- [ ] Each non-obvious decision (≥2 alternatives) has justification
-- [ ] ADR files contain consequences and confirmation
-- [ ] There are no decisions that contradict the specification
+- [ ] Each non-obvious decision (≥2 alternatives) has a justification
+- [ ] ADR files include consequences and confirmation
+- [ ] There are no decisions that conflict with the specification
 
 ### Risks and drawbacks (§7)
 - [ ] Drawbacks are not empty — every decision has a cost
@@ -345,36 +345,36 @@ Checklist for the reviewer (scope=arch):
 - [ ] Trade-offs are described honestly (pros + cons)
 
 ### Traceability (§10)
-- [ ] Every MUST from the specification is covered by a design section and a task
+- [ ] Each MUST from the specification is covered by a design section and a task
 - [ ] There are no requirements without a design link
 - [ ] Task IDs match task-breakdown.json
 
 ### Task decomposition (JSON)
 - [ ] All tasks have unique `task_id`
-- [ ] `depends_on` values are valid and do not contain cycles
+- [ ] `depends_on` is valid and contains no cycles
 - [ ] `spec_refs` point to existing specification sections
 - [ ] `task_type` is correct (code/test/migration/docs/analysis/architecture)
 - [ ] `done_criteria` are verifiable and specific
-- [ ] JSON is stored in a separate file, with only a link in the design
+- [ ] JSON is stored in a separate file; the design contains only a link
 
-### Alignment with the framework
+### Consistency with the framework
 - [ ] The document is written in Russian (except code identifiers and established terms)
 - [ ] Compatibility with the existing configuration (coding-standards)
 - [ ] The design is implementable within the specification scope
-- [ ] The design does not contradict the decisions in the specification Decision Log
+- [ ] The design does not conflict with the decisions from the specification's Decision Log
 
 ---
 
-## 7. Typical mistakes
+## 7. Common mistakes
 
 | Error | Consequence |
 |--------|------------|
 | Non-goals are empty | Scope creep |
-| Drawbacks are empty | Reviewer cannot assess trade-offs |
-| JSON DSL is fully inline | The document becomes bloated, the overview is lost → DSL in artifacts/ |
-| Duplication of the specification | Violation of single source of truth |
-| Traceability is missing | Impossible to verify requirement coverage |
-| All sections are filled for a simple task | Formal overhead → use N/A |
+| Drawbacks are empty | The reviewer cannot assess trade-offs |
+| JSON DSL is fully inlined | The document becomes bloated, the overview is lost → DSL in artifacts/ |
+| Repetition of the specification | Violation of single source of truth |
+| Traceability is absent | Requirements coverage cannot be verified |
+| All sections are filled in for a simple task | Formal overhead → use N/A |
 | Constraints are not specified | Incompatible approach (EDT vs Designer, БСП version) |
 
 ---

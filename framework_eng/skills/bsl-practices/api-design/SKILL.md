@@ -1,6 +1,6 @@
 ---
 name: api-design
-description: "Use for designing and reviewing the public API of 1C subsystems. Helps classify export methods into 5 categories, verify backward compatibility, and design versioning with deprecated wrappers."
+description: "Design or review public APIs of 1C subsystems"
 ---
 
 # API Design — design and review of 1C subsystem interfaces

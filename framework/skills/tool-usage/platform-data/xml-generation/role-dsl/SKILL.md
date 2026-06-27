@@ -1,6 +1,6 @@
 ---
 name: role-dsl
-description: "Use for генерации ролей 1С с правами доступа через JSON DSL и точечного редактирования Rights.xml. Helps создать роль с нуля и управлять отдельными правами через xml-gen role compile/add-object/add-right."
+description: "xml-gen roles DSL и Rights.xml editing"
 ---
 
 # Role DSL

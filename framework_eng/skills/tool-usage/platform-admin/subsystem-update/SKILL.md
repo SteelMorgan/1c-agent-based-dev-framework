@@ -1,6 +1,6 @@
 ---
 name: subsystem-update
-description: "Use for initializing БСП subsystem updates: session locking, launching update handlers, checking via the event log and the ВерсииПодсистем register."
+description: "Run and verify BSP subsystem updates"
 ---
 
 # Updating the БСП Subsystem
@@ -15,11 +15,11 @@ description: "Use for initializing БСП subsystem updates: session locking, la
 
 ---
 
-## Preconditions
+## Prerequisites
 
 1. The handler is registered in the subsystem update module (for example `ОбновлениеИнформационнойБазыXXX`)
 2. The subsystem module is registered in `ИнтеграцияПодсистемБСП.ПриДобавленииПодсистем`
-3. The project is built (`v8-runner build`) - code changes are loaded into the infobase
+3. The project is built (`v8-runner build`) - changes in code are loaded into the infobase
 
 ---
 
@@ -33,7 +33,7 @@ description: "Use for initializing БСП subsystem updates: session locking, la
 ГДЕ ИмяПодсистемы = "ИМЯ_ПОДСИСТЕМЫ"
 ```
 
-БСП will run the handler only if the version in the register is **<** the handler version.
+БСП will execute the handler only if the version in the register is **<** the handler version.
 
 ### Step 2. Lock the Infobase
 

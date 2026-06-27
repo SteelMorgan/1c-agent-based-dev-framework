@@ -1,6 +1,6 @@
 ---
 name: extension-operations
-description: "Operations with 1C configuration extensions (CFE) - init, borrowing objects, generating method interceptors, and analyzing extension composition. Helps manage CFE via xml-gen extension init/borrow/diff/validate."
+description: "xml-gen CFE: init, borrow, interceptors, validate"
 ---
 
 # Extension Operations (CFE)

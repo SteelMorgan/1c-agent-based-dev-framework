@@ -1,6 +1,6 @@
 ---
 name: agent-debug
-description: "Standard diagnostics (registration log/screenshots) did not reveal the actual behavior -> apply the `agent-debug` skill (critical trigger)"
+description: "If logs/screenshots fail, add agent-debug tracing"
 alwaysApply: true
 ---
 # Debug Messages (Agent Debug)

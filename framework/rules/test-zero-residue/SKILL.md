@@ -1,6 +1,6 @@
 ---
 name: test-zero-residue
-description: Любой тест, пишущий в БД, не оставляет следов прогона — все созданные объекты физически зачищены, дельта по справочникам/регистрам/документам до и после прогона = 0. Применить навык test-writing.
+description: "Для DB-writing тестов обязателен zero-residue cleanup"
 alwaysApply: true
 ---
 

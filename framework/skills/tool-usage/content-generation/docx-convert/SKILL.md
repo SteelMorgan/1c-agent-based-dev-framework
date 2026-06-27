@@ -1,6 +1,6 @@
 ---
 name: docx-convert
-description: "Use for конвертации Word-документа (.docx) в Markdown с извлечением изображений (ТЗ, спека, инструкция, документация поставщика). Helps получить GFM-текст через pandoc с постобработкой HTML-таблиц и путей к картинкам."
+description: "Для конвертации DOCX в Markdown с изображениями"
 capabilities: content-generation,document-conversion
 ---
 

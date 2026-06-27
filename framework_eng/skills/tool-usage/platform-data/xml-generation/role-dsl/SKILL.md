@@ -1,6 +1,6 @@
 ---
 name: role-dsl
-description: "JSON DSL for generating 1С roles with access rights to metadata objects. Use it for role compile and when editing Rights.xml through xml-generation (edit commands)."
+description: "xml-gen roles DSL and Rights.xml editing"
 ---
 
 # Role DSL

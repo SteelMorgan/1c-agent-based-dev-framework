@@ -3,7 +3,7 @@
 Тесты фильтра alwaysApply для установщика фреймворка.
 
 Проверяет:
-  1. Правила и workflow устанавливаются как skills в форме, нужной IDE.
+  1. Правила и workflow устанавливаются в форме, нужной IDE.
   2. alwaysApply сохраняется в component_map и влияет на оценку контекста.
   3. Навыки всегда в skills_dir, флаг не влияет.
   4. estimate_context_usage: правило без флага в on-demand, а не в always.
@@ -193,25 +193,37 @@ def _run_install(
     return installed, skipped
 
 
-def test_install_claude_code_rules_as_file_skills():
-    """Claude Code: все правила и workflow копируются как file-style skills."""
+def test_install_claude_code_rules_as_rule_files():
+    """Claude Code: always-on правила и workflow ставятся файловыми ссылками."""
     with tempfile.TemporaryDirectory() as tmp:
         fw, base = _make_fw(Path(tmp))
         project_dir = base / "project"
         project_dir.mkdir()
+        legacy_skills_dir = project_dir / ".claude" / "skills"
+        legacy_skills_dir.mkdir(parents=True)
+        for name in ("rule-always", "rule-lazy", "rule-explicit-false", "my-workflow"):
+            (legacy_skills_dir / f"{name}.md").write_text("legacy", encoding="utf-8")
 
         _run_install(fw, "claude-code", project_dir)
 
         rules_dir = project_dir / ".claude" / "rules"
         skills_dir = project_dir / ".claude" / "skills"
 
-        for name in ("rule-always", "rule-lazy", "rule-explicit-false", "my-workflow"):
-            skill_file = skills_dir / f"{name}.md"
-            assert skill_file.exists(), (
-                f"{name}.md ожидается как file-style skill в {skills_dir}"
+        for name in ("rule-always", "my-workflow"):
+            rule_file = rules_dir / f"{name}.md"
+            assert rule_file.exists(), (
+                f"{name}.md ожидается как файловая ссылка в {rules_dir}"
             )
+            assert not (skills_dir / f"{name}.md").exists(), (
+                f"{name}.md НЕ ожидается в {skills_dir}"
+            )
+
+        for name in ("rule-lazy", "rule-explicit-false"):
             assert not (rules_dir / f"{name}.md").exists(), (
-                f"{name}.md НЕ ожидается в {rules_dir}"
+                f"{name}.md без alwaysApply не должен физически ставиться в {rules_dir}"
+            )
+            assert not (skills_dir / f"{name}.md").exists(), (
+                f"{name}.md без alwaysApply не должен ставиться как skill в {skills_dir}"
             )
 
         # Навык должен быть в skills_dir
@@ -220,7 +232,7 @@ def test_install_claude_code_rules_as_file_skills():
             f"Навык my-skill/SKILL.md ожидается в {skills_dir}"
         )
 
-    print("  OK  test_install_claude_code_rules_as_file_skills")
+    print("  OK  test_install_claude_code_rules_as_rule_files")
 
 
 def test_install_codex_rules_as_skills():
@@ -622,7 +634,7 @@ def main():
     tests = [
         test_always_apply_parsed,
         test_is_always_on_rule,
-        test_install_claude_code_rules_as_file_skills,
+        test_install_claude_code_rules_as_rule_files,
         test_install_codex_rules_as_skills,
         test_install_codex_rules_as_directory_symlinks,
         test_install_codex_workflows_as_skills,

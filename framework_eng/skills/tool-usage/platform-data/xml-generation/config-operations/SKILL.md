@@ -1,6 +1,6 @@
 ---
 name: config-operations
-description: "Use for creating a configuration, analyzing and changing its properties and ChildObjects, and validating Configuration.xml. Helps manage the composition and parameters of Configuration.xml through xml-gen config."
+description: "xml-gen Configuration.xml: properties and ChildObjects"
 ---
 
 # Config Operations

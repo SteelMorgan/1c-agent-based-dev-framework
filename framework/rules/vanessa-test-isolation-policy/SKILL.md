@@ -1,6 +1,6 @@
 ---
 name: vanessa-test-isolation-policy
-description: Пишешь Vanessa-сценарий с записью данных → полная изоляция (тест создаёт свои объекты). Применить навык vanessa-authoring.
+description: "Для data-writing Vanessa tests изолировать данные"
 alwaysApply: true
 ---
 

@@ -1,6 +1,6 @@
 ---
 name: skill-learning-policy
-description: Накопление знаний, два триггера. ЗАПИСЬ — после цикла с ≥2 итерациями провести ретроспективу. ЧТЕНИЕ — перед работой с навыком прочитать его references/learned-patterns.md. Процедура и формат записи → навык skill-learning.
+description: "До skill use и после итераций обновлять learned patterns"
 alwaysApply: true
 ---
 # Политика накопления знаний (Skill Learning)

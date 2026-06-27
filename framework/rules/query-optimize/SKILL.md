@@ -1,6 +1,6 @@
 ---
 name: query-optimize
-description: "После выявления медленного запроса → применить навык query-optimize"
+description: "После обнаружения медленного запроса применить optimize"
 alwaysApply: true
 ---
 # Оптимизация запросов (после выявления проблемы)

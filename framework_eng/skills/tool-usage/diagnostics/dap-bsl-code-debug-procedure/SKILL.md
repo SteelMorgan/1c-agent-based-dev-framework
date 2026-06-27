@@ -1,6 +1,6 @@
 ---
 name: dap-bsl-code-debug-procedure
-description: "Use when you need to interactively debug a single BSL procedure through DAP/MCP: connect to the 1С debug server, set or remove a breakpoint, wait for the stop, inspect variables, execute step_in/step_out/continue, and cleanly tear down the debugging session."
+description: "Interactively debug one BSL procedure through DAP"
 uses_capabilities:
   - debug_bsl_code
 ---

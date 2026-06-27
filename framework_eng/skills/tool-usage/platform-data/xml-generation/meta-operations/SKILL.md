@@ -1,6 +1,6 @@
 ---
 name: meta-operations
-description: "Use for creating and editing 1С metadata objects (23 types: catalogs, documents, registers, enumerations, etc.) via xml-gen meta. Helps add attributes, tabular sections, dimensions, and validate configuration objects."
+description: "xml-gen metadata: objects, attributes, tabular parts"
 ---
 
 # Meta Operations
@@ -54,7 +54,7 @@ xml-gen meta compile <meta.json> <output_dir>
 
 **Full Catalog properties:** `hierarchical`, `hierarchyType` (HierarchyFoldersAndItems|HierarchyItemsOnly), `limitLevelCount`, `levelCount`, `foldersOnTop`, `codeLength`, `codeType` (String|Number), `codeAllowedLength` (Variable|Fixed), `codeSeries` (WholeCatalog|WithinOwnerSubordination|WithinSubordination), `descriptionLength`, `autonumbering`, `checkUnique`, `defaultPresentation` (AsDescription|AsCode), `subordinationUse` (ToItems|ToFolders|ToFoldersAndItems), `quickChoice`, `choiceMode` (BothWays|FromChoiceForm|QuickChoice), `editType` (InDialog|InList|BothWays), `owners` (array of strings, e.g. `["Catalog.Counterparties"]`).
 
-**Attribute flag `multiLine`** - makes a string field multiline (`<MultiLine>true</MultiLine>`). In shorthand: `"Описание: String(500) | multiline"`.
+**Attribute flag `multiLine`** - makes a string field multiline (`<MultiLine>true</MultiLine>`). In shorthand: `"Description: String(500) | multiline"`.
 
 ### meta info
 
@@ -137,7 +137,7 @@ xml-gen meta edit <objectPath> --batch patch.json
 xml-gen meta edit --batch multi-patch.json
 ```
 
-Use this when: multiple operations of different types need to be applied to one object in a single call, the agent is generating patches, reproducible schema migrations.
+Use when: several operations of different types need to be applied to a single object in one call, the agent is generating patches, or schema migrations need to be reproducible.
 
 **Inline batch via `;;`:**
 ```bash

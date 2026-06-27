@@ -1,16 +1,16 @@
 ---
 name: search-before-write
-description: "MUST use BEFORE writing new BSL code or a function. Defines the search cascade (LSP → metadata → platform → БСП) as proof that no ready-made equivalent exists."
+description: "Before new BSL code, find an existing analogue"
 alwaysApply: false
 ---
 
 # Search Before Write
 
-Any coding task is first and foremost a search task. Search first, then write.
+Any coding task is first and foremost a search task. First search, then write.
 
 ## Search Cascade
 
-Each next step is only taken if the previous one produced no result:
+Each next step is only if the previous one did not produce a result:
 
 | Step | Tool | What we search for |
 |-----|------------|----------|
@@ -30,9 +30,9 @@ Each next step is only taken if the previous one produced no result:
 |--------|-----------------------|
 | New function/procedure | 1 — search for analogs by name |
 | Business logic | 2 — search for metadata objects |
-| Using the platform API | 3 — syntax reference; fallback 5a (documentation) |
+| Platform API usage | 3 — syntax reference; fallback 5a (documentation) |
 | Print form | 2 → 4 (metadata + БСП API) |
-| Development standards and rules | 5b — search in ИТС |
+| Standards and development rules | 5b — search in ИТС |
 | Migration between versions | 5a (DIFF_VERSIONS template) |
 | Query | 1 — existing queries in the project |
 
@@ -40,23 +40,23 @@ Each next step is only taken if the previous one produced no result:
 
 | Capability | Purpose |
 |------------|------------|
-| `navigate_symbol` | Search for symbols, definitions, usages |
+| `navigate_symbol` | Search symbols, definition, usages |
 | `list_metadata_objects` | Metadata objects by type and mask |
-| `get_metadata_structure` | Object structure (requisites, dimensions, resources) |
+| `get_metadata_structure` | Object structure (attributes, dimensions, resources) |
 | `search_syntax_reference` | Platform syntax reference |
 | `get_type_info` | Platform type details |
 | `search_ssl_functions` | БСП functions |
 | `ask_ai_assistant` | Best practices, templates |
 
-## Common mistakes
+## Typical Errors
 
-| Mistake | Workaround |
+| Error | Workaround |
 |--------|---------------|
-| Skipping the search | Hard rule: code creation → first step = search |
-| `list_metadata_objects` returns nothing | Is the configuration loaded? `v8-runner build` (or `v8-runner dump --mode incremental` if ИБ is the source of truth); check metaType/nameMask |
-| `navigate_symbol` returns nothing | Clarify the name (Rus/Lat, case); `ask_ai_assistant` (SEARCH_DOCS template) |
-| `ask_ai_assistant` returns an empty result | Reformulate the query; see the rules in `buddy-prompting` |
-| `search_ssl_functions` unavailable | Without БСП — `search_syntax_reference` + `navigate_symbol` through common modules |
+| Skipping search | Hard rule: code creation → first step = search |
+| `list_metadata_objects` empty | Configuration loaded? `v8-runner build` (or `v8-runner dump --mode incremental` if the ИБ is the source of truth); check metaType/nameMask |
+| `navigate_symbol` empty | Clarify the name (Russian/Latin, case); `ask_ai_assistant` (SEARCH_DOCS template) |
+| `ask_ai_assistant` empty result | Rephrase query; see rules in `buddy-prompting` |
+| `search_ssl_functions` unavailable | Without БСП — `search_syntax_reference` + `navigate_symbol` for common modules |
 
 ---
 depends_on: []

@@ -1,6 +1,6 @@
 ---
 name: skd-edit
-description: "Use for атомарного изменения существующей Schema.xml СКД: добавить/удалить поля, итоги, параметры, переписать запрос набора данных, изменить структуру варианта. Helps точечно дорабатывать СКД без полной перекомпиляции через xml-gen skd edit."
+description: "xml-gen atomic edits of existing SKD Schema.xml"
 ---
 
 # SKD Edit — точечное редактирование Schema.xml

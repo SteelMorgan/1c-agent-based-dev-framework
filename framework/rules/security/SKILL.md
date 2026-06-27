@@ -1,6 +1,6 @@
 ---
 name: security
-description: "Работа с паролями/токенами/крипто/привилегиями → применить навык security"
+description: "Для секретов, токенов, crypto, privileges применять security"
 alwaysApply: true
 ---
 # Безопасность 1С

@@ -1,6 +1,6 @@
 ---
 name: capability-resolution
-description: Резолв capability → реализация (MCP tool или CLI). Агент использует registry.yaml для вызова.
+description: "При выборе инструмента сначала сопоставить capability"
 alwaysApply: true
 ---
 

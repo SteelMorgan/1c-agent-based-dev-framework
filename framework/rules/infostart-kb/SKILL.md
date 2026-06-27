@@ -1,6 +1,6 @@
 ---
 name: infostart-kb
-description: "Перед написанием/отладкой/проектированием 1С-кода → обратиться к навыку infostart-kb"
+description: "Перед 1C дизайном/кодом/отладкой проверить Infostart"
 alwaysApply: true
 ---
 # База знаний Infostart (перед разработкой 1С)
