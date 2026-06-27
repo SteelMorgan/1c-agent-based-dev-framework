@@ -340,7 +340,7 @@ v8-runner launch thin --execute "<абс. путь к .epf>" --c "ЗАПУСК_�
 - **Completion condition:** wait for the 1cv8 process to exit OR for the protocol file written by the processing itself to appear. A process exit code alone is a weak signal.
 - **Verify the result by behavior, not by the fact of launch:** data delta (query before/after), protocol file content, an entry in the registration log. "The process ran without error" does not mean "the logic executed."
 
-> Alternative without `/Execute`: from an **already connected** server session - `ВнешниеОбработки.Создать(<path>, Ложь)` plus a call to its export method (or BСП `ДлительныеОперации.ВыполнитьПроцедуруМодуляОбъектаОбработки`). This requires a "run code on server" channel (session manager / test runner), while `/Execute` is self-contained from the command line.
+> Alternative without `/Execute`: from an **already connected** server session - `ВнешниеОбработки.Создать(<path>, Ложь)` plus a call to its export method (or БСП `ДлительныеОперации.ВыполнитьПроцедуруМодуляОбъектаОбработки`). This requires a "run code on server" channel (session manager / test runner), while `/Execute` is self-contained from the command line.
 
 ## Guard Rules
 

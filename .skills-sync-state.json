@@ -747,9 +747,9 @@
       "status": "dirty"
     },
     "framework/skills/tool-usage/v8-runner/SKILL.md": {
-      "ru_hash": "sha256:21029ae65ed4f00e787f38a34fa3a27408092319b020a4d0e02525b3cef48e93",
-      "en_hash": "sha256:92c2aa67c540094713496216ec08c2a8c26ef4641c183780316c4a685d5c8b71",
-      "synced_at": "2026-06-27T13:34:00Z",
+      "ru_hash": "sha256:8a500c987fc3f551d85a3790d27c2b8613dbe697764c1df26142476071c44a44",
+      "en_hash": "sha256:2c8c5087192773b2e166ede7718fa2a3572693cfaf56ca2b933dad4e4ca4beef",
+      "synced_at": "2026-06-27T13:51:33Z",
       "status": "synced"
     },
     "framework/skills/tool-usage/v8-runner/agents/openai.yaml": {

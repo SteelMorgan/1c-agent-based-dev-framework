@@ -216,7 +216,7 @@ v8-runner launch mcp va \
 
 Обязательный смысл этой строки запуска: MCP-сессия должна жить на стороне процесса тест-менеджера с открытой внешней обработкой Vanessa Automation. Не запускай тестируемое приложение с формой `MCPVA`: `MCPVA` — внутренняя форма/модуль внешней обработки VA, и именно VA в процессе `/TESTMANAGER` должна выполнить `MCPVA.ЗарегистрироватьИнструментыMCP()`.
 
-Критерий готовности VA MCP-сессии: в `session_list` появилась live-сессия `kind=vanessa_test_client`, и в её tools есть VA-инструменты (`get_VanessaAutomation_state`, `connect_test_client`, `get_form_analysis`, `manage_command_interface`) или число tools стало больше базового набора `client_mcp`. Первичная регистрация с базовыми tools ещё не означает, что `MCPVA.ЗарегистрироватьИнструментыMCP()` уже отработал.
+Критерий готовности VA MCP-сессии: в `session_list` появилась live-сессия `kind=vanessa_test_client`, и в её tools есть VA-инструменты (`get_VanessaAutomation_state`, `connect_test_client`, `get_window_list_os`, `get_window_screenshot_os`, `get_form_analysis`, `manage_command_interface`) или число tools стало больше базового набора `client_mcp`. Первичная регистрация с базовыми tools ещё не означает, что `MCPVA.ЗарегистрироватьИнструментыMCP()` уже отработал.
 
 Сразу после `v8-runner launch mcp va` ответ `session_list=[]` или отсутствие VA-tools **не является ошибкой**: запуск тест-менеджера и регистрация инструментов штатно могут занимать 10-90 секунд. Обязательный readiness-loop:
 
