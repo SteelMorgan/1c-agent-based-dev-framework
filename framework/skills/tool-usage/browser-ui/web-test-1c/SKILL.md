@@ -1,11 +1,25 @@
 ---
 name: web-test-1c
-description: "Use for автоматизации действий в 1С через браузер (навигация по разделам, заполнение форм, чтение таблиц и отчётов, фильтрация списков). Helps писать browser-тесты 1С на семантическом слое без знания DOM-деталей платформы."
+description: "Browser UI tests for 1C: формы, таблицы, отчёты"
 ---
 
 # web-test-1c — Автоматизация 1С веб-клиента
 
 Семантический слой поверх Playwright для DOM 1С:Предприятие веб-клиента.
+
+## Граница применения
+
+`web-test-1c` НЕ является маршрутом по умолчанию для проверки 1С UI. Если задача — открыть форму/список, нажать команду, заполнить поля, проверить видимость/доступность, реакцию клиентских обработчиков, строки табличной части, пользовательский бизнес-поток или визуально принять форму, сначала применяй профильный навык `va-visual-check`.
+
+Веб-клиент допустим как browser-layer инструмент или как fallback по правилам `va-visual-check`, когда VA-маршрут уже проверен и причина fallback зафиксирована. Типовые browser-layer случаи:
+
+- DOM/HTML/CSS: структура разметки, нестандартный виджет, CSS-обрезка/перекрытие, точный браузерный selector.
+- Browser diagnostics: console errors, network trace, cookies/localStorage/sessionStorage, web-auth/login/logout, публикация базы на web-сервере.
+- Browser rendering: viewport/responsive-поведение веб-клиента, pixel-level screenshot именно браузерного слоя, Chrome/Edge-only дефект, поведение 1C browser extension.
+- Browser-only I/O: file chooser/download/clipboard/drag-and-drop, если это зависит от браузера, а не от формы 1С.
+- Fallback после VA MCP, когда browser/web-client даёт достаточный сигнал для текущей задачи.
+
+Если web-клиент выбран, явно зафиксируй причину, выполненные VA-шаги и остаточный риск отличий web-client от тонкого/толстого клиента.
 
 ## Установка
 
@@ -134,7 +148,7 @@ node $RUN stop                          # logout + закрытие (освоб�
 
 **1. Vanessa Automation (рекомендуется)** — если сценарий описан в `.feature`-файле. Vanessa пишет видео прогона и генерирует субтитры из шагов Gherkin из коробки. Настраивается через профиль (`ЗаписыватьВидео`, `ГенерироватьСубтитры`, `ПутьКВидеозаписям`). Использовать для демо-видео команде, документирования бизнес-процессов.
 
-**2. Playwright fallback** — когда Vanessa недоступна, нужен headless или сценарий написан на JS. API: `startRecording` / `stopRecording` / `showCaption` / `addNarration` (TTS через node-edge-tts, OpenAI или ElevenLabs). Требует ffmpeg.
+**2. Playwright для browser/fallback записи** — когда сценарий находится в браузерном слое, написан на JS или выбран как fallback по правилам `va-visual-check`. API: `startRecording` / `stopRecording` / `showCaption` / `addNarration` (TTS через node-edge-tts, OpenAI или ElevenLabs). Требует ffmpeg.
 
 Подробнее: [recording.md](recording.md) — сравнительная таблица, параметры профиля Vanessa, полный API Playwright-записи, примеры, устранение неполадок.
 

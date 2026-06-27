@@ -26,7 +26,7 @@ provides_capabilities:
 
 Use this skill to manage `v8-runner` as an automation layer for local 1C development projects.
 
-Keep this file as the entry point for decisions. Load only the reference file that matches the task:
+Treat this file as the entry point for decisions. Load only the reference file that matches the task:
 
 - `references/command-selection.md` — for choosing the correct command sequence.
 - `references/bootstrap.md` — for generating `v8project.yaml` from an existing repository: what to determine yourself and what to ask the user (decision tree for `format`, `builder`, `connection`).
@@ -34,20 +34,20 @@ Keep this file as the entry point for decisions. Load only the reference file th
 - `references/project-workflows.md` — typical build, syntax, dump, launch, and source synchronization scenarios for Designer and EDT projects.
 - `references/file-and-artifact-workflows.md` — about dump, convert, load, make/artifacts, and staged publication.
 - `references/testing.md` — about YaXUnit, Vanessa Automation, syntax checks, and artifacts.
-- `references/troubleshooting.md` — about configuration failures, stale state, and environment diagnostics.
-- `references/auth-guard.md` — hard-stop on license patterns, the two-candidate rule, auth/path error classification, and storing credentials in `v8project.local.yaml`.
+- `references/troubleshooting.md` — about setup failures, stale state, and environment diagnostics.
+- `references/auth-guard.md` — hard stop on license patterns, the two-candidate rule, classification of auth/path errors, storing credentials in `v8project.local.yaml`.
 
 ## Command Form
 
-The canonical path to the binary is `tools/external/v8-runner/v8-runner` (in the project this works through the `tools/` symlink to the framework). The framework installer pulls the Latest release from [`alkoleft/v8-runner-rust`](https://github.com/alkoleft/v8-runner-rust) (upstream) on every run; manual reinstall — `python tools/install.py --install-external-tools`. If the binary is missing at this path and is not in `PATH` either, ask the user for the path or use the wrapper script from the project.
+The canonical binary path is `tools/external/v8-runner/v8-runner` (in the project this works through the `tools/` symlink to the framework). The framework installer pulls the Latest release from [`alkoleft/v8-runner-rust`](https://github.com/alkoleft/v8-runner-rust) (upstream) on every run; manual reinstall is `python tools/install.py --install-external-tools`. If the binary is missing at this path and is not in `PATH` either, ask the user for the path or use the project wrapper script.
 
-> **WS transport: the SteelMorgan fork is used.** For WS integration with the session manager, the fork [`SteelMorgan/v8-runner-rust`](https://github.com/SteelMorgan/v8-runner-rust) is used instead of upstream `alkoleft/v8-runner-rust`, because PRs with WS support are not accepted upstream. The framework installer targets releases from this fork. Similarly, `onec-client-mcp-devkit` (extensions `mcp_client`, `test_client`, and others) is taken from the fork [`SteelMorgan/onec-client-mcp-devkit`](https://github.com/SteelMorgan/onec-client-mcp-devkit).
+> **WS transport: the SteelMorgan fork is used.** For WS integration with the session manager, the fork [`SteelMorgan/v8-runner-rust`](https://github.com/SteelMorgan/v8-runner-rust) is used instead of upstream `alkoleft/v8-runner-rust`, because PRs with WS support are not accepted upstream. The framework installer targets releases from this fork. Similarly, `onec-client-mcp-devkit` (extensions `mcp_client`, `test_client`, etc.) is taken from the fork [`SteelMorgan/onec-client-mcp-devkit`](https://github.com/SteelMorgan/onec-client-mcp-devkit).
 
 `v8project.yaml` is the default project config name. The adjacent `v8project.local.yaml` is loaded automatically for machine-local paths, credentials, tools, tests, and MCP settings. Do not pass `--config v8project.yaml` unless the user explicitly asks for a nonstandard command form or the active config path differs from the default; never pass `v8project.local.yaml` through `--config`.
 
-Generated `v8project.yaml` files contain a `yaml-language-server` modeline that points to the versioned JSON Schema for the current `v8-runner` release. For `v8project.local.yaml`, use the corresponding raw URL `docs/schemas/v8project.local.schema.json` from the GitHub tag in editor settings when schema-guided editing matters.
+Generated `v8project.yaml` files contain a `yaml-language-server` modeline that points to a versioned JSON Schema for the current `v8-runner` release. For `v8project.local.yaml`, use the corresponding raw URL `docs/schemas/v8project.local.schema.json` from the GitHub tag in editor settings when schema-aware editing matters.
 
-Use JSON output only when another tool, script, or the final response needs structured results:
+Use JSON output only when another tool, script, or the final answer needs structured results:
 
 ```bash
 v8-runner --json-message build
@@ -58,32 +58,32 @@ For direct human diagnostics, use text output.
 Useful global flags:
 
 - `--config <CONFIG>` — when the active config is not `./v8project.yaml`.
-- `--json-message` — for machine-readable CLI wrappers.
+- `--json-message` — for machine-readable CLI envelopes.
 - `--workdir <WORKDIR>` — overrides `workPath`; takes precedence over `v8project.local.yaml`.
 - `--clean-before-execution` — clear logs before execution.
 - `--log-level <error|warn|info|debug|trace>` — for diagnostics.
 - `--no-color` — plain text output.
 
-## Lifecycle of Running 1C Clients
+## 1C Client Lifecycle
 
-Start interactive 1C clients and MCP/VA sessions that must remain available after the command returns to the agent as separate processes with explicit lifecycle management. Do not use `sleep`, `tail -f`, an endless shell loop, or a similar wrapper command as a way to keep a 1C client alive: when the wrapper exits, the terminal/PTY or agent environment may close the child 1C process, and `session-manager` will see that as a WS break without a normal shutdown.
+Run interactive 1C clients and MCP/VA sessions that must remain available after the command returns to the agent as standalone processes with explicit lifecycle management. Do not use `sleep`, `tail -f`, an infinite shell loop, or a similar wrapper command to "keep" a 1C client alive: when the wrapper exits, the terminal/PTY or the agent environment may close the child 1C process, and `session-manager` will see this as a WS break without a normal close.
 
-Correct order:
+The correct order is:
 
-1. Start the client through the standard `v8-runner launch ...` command.
-2. If the runtime cleans up child processes after the shell command finishes, run the command with detached environment mechanisms (`nohup`, `setsid`, service/job runner, or the project equivalent), and save the PID and launch log.
-3. Check readiness through externally observable state: `session_list`, the appearance of the required MCP tools, the 1C window, a file log, or a registration log entry.
-4. Shut down the client explicitly: with the standard session-manager/VA tool, a client shutdown command, or a targeted `kill <PID>` only for your saved PID.
+1. Start the client with the standard `v8-runner launch ...` command.
+2. If the runtime cleans up child processes after the shell command exits, run the command using detached environment facilities (`nohup`, `setsid`, a service/job runner, or the project equivalent), and save the PID and launch log.
+3. Check readiness through externally observable state: `session_list`, appearance of the required MCP tools, the 1C window, a file protocol, or an entry in the registration log.
+4. Stop the client with an explicit action: the standard session-manager/VA tool, a client shutdown command, or a targeted `kill <PID>` only for your saved PID.
 
 `sleep` is allowed only as a short wait between readiness checks inside a script/poll loop. It must not own the lifecycle of the 1C process.
 
 ## First Pass
 
-1. Check whether `v8project.yaml` exists in the root of the 1C project.
-2. If it does not exist, run the narrowest `v8-runner config init ...` command that fits the project shape.
+1. Check whether `v8project.yaml` exists at the root of the 1C project.
+2. If it does not, run the narrowest possible `v8-runner config init ...` command appropriate for the project shape.
 3. Inspect the generated config before running any mutating commands.
-4. Run `v8-runner init` only when you need to create a file-based infobase or an EDT workspace.
-5. Run the narrowest validation command that matches the user’s goal.
+4. Run `v8-runner init` only when you need to create a file infobase or an EDT workspace.
+5. Run the narrowest validation command that matches the user's goal.
 
 Useful initialization commands:
 
@@ -95,48 +95,48 @@ v8-runner config init --builder IBCMD
 v8-runner init
 ```
 
-## Common Scenario Routing
+## Typical Scenario Routing
 
 - Sources changed, the infobase may be stale: run `v8-runner build`.
 - Only one source set changed: use commands that accept `--source-set <NAME>` instead of a full rebuild or full materialization.
 - Branch switch, rebase, large object moves, stale source-based tool-extension state, or suspicious incremental state: run `v8-runner build --full-rebuild`.
-- Syntax check: inspect `format` and `builder`, then choose `syntax designer-modules`, `syntax designer-config`, or `syntax edt`.
+- Syntax checking: look at `format` and `builder`, then choose `syntax designer-modules`, `syntax designer-config`, or `syntax edt`.
 - Behavior validation: run the appropriate `v8-runner test ...` command; tests build first.
-- Vanessa Automation debugging, form exploration, and scenario writing via MCP: use `v8-runner launch mcp va ...` to start a VA test manager session with MCP tools. After startup, verify readiness through `session_list`: you need `kind=vanessa_test_client` and the appearance of VA tools, not just the initial WS registration.
+- Debugging Vanessa Automation, exploring forms, and writing scenarios through MCP: use `v8-runner launch mcp va ...` to start a VA test-manager session with MCP tools. After startup, verify readiness via `session_list`: you need `kind=vanessa_test_client` and the appearance of VA tools, not just the initial WS registration.
 - Extension property synchronization is needed: use `v8-runner extensions` or `extensions --name <SOURCE_SET>`.
-- Changes in the infobase must become Git-visible files: check `git status`, then run the appropriate `v8-runner dump ...` command.
-- Source conversion between Designer and EDT is needed: use `v8-runner convert`; this is CLI-only and does not use the infobase.
+- Infobase changes must become Git-visible files: check `git status`, then run the appropriate `v8-runner dump ...` command.
+- Need to convert sources between Designer and EDT: use `v8-runner convert`; this is CLI only and does not use the infobase.
 - Existing `.cf` or `.cfe` artifacts need to be applied to the infobase: use `v8-runner load ...`.
-- Release artifacts need to be exported or external artifacts published: use `v8-runner make ...` or the `artifacts` alias.
-- A 1C UI session is needed: use `v8-runner launch designer`, `launch thin`, `launch thick`, or `launch ordinary`.
-- You need to start onec-client-mcp-devkit inside 1C without VA authoring: use `v8-runner launch mcp ...`.
-- Integrate a running 1C client with a live [v8-client-session-manager](https://github.com/SteelMorgan/v8-client-session-manager) over WebSocket: see the separate "WS pairing parameters" section below. WS flags (`--mcp-transport`, `--manager-url`, `--client-uid`, `--corr-id`, `--mcp-log-level`, `--mcp-ws-timeout-ms`) are available on `launch ...` and `test ...` commands in the same way. The subtle clap-structure detail: on `test`, flags are placed **before** the `yaxunit/va` subcommand (for example `v8-runner test --mcp-transport=ws yaxunit module <NAME>`), not after it.
+- Need to export release artifacts or publish external artifacts: use `v8-runner make ...` or the `artifacts` alias.
+- Need a 1C UI session: use `v8-runner launch designer`, `launch thin`, `launch thick`, or `launch ordinary`.
+- Need to run onec-client-mcp-devkit inside 1C without authoring VA: use `v8-runner launch mcp ...`.
+- Couple a running 1C client with an active [v8-client-session-manager](https://github.com/SteelMorgan/v8-client-session-manager) over WebSocket: see the separate "WS coupling parameters" section below. WS flags (`--mcp-transport`, `--manager-url`, `--client-uid`, `--corr-id`, `--mcp-log-level`, `--mcp-ws-timeout-ms`) are available on `launch ...` and `test ...` commands in the same way. The subtle clap-structure point: on `test`, the flags are placed **before** the `yaxunit/va` subcommand (for example `v8-runner test --mcp-transport=ws yaxunit module <NAME>`), not after it.
 
-## WS Pairing Parameters with session-manager
+## WS Coupling Parameters with session-manager
 
-WS pairing with [v8-client-session-manager](https://github.com/SteelMorgan/v8-client-session-manager) is a mode in which the 1C client MCP server connects to the manager over WebSocket instead of local HTTP MCP. It is controlled by the same set of CLI flags or `tools.client_mcp.*` in `v8project.yaml`.
+WS coupling with [v8-client-session-manager](https://github.com/SteelMorgan/v8-client-session-manager) is a mode in which the 1C client MCP server connects to the manager over WebSocket instead of local HTTP MCP. It is controlled by the same set of CLI flags or by `tools.client_mcp.*` in `v8project.yaml`.
 
 ### Applicable Entry Points
 
-The same set of flags works for:
+The same flag set works for:
 
 - `v8-runner launch designer | thin | thick | ordinary` — flags are placed after `launch`.
 - `v8-runner launch mcp` / `launch mcp va` — flags are placed after `launch mcp [va]`.
 - `v8-runner test yaxunit all` / `test yaxunit module <NAME>` — flags are placed **at the `test` level**, BEFORE the `yaxunit` subcommand.
 - `v8-runner test va` — flags are placed **at the `test` level**, BEFORE the `va` subcommand.
 
-Example (test): `v8-runner test --mcp-transport=ws --mcp-log-level=debug yaxunit module mcp_МспПровайдер_Тесты`. If you place WS flags after `yaxunit` or `module <NAME>`, clap returns `error: unexpected argument`, because those subcommands do not declare their own `McpClientWsArgs`.
+Example (test): `v8-runner test --mcp-transport=ws --mcp-log-level=debug yaxunit module mcp_МспПровайдер_Тесты`. If you place WS flags after `yaxunit` or `module <NAME>`, clap responds with `error: unexpected argument`, because those subcommands do not declare their own `McpClientWsArgs`.
 
 ### CLI Flags
 
-- `--mcp-transport={ws|legacy|auto}` — `auto` (default) performs a TCP probe of `manager_url` for about 200 ms; `ws` is strict WS and fails if unavailable; `legacy` is the old HTTP mode without a probe.
+- `--mcp-transport={ws|legacy|auto}` — `auto` (default) performs a TCP probe of `manager_url` for about 200 ms; `ws` is strict WS, and fails if unavailable; `legacy` is the old HTTP mode without probing.
 - `--manager-url <URL>` — overrides `tools.client_mcp.manager_url` (default `ws://127.0.0.1:4000/sessions`).
-- `--client-uid <UUID>` — overrides the auto-generated UUID v4.
+- `--client-uid <UUID>` — overrides the auto-generated v4 UUID.
 - `--corr-id <STR>` — overrides `vr-<first 8 characters of client_uid>`.
 - `--mcp-log-level={off|error|warn|info|debug|trace}` — logging level inside the client.
 - `--mcp-ws-timeout-ms <N>` — WS handshake timeout (default 1000 ms; relevant for `auto` fallback).
 
-Alternatively, all of this can be set in `tools.client_mcp.*` in `v8project.yaml` / `v8project.local.yaml` — priority order: CLI → yaml → internal defaults.
+Alternative: all of this can be set in `tools.client_mcp.*` in `v8project.yaml` / `v8project.local.yaml` — priority order: CLI → yaml → internal defaults.
 
 ```yaml
 tools:
@@ -159,13 +159,13 @@ For specialized entry points, `kind` is fixed by the entry point and cannot be o
 | `test yaxunit ...` | `yaxunit_runner` |
 | `test va ...` | `vanessa_test_client` |
 
-### What v8-runner Injects into `/C` in the WS Branch
+### What v8-runner injects into `/C` in the WS branch
 
 ```text
 /C"mcpMode=ws;manager_url=<URL>;client_uid=<UUID>;kind=<KIND>;corr_id=<CORR>;mcp_log_level=<LVL>;mcp_ws_timeout_ms=<MS>"
 ```
 
-For `launch mcp` / `launch mcp va`, this is the entire `/C`. For `launch thin/thick/ordinary`, the same WS fragment is used, but **without** `kind=<KIND>`, and it is appended with `;` to the existing `/C` if one is already set. For test commands, the WS fragment is appended with `;` to the existing `RunUnitTests=...` / Vanessa player (if `transport=ws` is selected through the yaml config).
+For `launch mcp` / `launch mcp va`, this is the entire `/C`. For `launch thin/thick/ordinary`, the same WS fragment is used, but **without** `kind=<KIND>`, and it is appended via `;` to an existing `/C` if one is already set. For test commands, the WS fragment is appended via `;` to an existing `RunUnitTests=…` / Vanessa player (if `transport=ws` is selected through the yaml config).
 
 Ordinary thin client in WS mode:
 
@@ -173,11 +173,11 @@ Ordinary thin client in WS mode:
 /C"mcpMode=ws;manager_url=<URL>;client_uid=<UUID>;corr_id=<CORR>;mcp_log_level=<LVL>;mcp_ws_timeout_ms=<MS>"
 ```
 
-Important: do not add `kind` in ordinary `launch thin/thick/ordinary`. Such a client registers the basic `client_mcp` tools, but does not publish Vanessa Automation MCP tools by itself.
+Important: do not add `kind` in ordinary `launch thin/thick/ordinary`. Such a client registers the base `client_mcp` tools, but it does not publish Vanessa Automation MCP tools on its own.
 
 ### Vanessa Automation MCP through session-manager
 
-For the Vanessa Research/Scenario workflow through our `v8-client-session-manager`, not a plain thin client is launched, but a testing manager session with the Vanessa Automation processing open:
+For a Vanessa Research/Scenario workflow through our `v8-client-session-manager`, a plain thin client is not started, but a test-manager session with the Vanessa Automation external processing open:
 
 ```bash
 v8-runner launch mcp va \
@@ -189,7 +189,7 @@ v8-runner launch mcp va \
   --mcp-ws-timeout-ms 5000
 ```
 
-Expected 1C launch form that the runner should assemble:
+Expected 1C launch form that the runner must assemble:
 
 ```text
 1cv8c ENTERPRISE
@@ -203,24 +203,32 @@ Expected 1C launch form that the runner should assemble:
   /C"mcpMode=ws;manager_url=ws://127.0.0.1:4000/sessions;client_uid=<uid>;kind=vanessa_test_client;corr_id=<uid>;mcp_log_level=debug;mcp_ws_timeout_ms=5000;VAParams=<runtime va-params.json>"
 ```
 
-The required meaning of this launch line is that the MCP session must live on the testing manager process side with the Vanessa Automation external processing open. Do not launch the tested application with the `MCPVA` form: `MCPVA` is the internal form/module of the VA external processing, and it is VA in `/TESTMANAGER` that must execute `MCPVA.ЗарегистрироватьИнструментыMCP()`.
+The required meaning of this launch string is: the MCP session must live on the test-manager process side with the Vanessa Automation external processing open. Do not start the tested application with the `MCPVA` form: `MCPVA` is the internal form/module of the VA external processing, and it is VA running inside `/TESTMANAGER` that must call `MCPVA.ЗарегистрироватьИнструментыMCP()`.
 
-Readiness criterion for the VA MCP session: a live session with `kind=vanessa_test_client` appears in `session_list`, and its tools include VA tools (`get_VanessaAutomation_state`, `connect_test_client`, `get_window_list_os`, `get_window_screenshot_os`, `get_form_analysis`, `manage_command_interface`) or the number of tools becomes greater than the basic `client_mcp` set. Initial registration with the basic tools does not yet mean that `MCPVA.ЗарегистрироватьИнструментыMCP()` has already run.
+The readiness criterion for the VA MCP session is: a live `kind=vanessa_test_client` session appeared in `session_list`, and its tools contain VA tools (`get_VanessaAutomation_state`, `connect_test_client`, `get_window_list_os`, `get_window_screenshot_os`, `get_form_analysis`, `manage_command_interface`) or the number of tools became larger than the base `client_mcp` set. The initial registration with the base tools does not yet mean that `MCPVA.ЗарегистрироватьИнструментыMCP()` has already run.
 
-The tested application in the VA contour is started by the test manager itself: call `connect_test_client` with the testing client profile name (`profileName`, for example `Codex thin AgentAI`). VA will start a separate `/TESTCLIENT -TPort <auto>` process from the profile and connect `ТестируемоеПриложение` to it. Do not start this `/TESTCLIENT` manually for the VA path unless you are debugging the profile mechanism itself.
+Immediately after `v8-runner launch mcp va`, the response `session_list=[]` or the absence of VA tools is **not an error**: starting the test manager and registering tools takes time. Mandatory readiness loop:
+
+1. Poll `session_list` every 5-10 seconds.
+2. Wait up to 120 seconds from the start.
+3. Continue only when there is a live `kind=vanessa_test_client`, `state=active`, `disconnected_secs_ago=null`, `inflight=0` session, and the required VA tools for the current task are present.
+4. Tool names from the MCP/showcase cache without a live session do not prove readiness.
+5. If the condition is not satisfied within 120 seconds, stop and report `VA MCP readiness blocker`.
+
+The tested application in the VA context is started by the test manager itself: call `connect_test_client` with the name of the testing client profile (`profileName`, for example `Codex thin AgentAI`). VA will start a separate `/TESTCLIENT -TPort <auto>` process from the profile and connect `ТестируемоеПриложение` to it. Do not start this `/TESTCLIENT` manually for the VA path unless you are debugging the profile mechanism itself.
 
 Treat VA screenshot MCP tools (`get_window_list_os`, `get_window_screenshot_os`) as ready only after a short smoke check in the current environment: the live session must remain active, `inflight=0`, and the PNG must be non-empty and non-black. The detailed visual-check order and fallback conditions are described in the `va-visual-check` skill.
 
-The full payload, JSON output form (`--json-message`), probe rules, and behavior when the manager is unavailable are in `references/project-workflows.md` (section "WS mode to session-manager"). Bringing up the manager itself is **not included** in v8-runner — see the `v8-session-manager` skill.
+Configure the `tools.va` / `tests.va` section in `v8project.yaml` and the TestClient profile in VAParams according to `references/config-and-backends.md` (section "Vanessa Automation in `v8project.yaml`"). The exact command chain for manager → `connect_test_client` → close is in `references/testing.md` (section "Exact VA manager → TestClient chain"). The full payload, the JSON output form (`--json-message`), probe rules, and behavior when the manager is unavailable are in `references/project-workflows.md` (section "WS mode to session-manager"). Starting the manager itself is **not** part of v8-runner — see the `v8-session-manager` skill.
 
-### UI MCP through the Platform Test Client
+### UI MCP through the platform test client
 
-If the task is to drive the 1C interface through client MCP tools (`open_form`, `click`, `input`, `get_value`, `get_table_rows`, `test_client_start`), this is the default path for one-off UI checks and exploration when a full Vanessa `.feature` is not needed. Start the controlling client as a regular thin/thick/ordinary client with WS pairing and the `/TESTMANAGER` key, then start the tested application separately with `/TESTCLIENT`. Choose the web client only for browser-specific layers: DOM/CSS/HTML, console/network, web auth/publication, viewport/pixel rendering, browser extension, or browser-only file/clipboard.
+If the task is to drive the 1C UI through client MCP tools (`open_form`, `click`, `input`, `get_value`, `get_table_rows`, `test_client_start`), this contour is allowed only for structural control when the needed function is fundamentally absent in VA MCP or when it is used as part of a VA/TestClient scenario.
 
-Workflow:
+The working chain is:
 
-1. Bring up session-manager and check the HTTP endpoint: `tools/call session_list` must respond even if `sessions=[]`.
-2. Start the controlling MCP client detached, required with `/TESTMANAGER`:
+1. Start session-manager and verify the HTTP endpoint: `tools/call session_list` must respond, even if `sessions=[]`.
+2. Start the control MCP client detached, explicitly with `/TESTMANAGER`:
 
 ```bash
 uid=$(cat /proc/sys/kernel/random/uuid)
@@ -235,8 +243,8 @@ setsid nohup v8-runner --no-color --log-level debug launch thin \
   > "/tmp/ui-mcp-$uid.log" 2>&1 &
 ```
 
-3. Wait in `session_list` for a live session with `kind=1c-client`, `state=active`, `inflight=0`, `infobase_name=<needed infobase>`. Basic check before UI calls: `infobase_info` must return quickly.
-4. Start the tested application with `/TESTCLIENT -TPort <port>` and the same connection parameters, user, and password as in the project launch. If you are not launching it through a ready-made tool, use the direct platform form:
+3. Wait in `session_list` for a live session `kind=1c-client`, `state=active`, `inflight=0`, `infobase_name=<required infobase>`. The baseline check before UI calls is: `infobase_info` must return quickly.
+4. Start the tested application as a separate process with `/TESTCLIENT -TPort <port>` and the same connection parameters, user, and password as in the project launch. This is the preferred path: the agent starts the tested application detached and saves the PID/log, while `test_client_start` on the next step is used as a connection from the control `/TESTMANAGER` to the already listening port. If the project has a ready-made launcher, it must also pass `/N`, `/P`, `/UC` and the same connection string; otherwise use the direct platform form:
 
 ```bash
 setsid nohup /opt/1cv8/x86_64/<version>/1cv8c ENTERPRISE \
@@ -247,7 +255,7 @@ setsid nohup /opt/1cv8/x86_64/<version>/1cv8c ENTERPRISE \
   > /tmp/test-client-1538.log 2>&1 &
 ```
 
-5. Connect the tested application through the controlling MCP session:
+5. Connect the tested application through the control MCP session:
 
 ```json
 {"name":"test_client_start","arguments":{"session_id":"<1c-client session_id>","port":1538}}
@@ -255,21 +263,19 @@ setsid nohup /opt/1cv8/x86_64/<version>/1cv8c ENTERPRISE \
 
 Successful criterion: `{"ok": true, "data": {"connected": true}}`.
 
-6. After that, use UI MCP tools only through the controlling session’s `session_id`: `open_form` → `click/input/select` → `get_value/get_table_rows` → screenshot if needed. For form elements, you can build the URI directly as `control://<urlencoded form name>/<urlencoded element name>` if `find` is unstable.
-
-Important about visual control: the standard platform contour `/TESTMANAGER` + `/TESTCLIENT` gives structured form control, but it is not required to have a screenshot MCP tool. If you need a visual screenshot through MCP, start the VA MCP contour above (`kind=vanessa_test_client`) and check the availability of `get_window_screenshot_os`; if the VA contour is unavailable, perform visual control with an external OS/browser screenshot tool.
+6. After that, perform UI MCP tools only through the control session's `session_id`: `open_form` → `click/input/select` → `get_value/get_table_rows`. For form elements, you can build the URI directly as `control://<urlencoded form name>/<urlencoded element name>` if `find` is unstable.
 
 Do not do this:
 
-- Do not start the controlling client without `/TESTMANAGER`: on the first `test_client_start`, the platform may crash with `Type not defined (TestedApplication)`.
-- Do not rely on `test_client_start` as the only way to start `/TESTCLIENT` if it launches the client without `/N` and `/P`: such a process may remain at the database login prompt, and the connection will return `No suitable testing client found`.
+- Do not start the control client without `/TESTMANAGER`: on the first `test_client_start` the platform may fail with `Тип не определен (ТестируемоеПриложение)`.
+- Do not rely on `test_client_start` as the only way to start `/TESTCLIENT` if it starts the client without `/N` and `/P`: such a process may stay at the infobase login screen, and the connection will return `Отсутствует подходящий клиент тестирования`.
 - Do not treat `tools/list` as proof of readiness: proxied tools may come only from the session-manager cache. Readiness is confirmed by a live session in `session_list` and a successful simple call (`infobase_info`).
 
 ### Resolved: WS Sessions in `test yaxunit` (DRIVE 2026-05-11)
 
-Symptom: `yaxunit_runner` is NOT registered in the manager’s `session_list`, although v8-runner correctly injects the WS payload into `/C` (`RunUnitTests=...;mcpMode=ws;...;kind=yaxunit_runner;...`).
+Symptom: yaxunit_runner is NOT registered in the manager's `session_list`, although v8-runner correctly injects the WS payload into `/C` (`RunUnitTests=...;mcpMode=ws;...;kind=yaxunit_runner;...`).
 
-The root cause is a race condition in BSL `client_mcp` (`ManagedApplicationModule.bsl`): the idle handler `Мсп_ОтложенныйСтарт_Тик` was scheduled with a **1 second** interval, while YAXUNIT with `closeAfterTests: true` closed the application about 1 second after startup (the tests finish in about 200 ms), so the idle handler did not get a chance to tick.
+The root cause is a race condition in BSL `client_mcp` (`ManagedApplicationModule.bsl`): the idle handler `Мсп_ОтложенныйСтарт_Тик` was set with a **1 second** interval, and YAXUNIT with `closeAfterTests: true` closed the application about 1 second after startup (tests finish in about 200 ms), so the idle handler did not get a chance to tick.
 
 Fix: reduce the idle-handler interval from `1` to `0.1`:
 ```bsl
@@ -277,19 +283,19 @@ Fix: reduce the idle-handler interval from `1` to `0.1`:
 ПодключитьОбработчикОжидания("Мсп_ОтложенныйСтарт_Тик", 0.1, Истина);
 ```
 
-After the fix, yaxunit-Enterprise registers as `kind=yaxunit_runner` in the manager’s `session_list` (confirmation in v8-runner stdout: `[MCP INFO ...] WS session registered: uid=... kind=yaxunit_runner ... tools=24`).
+After the fix, yaxunit-Enterprise registers as `kind=yaxunit_runner` in the manager's `session_list` (confirmation in v8-runner stdout: `[MCP INFO ...] WS session registered: uid=... kind=yaxunit_runner ... tools=24`).
 
-## Headless Launch of an External Processing (.epf) with a Server Method Call
+## Headless Launch of External Processing (.epf) with a Server Method Call
 
-Launching an external processing in batch (headless) mode with automatic execution of its logic is done through `v8-runner launch <thin|thick|ordinary> --execute "<path to .epf>"` (this is `1cv8 ENTERPRISE /Execute<epf>`). The key nuance without which the technique does not work:
+Launching an external processing in batch (headless) mode with automatic execution of its logic is done through `v8-runner launch <thin|thick|ordinary> --execute "<path to .epf>"` (this is `1cv8 ENTERPRISE /Execute<epf>`). The key nuance without which the approach does not work:
 
-- **`/Execute<epf>` OPENS the processing form** (it emulates "Open processing"). By itself it **does NOT call** the export method of the object module. Therefore, **a processing without a form** (only an object module with an export procedure) will **not execute** its logic through `/Execute` - the entry point will never be called.
-- The canonical headless technique: the processing **has a managed form**, and in its module there is a `&OnClient Procedure OnOpen(Cancel)` handler that recognizes batch mode by the **launch parameter**, calls an `&OnServer` method (this is what does the work / invokes the object module export procedure), and then cleanly ends the session with `EndSystemOperation(False)`.
+- **`/Execute<epf>` OPENS the processing form** (it emulates "Open processing"). By itself it does **NOT** call the object module's export method. Therefore, a **processing without a form** (only an object module with an export procedure) will **not execute** its logic through `/Execute` — the entry point is never called.
+- The canonical headless approach: the processing **has a managed form**, and in its module there is an `&НаКлиенте Процедура ПриОткрытии(Отказ)` handler that recognizes batch mode by the **startup parameter**, calls an `&НаСервере` method (which does the work / invokes the object module's export procedure), and then cleanly ends the session via `ЗавершитьРаботуСистемы(Ложь)`.
 
 ### Passing the Parameter and Suppressing the Security Warning
 
-- The launch parameter is passed with the `--c "<string>"` key (this is `/C"<string>"`) and is read in BSL through `LaunchParameter()`. Use a sentinel string so the form can distinguish headless launch from interactive opening and does not auto-execute when opened manually.
-- The **first launch** of an external processing raises a security warning dialog (protection against dangerous actions) - in headless mode it will hang the process. Suppress it with the `--raw-key /DisableUnsafeActionProtection` key. An alternative is to clear the user’s "Protection against dangerous actions" flag or configure a security profile (but the CLI key is preferable for one-off runs).
+- The startup parameter is passed with the `--c "<string>"` key (this is `/C"<string>"`) and is read in BSL through `ПараметрЗапуска()`. Use a sentinel string so the form distinguishes headless startup from interactive opening and does not auto-execute when opened manually.
+- The **first launch** of the external processing opens a security warning dialog (protection against dangerous actions) - in headless mode it will hang the process. Suppress it with the `--raw-key /DisableUnsafeActionProtection` key. An alternative is to remove the user's "Protection against dangerous actions" flag or configure a security profile (but the CLI key is preferable for one-off runs).
 
 ### Minimal Processing Skeleton
 
@@ -317,21 +323,21 @@ Launching an external processing in batch (headless) mode with automatic executi
 v8-runner launch thin --execute "<абс. путь к .epf>" --c "ЗАПУСК_ПАКЕТНО" --raw-key /DisableUnsafeActionProtection
 ```
 
-- The connection to the infobase is taken from `v8project.yaml` - there is no need to specify a separate `/S`/`/F`.
-- **Completion condition:** wait for the 1cv8 process to exit OR for the protocol file written by the processing itself to appear. The process exit code alone is a weak signal.
-- **Verify the result by behavior, not by the fact of launch:** data delta (query before/after), the contents of the protocol file, and the registration log entry. "The process completed without error" does not mean "the logic ran."
+- The connection to the infobase is taken from `v8project.yaml` — there is no need to specify a separate `/S`/`/F`.
+- **Completion condition:** wait for the 1cv8 process to exit OR for the protocol file written by the processing itself to appear. A process exit code alone is a weak signal.
+- **Verify the result by behavior, not by the fact of launch:** data delta (query before/after), protocol file content, an entry in the registration log. "The process ran without error" does not mean "the logic executed."
 
-> Alternative without `/Execute`: from an **already connected** server session - `ExternalProcessing.Create(<path>, False)` + calling its export method (or the BSP `LongRunningOperations.ExecuteProcessingObjectModuleProcedure`). This requires a "run code on server" channel (session manager / test runner), while `/Execute` is self-sufficient from the command line.
+> Alternative without `/Execute`: from an **already connected** server session - `ВнешниеОбработки.Создать(<path>, Ложь)` plus a call to its export method (or BСП `ДлительныеОперации.ВыполнитьПроцедуруМодуляОбъектаОбработки`). This requires a "run code on server" channel (session manager / test runner), while `/Execute` is self-contained from the command line.
 
-## Guardrails
+## Guard Rules
 
-- Before any v8-runner operation that accesses the infobase, apply auth-guard: check credentials and classify possible errors (license / auth / path) — see `references/auth-guard.md`.
-- Do not delete or recreate the infobase, workspace, temporary directory, or generated state unless the user explicitly asked for it or the command itself is documented as a recovery path.
+- Before any v8-runner operation that accesses the infobase, apply the auth guard: check credentials and classify possible errors (license / auth / path) — see `references/auth-guard.md`.
+- Do not delete or recreate the infobase, workspace, temp directory, or generated state unless the user explicitly asked for it or the command itself is documented as a recovery path.
 - Do not invent raw `1cv8`, `ibcmd`, or `1cedtcli` flags; prefer the `v8-runner` command surface.
 - Before `dump`, check `git status` if the result may overwrite or mix with already made source changes.
 - Keep failed test artifacts in `workPath/temp/<runner-id>/runs/<run-id>/` for diagnostics; do not clean them up immediately.
-- Report missing local 1C utilities as environment/install issues, not as project source errors.
-- Keep final answers concrete: the command run, the result, the path to the relevant artifact, and any follow-up command.
+- Report missing local 1C utilities as environment/installation problems, not as project source errors.
+- Keep final answers specific: the command run, the result, the path to the relevant artifact, and any follow-up command.
 
 ## Output Discipline
 
@@ -339,5 +345,5 @@ When reporting results, separate:
 
 - project source failures;
 - v8-runner command/config failures;
-- failures to locate the local 1C platform, EDT, IBCMD, or tools;
+- failures to find the local 1C platform, EDT, IBCMD, or tools;
 - test failures and the paths to their artifacts.

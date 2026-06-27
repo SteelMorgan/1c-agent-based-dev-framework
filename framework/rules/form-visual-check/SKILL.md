@@ -1,16 +1,18 @@
 ---
 name: form-visual-check
-description: "После правок или скриншота формы выполнить visual-check"
+description: "После правок или скриншота формы выполнить визуальную проверку"
 alwaysApply: true
 ---
 # Визуальная проверка форм
 
-> **Триггер:** после изменения управляемой формы, при исследовании/проверке клиентской формы через TestClient/VA/web-клиент, ИЛИ после получения скриншота формы на ревью. При срабатывании — применить навыки `visual-check` (`framework/skills/tool-usage/browser-ui/visual-check/SKILL.md`) и `form-visual-requirements` (`framework/skills/bsl-practices/form-visual-requirements/SKILL.md`).
+> **Триггер:** после изменения управляемой формы, при исследовании/проверке клиентской формы через VA/TestClient, ИЛИ после получения скриншота формы на ревью. При срабатывании — применить навыки `va-visual-check` (`framework/skills/tool-usage/vanessa/va-visual-check/SKILL.md`) и `form-visual-requirements` (`framework/skills/bsl-practices/form-visual-requirements/SKILL.md`).
 
-Маршрут по умолчанию для форм 1С — Vanessa/TestClient или платформенный TestClient MCP. Визуальный скриншот обязателен: сначала пробуй проверенный VA MCP screenshot, если он реально работает в текущем окружении; иначе снимай внешний OS/noVNC screenshot видимого окна 1С. Web-клиент в `visual-check` выбирается только для browser-specific дефектов: DOM/CSS/HTML, JS console/network, web-auth/publication, viewport/pixel rendering, browser extension или browser-only file/clipboard.
+Предпочтительный маршрут для форм 1С — Vanessa/TestClient и VA MCP: `connect_test_client` → реальный PID тест-клиента → `get_window_list_os` → `get_window_screenshot_os`. Детали маршрута, Linux headless X11/Xvfb рецепт для чёрных скриншотов и browser fallback описаны в `va-visual-check`.
+
+Платформенный TestClient MCP можно использовать для структурного управления формой, если это часть VA/TestClient-сценария. Если используется browser/web-client fallback, причину, выполненные VA-шаги и остаточный риск нужно явно записать в контекст.
 
 ---
 depends_on:
-  - visual-check
+  - framework/skills/tool-usage/vanessa/va-visual-check/SKILL.md
   - form-visual-requirements
 ---

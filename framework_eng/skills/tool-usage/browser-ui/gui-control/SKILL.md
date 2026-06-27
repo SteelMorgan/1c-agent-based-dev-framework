@@ -1,31 +1,33 @@
 ---
 name: gui-control
-description: "MUST use WHEN the GUI dialog blocks database shutdown or a test hangs with no events in the event log. Provides X11 detection of 1C windows, screenshot capture, and keyboard simulation to unblock without human involvement."
+description: "Unlocking frozen 1С windows, dialogs, and tests"
 ---
 
-# 1C GUI Control via X11
+# Controlling 1С GUI through X11
 
-X11 control is an action, not diagnostics. Use only when a GUI dialog is detected that blocks the normal shutdown of the database. Diagnose the cause through the event log (`event-log-analysis`).
+X11 control is an action, not diagnosis. Use only when a GUI dialog has been detected that blocks normal database shutdown. Diagnose the causes through the event log (`event-log-analysis`).
 
-For `Security Warning`, X11 window metadata may be incomplete. Rely on the sequence: event log → screenshot → keyboard actions.
+For UI/UX acceptance of ordinary 1C forms, do not use `gui-control` as the primary route. First apply `va-visual-check`; X11 keys and direct GUI control are allowed only as a fallback/action, with the reason and residual risk recorded.
 
-## When to use
+For `Security warning`, X11 window metadata may be incomplete. Rely on the chain: event log → visual artifact via `va-visual-check` → keyboard action if needed.
+
+## When to apply
 
 | Trigger | Action |
 |---------|----------|
-| No events in the event log after `test_start_time` | Check whether a GUI dialog is hanging |
-| Window title: "Error" / "Warning" | Screenshot → close the dialog → analyze the event log |
-| The database does not shut down after tests | Close with Escape + Enter |
-| The event log shows `Security Warning` on EPF | Visually verify; do not act blindly based on titles |
+| The event log has no events after `test_start_time` | Check whether a GUI dialog is frozen |
+| Window title: «Error» / «Warning» | VA MCP screenshot → close the dialog only if VA MCP fundamentally cannot perform the required action → event log analysis |
+| The database does not terminate after tests | Close it via Escape + Enter only if VA MCP fundamentally cannot close the blocking window |
+| The event log contains `Security warning` for EPF | Visual inspection, do not act blindly based on titles |
 
 ## Environment setup
 
 ```python
 import os
-os.environ['DISPLAY'] = ':99'  # before importing Xlib and PIL
+os.environ['DISPLAY'] = ':99'  # до импортов Xlib и PIL
 ```
 
-## Workflow
+## Working algorithm
 
 ### 1. Detect the error dialog
 
@@ -48,13 +50,13 @@ for win in root.query_tree().children:
 print(error_windows)
 ```
 
-- Empty + there are 1C windows → the database is operating normally
-- Empty + no windows → the database has shut down
-- Not empty → error dialog → step 2
+- Empty + 1С windows present → the database is working normally
+- Empty + no windows → the database terminated
+- Non-empty → error dialog → step 2
 
-### 2. Close the dialog and shut down the database
+### 2. Close the dialog and terminate the database
 
-Sequence: Enter (close the dialog) → Escape (close) → Enter (confirm). After that, wait 2-3 seconds and check again using step 1.
+First check whether there is a VA MCP tool to close/confirm the required window. If you use X11 keys as a fallback/action, record the reason. Sequence: Enter (close dialog) → Escape (close) → Enter (confirm). After that, wait 2–3 sec and check via step 1.
 
 ```python
 import os, time
@@ -81,26 +83,12 @@ time.sleep(1)
 send_key(d, ENTER)
 ```
 
-### 3. Screenshot for the log (optional, before step 2)
+### 3. Screenshot for the log (required via VA MCP, before step 2)
 
-```python
-import os
-os.environ['DISPLAY'] = ':99'
-from PIL import ImageGrab
-from Xlib import display
+Take the screenshot for the 1C UI via `va-visual-check`: VA MCP PNG, Linux/Xvfb recipe, and fallback rules.
 
-d = display.Display()
-root = d.screen().root
-
-for win in root.query_tree().children:
-    name = win.get_wm_name()
-    wm_class = win.get_wm_class()
-    if wm_class and '1cv8' in wm_class:
-        geom = win.get_geometry()
-        img = ImageGrab.grab(bbox=(geom.x, geom.y, geom.x + geom.width, geom.y + geom.height))
-        path = f'/tmp/onec_{win.id}.png'
-        img.save(path)
-        print(f'Screenshot saved: {path}')
+```json
+{"name":"get_window_screenshot_os","arguments":{"window_title":"<title-from-get_window_list_os>","file_name":"<path>.png","color_mode":"color"}}
 ```
 
 ## Pipeline: tests finished, the database did not close
@@ -108,34 +96,34 @@ for win in root.query_tree().children:
 ```
 search_event_log(from=test_start_time, limit=20)
   ├── there are events, no Error → wait
-  ├── there is Error → screenshot → close → analyze the event log
+  ├── there is Error → VA MCP screenshot → close only if the required VA capability is unavailable → event log analysis
   └── no events → detect windows
-        ├── window with an error → screenshot → close
+        ├── error window → VA MCP screenshot → close only if the required VA capability is unavailable
         └── no windows → the database did not start
 ```
 
 ## Safety
 
-- **Xvfb only** — do not use on production servers with a real display
-- **Navigation keys only** (Enter/Escape) — do not enter data into fields
-- **Screenshots go to /tmp/** — they may contain personal data
+- **Only Xvfb** — do not use on production servers with a real display
+- **Only navigation keys** (Enter/Escape) — do not enter data into fields
+- **VA MCP screenshots are in /tmp/** — may contain personal data
 
-## Common mistakes
+## Typical errors
 
 | Error | Workaround |
 |--------|---------------|
-| `DISPLAY` is not set | `os.environ['DISPLAY'] = ':99'` before imports |
-| `python-xlib` is not installed | `pip install python-xlib` |
-| `PIL.ImageGrab` does not work | `pip install Pillow` |
-| Windows are not found, but the process exists | The GUI has not been rendered yet - wait 2-3 seconds |
-| XTEST is unavailable | Xvfb with the `-extensions XTEST` flag |
+| `DISPLAY` not set | `os.environ['DISPLAY'] = ':99'` before imports |
+| `python-xlib` not installed | `pip install python-xlib` |
+| Windows not found, but process exists | GUI has not been rendered yet — wait 2–3 sec |
+| VA MCP screenshot of Xvfb is black/single-color | Act according to `va-visual-check`: Linux/Xvfb recipe, repeat the VA capture, then fallback if necessary |
+| XTEST unavailable | Xvfb with `-extensions XTEST` flag |
 
 ## Capabilities
 
 | Capability | Purpose |
 |------------|------------|
 | `python-xlib` | Reading window metadata, simulating input |
-| `PIL ImageGrab` | Screenshot of the framebuffer or a window |
+| `get_window_screenshot_os` | VA MCP screenshot of the test-client window |
 
 ---
 depends_on: []

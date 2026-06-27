@@ -1,16 +1,18 @@
 ---
 name: "screenshot"
-description: "Use for захвата скриншота рабочего стола или окна на уровне ОС (полный экран, конкретное приложение/окно, пиксельная область). Helps получить снимок когда инструментно-специфичный захват (Playwright, Figma MCP) недоступен."
+description: "OS-скриншоты рабочего стола, окна или области экрана"
 ---
 
-# Screenshot Capture
+# Снятие скриншотов
 
-Save-location rules:
-1. User specifies path → save there.
-2. User asks without path → OS default location.
-3. Codex self-inspection → temp directory.
+Правила сохранения:
+1. Пользователь указал путь → сохранить туда.
+2. Пользователь попросил без пути → использовать стандартное расположение ОС.
+3. Самопроверка Codex → временный каталог.
 
-Prefer tool-specific captures (Figma MCP, Playwright, agent-browser) when available. Use this skill for explicit requests, whole-system desktop captures, or when tool-specific capture cannot get what you need.
+Предпочитай специализированные инструменты снятия изображения (Figma MCP, Playwright, agent-browser, VA MCP), когда у целевого домена есть такой инструмент. Этот навык используй для явных запросов на снимок рабочего стола/окна, снимков всего экрана или доменов, где специализированного инструмента нет.
+
+Для UI/форм 1С:Предприятия сначала применяй профильный навык `va-visual-check`. Этот OS-screenshot навык можно использовать для 1С только как fallback по правилам `va-visual-check`, с фиксацией выполненных VA-шагов, причины fallback и остаточного риска.
 
 ## macOS permission preflight
 
@@ -53,6 +55,8 @@ Display dimensions: `DISPLAY=:99 xdpyinfo | grep dimensions`
 
 `--app`, `--window-name`, `--list-windows` are macOS-only. On Linux use `--active-window` or `--window-id`.
 
+Для 1C-скриншотов в Xvfb см. `va-visual-check`: там описаны VA-маршрут, экспонирование окна перед VA-снимком и fallback-условия.
+
 ## PowerShell helper (Windows)
 
 ```powershell
@@ -68,7 +72,7 @@ powershell -ExecutionPolicy Bypass -File <path-to-skill>/scripts/take_screenshot
 | `-ActiveWindow` | Ask user to focus first |
 | `-WindowHandle <id>` | Specific window |
 
-## Direct OS fallbacks
+## Прямые OS-снимки
 
 ### macOS
 
@@ -93,4 +97,5 @@ ffmpeg -y -f x11grab -video_size 800x600 -i :99+100,200 -frames:v 1 output/regio
 - macOS sandbox errors ("screen capture blocked", `ModuleCache`) → rerun with escalated permissions
 - macOS no matches → `--list-windows --app "Name"` → retry with `--window-id`
 - Linux tool missing → `command -v scrot`, `command -v import`
+- 1C VA PNG чёрный/одноцветный → действуй по `va-visual-check`
 - Always report saved file path

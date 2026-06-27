@@ -205,17 +205,25 @@ v8-runner launch mcp va \
 
 Обязательный смысл этой строки запуска: MCP-сессия должна жить на стороне процесса тест-менеджера с открытой внешней обработкой Vanessa Automation. Не запускай тестируемое приложение с формой `MCPVA`: `MCPVA` — внутренняя форма/модуль внешней обработки VA, и именно VA в процессе `/TESTMANAGER` должна выполнить `MCPVA.ЗарегистрироватьИнструментыMCP()`.
 
-Критерий готовности VA MCP-сессии: в `session_list` появилась live-сессия `kind=vanessa_test_client`, и в её tools есть VA-инструменты (`get_VanessaAutomation_state`, `connect_test_client`, `get_window_list_os`, `get_window_screenshot_os`, `get_form_analysis`, `manage_command_interface`) или число tools стало больше базового набора `client_mcp`. Первичная регистрация с базовыми tools ещё не означает, что `MCPVA.ЗарегистрироватьИнструментыMCP()` уже отработал.
+Критерий готовности VA MCP-сессии: в `session_list` появилась live-сессия `kind=vanessa_test_client`, и в её tools есть VA-инструменты (`get_VanessaAutomation_state`, `connect_test_client`, `get_form_analysis`, `manage_command_interface`) или число tools стало больше базового набора `client_mcp`. Первичная регистрация с базовыми tools ещё не означает, что `MCPVA.ЗарегистрироватьИнструментыMCP()` уже отработал.
+
+Сразу после `v8-runner launch mcp va` ответ `session_list=[]` или отсутствие VA-tools **не является ошибкой**: запуск тест-менеджера и регистрация инструментов занимают время. Обязательный readiness-loop:
+
+1. Опроси `session_list` каждые 5-10 секунд.
+2. Жди суммарно до 120 секунд с момента запуска.
+3. Продолжай только при live-сессии `kind=vanessa_test_client`, `state=active`, `disconnected_secs_ago=null`, `inflight=0`, и наличии нужных VA-tools для текущей задачи.
+4. Имена tools из кеша MCP/showcase без live-сессии не доказывают готовность.
+5. Если условие не выполнено за 120 секунд — стоп и доклад `VA MCP readiness blocker`.
 
 Тестируемое приложение в VA-контуре запускает сам тест-менеджер: вызови `connect_test_client` с именем профиля клиента тестирования (`profileName`, например `Codex thin AgentAI`). VA поднимет отдельный процесс `/TESTCLIENT -TPort <auto>` из профиля и подключит к нему `ТестируемоеПриложение`. Не запускай этот `/TESTCLIENT` вручную для VA-пути, если только не отлаживаешь сам механизм профилей.
 
 Скриншотные MCP-инструменты VA (`get_window_list_os`, `get_window_screenshot_os`) считай готовыми только после короткой smoke-проверки на текущем окружении: live-сессия должна оставаться активной, `inflight=0`, а PNG должен быть не пустым и не чёрным. Детальный порядок визуальной проверки и fallback-условия описаны в навыке `va-visual-check`.
 
-Полный payload, JSON-форму вывода (`--json-message`), правила probe и поведение при недоступности менеджера — в `references/project-workflows.md` (раздел «WS-режим к session-manager»). Подъём самого менеджера в v8-runner **не входит** — см. навык `v8-session-manager`.
+Секцию `tools.va` / `tests.va` в `v8project.yaml` и профиль TestClient в VAParams настраивай по `references/config-and-backends.md` (раздел «Vanessa Automation в `v8project.yaml`»). Точную командную цепочку запуска manager → `connect_test_client` → close см. в `references/testing.md` (раздел «Точная цепочка VA manager → TestClient»). Полный payload, JSON-форму вывода (`--json-message`), правила probe и поведение при недоступности менеджера — в `references/project-workflows.md` (раздел «WS-режим к session-manager»). Подъём самого менеджера в v8-runner **не входит** — см. навык `v8-session-manager`.
 
 ### UI MCP через платформенный тест-клиент
 
-Если задача — пройти интерфейс 1С через клиентские MCP-tools (`open_form`, `click`, `input`, `get_value`, `get_table_rows`, `test_client_start`), это default-путь для одноразовой UI-проверки и исследования, когда не нужен полноценный Vanessa `.feature`. Запускай управляющий клиент как обычный thin/thick/ordinary-клиент с WS-сопряжением и ключом `/TESTMANAGER`, затем отдельно запускай тестируемое приложение с `/TESTCLIENT`. Web-клиент выбирай только для browser-specific слоя: DOM/CSS/HTML, console/network, web-auth/publication, viewport/pixel rendering, browser extension или browser-only file/clipboard.
+Если задача — пройти интерфейс 1С через клиентские MCP-tools (`open_form`, `click`, `input`, `get_value`, `get_table_rows`, `test_client_start`), этот контур допустим только для структурного управления, когда нужная функция принципиально отсутствует в VA MCP или когда он используется как часть VA/TestClient-сценария.
 
 Рабочая цепочка:
 
@@ -256,8 +264,6 @@ setsid nohup /opt/1cv8/x86_64/<version>/1cv8c ENTERPRISE \
 Успешный критерий: `{"ok": true, "data": {"connected": true}}`.
 
 6. После этого выполняй UI MCP-tools только через `session_id` управляющей сессии: `open_form` → `click/input/select` → `get_value/get_table_rows`. Для элементов формы можно строить URI напрямую как `control://<urlencoded form name>/<urlencoded element name>`, если `find` нестабилен.
-
-Важно про визуальный контроль: стандартный платформенный контур `/TESTMANAGER` + `/TESTCLIENT` даёт структурное управление формами, но не обязан иметь MCP-инструмент скриншота. Если нужен визуальный скриншот через MCP, запускай VA MCP-контур выше (`kind=vanessa_test_client`) и проверяй доступность `get_window_screenshot_os`; если VA-контур недоступен, визуальный контроль выполняется внешним OS/browser screenshot-инструментом.
 
 Не делай так:
 

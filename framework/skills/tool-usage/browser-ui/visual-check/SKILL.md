@@ -1,76 +1,21 @@
 ---
 name: visual-check
-description: "UI-приёмка формы 1С: скриншот, консоль, чеклист"
+description: "Deprecated: визуальная проверка форм 1С перенесена в va-visual-check"
 alwaysApply: false
 ---
 
-# Визуальная проверка форм (Visual Check)
+# Deprecated: visual-check
 
-По умолчанию визуальная проверка управляемых форм 1С выполняется через Vanessa/TestClient или платформенный тест-клиент MCP: открыть форму, выполнить пользовательское действие, получить структурные данные формы (`get_form_analysis`, `get_window_list_testclient`, `get_value`, `get_table_rows`) и сверить с `form-visual-requirements`.
+Этот навык оставлен как совместимый указатель для старых ссылок. Для визуальной проверки 1С-форм используй профильный навык `va-visual-check`:
 
-Для любой работы с клиентской формой, где важны компоновка, видимость, доступность или пользовательское восприятие, визуальный скриншот обязателен. Путь получения скриншота выбирается так:
+- основной маршрут Vanessa/TestClient + VA MCP;
+- Linux headless X11/Xvfb рецепт для чёрных VA-скриншотов;
+- browser fallback и правила фиксации остаточного риска.
 
-1. Если в текущем VA MCP окружении короткая smoke-проверка `connect_test_client` → `get_window_list_os` → `get_window_screenshot_os` реально прошла, используй VA MCP screenshot.
-2. Если VA MCP screenshot не прошёл или падает на `PID=0` / `Не вышло получить PID процесса клиента тестирования`, используй внешний OS/noVNC screenshot видимого окна 1С.
-3. Web-клиент используй для screenshot только как browser-specific исключение ниже.
-
-Веб-клиент использовать только когда проверяется браузерный слой, недоступный TestClient: DOM/CSS/HTML, JS console/network, viewport/responsive, web-публикация и web-auth, cookies/storage, браузерные расширения, browser-only upload/download/clipboard или дефект, воспроизводимый только в Chrome/Edge web-client.
-
-Требуется для web-исключения: URL веб-клиента 1С (опубликованная база), учётные данные и короткая причина, почему TestClient/VA недостаточны.
-
-## Процесс проверки
-
-### 1. Навигация к форме
-
-Если цель не браузерная, остановись и перейди в TestClient/VA-путь (`vanessa-authoring`, `v8-runner`). Дальнейшие шаги применяются только для web-исключения.
-
-Предпочитай Deep Linking — быстрее навигации через интерфейс.
-
-- Список: `<base_url>/e1cib/list/<ТипМетаданных>.<Имя>`
-- Новый объект: `<base_url>/e1cib/data/<ТипМетаданных>.<Имя>?ref=00000000-0000-0000-0000-000000000000`
-- Существующий объект: `<base_url>/e1cib/data/<ТипМетаданных>.<Имя>?ref=<UUID>`
-
-### 2. Авторизация (если перенаправил на вход)
-
-`browser_snapshot` → `browser_fill` (логин/пароль по ref) → `browser_click` (Войти).
-
-### 3. Снимок и консоль
-
-После загрузки (дождаться исчезновения индикатора):
-1. `browser_take_screenshot`
-2. `browser_console_messages` — искать «Error», «Exception», «Uncaught»
-
-### 4. Анализ по чеклисту `form-visual-requirements`
-
-- Расположение и выравнивание (группировка, отступы, ширина)
-- Элементы управления и подписи (метки, обрезка, заголовки, командная панель)
-- Удобство (порядок обхода, ключевые поля, таблицы, горизонтальная прокрутка)
-- Специфика типа объекта (справочники, документы, обработки)
-
-**Отчёт:** результат анализа скриншота + наличие/отсутствие JS-ошибок.
-
-## Capabilities
-
-| Capability | Назначение |
-|------------|------------|
-| `browser_navigate` | Открытие URL формы |
-| `browser_snapshot` | Структура страницы и ref-ы элементов |
-| `browser_fill` | Заполнение полей |
-| `browser_click` | Клик по элементам |
-| `browser_take_screenshot` | Снимок формы |
-| `browser_console_messages` | Проверка JS-ошибок |
-| `browser_wait_for` | Ожидание загрузки |
-
-## Типичные ошибки
-
-| Ошибка | Обходной путь |
-|--------|---------------|
-| Скриншот пустой | `browser_wait_for` перед скриншотом |
-| Deep Link не работает для нового | Список → «Создать» через `browser_click` |
-| `browser_fill` не находит поле | `browser_snapshot` для актуальных ref-ов |
-| JS-ошибки при нормальной форме | Зафиксировать — проявятся при сохранении |
+Оценку качества формы выполняй по `form-visual-requirements`.
 
 ---
 depends_on:
+  - framework/skills/tool-usage/vanessa/va-visual-check/SKILL.md
   - framework/skills/bsl-practices/form-visual-requirements/SKILL.md
 ---

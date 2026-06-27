@@ -7,155 +7,169 @@ Proven practices and antipatterns accumulated from real tasks.
 
 ```
 status: confirmed
-area: document form filling
-technique: before saving/posting the document fill all required fields —
-       they are visually marked with a red dashed underline (red dashed underline)
-anti-pattern: trying to save/post the document with unfilled required fields
-why: platform 1С blocks the save and raises an error; the test fails on the save/post step
-steps: |
-  1. Open the document form
-  2. Visually determine the required fields (red dashed underline)
-     or use screenshot + visual-check
-  3. Fill ALL required fields
-  4. Only then execute "Save" / "Post"
-source: universal behavior of platform 1С:Предприятие
+область: заполнение формы документа
+приём: перед записью/проведением документа заполнить все обязательные поля —
+       они визуально отмечены красной пунктирной подчёркой (red dashed underline)
+антиприём: пытаться записать/провести документ с незаполненными обязательными полями
+почему: платформа 1С блокирует запись и выдаёт ошибку; тест падает на шаге записи/проведения
+шаги: |
+  1. Открыть форму документа
+  2. Визуально определить обязательные поля (красная пунктирная линия под полем)
+     или использовать `va-visual-check`
+  3. Заполнить ВСЕ обязательные поля
+  4. Только после этого выполнять «Записать» / «Провести»
+источник: универсальное поведение платформы 1С:Предприятие
 ```
 
 ---
 
 ```
 status: confirmed
-area: order of filling fields
-technique: fill the form fields from left to right, top to bottom — in the order they appear visually. This matters because the value of one field may affect the availability or content of the next fields (autofill, filtering dropdowns, field availability).
-anti-pattern: filling fields in arbitrary order or starting from the lower fields
-why: 1С form fields are tied to event handlers — when a higher-level field changes, lower ones may clear, refill, or become unavailable. Breaking the order leads to loss of entered data or an incorrect form state.
-source: universal behavior of platform 1С:Предприятие
+область: порядок заполнения полей
+приём: заполнять поля формы слева направо, сверху вниз — в том порядке,
+       в котором они расположены визуально. Это важно, потому что значение
+       одного поля может влиять на доступность или содержимое следующих
+       (автозаполнение, фильтрация выпадающих списков, доступность реквизитов).
+антиприём: заполнять поля в произвольном порядке или начинать с нижних
+почему: поля формы 1С связаны обработчиками событий — при изменении
+        вышестоящего поля нижестоящие могут очиститься, перезаполниться
+        или стать недоступными. Нарушение порядка приводит к потере
+        введённых данных или некорректному состоянию формы.
+источник: универсальное поведение платформы 1С:Предприятие
 ```
 
 ---
 
 ```
 status: confirmed
-area: document header filling
-technique: before writing the scenario, query how similar documents are populated in the database. Sort by date DESC, filter by already known fields (from the task), and take the FIRST 5-10 records. This yields real field values, correct combinations of requisites, and hints about which fields are required.
-anti-pattern: guessing field values or filling with arbitrary data
-why: document header fields are often linked (organization → warehouse → price type); the wrong combination causes an error during save/post. Fresh documents show the currently allowed combinations.
-steps: |
-  1. Determine the document type from the task
-  2. Run the query: SELECT TOP 10 ... FROM Документ.{Тип} ORDER BY Дата DESC
-     with filters on known fields (counterparty, organization, etc.)
-  3. Study the populated values — which fields are filled, which combinations are used
-  4. Use real values in the scenario
-source: universal technique for working with 1С data
+область: заполнение шапки документа
+приём: перед написанием сценария — запросом посмотреть как заполнены похожие
+       документы в базе. Сортировка по дате DESC, фильтр по уже известным полям
+       (из задачи), ПЕРВЫЕ 5-10 записей. Это даёт реальные значения полей,
+       правильные комбинации реквизитов и подсказывает какие поля обязательны.
+антиприём: угадывать значения полей или заполнять произвольными данными
+почему: в шапке документа поля часто связаны (организация → склад → тип цен);
+        неверная комбинация приводит к ошибке при записи/проведении.
+        Свежие документы показывают актуальные допустимые комбинации.
+шаги: |
+  1. Определить тип документа из задачи
+  2. Выполнить запрос: SELECT TOP 10 ... FROM Документ.{Тип} ORDER BY Дата DESC
+     с фильтром по известным полям (контрагент, организация и т.д.)
+  3. Изучить заполнение — какие поля заполнены, какие комбинации используются
+  4. Использовать реальные значения в сценарии
+источник: универсальный приём работы с данными 1С
 ```
 
 ---
 
 ```
 status: confirmed
-area: diagnosing errors on the document form
-technique: 1С displays messages at the bottom of the screen. Evaluate each:
-       error → investigate the cause (otherwise save/post stay blocked);
-       informational → can be ignored.
-       There is no explicit visual distinction between "error" and "information" —
-       rely on the message text (presence of words like "error", "not filled", "incorrect",
-       negative context).
-anti-pattern: ignoring all messages or treating every message as an error
-why: an unnoticed error in the messages causes the test to fail on the next step
-        (save/post); a false alarm on an informational message wastes time
-steps: |
-  1. After any action on the form (filling, saving, posting) — check the message area
-     at the bottom of the screen (screenshot / visual-check)
-  2. If a message looks like an error but the meaning is unclear — search the code for the text:
-     a) document form module
-     b) object module
-     c) manager module
-     d) global keyword search
-  3. When searching, account for templated text: the error may contain substituted
-     values (nomenclature names, counterparties). Search by the keywords that define
-     the error nature rather than by specific names.
-source: general behavior of platform 1С:Предприятие
+область: диагностика ошибок на форме документа
+приём: в нижней части экрана 1С выводятся сообщения. Оценить каждое:
+       ошибка → разобраться с причиной (иначе запись/проведение заблокированы);
+       информационное → можно игнорировать.
+       Явного визуального признака «ошибка vs информация» нет — ориентироваться
+       на содержание текста (наличие слов «ошибка», «не заполнено», «не верно»,
+       отрицательный контекст).
+антиприём: игнорировать все сообщения или считать все сообщения ошибками
+почему: незамеченная ошибка в сообщениях приводит к падению теста на следующем шаге
+        (запись/проведение); ложная тревога на информационное сообщение — трата времени
+шаги: |
+  1. После действия на форме (заполнение, запись, проведение) — проверить область
+     сообщений в нижней части экрана по `va-visual-check`
+  2. Если сообщение похоже на ошибку, но смысл неясен — искать текст в коде:
+     a) Модуль формы документа
+     b) Модуль объекта
+     c) Модуль менеджера
+     d) Глобальный поиск по ключевым словам
+  3. При поиске учитывать шаблонность: текст ошибки может содержать подставленные
+     значения (имена номенклатуры, контрагентов). Искать по ключевым словам,
+     определяющим характер ошибки, а не по конкретным названиям.
+источник: универсальное поведение платформы 1С:Предприятие
 ```
 
 ---
 
 ```
 status: confirmed
-area: closing a modified form
-technique: the "*" symbol in the form title indicates unsaved changes.
-       When closing such a form the platform shows the dialog "Data has been changed. Save changes?" with buttons "Yes / No / Cancel".
-       If saving is not required by the test conditions — click "No".
-       If saving is required — save first, then close.
-anti-pattern: closing a modified form without handling the confirmation dialog —
-           the test will hang on the modal window
-why: the modal dialog blocks all actions; Vanessa cannot perform the next step and the test will hang due to a timeout
-steps: |
-  1. If the form is modified (there is "*" in the title) and saving is unnecessary:
-     And I click the form button "Close"
-     Then the "1С:Предприятие" window opens
-     And I click the form button "No"
-  2. If saving is required:
-     And I click the form button "Save"
-     And I click the form button "Close"
-source: general behavior of platform 1С:Предприятие
+область: закрытие модифицированной формы
+приём: символ «*» в заголовке формы означает несохранённые изменения.
+       При закрытии такой формы платформа выдаёт диалог «Данные были изменены.
+       Сохранить изменения?» с кнопками «Да / Нет / Отмена».
+       Если запись не требуется по условиям теста — нажать «Нет».
+       Если требуется — сначала записать, потом закрывать.
+антиприём: закрывать модифицированную форму без учёта диалога подтверждения —
+           тест зависнет на модальном окне
+почему: модальный диалог блокирует все действия; Vanessa не сможет
+        выполнить следующий шаг и тест зависнет по таймауту
+шаги: |
+  1. Если форма модифицирована (есть «*» в заголовке) и запись не нужна:
+     И я нажимаю на кнопку формы "Закрыть"
+     Тогда открылось окно "1С:Предприятие"
+     И я нажимаю на кнопку формы "Нет"
+  2. Если запись нужна:
+     И я нажимаю на кнопку формы "Записать"
+     И я нажимаю на кнопку формы "Закрыть"
+источник: универсальное поведение платформы 1С:Предприятие
 ```
 
 ---
 
 ```
 status: confirmed
-area: RadioButtonField with RadioButtonType=Tumbler
-technique: Tumbler in the DOM is <div class="tumblerItem">, NOT a button. Standard Vanessa steps DO NOT work.
-       Workarounds: (1) if the default value matches the needed one — skip the step;
-       (2) if you need to switch it — write a custom step or click via Playwright on <td class="tumblerCol">
-anti-pattern: DO NOT use: "I change the toggler value" (ВыбратьВариант error),
-           "from the dropdown list" (ОткрытьВыпадающийСписок error),
-           "I enter text" (ВвестиТекст error),
-           "I click the button" (searches for Button-type element, Tumbler = div)
-why: Tumbler renders as <td class="tumblerCol"><div class="tumblerItem"> —
-        this is NOT a standard button element. TestClient does not see it as a Button.
-        6 iterations were spent trying in a real project.
-steps: |
-  1. Check whether the required value is already set by default (Form.xml or Module.bsl)
-  2. Check whether the value is set automatically by another field (e.g. portfolio)
-  3. If you need to switch it — analyze the DOM via web-test, then write a custom step
-source: task-103 GBIG PAM, 12 iterations of Vanessa scenarios (2026-03-24)
+область: RadioButtonField с RadioButtonType=Tumbler
+приём: Tumbler в DOM = <div class="tumblerItem">, НЕ кнопка. Стандартные шаги Vanessa НЕ работают.
+       Обходные пути: (1) если значение по умолчанию подходит — пропустить шаг;
+       (2) если нужно переключить — сделать DOM-анализ через web-test как исключение и затем написать кастомный Vanessa/TestClient-шаг;
+       прямой клик Playwright допустим только для одноразовой диагностики, не как основной сценарий
+антиприём: НЕ использовать: "я меняю значение переключателя" (ВыбратьВариант error),
+           "из выпадающего списка" (ОткрытьВыпадающийСписок error),
+           "я ввожу текст" (ВвестиТекст error),
+           "я нажимаю на кнопку" (ищет Button-тип элемент, Tumbler = div)
+почему: Tumbler рендерится как <td class="tumblerCol"><div class="tumblerItem"> —
+        это НЕ стандартный элемент кнопки. TestClient не видит его как Button.
+        6 итераций потрачено на попытки в реальном проекте.
+шаги: |
+  1. Проверить, не установлено ли нужное значение по умолчанию (Form.xml или Module.bsl)
+  2. Проверить, не устанавливается ли значение автоматически другим полем (напр. портфелем)
+  3. Если нужно переключить — DOM-анализ через web-test как браузерное исключение, затем кастомный Vanessa/TestClient-шаг
+источник: task-103 GBIG PAM, 12 итераций Vanessa-сценариев (2026-03-24)
 ```
 
 ---
 
 ```
 status: confirmed
-area: CheckBoxField with CheckBoxType=Switcher
-technique: Use the step "I change the flag with the title 'Title'" — it works for Switcher.
-       The title comes from <Title> in Form.xml, NOT from the element name.
-anti-pattern: DO NOT use "I set the flag" or "I set the flag with the name" —
-           they call УстановитьОтметку(), which does not work for CheckBoxType=Switcher
-why: УстановитьОтметку does not trigger the ПриИзменении handler for Switcher.
-        "I set" → УстановитьОтметку (does not work), "I change" → another method (works).
-steps: |
-  1. In Form.xml find the CheckBoxField element and its <Title><v8:content>Title</v8:content>
-  2. Use: And I change the flag with the title "Title"
-  3. DO NOT confuse the element name (name=) with the title (<Title>) — they often differ!
-source: task-103 GBIG PAM, S7 iterations 10-12 (2026-03-24)
+область: CheckBoxField с CheckBoxType=Switcher
+приём: Использовать шаг "я изменяю флаг с заголовком 'Заголовок'" — он работает для Switcher.
+       Заголовок берётся из <Title> в Form.xml, а НЕ из имени элемента.
+антиприём: НЕ использовать "я устанавливаю флаг" и "я устанавливаю флаг с именем" —
+           вызывают УстановитьОтметку(), который не работает для CheckBoxType=Switcher
+почему: УстановитьОтметку не триггерит обработчик ПриИзменении для Switcher.
+        "устанавливаю" → УстановитьОтметку (не работает), "изменяю" → другой метод (работает).
+шаги: |
+  1. В Form.xml найти элемент CheckBoxField и его <Title><v8:content>Заголовок</v8:content>
+  2. Использовать: И я изменяю флаг с заголовком "Заголовок"
+  3. НЕ путать имя элемента (name=) и заголовок (<Title>) — они часто различаются!
+источник: task-103 GBIG PAM, S7 итерации 10-12 (2026-03-24)
 ```
 
 ---
 
 ```
 status: confirmed
-area: form element search — title ≠ name
-technique: Many Vanessa steps search for elements by title (Title), NOT by name (Name).
-       The title is set in Form.xml: <Title><v8:content>Text</v8:content></Title>.
-       Before writing the step — check the actual title in Form.xml.
-anti-pattern: DO NOT assume that the title equals the element name.
-           Example: element name="РазрешитьЗакрытиеСделки", Title="Allow"
-why: "The flag with title <РазрешитьЗакрытиеСделки> was not found" — because
-        the title is "Allow", not "РазрешитьЗакрытиеСделки"
-steps: |
-  1. Grep by the element name in Form.xml
-  2. Find the block <Title><v8:content>REAL_TITLE</v8:content></Title>
-  3. Use REAL_TITLE in Vanessa steps "with the title"
-  4. Or use "with the name" if the step supports it
-source: task-103 GBIG PAM (2026-03-24)
+область: поиск элементов формы — заголовок ≠ имя
+приём: Многие шаги Vanessa ищут элементы по заголовку (Title), а НЕ по имени (Name).
+       Заголовок задаётся в Form.xml: <Title><v8:content>Текст</v8:content></Title>.
+       Перед написанием шага — проверить реальный заголовок в Form.xml.
+антиприём: НЕ предполагать что заголовок = имя элемента.
+           Пример: элемент name="РазрешитьЗакрытиеСделки", Title="Разрешить"
+почему: "Флаг с заголовком <РазрешитьЗакрытиеСделки> не найден" — потому что
+        заголовок "Разрешить", а не "РазрешитьЗакрытиеСделки"
+шаги: |
+  1. Grep по имени элемента в Form.xml
+  2. Найти блок <Title><v8:content>РЕАЛЬНЫЙ_ЗАГОЛОВОК</v8:content></Title>
+  3. Использовать РЕАЛЬНЫЙ_ЗАГОЛОВОК в шагах Vanessa "с заголовком"
+  4. Или использовать "с именем" если шаг это поддерживает
+источник: task-103 GBIG PAM (2026-03-24)
 ```

@@ -10,7 +10,7 @@ skills:
   - test-writing
   - coding-standards
   - error-handling
-  - visual-check
+  - va-visual-check
   - event-log-analysis
   - gui-control
   - screenshot
@@ -43,11 +43,13 @@ skills:
 **Протокол:**
 1. **Check context** — прочитай `tester-context.md`; добавь `Planned Skills & Rules`
 2. **Read test plan** — сценарии и критерии
-3. **Analyze existing tests** — что покрыли Phase 3b и Phase 3a
-4. **Write missing tests** — edge-cases, негативы, интеграция, регрессия
-5. **Syntax check** → **Build** (если кодовая база менялась) → **Run all tests**
-6. **If unclear status** (hang/interactive error): `event-log-analysis` от `test_start_time` → `gui-control` → повторная проверка
-7. **Протокол отладки при падении теста:**
+3. **Check coverage matrix** — для каждого MUST сверить затронутый runtime-слой и обязательный тип теста:
+   server/server-context → YaxUnit; UI/client-context → сценарный UI/BDD; связанный процесс → end-to-end; integration/background → integration/job.
+4. **Analyze existing tests** — что покрыли Phase 3b и Phase 3a, какие существующие тесты должны быть актуализированы и перепрогнаны
+5. **Write missing tests** — edge-cases, негативы, интеграция, регрессия; если серверная логика изменена и YaxUnit-теста нет — создать; если UI/client изменён и сценария нет — указать на недостающий сценарий или создать его в рамках полномочий
+6. **Syntax check** → **Build** (если кодовая база менялась) → **Run all tests**
+7. **If unclear status** (hang/interactive error): `event-log-analysis` от `test_start_time` → `gui-control` → повторная проверка
+8. **Протокол отладки при падении теста:**
 
    **7a. BDD-сценарий (Vanessa) не прошёл:**
    1. Проверить: сценарий соответствует спецификации и бизнес-задаче?
@@ -79,11 +81,12 @@ skills:
 
    **При СТОП по неочевидному runtime-дефекту** — завести `bug-report.json` через навык `bug-reporting` в `task_dir/.context/bugs/<bug-id>.json`. Tester видит сценарий end-to-end и обязан заполнить максимум — особенно полную секцию `scenario_context` (action, user, input_data с реквизитами документа/обработки, system_state) и `debug_trigger` (как Debugger должен запустить unit/Vanessa/UI-действие после установки breakpoint или trace). Текущая классификация (`test_error` / `implementation_error` / `spec_mismatch`) перекладывается в `hypotheses[].layer` с обоснованием в `reasoning`. Все 3 попытки фиксируются в `self_fix_attempts`.
 
-8. **Save context** → `completed` + сводка; **Save test-report**
+9. **Save context** → `completed` + сводка; **Save test-report**
 
 **Exit criteria (status `completed`):**
 - Все unit-тесты задачи Green (`run_all_tests` exit 0, никаких failed).
 - Все task scenarios `v8-runner test va` Green: `va-status.json = 0`, нет skipped/missing шагов, количество выполненных шагов > 0 (см. `vanessa-run-loop` правило).
+- Матрица покрытия Test Plan закрыта по runtime-слоям: server/server-context требования покрыты YaxUnit, UI/client-context требования покрыты сценарным UI/BDD, связанные процессы покрыты end-to-end сценариями. Непокрытый слой = `implementation_error`/`spec_mismatch` или blocker, но не `completed`.
 - Если scenarios красные из-за production-кода → `implementation_error` → STOP, return Developer-Code (orchestrator routes).
 - Если scenarios красные из-за нерезолвящихся шагов (`unknown_step_candidate`) → STOP с указанием на Phase 3c (Scenario-Coder).
 - Если scenarios красные из-за тестовых данных (несуществующие пользователи / отсутствующие предусловия) → STOP с указанием на data-prep (или эскалация пользователю).
@@ -123,7 +126,7 @@ depends_on:
   - framework/skills/bsl-practices/error-handling/SKILL.md
   - framework/skills/bsl-practices/test-writing/SKILL.md
   - framework/skills/tool-usage/v8-runner/SKILL.md
-  - framework/skills/tool-usage/browser-ui/visual-check/SKILL.md
+  - framework/skills/tool-usage/vanessa/va-visual-check/SKILL.md
   - framework/skills/tool-usage/diagnostics/event-log-analysis/SKILL.md
   - framework/skills/tool-usage/browser-ui/gui-control/SKILL.md
   - framework/skills/tool-usage/browser-ui/screenshot/SKILL.md

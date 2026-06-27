@@ -1,22 +1,22 @@
 ---
 name: vanessa-diagnostics-policy
-description: Vanessa run failed -> diagnose in the order event log -> visual -> tech log. Apply the `vanessa-diagnostics` skill.
+description: "When Vanessa fails: event log -> visual -> tech log"
 alwaysApply: true
 ---
 
-# Vanessa Diagnostics Policy
+# Vanessa Automation Diagnostics Policy
 
-> **Trigger:** an unsuccessful or suspicious scenario run. When triggered, apply the `vanessa-diagnostics` skill (`framework/skills/tool-usage/vanessa/vanessa-diagnostics/SKILL.md`).
+> **Trigger:** unsuccessful or suspicious scenario run. When triggered, apply the `vanessa-diagnostics` skill (`framework/skills/tool-usage/vanessa/vanessa-diagnostics/SKILL.md`).
 
 ## MUST (source priority)
 
 | Priority | Source | Condition |
-|-----------|--------|----------|
-| 1st | Registration log (`event-log`) | Main source of errors - check first |
-| 2nd | Visual diagnostics (noVNC / screenshot) | If a GUI blockage or `Security Warning` is suspected |
-| 3rd | Tech log | Only if `event-log` and visual diagnostics did not provide an answer |
+|-----------|----------|---------|
+| 1st | Registration log (`event-log`) | Primary source of errors — check first |
+| 2nd | Visual diagnostics | For test client form state, GUI blocking, modal/manager window, and `Security warning` — visual artifact via `va-visual-check`: first VA MCP screenshot, with fallback if necessary and the reason recorded |
+| 3rd | Technology log | Only if `event-log` and visual diagnostics did not provide an answer |
 
-- Do not rely blindly on local time windows: ClickHouse and local time may diverge (timezone drift).
+- Do not rely blindly on local time windows: ClickHouse and local time may differ (timezone drift).
 
 ---
 depends_on:

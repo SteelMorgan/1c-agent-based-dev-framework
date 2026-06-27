@@ -1,16 +1,18 @@
 ---
 name: "screenshot"
-description: "Use for capturing a desktop or window screenshot at the OS level (full screen, a specific app/window, or a pixel region). Helps get a shot when tool-specific capture (Playwright, Figma MCP) is unavailable."
+description: "OS screenshots of the desktop, a window, or a screen region"
 ---
 
-# Screenshot Capture
+# Taking Screenshots
 
-Save-location rules:
-1. User specifies path → save there.
-2. User asks without path → OS default location.
-3. Codex self-inspection → temp directory.
+Save rules:
+1. User specified a path → save there.
+2. User asked without a path → use the OS default location.
+3. Codex self-check → temporary directory.
 
-Prefer tool-specific captures (Figma MCP, Playwright, agent-browser) when available. Use this skill for explicit requests, whole-system desktop captures, or when tool-specific capture cannot get what you need.
+Prefer specialized image-capture tools (Figma MCP, Playwright, agent-browser, VA MCP) when the target domain has such a tool. Use this skill for explicit requests to capture the desktop/window, full-screen captures, or domains where no specialized tool exists.
+
+For 1C:Enterprise UI/forms, first use the specialized `va-visual-check` skill. Use this OS-screenshot skill for 1C only as a fallback according to the `va-visual-check` rules, recording the completed VA steps, the reason for the fallback, and the residual risk.
 
 ## macOS permission preflight
 
@@ -53,6 +55,8 @@ Display dimensions: `DISPLAY=:99 xdpyinfo | grep dimensions`
 
 `--app`, `--window-name`, `--list-windows` are macOS-only. On Linux use `--active-window` or `--window-id`.
 
+For 1C screenshots in Xvfb, see `va-visual-check`: it describes the VA flow, exposing the window before the VA capture, and the fallback conditions.
+
 ## PowerShell helper (Windows)
 
 ```powershell
@@ -68,7 +72,7 @@ powershell -ExecutionPolicy Bypass -File <path-to-skill>/scripts/take_screenshot
 | `-ActiveWindow` | Ask user to focus first |
 | `-WindowHandle <id>` | Specific window |
 
-## Direct OS fallbacks
+## Direct OS screenshots
 
 ### macOS
 
@@ -93,4 +97,5 @@ ffmpeg -y -f x11grab -video_size 800x600 -i :99+100,200 -frames:v 1 output/regio
 - macOS sandbox errors ("screen capture blocked", `ModuleCache`) → rerun with escalated permissions
 - macOS no matches → `--list-windows --app "Name"` → retry with `--window-id`
 - Linux tool missing → `command -v scrot`, `command -v import`
+- 1C VA PNG is black/solid-color → follow `va-visual-check`
 - Always report saved file path

@@ -1,11 +1,15 @@
 ---
 name: "playwright-interactive"
-description: "Use for iterative UI debugging of web applications and Electron through a persistent `js_repl` Playwright session. Helps keep browser handles alive between steps without restarting."
+description: "Interactive Playwright debugging in a persistent session"
 ---
 
 # Playwright Interactive Skill
 
 Persistent `js_repl` Playwright session for iterative UI debugging of web and Electron apps. Keep the same handles alive across iterations.
+
+## 1C Boundary
+
+For 1C:Enterprise UI, interactive Playwright is not the preferred path for ordinary forms. First use `va-visual-check`: Vanessa Automation/TestClient and VA MCP for opening forms, clicking commands, filling fields, checking table rows, validating client-side behavior, and taking UI/UX screenshots. Use interactive Playwright for 1C only when the target is browser-specific or as fallback under `va-visual-check`: DOM/CSS/HTML, browser console/network, cookies/storage, web publication/auth, web-client viewport/pixel rendering, Chrome/Edge-only behavior, browser extension behavior, or browser-only file/clipboard flows. If used for 1C, record the VA steps already attempted, why browser evidence is sufficient, and the residual risk.
 
 ## Preconditions
 
