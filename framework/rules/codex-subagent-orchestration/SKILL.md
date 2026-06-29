@@ -1,5 +1,5 @@
 ---
-description: Техническое правило запуска сабагентов: multi_agent_v2, fork_turns, model/reasoning args, handoff context и recovery при недоступном runtime.
+description: Техническое правило запуска сабагентов multi_agent_v2, fork_turns, model/reasoning args, handoff context и recovery при недоступном runtime.
 alwaysApply: false
 ---
 

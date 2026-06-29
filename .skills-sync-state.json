@@ -1382,10 +1382,10 @@
       "synced_at": "2026-06-27T13:15:56Z",
       "status": "synced"
     },
-    "framework/skills/agent-process/codex-subagent-orchestration/SKILL.md": {
-      "ru_hash": "sha256:55e99a4b057ba8b4e77dcfdc4dc47d3ea9357ccfb88d976c30d8f08ba4b20d81",
-      "en_hash": "sha256:b056b1fcafa55f24742016438b3296e1e00805ba8c218fe70de391033e38f320",
-      "synced_at": "2026-06-29T17:29:19Z",
+    "framework/rules/codex-subagent-orchestration/SKILL.md": {
+      "ru_hash": "sha256:297462eb7c3a92a3d7c978b678b4bb1990177eb7dfcec3d0f2718904db444e69",
+      "en_hash": "sha256:0e60077e23f9c8df413382c3375a1f20a658a300445a98b6a66e2db0179900e9",
+      "synced_at": "2026-06-29T17:59:12Z",
       "status": "synced"
     }
   }
