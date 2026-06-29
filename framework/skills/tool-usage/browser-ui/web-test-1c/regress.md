@@ -2,11 +2,15 @@
 
 Используй этот документ когда нужно покрыть 1С-решение автоматизированными регрессионными тестами: запускать несколько .feature / JSON-сценариев подряд, агрегировать результаты, получать отчёт fail/pass, настраивать retry на flaky-тесты, сохранять скриншоты на падения. Для разовой автоматизации (один сценарий) оставайся в режимах `run`/`exec` из SKILL.md.
 
+Для 1С UI это не default-регресс. Если тест проверяет форму, команду, поле, ТЧ, клиентский обработчик или бизнес-поток без браузерной специфики — сначала пиши/запускай Vanessa `.feature` через TestClient. Playwright-регресс через `web-test-1c` выбирай для web-client/browser-слоя или как fallback по `va-visual-check`: DOM/CSS/HTML, console/network, web-auth/publication, viewport/pixel rendering, browser extension или browser-only I/O. В тесте или отчёте фиксируй VA-шаги, причину выбора browser/fallback и остаточный риск.
+
 Раннер — тот же `run.mjs`. Режим — `test`:
 
 ```bash
-node $RUN test [url] <dir|file> [флаги]
+node $RUN test <dir|file> [--url=<url>] [флаги]
 ```
+
+Текущая реализация в этом репозитории — single-context runner: `url`, discovery, hooks, `step`, `assert`, `--tags`, `--grep`, `--retry`, JSON/JUnit/Allure-smoke отчёты и скриншоты на падении поддерживаются. Multi-user `contexts` ниже описывает целевой контракт, но пока не включён в runtime `tools/web-test`.
 
 Тесты живут рядом с проектом, который покрывают (не внутри навыка). Соглашение: `tests/` в корне проекта, `_hooks.mjs` и `webtest.config.mjs` в корне сьюта.
 
@@ -14,7 +18,8 @@ node $RUN test [url] <dir|file> [флаги]
 
 | Цель | Режим |
 |------|-------|
-| Исследовать форму, прototипировать один шаг, отладить селектор | `exec` (интерактивная сессия) |
+| Исследовать форму/прототипировать шаг без browser-specific причины | Vanessa/TestClient или платформенный TestClient MCP |
+| Отладить DOM/CSS selector или browser-only поведение | `exec` (интерактивная web-сессия) |
 | Воспроизвести баг как падающий тест перед фиксом | `test` |
 | Покрыть фичу тестами на будущее | `test` |
 | Запустить регресс проекта на новой сборке | `test` |
@@ -115,8 +120,9 @@ assert.*         // см. «Утверждения» ниже
   attempt,       // 1..maxAttempts
   maxAttempts,   // 1 + retry
   param,         // { ... } | undefined (только когда export const params задан)
-  contexts: { clerk: { url, ... }, manager: { ... } },
-  primaryContext // имя контекста активного при входе в тест
+  // planned после переноса modular engine:
+  // contexts: { clerk: { url, ... }, manager: { ... } },
+  // primaryContext: 'clerk'
 }
 ```
 

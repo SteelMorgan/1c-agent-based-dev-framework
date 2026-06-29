@@ -12,6 +12,7 @@ import io.github.onec.xmlgen.dsl.SkdDsl;
 import io.github.onec.xmlgen.editor.*;
 import io.github.onec.xmlgen.format.OutputFormat;
 import io.github.onec.xmlgen.info.ConfigInfoPrinter;
+import io.github.onec.xmlgen.info.FormDecompiler;
 import io.github.onec.xmlgen.info.FormInfoPrinter;
 import io.github.onec.xmlgen.info.MxlDecompiler;
 import io.github.onec.xmlgen.info.MxlInfoPrinter;
@@ -46,6 +47,9 @@ import io.github.onec.xmlgen.oracle.OracleOptions;
 import io.github.onec.xmlgen.oracle.PredefinedDataOracleRunner;
 import io.github.onec.xmlgen.oracle.RuleMiningReport;
 import io.github.onec.xmlgen.oracle.RuleMiningReportWriter;
+import io.github.onec.xmlgen.support.SupportDecision;
+import io.github.onec.xmlgen.support.SupportGuard;
+import io.github.onec.xmlgen.support.SupportRequirement;
 
 import io.github.onec.xmlgen.editor.ReplaceTextEditor;
 
@@ -54,6 +58,8 @@ import io.github.onec.xmlgen.editor.ReplaceTextEditor;
 //++agent TASK-155
 
 import java.io.IOException;
+import java.io.PrintStream;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -63,6 +69,7 @@ import java.util.Arrays;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
@@ -140,11 +147,89 @@ public class Commands {
             case "oracle":
                 executeOracle(args);
                 break;
+            case "support":
+                executeSupport(args);
+                break;
             case "--help":
             case "-h":
                 throw new IllegalArgumentException("Use without arguments to see help");
                 default:
                 throw new IllegalArgumentException("Unknown command: " + command);
+        }
+    }
+
+    private static void executeSupport(String[] args) {
+        if (args.length == 0) {
+            throw new IllegalArgumentException("Support subcommand required: check|info");
+        }
+        switch (args[0].toLowerCase()) {
+            case "check" -> supportCheck(args, true);
+            case "info" -> supportCheck(args, false);
+            default -> throw new IllegalArgumentException("Unknown support subcommand: " + args[0]);
+        }
+    }
+
+    private static void supportCheck(String[] args, boolean failOnBlocked) {
+        Path target = null;
+        SupportRequirement requirement = SupportRequirement.EDITABLE;
+        String output = "text";
+
+        for (int i = 1; i < args.length; i++) {
+            String a = args[i];
+            if ("--require".equals(a) && i + 1 < args.length) {
+                requirement = SupportRequirement.fromCli(args[++i]);
+            } else if ("--output".equals(a) && i + 1 < args.length) {
+                output = args[++i].toLowerCase();
+            } else if (target == null && !a.startsWith("--")) {
+                target = Paths.get(a);
+            } else {
+                throw new IllegalArgumentException("Unknown option for support " + args[0] + ": " + a);
+            }
+        }
+
+        if (target == null) {
+            throw new IllegalArgumentException("Usage: xml-gen support " + args[0]
+                    + " <path> [--require editable|removed] [--output text|json]");
+        }
+        if (!"text".equals(output) && !"json".equals(output)) {
+            throw new IllegalArgumentException("--output must be one of: text, json");
+        }
+
+        try {
+            SupportDecision decision = SupportGuard.check(target, requirement);
+            if ("json".equals(output)) {
+                Map<String, Object> json = new LinkedHashMap<>();
+                json.put("blocked", decision.blocked());
+                json.put("requirement", requirement.cliName());
+                json.put("code", decision.code() == null ? null : decision.code().name());
+                json.put("reason", decision.reason());
+                json.put("targetPath", decision.targetPath().toString());
+                json.put("configDir", decision.configDir() == null ? null : decision.configDir().toString());
+                json.put("objectUuid", decision.objectUuid());
+                json.put("supportRule", decision.supportRule());
+                System.out.println(new ObjectMapper().writeValueAsString(json));
+            } else if (decision.blocked()) {
+                System.out.println("BLOCKED: " + decision.reason());
+                if (decision.configDir() != null) {
+                    System.out.println("Config: " + decision.configDir());
+                }
+                if (decision.objectUuid() != null) {
+                    System.out.println("Object UUID: " + decision.objectUuid());
+                }
+            } else {
+                System.out.println("ALLOWED");
+                if (decision.configDir() != null) {
+                    System.out.println("Config: " + decision.configDir());
+                }
+                if (decision.objectUuid() != null) {
+                    System.out.println("Object UUID: " + decision.objectUuid());
+                }
+            }
+            if (failOnBlocked && decision.blocked()) {
+                throw new IllegalArgumentException(SupportGuard.diagnostic(decision, requirement));
+            }
+        } catch (IOException e) {
+            throw new RuntimeException("Failed to inspect support state: " + e.getMessage(), e);
         }
     }
 
@@ -763,12 +848,14 @@ public class Commands {
 
     private static void executeForm(String[] args) {
         if (args.length == 0) {
-            throw new IllegalArgumentException("Form subcommand required: info, add, remove, compile, edit, add-attribute, add-element, add-command, remove-element, move-element");
+            throw new IllegalArgumentException("Form subcommand required: info, decompile, add, remove, compile, edit, add-attribute, add-element, add-command, remove-element, move-element");
         }
 
         String subcommand = args[0];
         if ("info".equals(subcommand.toLowerCase())) {
             formInfo(args);
+        } else if ("decompile".equals(subcommand.toLowerCase())) {
+            formDecompile(args);
         } else if ("add".equals(subcommand.toLowerCase())) {
             formAdd(args);
         } else if ("remove".equals(subcommand.toLowerCase())) {
@@ -781,6 +868,37 @@ public class Commands {
             formEdit(args);
         } else {
             throw new IllegalArgumentException("Unknown Form subcommand: " + subcommand);
+        }
+    }
+
+    private static void formDecompile(String[] args) {
+        Path file = null;
+        Path output = null;
+
+        for (int i = 1; i < args.length; i++) {
+            if (("--output".equals(args[i]) || "-o".equals(args[i]) || "-OutputPath".equals(args[i]))
+                    && i + 1 < args.length) {
+                output = Paths.get(args[++i]);
+            } else if (file == null) {
+                file = Paths.get(args[i]);
+            } else if (output == null) {
+                output = Paths.get(args[i]);
+            } else {
+                throw new IllegalArgumentException("Unexpected positional argument for form decompile: " + args[i]);
+            }
+        }
+
+        if (file == null) {
+            throw new IllegalArgumentException("Form XML file is required: xml-gen form decompile <Form.xml> [output.json]");
+        }
+
+        try {
+            XmlDocument doc = new XmlStructureReader().parse(file);
+            new FormDecompiler().decompile(doc, output);
+        } catch (XmlStructureReader.XmlParseException e) {
+            throw new RuntimeException("Failed to parse form XML: " + e.getMessage(), e);
+        } catch (IOException e) {
+            throw new RuntimeException("Failed to decompile form XML: " + e.getMessage(), e);
         }
     }
     
@@ -848,6 +966,7 @@ public class Commands {
             throw new IllegalArgumentException("Usage: xml-gen form add <objectXml> <formName> [--synonym <syn>] [--default]");
         }
         assertValidOneCName(formName, "form");
+        guardMutation(objectXml);
 
         Path formMeta = null;
         Path formDir = null;
@@ -935,6 +1054,8 @@ public class Commands {
             if (Files.exists(formDir) && !Files.isDirectory(formDir)) {
                 throw new IOException("Expected form directory, got non-directory path: " + formDir);
             }
+            guardMutation(objectXml);
+            guardMutation(formMeta, SupportRequirement.REMOVED);
 
             byte[] originalObjectXml = Files.readAllBytes(objectXml);
             Path backupRoot = createFormRemoveBackupRoot(baseDir);
@@ -1057,6 +1178,7 @@ public class Commands {
                 throw new IllegalArgumentException("output XML file is required");
             }
             try {
+                guardMutation(outputXml);
                 io.github.onec.xmlgen.form.fromobject.FormFromObjectGenerator gen =
                         new io.github.onec.xmlgen.form.fromobject.FormFromObjectGenerator();
                 FormDsl dsl = gen.generate(explicitObject, outputXml, presetName, presetDir);
@@ -1076,6 +1198,7 @@ public class Commands {
         }
 
         try {
+            guardMutation(outputXml);
             ObjectMapper mapper = new ObjectMapper();
             FormDsl dsl = mapper.readValue(inputJson.toFile(), FormDsl.class);
             FormWriter writer = new FormWriter(format);
@@ -1227,6 +1350,7 @@ public class Commands {
         }
 
         try {
+            guardMutation(formFile);
             byte[] originalFormBytes = Files.readAllBytes(formFile);
             BslStubWriter bslWriter = new BslStubWriter(formFile);
             Path modulePath = bslWriter.getModulePath();
@@ -1403,6 +1527,7 @@ public class Commands {
                 }
             }
             //++agent TASK-155
+            guardMutation(outputDir);
             RoleWriter writer = new RoleWriter(format);
             writer.create(dsl, outputDir);
         } catch (Exception e) {
@@ -1594,6 +1719,7 @@ public class Commands {
                     "Got an empty DSL object {}.");
             }
             //++agent TASK-155
+            guardMutation(outputXml);
             MxlWriter writer = new MxlWriter(format);
             writer.create(dsl, outputXml);
         } catch (Exception e) {
@@ -1698,6 +1824,7 @@ public class Commands {
 
         io.github.onec.xmlgen.model.MdoPath object = io.github.onec.xmlgen.model.MdoPath.parse(objectSpec);
         try {
+            guardMutation(resolveObjectXml(configDir, srcDir, object));
             new io.github.onec.xmlgen.writer.TemplateWriter()
                     .addTemplate(configDir, object, name, typeStr, synonym, setMainDcs, srcDir);
         } catch (IOException e) {
@@ -1740,6 +1867,7 @@ public class Commands {
         assertValidOneCName(templateName, "template");
 
         try {
+            guardMutation(objectXml);
             ObjectContainerEditor editor = new ObjectContainerEditor(objectXml);
             if (editor.hasTemplate(templateName)) {
                 throw new IllegalArgumentException("Template '" + templateName + "' already exists in ChildObjects");
@@ -1832,6 +1960,9 @@ public class Commands {
             Path srcPath = Paths.get(srcDir);
             Path effectiveSrc = srcPath.isAbsolute() ? srcPath : configDir.resolve(srcDir);
             Path objectXmlForCheck = effectiveSrc.resolve(object.getObjectXmlRelPath());
+            guardMutation(objectXmlForCheck);
+            guardMutation(effectiveSrc.resolve(object.getRelativeDir())
+                    .resolve("Templates").resolve(name + ".xml"), SupportRequirement.REMOVED);
             if (Files.exists(objectXmlForCheck)) {
                 io.github.onec.xmlgen.editor.ObjectContainerEditor checkEditor =
                     new io.github.onec.xmlgen.editor.ObjectContainerEditor(objectXmlForCheck);
@@ -1878,12 +2009,15 @@ public class Commands {
                 throw new IllegalArgumentException("Template '" + templateName
                         + "' not found in ChildObjects of '" + objectXml + "'. Cannot remove a non-existing template.");
             }
-            editor.save();
 
             String objectName = editor.getObjectName();
             Path baseDir = objectXml.getParent().resolve(objectName != null ? objectName : "");
             Path tplMeta = baseDir.resolve("Templates").resolve(templateName + ".xml");
             Path tplDir = baseDir.resolve("Templates").resolve(templateName);
+            guardMutation(objectXml);
+            guardMutation(tplMeta, SupportRequirement.REMOVED);
+
+            editor.save();
 
             if (Files.exists(tplMeta)) Files.delete(tplMeta);
             if (Files.exists(tplDir)) {
@@ -1933,6 +2067,7 @@ public class Commands {
 
         io.github.onec.xmlgen.model.MdoPath object = io.github.onec.xmlgen.model.MdoPath.parse(objectSpec);
         try {
+            guardMutation(resolveObjectXml(configDir, srcDir, object));
             new io.github.onec.xmlgen.writer.TemplateWriter()
                     .addHelp(configDir, object, lang, srcDir);
         } catch (IOException e) {
@@ -2042,28 +2177,35 @@ public class Commands {
         String name = null;
         int limit = 150;
         int offset = 0;
+        Integer batch = null;
+        Path outfile = null;
         //++agent TASK-176 [08.06.2026 12:50:00]
         // S-06 (XG-48): флаг --raw для печати запроса verbatim (lossless round-trip).
         boolean raw = false;
         //++agent TASK-176
 
         for (int i = 1; i < args.length; i++) {
-            if ("--raw".equals(args[i])) { //++agent TASK-176
+            String option = args[i].toLowerCase(Locale.ROOT);
+            if ("--raw".equals(option) || "-raw".equals(option)) { //++agent TASK-176
                 raw = true;                //++agent TASK-176
-            } else if ("--mode".equals(args[i]) && i + 1 < args.length) {
+            } else if (("--mode".equals(option) || "-mode".equals(option)) && i + 1 < args.length) {
                 mode = args[++i].toLowerCase();
-            } else if ("--name".equals(args[i]) && i + 1 < args.length) {
+            } else if (("--name".equals(option) || "-name".equals(option)) && i + 1 < args.length) {
                 name = args[++i];
-            } else if ("--dataSet".equals(args[i]) && i + 1 < args.length) {
+            } else if (("--dataset".equals(option) || "-dataset".equals(option)) && i + 1 < args.length) {
                 // --dataSet is an alias for --name when used with query/fields modes
                 name = args[++i];
-            } else if ("--variant".equals(args[i]) && i + 1 < args.length) {
+            } else if (("--variant".equals(option) || "-variant".equals(option)) && i + 1 < args.length) {
                 // --variant is an alias for --name when used with variant mode
                 name = args[++i];
-            } else if ("--limit".equals(args[i]) && i + 1 < args.length) {
+            } else if (("--limit".equals(option) || "-limit".equals(option)) && i + 1 < args.length) {
                 limit = Integer.parseInt(args[++i]);
-            } else if ("--offset".equals(args[i]) && i + 1 < args.length) {
+            } else if (("--offset".equals(option) || "-offset".equals(option)) && i + 1 < args.length) {
                 offset = Integer.parseInt(args[++i]);
+            } else if (("--batch".equals(option) || "-batch".equals(option)) && i + 1 < args.length) {
+                batch = Integer.parseInt(args[++i]);
+            } else if (("--outfile".equals(option) || "-outfile".equals(option)) && i + 1 < args.length) {
+                outfile = Paths.get(args[++i]);
             } else if (file == null) {
                 file = Paths.get(args[i]);
             }
@@ -2082,17 +2224,35 @@ public class Commands {
                     "Expected root <DataCompositionSchema>, got <" + rootEl + ">. " +
                     "The file does not appear to be a 1C data composition schema.");
             }
-            //**agent TASK-176 [08.06.2026 12:50:00]
-            // S-06 (XG-48): --raw с режимом query печатает запрос байт-в-байт (verbatim),
-            // минуя пагинацию/декорации; иначе обычный режим.
-            if (raw && "query".equals(mode)) {
-                new SkdInfoPrinter().printRawQuery(doc.getRoot(), name, System.out);
+            PrintStream out = System.out;
+            if (outfile != null) {
+                Path parent = outfile.toAbsolutePath().getParent();
+                if (parent != null) {
+                    Files.createDirectories(parent);
+                }
+                try (PrintStream fileOut = new PrintStream(
+                        Files.newOutputStream(outfile), true, StandardCharsets.UTF_8)) {
+                    printSkdInfo(doc, mode, name, limit, offset, batch, raw, fileOut);
+                }
             } else {
-                new SkdInfoPrinter().print(doc, mode, name, limit, offset, System.out);
+                printSkdInfo(doc, mode, name, limit, offset, batch, raw, out);
             }
-            //**agent TASK-176
         } catch (XmlStructureReader.XmlParseException e) {
             throw new RuntimeException("Failed to parse SKD XML: " + e.getMessage(), e);
+        } catch (IOException e) {
+            throw new RuntimeException("Failed to write SKD info output: " + e.getMessage(), e);
+        }
+    }
+
+    private static void printSkdInfo(XmlDocument doc, String mode, String name, int limit,
+                                     int offset, Integer batch, boolean raw, PrintStream out) {
+        // S-06 (XG-48): --raw с режимом query печатает запрос verbatim, минуя
+        // пагинацию/декорации; иначе обычный режим.
+        SkdInfoPrinter printer = new SkdInfoPrinter();
+        if (raw && "query".equals(mode)) {
+            printer.printRawQuery(doc.getRoot(), name, batch, out);
+        } else {
+            printer.print(doc, mode, name, limit, offset, batch, out);
         }
     }
 
@@ -2136,6 +2296,7 @@ public class Commands {
             //++agent TASK-155
             // По умолчанию резолвим @file:-include относительно директории JSON.
             Path base = includeBase != null ? includeBase : inputJson.toAbsolutePath().getParent();
+            guardMutation(outputXml);
             SkdWriter writer = new SkdWriter(format).withIncludeBase(base);
             writer.create(dsl, outputXml);
         } catch (Exception e) {
@@ -2237,6 +2398,7 @@ public class Commands {
         }
 
         try {
+            guardMutation(schemaPath);
             // Read raw bytes once for rollback
             byte[] originalBytes = Files.readAllBytes(schemaPath);
             try {
@@ -2870,6 +3032,24 @@ public class Commands {
         }
         throw new IllegalArgumentException("File argument required");
     }
+
+    private static void guardMutation(Path target) {
+        guardMutation(target, SupportRequirement.EDITABLE);
+    }
+
+    private static void guardMutation(Path target, SupportRequirement requirement) {
+        try {
+            SupportGuard.require(target, requirement);
+        } catch (IOException e) {
+            throw new RuntimeException("Failed to inspect support state: " + e.getMessage(), e);
+        }
+    }
+
+    private static Path resolveObjectXml(Path configDir, String srcDir, io.github.onec.xmlgen.model.MdoPath object) {
+        Path srcPath = Paths.get(srcDir);
+        Path effectiveSrc = srcPath.isAbsolute() ? srcPath : configDir.resolve(srcDir);
+        return effectiveSrc.resolve(object.getObjectXmlRelPath());
+    }
     
     private static void saveAndValidate(XmlDocument doc, Path file, String type, String[] args) throws Exception {
         saveAndValidate(doc, file, type, args, null);
@@ -2925,6 +3105,7 @@ public class Commands {
             System.exit(1);
         }
 
+        guardMutation(file);
         Path tmpFile = file.resolveSibling(file.getFileName() + ".tmp");
         try {
             new XmlDocumentWriter().write(doc, tmpFile);
@@ -3148,6 +3329,7 @@ public class Commands {
         }
 
         try {
+            guardMutation(file);
             ConfigEditor editor = new ConfigEditor(file);
             editor.setSkipFileCheck(noFileCheck);
 
@@ -3366,6 +3548,7 @@ public class Commands {
         }
 
         try {
+            guardMutation(outputDir);
             SubsystemWriter writer = new SubsystemWriter();
             writer.setWriteStubs(!noStubs);
             writer.compile(jsonPath, outputDir, parentPath);
@@ -3442,6 +3625,7 @@ public class Commands {
         }
 
         try {
+            guardMutation(file);
             SubsystemEditor editor = new SubsystemEditor(file);
 
             switch (operation) {
@@ -3588,6 +3772,7 @@ public class Commands {
         }
 
         try {
+            guardMutation(file);
             InterfaceEditor editor = new InterfaceEditor(file);
             com.fasterxml.jackson.databind.ObjectMapper mapper = new com.fasterxml.jackson.databind.ObjectMapper();
 
@@ -3859,6 +4044,7 @@ public class Commands {
         }
 
         try {
+            guardMutation(outputDir);
             new MetaWriter().compile(jsonPath, outputDir);
             System.out.println("Metadata object created in: " + outputDir);
         } catch (IOException e) {
@@ -3917,6 +4103,7 @@ public class Commands {
                         + ". Expected: " + objXml.getFileName() + " or " + objSubDir.getFileName() + "/ in "
                         + typeDir);
                 }
+                guardMutation(Files.exists(objXml) ? objXml : objSubDir, SupportRequirement.REMOVED);
             }
         }
 
@@ -3956,9 +4143,28 @@ public class Commands {
                         "Usage: xml-gen meta edit <objectPath> --batch <file.json>");
             }
             try {
+                guardMutation(objectPath);
                 new MetaEditor().applyBatch(objectPath, batchFile);
             } catch (IOException e) {
                 throw new RuntimeException("Failed to apply batch: " + e.getMessage(), e);
+            }
+            return;
+        }
+
+        // ── Normalize mode (XG-51) ───────────────────────────────────────
+        // Идемпотентная нормализация объекта (DataProcessor/Report): вычистка
+        // рантайм-невалидных под-свойств реквизитов. --value НЕ требуется —
+        // операция работает на всём объекте.
+        if ("normalize-runtime-attributes".equals(operation)) {
+            if (objectPath == null) {
+                throw new IllegalArgumentException(
+                        "Usage: xml-gen meta edit <objectPath> --op normalize-runtime-attributes");
+            }
+            try {
+                guardMutation(objectPath);
+                new MetaEditor().edit(objectPath, operation, value == null ? "" : value);
+            } catch (IOException e) {
+                throw new RuntimeException("Failed to normalize metadata: " + e.getMessage(), e);
             }
             return;
         }
@@ -3967,13 +4173,15 @@ public class Commands {
         if (objectPath == null || operation == null || value == null) {
             throw new IllegalArgumentException(
                     "Usage: xml-gen meta edit <objectPath> --op <operation> --value <value>\n"
+                    + "       xml-gen meta edit <objectPath> --op normalize-runtime-attributes\n"
                     + "       xml-gen meta edit <objectPath> --batch <file.json>\n"
                     + "Operations: add-attribute, add-ts, add-dimension, add-resource, add-enumValue,\n"
                     + "  add-predefined (--value \"Имя[|Описание[|Код[|folder]]]\", батч через ;;),\n"
                     + "  add-exchange-content (--value \"Metadata[|AutoRecord]\", батч через ;; или @items.json),\n"
                     + "  add-column, add-form, add-template, add-command, add-ts-attribute,\n"
                     + "  remove-attribute, remove-ts, remove-dimension, ..., remove-ts-attribute,\n"
-                    + "  modify-attribute, modify-dimension, modify-resource, modify-enumValue, modify-column");
+                    + "  modify-attribute, modify-dimension, modify-resource, modify-enumValue, modify-column,\n"
+                    + "  modify-ts (rename TС + согласованные GeneratedType; --value \"OldTS: name=NewTS\")");
         }
 
         // TASK-155 A2 iter-2: fail-fast on unknown --op value.
@@ -4000,6 +4208,7 @@ public class Commands {
         validateMetaEditTarget(opAction, opTarget);
 
         try {
+            guardMutation(objectPath);
             new MetaEditor().edit(objectPath, operation, value);
         } catch (IOException e) {
             throw new RuntimeException("Failed to edit metadata: " + e.getMessage(), e);
@@ -4013,7 +4222,7 @@ public class Commands {
                     "ts-attribute", "property");
             case "remove" -> Set.of("attribute", "ts", "dimension", "resource", "enumValue",
                     "column", "form", "template", "command", "ts-attribute");
-            case "modify" -> Set.of("attribute", "dimension", "resource", "enumValue", "column", "property");
+            case "modify" -> Set.of("attribute", "dimension", "resource", "enumValue", "column", "ts", "property");
             default -> Set.of();
         };
         if (!supported.contains(target)) {
@@ -4491,6 +4700,9 @@ public class Commands {
         }
 
         try {
+            if (!dryRun) {
+                guardMutation(file);
+            }
             ReplaceTextEditor editor = new ReplaceTextEditor();
             ReplaceTextEditor.Result result = editor.execute(
                     file, pairs, replaceAll, encoding, dryRun, backup, validate);

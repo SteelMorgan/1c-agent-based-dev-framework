@@ -1,6 +1,6 @@
 ---
 name: epf-full
-description: "Use for создания внешних обработок и отчётов (EPF/ERF), добавления форм, макетов и справки, подключения к подсистеме «Дополнительные отчёты и обработки» БСП. Helps пройти полный цикл init→add-form→template→BSP-регистрация через xml-gen."
+description: "xml-gen EPF/ERF: внешние отчёты и обработки"
 targets:
   - developer-code
   - architect

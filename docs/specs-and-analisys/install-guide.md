@@ -102,14 +102,20 @@ python tools/install.py --ide cursor --all --project-dir /path/to/my-project
 
 ## Компоненты фреймворка
 
-Каждый компонент — это `.md` файл с YAML frontmatter, расположенный в `framework/`.
+Каждый компонент — это Markdown-файл с YAML frontmatter, расположенный в `framework/`.
+Правила и workflow хранятся как skill-каталоги с файлом `SKILL.md`.
 
 | Тип          | Каталог              | Назначение                                | Куда ставится       |
 |--------------|----------------------|-------------------------------------------|---------------------|
 | **agent**    | `framework/subagents/`  | Роли: analyst, architect, developer и др. | `rules_dir`         |
-| **rule**     | `framework/rules/`   | Политики: TDD, SDD, кросс-ревью          | `rules_dir`         |
+| **rule**     | `framework/rules/<name>/SKILL.md` | Политики: TDD, SDD, кросс-ревью | `skills_dir` |
 | **skill**    | `framework/skills/`  | Навыки: BSL-практики, tool-usage, spec    | `skills_dir`        |
-| **workflow** | `framework/workflows/`| Процессы: full-cycle, quick-fix           | `rules_dir`         |
+| **workflow** | `framework/workflows/<name>/SKILL.md` | Процессы: full-cycle, quick-fix | `skills_dir` |
+
+Для `codex` `rule` и `workflow` устанавливаются symlink-ом на каталог:
+`.codex/skills/<name> -> framework/rules/<name>` или `framework/workflows/<name>`.
+Для остальных IDE они устанавливаются файловыми ссылками в их `skills_dir`
+(`.claude/skills/<name>.md` и аналогично для других платформ).
 
 ### Зависимости
 

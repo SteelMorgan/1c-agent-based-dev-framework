@@ -1,6 +1,6 @@
 ---
 name: v8-session-manager
-description: "Use for работы с менеджером сессий 1С: запуск, конфигурация, подключение клиентов, чтение session_list, вызов проксированных MCP-tools расширений 1С. Helps при ошибках «no active sessions» / «session_id required» и подключении клиента через mcpMode=ws."
+description: "Session manager 1C: запуск, клиенты, session_list, MCP"
 provides_capabilities:
   # Встроенные tools менеджера — доступны всегда, пока поднят.
   - session_list
@@ -60,6 +60,38 @@ provides_capabilities:
 - **Что НЕ делает кеш:** не запускает 1С, не воспроизводит ответ tool, не подменяет live-сессию. Только хранит имена и `inputSchema`.
 
 Подробности — `references/sessions-and-tools.md` § «Persistent кеш и `tools_cache_reset`».
+
+## Диагностика UI MCP-сессий
+
+Для клиентских UI-tools (`open_form`, `click`, `input`, `get_value`, `get_table_rows`, `test_client_start`) сначала докажи, что есть живой 1С-клиент, а не только запись в кешированной витрине.
+
+Минимальный порядок:
+
+1. Вызови `session_list`.
+2. Найди live-сессию нужной ИБ: `state=active`, `disconnected_secs_ago=null`, `infobase_name=<нужная ИБ>`.
+3. Для обычного UI MCP через платформенный тест-клиент нужна управляющая сессия `kind=1c-client`; для Vanessa нужны `kind=vanessa_test_client` и VA-tools сверх базового набора.
+4. Если live-сессий несколько, всегда передавай `session_id` в каждый proxied tool call.
+5. Перед длинным UI-сценарием проверь простой вызов (`infobase_info`) и `inflight=0`.
+
+Для UI/UX-приёмки 1C-форм основной визуальный путь описан в `va-visual-check`. Базовая цепочка через Vanessa/TestClient:
+
+1. Убедись по `session_list`, что VA manager живой: `kind=vanessa_test_client`, `state=active`, `tools` содержит VA-инструменты, `inflight=0`.
+2. Запусти или подключи тест-клиент через VA tool `connect_test_client` с нужным профилем.
+3. Проверь, что VA вернула реальный PID тест-клиента, а не `0`/пусто.
+4. Получи окна через `get_window_list_os`.
+5. Сними PNG через `get_window_screenshot_os`; Linux/Xvfb-рецепт для чёрного PNG и fallback-условия см. в `va-visual-check`.
+6. Проверь, что PNG не пустой и не одноцветный/чёрный.
+
+`tools/list` не доказывает готовность этой цепочки: список может быть из persistent cache. Доказательство — live-сессия + успешный smoke `connect_test_client -> get_window_list_os -> get_window_screenshot_os`.
+
+Если proxied вызов зависает или `inflight` остаётся больше нуля:
+
+- для формы тест-клиента сначала применяй `va-visual-check`; если нужен fallback, фиксируй выполненные VA-шаги, причину и остаточный риск;
+- проверь `/tmp/mcp-client.log` или проектный лог client_mcp: пришёл ли `MCP_TOOL_CALL`, зарегистрировалась ли WS-сессия, нет ли ошибки платформенного типа;
+- не сбрасывай `tools_cache_reset` как первое действие: кеш не блокирует live-вызовы и не лечит зависший клиент;
+- если клиент запущен неправильным режимом, заверши только свой сохранённый PID и перезапусти его правильной командой через `v8-runner`.
+
+Для цепочки запуска `1c-client` + `/TESTMANAGER` + отдельный `/TESTCLIENT` см. навык `v8-runner`, раздел «UI MCP через платформенный тест-клиент».
 
 ## Границы
 

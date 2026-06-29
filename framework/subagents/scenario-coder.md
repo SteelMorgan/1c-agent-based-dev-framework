@@ -81,6 +81,7 @@ skills:
 - **НЕ бизнес-логика в шаге.** Шаг — тонкая обёртка: оркестрация UI/вызова + трансляция ассерта. Вычисления, бизнес-правила — в прод-коде.
 - **НЕ расширяет scope.** Реализует ровно те шаги, которые требуются текущим набором `.feature` Phase 3a. Никаких «полезных шагов впрок».
 - **НЕ запускает полный regression** — только `v8-runner test va` на сценариях задачи для подтверждения Red-гейта (см. Red-гейт ниже).
+- **НЕ подключает интерактивный DAP-отладчик сам.** Если нужна runtime-отладка клиентского/серверного кода, оформить bug-report с `debug_trigger`; orchestrator маршрутизирует Debugger.
 - **НЕ общается напрямую с другими сабагентами.**
 
 ---
@@ -93,7 +94,7 @@ skills:
 2. Сценарии **падают** на прод-поведении (например, «форма не открылась», «документ не найден», «ассерт по состоянию не прошёл»), а не на инфраструктуре шага.
 3. В `scenario-coder-context.md` — сводка: для каждого сценария кратко «какой шаг упал и почему это ожидаемое Red».
 
-Если сценарий **зелёный** до написания прод-кода — это сигнал, что шаг мокает реальность. Найти и удалить мок/подмену. Если за 2 попытки причина зелёного Red-гейта не найдена ИЛИ шаг падает с неочевидной причиной — завести `bug-report.json` через навык `bug-reporting` в `task_dir/.context/bugs/<bug-id>.json` → СТОП. В отчёте обязательны: `expectation` (Acceptance Scenario из спеки + ожидаемое Red-поведение), `scenario_context` (заполняется из Given-блоков `.feature`), гипотеза `layer: step` если подозрение на скрытый мок.
+Если сценарий **зелёный** до написания прод-кода — это сигнал, что шаг мокает реальность. Найти и удалить мок/подмену. Если за 2 попытки причина зелёного Red-гейта не найдена ИЛИ шаг падает с неочевидной причиной — завести `bug-report.json` через навык `bug-reporting` в `task_dir/.context/bugs/<bug-id>.json` → СТОП. В отчёте обязательны: `expectation` (Acceptance Scenario из спеки + ожидаемое Red-поведение), `scenario_context` (заполняется из Given-блоков `.feature`), `debug_trigger` (как Debugger должен запустить Vanessa-сценарий/шаг после breakpoint или trace), гипотеза `layer: step` если подозрение на скрытый мок.
 
 ---
 
@@ -144,14 +145,14 @@ depends_on:
   - framework/skills/tool-usage/platform-data/xml-generation/SKILL.md
   - framework/skills/tool-usage/diagnostics/bug-reporting/SKILL.md
   - framework/skills/tool-usage/v8-session-manager/SKILL.md
-  - framework/rules/agent-context-protocol.md
-  - framework/rules/capability-resolution.mdc
-  - framework/rules/no-direct-db-access.md
-  - framework/rules/skill-learning-policy.md
-  - framework/rules/tdd-policy.md
-  - framework/rules/vanessa-scenario-policy.mdc
-  - framework/rules/vanessa-test-isolation-policy.mdc
-  - framework/rules/vanessa-tests-location.mdc
-  - framework/rules/vanessa-run-loop.md
-  - framework/rules/source-of-truth.md
+  - framework/rules/agent-context-protocol/SKILL.md
+  - framework/rules/capability-resolution/SKILL.md
+  - framework/rules/no-direct-db-access/SKILL.md
+  - framework/rules/skill-learning-policy/SKILL.md
+  - framework/rules/tdd-policy/SKILL.md
+  - framework/rules/vanessa-scenario-policy/SKILL.md
+  - framework/rules/vanessa-test-isolation-policy/SKILL.md
+  - framework/rules/vanessa-tests-location/SKILL.md
+  - framework/rules/vanessa-run-loop/SKILL.md
+  - framework/rules/source-of-truth/SKILL.md
 ---

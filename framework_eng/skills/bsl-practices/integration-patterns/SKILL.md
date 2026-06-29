@@ -1,51 +1,51 @@
 ---
 name: integration-patterns
-description: "1C integration patterns: HTTP/REST/SOAP services, authentication (Basic/Token/OAuth/CertificateAuth), idempotency, retry, secure secret storage, versioning. Use when you need to create an HTTP service, a REST/SOAP client, implement a webhook, define a contract, configure authentication, or handle errors from external interactions."
+description: "For 1C HTTP/REST/SOAP, auth, retry, webhooks"
 ---
 
 # 1C Integration Patterns
 
-**Key principle:** The contract is defined before the code. An HTTP service is a thin layer for parsing the request and forming the response; business logic lives in common modules. Secrets belong only in `БезопасноеХранилище`, never in code or constants.
+**Core principle:** The contract is defined before the code. The HTTP service is a thin layer for parsing the request and forming the response; business logic lives in common modules. Secrets belong only in `БезопасноеХранилище`, never in code or constants.
 
 ---
 
 ## Rule 1: The contract is the first thing to define
 
-Before writing code, fix the contract as a structure or comment:
+Before writing code, fix the contract as a structure or a comment:
 - transport and URL (method, version in the path, Content-Type/Accept headers);
 - authentication (scheme, where the secret is stored);
-- request and response bodies (fields, types, required status, null semantics);
+- request and response body (fields, types, requiredness, null semantics);
 - idempotency key (if the operation changes data);
 - retry policy and timeout;
 - error shape (HTTP codes and error body structure).
 
-Changing the contract without versioning breaks compatibility. Add new fields without removing old ones. Change the semantics of existing fields through a new version (`/v2/…`).
+Changing the contract without versioning is a compatibility break. Add new fields without removing old ones. Change the semantics of existing fields through a new version (`/v2/…`).
 
 ---
 
 ## Rule 2: 1C HTTP services are a thin handler
 
-An HTTP service handler should do only three things: parse the request, call the business function, return the response. Do not put business logic directly into the handler.
+The HTTP service handler should do only three things: parse the request, call the business function, and return a response. Do not put business logic directly into the handler.
 
 ### Canonical HTTP service pattern
 
 ```bsl
-// Обработчик метода POST ресурса /orders
+// POST handler for resource /orders
 Функция ОбработатьПОСТ(Запрос)
 
-    // 1. Разбор тела
+    // 1. Body parsing
     ТелоСтрокой = Запрос.ПолучитьТелоКакСтроку();
     ЧтениеJSON = Новый ЧтениеJSON;
     ЧтениеJSON.УстановитьСтроку(ТелоСтрокой);
     ПараметрыЗаказа = ПрочитатьJSON(ЧтениеJSON, Тип("Структура"));
 
-    // 2. Валидация обязательных полей
+    // 2. Validation of required fields
     Если НЕ ЗначениеЗаполнено(ПараметрыЗаказа.НомерВнешнего) Тогда
         Возврат ОтветОшибки(400, "VALIDATION_ERROR",
             НСтр("ru = 'Поле НомерВнешнего обязательно'"));
     КонецЕсли;
 
-    // 3. Бизнес-вызов
+    // 3. Business call
     Попытка
         РезультатСозданияЗаказа = ИнтеграцияЗаказов.СоздатьЗаказ(ПараметрыЗаказа);
     Исключение
@@ -57,12 +57,12 @@ An HTTP service handler should do only three things: parse the request, call the
             НСтр("ru = 'Внутренняя ошибка сервера'"));
     КонецПопытки;
 
-    // 4. Формирование ответа
+    // 4. Response formation
     Возврат ОтветУспеха(201, РезультатСозданияЗаказа);
 
 КонецФункции
 
-// Вспомогательные функции формирования ответа
+// Helper response functions
 Функция ОтветОшибки(КодСостояния, КодОшибки, Сообщение)
     Ответ = Новый HTTPСервисОтвет(КодСостояния);
     Ответ.Заголовки.Вставить("Content-Type", "application/json; charset=utf-8");
@@ -87,37 +87,37 @@ An HTTP service handler should do only three things: parse the request, call the
 
 ---
 
-## Rule 3: Authentication - schemes and secret storage
+## Rule 3: Authentication is about schemes and secret storage
 
-All secrets (tokens, passwords, keys) are stored exclusively in `БезопасноеХранилище`. Never in configuration constants, session parameters, directory attributes, or module text.
+All secrets (tokens, passwords, keys) are stored exclusively in `БезопасноеХранилище`. Never in configuration constants, session parameters, catalog attributes, or module text.
 
-For details on each scheme, see [references/auth-schemes.md](references/auth-schemes.md).
+See [references/auth-schemes.md](references/auth-schemes.md) for details on each scheme.
 
 ### Basic Auth
 
 ```bsl
-// Получение учётных данных из безопасного хранилища
+// Getting credentials from secure storage
 УчётныеДанные = БезопасноеХранилище.Прочитать("ИнтеграцияСВнешнимСервисом");
 
 Логин    = УчётныеДанные.Логин;
 Пароль   = УчётныеДанные.Пароль;
 
-// Не логируйте: Логин/Пароль, Заголовок Authorization, тело с персданными
+// Do not log: login/password, Authorization header, body with personal data
 
 Соединение = Новый HTTPСоединение(
     "api.example.com",
-    ,               // порт — по умолчанию 443 для HTTPS
+    ,               // port - default 443 for HTTPS
     Логин,
     Пароль,
-    ,               // прокси
-    30,             // таймаут (сек)
-    Новый ЗащищённоеСоединение); // OpenSSL / CertificateAuth — см. ниже
+    ,               // proxy
+    30,             // timeout (sec)
+    Новый ЗащищённоеСоединение); // OpenSSL / CertificateAuth - see below
 ```
 
 ### Bearer Token (API key or OAuth 2.0 access_token)
 
 ```bsl
-// Токен из безопасного хранилища
+// Token from secure storage
 ТокенДоступа = БезопасноеХранилище.Прочитать("ИнтеграцияСВнешнимСервисом").ТокенДоступа;
 
 Запрос = Новый HTTPЗапрос("/api/v1/resource");
@@ -125,10 +125,10 @@ For details on each scheme, see [references/auth-schemes.md](references/auth-sch
 Запрос.Заголовки.Вставить("Content-Type", "application/json; charset=utf-8");
 ```
 
-### Certificate-based authentication (TLS mutual auth / CertificateAuth)
+### Certificate authentication (TLS mutual auth / CertificateAuth)
 
 ```bsl
-// Путь к сертификату и пароль — из безопасного хранилища
+// Certificate path and password - from secure storage
 ПараметрыCertAuth = БезопасноеХранилище.Прочитать("ИнтеграцияСертификат");
 
 СертификатКлиента = Новый СертификатКлиентаФайл(
@@ -137,7 +137,7 @@ For details on each scheme, see [references/auth-schemes.md](references/auth-sch
 
 ЗащИтоеСоединение = Новый ЗащищённоеСоединение(
     , , СертификатКлиента, ,
-    Истина); // проверять серверный сертификат
+    Истина); // verify server certificate
 
 Соединение = Новый HTTPСоединение(
     "api.example.com", , , , , 30, ЗащищённоеСоединение);
@@ -147,13 +147,13 @@ For details on each scheme, see [references/auth-schemes.md](references/auth-sch
 
 ## Rule 4: HTTP client - retry and timeout
 
-External calls are unreliable. Always wrap them in `Попытка/Исключение`. For mutating operations, use an idempotency key and protection against repeated execution.
+External calls are unreliable. Always wrap them in `Попытка/Исключение`. For mutating operations, use an idempotency key and protection against duplicate execution.
 
 ```bsl
 Функция ВызватьВнешнийAPIСПовтором(URLПуть, ТелоЗапросаJSON, КлючИдемпотентности = "")
 
     МаксимумПопыток = 3;
-    ОжиданиеМеждуПопытками = 2; // секунды
+    ОжиданиеМеждуПопытками = 2; // seconds
 
     Для НомерПопытки = 1 По МаксимумПопыток Цикл
 
@@ -166,7 +166,7 @@ External calls are unreliable. Always wrap them in `Попытка/Исключ�
             Запрос = Новый HTTPЗапрос(URLПуть);
             Запрос.Заголовки.Вставить("Content-Type", "application/json; charset=utf-8");
 
-            // Ключ идемпотентности — безопасное повторение без дублирования
+            // Idempotency key - safe repeat without duplication
             Если ЗначениеЗаполнено(КлючИдемпотентности) Тогда
                 Запрос.Заголовки.Вставить("Idempotency-Key", КлючИдемпотентности);
             КонецЕсли;
@@ -178,12 +178,12 @@ External calls are unreliable. Always wrap them in `Попытка/Исключ�
             Если Ответ.КодСостояния >= 200 И Ответ.КодСостояния < 300 Тогда
                 Возврат Ответ.ПолучитьТелоКакСтроку();
             ИначеЕсли Ответ.КодСостояния >= 400 И Ответ.КодСостояния < 500 Тогда
-                // Клиентская ошибка — не ретраить
+                // Client error - do not retry
                 ВызватьИсключение СтрШаблон(
                     НСтр("ru = 'Ошибка запроса (HTTP %1). Повтор нецелесообразен.'"),
                     Ответ.КодСостояния);
             ИначеЕсли Ответ.КодСостояния >= 500 Тогда
-                // Серверная ошибка — ретраим
+                // Server error - retry
                 ВызватьИсключение СтрШаблон(
                     НСтр("ru = 'Сервер вернул %1'"), Ответ.КодСостояния);
             КонецЕсли;
@@ -205,7 +205,7 @@ External calls are unreliable. Always wrap them in `Попытка/Исключ�
                 ВызватьИсключение;
             КонецЕсли;
 
-            // Пауза перед следующей попыткой
+            // Pause before the next attempt
             ТекущаяДата = ТекущаяДата();
             Пока ТекущаяДата() < ТекущаяДата + ОжиданиеМеждуПопытками Цикл
             КонецЦикла;
@@ -226,12 +226,12 @@ External calls are unreliable. Always wrap them in `Попытка/Исключ�
 Mutating operations (POST creation, state changes) must be protected against double execution.
 
 **Idempotency patterns:**
-- `Idempotency-Key` in the header (UUID generated on the client side);
+- `Idempotency-Key` in a header (UUID generated on the client side);
 - external identifier (`НомерВнешнего`) in the body with a unique index on the 1C side;
-- check whether the object exists before creation.
+- check whether the object exists before creating it.
 
 ```bsl
-// Проверка дубля перед записью (серверная идемпотентность)
+// Duplicate check before write (server-side idempotency)
 Функция НайтиЗаказПоВнешнемуНомеру(НомерВнешнего)
     Запрос = Новый Запрос;
     Запрос.Текст =
@@ -246,17 +246,17 @@ Mutating operations (POST creation, state changes) must be protected against dou
     Возврат ?(Выборка.Следующий(), Выборка.Ссылка, Неопределено);
 КонецФункции
 
-// В обработчике POST:
+// In the POST handler:
 СуществующийЗаказ = НайтиЗаказПоВнешнемуНомеру(ПараметрыЗаказа.НомерВнешнего);
 Если СуществующийЗаказ <> Неопределено Тогда
-    // Дубль — вернуть 200 с данными существующего заказа (не 201)
+    // Duplicate - return 200 with the existing order data (not 201)
     Возврат ОтветУспеха(200, ПолучитьДанныеЗаказа(СуществующийЗаказ));
 КонецЕсли;
 ```
 
 ---
 
-## Rule 6: Error shape - a stable contract
+## Rule 6: Error shape is a stable contract
 
 The error response must be predictable. The client must be able to distinguish:
 
@@ -265,12 +265,12 @@ The error response must be predictable. The client must be able to distinguish:
 | 400 | Input validation error | Do not retry; fix the request |
 | 401 | Authentication error | Refresh the token; do not retry immediately |
 | 409 | Conflict / duplicate | Do not retry; handle the duplicate |
-| 422 | Business error (data is valid, but a rule is violated) | Do not retry; show to the user |
+| 422 | Business error (data is valid, but a rule was violated) | Do not retry; show to the user |
 | 500 | Internal error | Retry with backoff |
 | 503 | Service temporarily unavailable | Retry with backoff |
 
 ```bsl
-// Единая структура тела ошибки
+// Unified error body structure
 // {"error": "VALIDATION_ERROR", "message": "...", "correlationId": "..."}
 
 Функция ОтветОшибкиС Корреляцией(КодСостояния, КодОшибки, Сообщение, КорреляцияИд)
@@ -289,16 +289,16 @@ The error response must be predictable. The client must be able to distinguish:
 КонецФункции
 ```
 
-Never return the 1C stack trace, module names, or internal metadata object IDs to the external API.
+Never return the 1C call stack, module names, or internal metadata object IDs in an external API.
 
 ---
 
 ## Rule 7: SOAP / WSПрокси
 
-For SOAP services, use `WSПрокси`, created through `WSОпределения`. Pass authentication through the proxy parameters, not in the message body.
+For SOAP services, use `WSПрокси`, created through `WSОпределения`. Pass authentication through proxy parameters, not in the message body.
 
 ```bsl
-// Создание WSПрокси с аутентификацией
+// Creating WSПрокси with authentication
 Функция СоздатьПроксиПлатёжногоШлюза()
 
     УчётныеДанные = БезопасноеХранилище.Прочитать("ПлатёжныйШлюзSOAP");
@@ -307,8 +307,8 @@ For SOAP services, use `WSПрокси`, created through `WSОпределени
         "https://payment.example.com/service?wsdl",
         УчётныеДанные.Логин,
         УчётныеДанные.Пароль,
-        ,       // прокси
-        30);    // таймаут
+        ,       // proxy
+        30);    // timeout
 
     Прокси = WSОпределения.СоздатьWSПрокси("PaymentService", "PaymentPort");
     Прокси.Пользователь = УчётныеДанные.Логин;
@@ -319,11 +319,11 @@ For SOAP services, use `WSПрокси`, created through `WSОпределени
 
 КонецФункции
 
-// Вызов с обработкой ошибок
+// Call with error handling
 Попытка
     ПроксиWS = СоздатьПроксиПлатёжногоШлюза();
 
-    // XDTO-объект для тела запроса
+    // XDTO object for the request body
     ФабрикаXDTO = ПроксиWS.ФабрикаXDTO;
     ЗапросXDTO  = ФабрикаXDTO.Создать(ФабрикаXDTO.Тип("http://payment.example.com/", "PayRequest"));
     ЗапросXDTO.Amount    = СуммаПлатежа;
@@ -349,23 +349,23 @@ For SOAP services, use `WSПрокси`, created through `WSОпределени
 
 ## Rule 8: Logging - what to write and what to hide
 
-### Write to the registration log
+### Write to the event log
 
 - Correlation identifier (`correlationId`, `requestId`, `X-Correlation-Id`);
-- external identifier of the business object (order number, payment ID);
+- external business object identifier (order number, payment ID);
 - HTTP response code and request execution time;
-- attempt number during retry;
-- brief description of the result (created/updated/rejected).
+- retry attempt number;
+- short description of the result (created/updated/rejected).
 
 ### Never write to the log
 
 - Values of the `Authorization` header (Bearer token, Basic credentials);
 - passwords, API keys, secrets from `БезопасноеХранилище`;
-- full request/response body if it contains personal data;
-- internal call stacks in responses to the client (only in the registration log).
+- the full request/response body if it contains personal data;
+- internal call stacks in responses to the client (only in the event log).
 
 ```bsl
-// Корреляция через запрос
+// Correlation via request
 КорреляцияИд = Запрос.Заголовки.Получить("X-Correlation-Id");
 Если НЕ ЗначениеЗаполнено(КорреляцияИд) Тогда
     КорреляцияИд = Строка(Новый УникальныйИдентификатор);
@@ -385,7 +385,7 @@ For SOAP services, use `WSПрокси`, created through `WSОпределени
 Check authentication first, before accessing business data.
 
 ```bsl
-// Проверка Bearer-токена во входящем запросе
+// Checking the Bearer token in an incoming request
 Функция ПроверитьАутентификациюЗапроса(Запрос)
 
     ЗаголовокAuth = Запрос.Заголовки.Получить("Authorization");
@@ -397,17 +397,17 @@ Check authentication first, before accessing business data.
         Возврат Ложь;
     КонецЕсли;
 
-    ПолученныйТокен = Сред(ЗаголовокAuth, 8); // убираем "Bearer "
+    ПолученныйТокен = Сред(ЗаголовокAuth, 8); // remove "Bearer "
 
     ОжидаемыйТокен = БезопасноеХранилище.Прочитать("ВходящийAPIТокен").Токен;
 
-    // Сравнение в постоянное время (защита от timing attack)
-    // Для простых случаев допустимо прямое сравнение строк
+    // Constant-time comparison (protection against timing attacks)
+    // For simple cases, a direct string comparison is acceptable
     Возврат (ПолученныйТокен = ОжидаемыйТокен);
 
 КонецФункции
 
-// В начале обработчика:
+// At the start of the handler:
 Если НЕ ПроверитьАутентификациюЗапроса(Запрос) Тогда
     Возврат ОтветОшибки(401, "UNAUTHORIZED", НСтр("ru = 'Аутентификация не прошла'"));
 КонецЕсли;
@@ -417,14 +417,14 @@ Check authentication first, before accessing business data.
 
 ## Rule 10: Interface versioning
 
-Changes to the contract without backward compatibility require a new version.
+Contract changes without backward compatibility require a new version.
 
 | Change | Compatibility | Action |
 |-----------|--------------|---------|
 | Add a new field to the response | Compatible | Add; document |
 | Add an optional field to the request | Compatible | Add with defaults |
-| Remove or rename a field | Incompatible | Create `/v2/…`, keep `/v1/…` |
-| Change a field type | Incompatible | Create `/v2/…`, keep `/v1/…` |
+| Remove or rename a field | Incompatible | Create `/v2/…`, support `/v1/…` |
+| Change a field type | Incompatible | Create `/v2/…`, support `/v1/…` |
 | Change the semantics of an existing field | Incompatible | Create `/v2/…` |
 
 Specify the version in the URL: `/api/v1/orders`, `/api/v2/orders`.
@@ -435,24 +435,24 @@ Specify the version in the URL: `/api/v1/orders`, `/api/v2/orders`.
 
 | Mistake | Consequence | How to avoid |
 |--------|------------|--------------|
-| Secret in a configuration constant or attribute | Leak during configuration / database export | Only `БезопасноеХранилище` |
+| Secret in a configuration constant or attribute | Leak when exporting the configuration / database | Only `БезопасноеХранилище` |
 | HTTP call inside a transaction | Timeout (30 s) = lock on all related records | Move HTTP calls outside the transaction |
-| No idempotency key on retries | Duplicate data after a network error | Use `Idempotency-Key` or an external ID with a unique index |
-| Returning the 1C stack trace in the error body | Exposure of the internal system structure | Return only a stable error code and message |
-| Retry on 4xx errors | Useless load, possible repetition of the conflict | Retry only 5xx and network errors |
-| Logging tokens/passwords | Secrets in the registration log | Mask before writing to the registration log |
-| Business logic in the HTTP service handler | No reuse and no testing | Thin handler + separate common module |
-| No input validation | Incorrect data written to the database | Check all required fields before the business operation |
+| No idempotency key on retries | Duplicate data on a network error | Use `Idempotency-Key` or an external ID with a unique index |
+| Returning the 1C stack in the error body | Exposing the internal structure of the system | Return only a stable error code and message |
+| Retry on 4xx errors | Useless load, possible repeated conflict | Retry only 5xx and network errors |
+| Logging tokens/passwords | Secrets in the event log | Mask before writing to the event log |
+| Business logic in the HTTP service handler | Cannot be reused or tested | Thin handler + separate common module |
+| No input validation | Writing incorrect data to the database | Check all required fields before the business operation |
 
 ---
 
-## When to use
+## When to apply
 
 | Trigger | Action |
 |---------|----------|
-| An incoming 1C HTTP service is being created | Apply rules 2, 6, 9, 10 |
+| A 1C HTTP service is being created (incoming) | Apply rules 2, 6, 9, 10 |
 | An HTTP client is being created (outgoing REST) | Apply rules 3, 4, 5, 8 |
-| SOAP / Web Service is being configured | Apply rule 7, 3 (secrets) |
+| A SOAP/Web Service is being configured | Apply rule 7, 3 (secrets) |
 | A contract is being designed or changed | Start with rule 1, apply rule 10 |
 | Any authentication is being added | Apply rule 3 + references/auth-schemes.md |
 | Reviewing integration code | Go through the checklist below |
@@ -462,20 +462,20 @@ Specify the version in the URL: `/api/v1/orders`, `/api/v2/orders`.
 ## Integration review checklist
 
 - [ ] The contract is described: endpoint, method, version, auth scheme, payload, error shape
-- [ ] Secrets are only in `БезопасноеХранилище`; nothing is logged anywhere
+- [ ] Secrets are only in `БезопасноеХранилище`; they are not logged anywhere
 - [ ] HTTP calls are moved outside 1C transactions
 - [ ] Mutating operations are protected against duplicates (idempotency key or external ID)
 - [ ] The HTTP service handler is thin: parse → validate → call → respond
-- [ ] The error response is stable; no stack trace is returned to the client
-- [ ] Retry is used only for 5xx and network errors
-- [ ] `correlationId` is logged, but not the token/password
-- [ ] Incompatible contract changes are released as a new version (`/v2/…`)
+- [ ] The error response is stable; the call stack is not returned to the client
+- [ ] Retry only on 5xx and network errors
+- [ ] correlationId is logged, but not the token/password
+- [ ] Incompatible contract changes are introduced as a new version (`/v2/…`)
 
 ---
 
 ## Related resources
 
-- [references/auth-schemes.md](references/auth-schemes.md) - details for each authentication scheme
+- [references/auth-schemes.md](references/auth-schemes.md) - details on each authentication scheme
 - [bsl-practices/error-handling/SKILL.md](../error-handling/SKILL.md) - transactions and exception handling
 
 ---

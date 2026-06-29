@@ -6,7 +6,7 @@
 #     (frontmatter `provides_capabilities`).
 #   - Этот файл резолвит capability → server/tool (для MCP) или runner/command (для CLI).
 #
-# Резолв описан в framework/rules/capability-resolution.md.
+# Резолв описан в framework/rules/capability-resolution/SKILL.md.
 #
 # Тип реализации:
 #   kind: mcp  — MCP-сервер + tool. Схема аргументов берётся из tools/list соответствующего сервера.
@@ -311,6 +311,21 @@ capabilities:
     server: 1c-log-checker
     tool: logc_get_actual_log_timestamp
     skill: framework/skills/tool-usage/diagnostics/event-log-analysis
+
+  # ───────────────────────────────────────────────────────
+  # 1c-debug-mcp — интерактивная отладка BSL через debug server 1С
+  # ───────────────────────────────────────────────────────
+  debug_bsl_code:
+    kind: mcp
+    server: 1c-debug-mcp
+    tool: attach
+    skill: framework/skills/tool-usage/diagnostics/dap-bsl-code-debug-procedure
+    notes: >
+      Сценарная capability интерактивной отладки. `attach` открывает сессию,
+      дальше навык использует связанные tools того же MCP: get_targets,
+      reload_metadata, set_breakpoints, wait_for_stop, get_call_stack,
+      get_variables, evaluate, step_in, step_out, continue, clear_breakpoints
+      detach и force_detach.
 
   # ───────────────────────────────────────────────────────
   # 1c-copilot-proxy — Buddy (AI-консультант по 1С)

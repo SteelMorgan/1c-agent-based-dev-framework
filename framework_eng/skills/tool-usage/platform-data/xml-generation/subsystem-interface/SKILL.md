@@ -1,6 +1,6 @@
 ---
 name: subsystem-interface
-description: "Use for creating subsystems, managing their composition, and configuring CommandInterface.xml (visibility, command order, placement in groups). Helps maintain configuration navigation through xml-gen subsystem/interface compile/edit/validate."
+description: "xml-gen subsystems and CommandInterface.xml"
 ---
 
 # Subsystem + Interface Operations
@@ -9,11 +9,11 @@ description: "Use for creating subsystems, managing their composition, and confi
 
 | Trigger | Action |
 |---------|----------|
-| Need to create a subsystem | `subsystem compile subsystem.json <output_dir>` |
-| Need to view subsystem contents | `subsystem info <subsystemPath>` |
-| Need to add an object to a subsystem | `subsystem edit <path> --op add-content --value "Catalog.Товары"` |
-| Need to validate a subsystem | `subsystem validate <subsystemPath>` |
-| Need to view the subsystem tree | `subsystem info --mode tree <subsystemPath>` |
+| Create a subsystem from JSON | `subsystem compile subsystem.json <output_dir>` |
+| View subsystem contents | `subsystem info <subsystemPath>` |
+| Add an object to a subsystem | `subsystem edit <path> --op add-content --value "Catalog.Товары"` |
+| Validate a subsystem | `subsystem validate <subsystemPath>` |
+| View the subsystem tree | `subsystem info --mode tree <subsystemPath>` |
 | Hide/show a command | `xml-gen interface edit … --op hide/show` |
 | Place a command in a group | `xml-gen interface edit … --op place` |
 | Set the order of commands/subsystems/groups | `xml-gen interface edit … --op set-order/set-subsystem-order/set-group-order` |
@@ -49,7 +49,7 @@ Operations: `add-content` / `remove-content` / `add-child` / `remove-child` / `s
 
 - `add-content` — `"Catalog.Товары"` or `["Catalog.Товары","Document.Заказ"]`
 - `add-child` — if the file `<Parent>/Subsystems/<childName>.xml` does not exist, stub XML is created.
-- `set-property` — `"IncludeInCommandInterface=true"`, `"Synonym=Торговля"`, `"Picture=CommonPicture.ТорговляИСклад"`
+- `set-property` — `"IncludeInCommandInterface=true"`, `"Synonym=Trade"`, `"Picture=CommonPicture.ТорговляИСклад"`
 
 ### subsystem validate
 

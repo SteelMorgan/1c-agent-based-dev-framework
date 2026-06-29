@@ -196,5 +196,5 @@ description: Use for ролевой проверки идей, гипотез и
 
 ---
 depends_on:
-  - framework/rules/agent-context-protocol.md
+  - framework/rules/agent-context-protocol/SKILL.md
 ---

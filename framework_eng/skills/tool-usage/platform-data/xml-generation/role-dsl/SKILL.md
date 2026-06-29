@@ -1,30 +1,30 @@
 ---
 name: role-dsl
-description: "JSON DSL for generating 1С roles with access rights to metadata objects. Use it for role compile and when editing Rights.xml through xml-generation (edit commands)."
+description: "xml-gen roles DSL and Rights.xml editing"
 ---
 
 # Role DSL
 
-## When to Use
+## When to use
 
 | Trigger | Action |
 |---------|----------|
-| Create a role from scratch (object rights) | `role compile` with JSON DSL |
-| Add rights to an object in an existing role | `role add-object` → [xml-generation](../SKILL.md) §3 |
-| Change a right for an existing object | `role add-right` → [xml-generation](../SKILL.md) §3 |
+| Create a role from scratch (object permissions) | `role compile` with JSON DSL |
+| Add object permissions to an existing role | `role add-object` → [xml-generation](../SKILL.md) §3 |
+| Change a permission for an existing object | `role add-right` → [xml-generation](../SKILL.md) §3 |
 | Analyze an existing role | `role info <Rights.xml>` |
 
 ## Commands
 
 ```bash
-# Компиляция из DSL
+# Compile from DSL
 xml-gen role compile [--format designer|edt] <input.json> <output_dir>
-# Результат (Designer): output_dir/Roles/<Name>.xml + output_dir/Roles/<Name>/Ext/Rights.xml
+# Result (Designer): output_dir/Roles/<Name>.xml + output_dir/Roles/<Name>/Ext/Rights.xml
 
-# Аудит прав: объекты, права, RLS, шаблоны
+# Permissions audit: objects, rights, RLS, templates
 xml-gen role info <Rights.xml>
 
-# Точечное редактирование
+# Targeted editing
 xml-gen role add-object --name <ObjectName> --rights <Right1,Right2,...> <Rights.xml>
 xml-gen role add-right --object <ObjectName> --name <RightName> --value <true|false> <Rights.xml>
 ```
@@ -46,32 +46,32 @@ xml-gen role add-right --object <ObjectName> --name <RightName> --value <true|fa
 
 **Object types:** `Catalog`, `Document`, `Report`, `DataProcessor`, `InformationRegister`, `AccumulationRegister`
 
-**Rights (enum RoleRight, strictly PascalCase):** `Read`, `Insert`, `Update`, `Delete`, `View`, `Edit`, `InteractiveInsert`, `InteractiveDelete`, `Posting`, `UndoPosting`.
+**Rights (RoleRight enum, strictly PascalCase):** `Read`, `Insert`, `Update`, `Delete`, `View`, `Edit`, `InteractiveInsert`, `InteractiveDelete`, `Posting`, `UndoPosting`.
 
 ## Pitfalls
 
 ```json
-// ❌ map-form {"rights": {"Type.Name": [...]}} — NOT supported
-// CLI: Unrecognized field "rights" — the root field of RoleDsl must be "objects" (array)
+// ❌ map-форма {"rights": {"Type.Name": [...]}} — НЕ поддерживается
+// CLI: Unrecognized field "rights" — корневое поле объекта RoleDsl должно быть "objects" (массив)
 {"name": "X", "rights": {"Catalog.Номенклатура": ["Read"]}}
 
-// ✅ array-form "objects": [...]
+// ✅ array-форма "objects": [...]
 {"name": "X", "objects": [{"name": "Catalog.Номенклатура", "rights": ["Read"]}]}
 ```
 
 ```json
-// ❌ rights in camelCase → enum does not recognize them
+// ❌ права в camelCase → enum не распознает
 "objects": [{"name": "Catalog.Номенклатура", "rights": ["read", "insert"]}]
 
-// ✅ enum RoleRight: strictly PascalCase
+// ✅ enum RoleRight: строго PascalCase
 "objects": [{"name": "Catalog.Номенклатура", "rights": ["Read", "Insert"]}]
 ```
 
 ```json
-// ❌ object without type → CLI won't determine rights applicability
+// ❌ объект без типа → CLI не определит применимость прав
 "objects": [{"name": "Номенклатура", "rights": ["Read"]}]
 
-// ✅ TypeName.ObjectName
+// ✅ ТипОбъекта.ИмяОбъекта
 "objects": [{"name": "Catalog.Номенклатура", "rights": ["Read"]}]
 ```
 

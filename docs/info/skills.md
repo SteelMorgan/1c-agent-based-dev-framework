@@ -27,8 +27,8 @@
 - Методология MCP + capability: [docs/info/mcp.md](./mcp.md)
 - RU→EN зеркало навыков: [docs/info/ru-en-mirror.md](./ru-en-mirror.md)
 - Политики SDD/TDD: [docs/info/sdd.md](./sdd.md), [docs/info/tdd.md](./tdd.md)
-- Общий workflow: [framework/workflows/full-cycle.md](../../framework/workflows/full-cycle.md)
-- Оркестрация фаз: [framework/workflows/orchestrator.md](../../framework/workflows/orchestrator.md)
+- Общий workflow: [framework/workflows/full-cycle/SKILL.md](../../framework/workflows/full-cycle/SKILL.md)
+- Оркестрация фаз: [framework/workflows/orchestrator/SKILL.md](../../framework/workflows/orchestrator/SKILL.md)
 - Правила: [framework/rules](../../framework/rules)
 
 ---

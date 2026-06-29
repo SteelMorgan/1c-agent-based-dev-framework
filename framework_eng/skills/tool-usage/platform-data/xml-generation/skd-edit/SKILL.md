@@ -1,9 +1,9 @@
 ---
 name: skd-edit
-description: "Use for atomic editing of an existing Schema.xml SKD: add/remove fields, totals, parameters, rewrite a data set query, or change the variant structure. Helps fine-tune SKD without full recompilation via xml-gen skd edit."
+description: "xml-gen atomic edits of existing SKD Schema.xml"
 ---
 
-# SKD Edit - targeted editing of Schema.xml
+# SKD Edit — targeted editing of Schema.xml
 
 ## When to use
 
@@ -59,7 +59,7 @@ xml-gen skd edit Schema.xml add-field "Цена: decimal(15,2) ;; Количес
 ```bash
 xml-gen skd edit Schema.xml clear-conditionalAppearance "*"
 ```
-Removes all CA rules in the specified variant. The value is always `*`. Idempotent.
+Removes all conditional appearance rules in the specified variant. The value is always `*`. Idempotent.
 
 ## Invariants and contract
 
@@ -68,8 +68,9 @@ Removes all CA rules in the specified variant. The value is always `*`. Idempote
 3. **Duplicates in `add-*`.** If an object with that name already exists - warning + skip. To update it, use `modify-*`.
 4. **`@once` for `patch-query`.** If the text has 0 or ≥2 matches - error, the file does not change. Without the flag - replaces all occurrences.
 5. **`availableValue=` in `modify-parameter` - full replacement,** not merge. Old values are removed.
-6. **`set-query` vs `patch-query`.** Full replacement versus targeted edit. Large changes - via `set-query` (can be loaded from a file `@path`). A local fix - `patch-query @once`.
-7. **`modify-structure` requires `@name=`.** Without an explicit name the operation fails. The name is set when creating the structure in skd-dsl (`set-structure "... @name=ДанныеОтчета"`).
+6. **Parameter value lists** are set with `value=A, B` or `@valueList`; multiple default values are written as repeated `<value>` plus `valueListAllowed=true`.
+7. **`set-query` vs `patch-query`.** Full replacement versus targeted edit. Large changes - via `set-query` (can be loaded from a file `@path`). A local fix - `patch-query @once`.
+8. **`modify-structure` requires `@name=`.** Without an explicit name the operation fails. The name is set when creating the structure in skd-dsl (`set-structure "... @name=ДанныеОтчета"`).
 
 ## Rules for the agent
 

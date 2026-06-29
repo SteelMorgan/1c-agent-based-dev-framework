@@ -41,11 +41,21 @@ public class FormWriter extends XmlWriter {
         Map.entry("labelField", FormElementType.LABEL_FIELD),
         Map.entry("check", FormElementType.CHECK_BOX_FIELD),
         Map.entry("radio", FormElementType.RADIO_BUTTON_FIELD),
+        Map.entry("columnGroup", FormElementType.COLUMN_GROUP),
+        Map.entry("buttonGroup", FormElementType.BUTTON_GROUP),
         Map.entry("pages", FormElementType.PAGES),
         Map.entry("page", FormElementType.PAGE),
         Map.entry("picture", FormElementType.PICTURE_DECORATION),
         Map.entry("picField", FormElementType.PICTURE_FIELD),
         Map.entry("calendar", FormElementType.CALENDAR_FIELD),
+        Map.entry("spreadsheet", FormElementType.SPREAD_SHEET_DOCUMENT_FIELD),
+        Map.entry("html", FormElementType.HTML_DOCUMENT_FIELD),
+        Map.entry("textDoc", FormElementType.TEXT_DOCUMENT_FIELD),
+        Map.entry("formattedDoc", FormElementType.FORMATTED_DOCUMENT_FIELD),
+        Map.entry("progressBar", FormElementType.PROGRESS_BAR_FIELD),
+        Map.entry("trackBar", FormElementType.TRACK_BAR_FIELD),
+        Map.entry("periodField", FormElementType.PERIOD_FIELD),
+        Map.entry("graphicalSchema", FormElementType.GRAPHICAL_SCHEMA_FIELD),
         Map.entry("cmdBar", FormElementType.COMMAND_BAR),
         Map.entry("popup", FormElementType.POPUP)
     );
@@ -416,10 +426,13 @@ public class FormWriter extends XmlWriter {
             endElement(); // Columns
         }
 
-        // ExtInfo для DynamicList (settings.mainTable, settings.dynamicDataRead)
+        //++agent TASK-199 [27.06.2026 23:30:00]
+        // Designer 8.3.27 rejects DynamicListExtInfo in managed forms;
+        // list forms use Settings xsi:type="DynamicList" instead.
         if (attr.getSettings() != null && "DynamicList".equals(attr.getType())) {
-            writeDynamicListExtInfo(attr.getSettings());
+            writeDynamicListSettings(attr.getSettings());
         }
+        //++agent TASK-199
 
         indentLevel = 2;
         writer.writeCharacters("\t\t");
@@ -427,12 +440,24 @@ public class FormWriter extends XmlWriter {
         writer.writeCharacters("\n");
     }
 
-    /** Эмитит <ExtInfo xsi:type="DynamicListExtInfo">…</ExtInfo>. */
+    //++agent TASK-199 [27.06.2026 23:30:00]
+    /** Эмитит <Settings xsi:type="DynamicList">…</Settings>. */
     @SuppressWarnings("unchecked")
-    private void writeDynamicListExtInfo(Map<String, Object> settings) throws XMLStreamException {
+    private void writeDynamicListSettings(Map<String, Object> settings) throws XMLStreamException {
         writer.writeCharacters("\t\t\t");
-        writer.writeStartElement("ExtInfo");
-        writer.writeAttribute("http://www.w3.org/2001/XMLSchema-instance", "type", "DynamicListExtInfo");
+        writer.writeStartElement("Settings");
+        writer.writeAttribute("http://www.w3.org/2001/XMLSchema-instance", "type", "DynamicList");
+        writer.writeCharacters("\n");
+        writer.writeCharacters("\t\t\t\t");
+        writer.writeStartElement("ManualQuery");
+        writer.writeCharacters("false");
+        writer.writeEndElement();
+        writer.writeCharacters("\n");
+        writer.writeCharacters("\t\t\t\t");
+        writer.writeStartElement("DynamicDataRead");
+        Object ddr = settings.get("dynamicDataRead");
+        writer.writeCharacters((ddr instanceof Boolean && !(Boolean) ddr) ? "false" : "true");
+        writer.writeEndElement();
         writer.writeCharacters("\n");
         Object mainTable = settings.get("mainTable");
         if (mainTable != null) {
@@ -442,18 +467,11 @@ public class FormWriter extends XmlWriter {
             writer.writeEndElement();
             writer.writeCharacters("\n");
         }
-        Object ddr = settings.get("dynamicDataRead");
-        if (ddr instanceof Boolean && (Boolean) ddr) {
-            writer.writeCharacters("\t\t\t\t");
-            writer.writeStartElement("DynamicDataRead");
-            writer.writeCharacters("true");
-            writer.writeEndElement();
-            writer.writeCharacters("\n");
-        }
         writer.writeCharacters("\t\t\t");
-        writer.writeEndElement(); // ExtInfo
+        writer.writeEndElement(); // Settings
         writer.writeCharacters("\n");
     }
+    //++agent TASK-199
     
     //++agent TASK-174 [07.06.2026 11:15:00]
     /**
@@ -743,6 +761,12 @@ public class FormWriter extends XmlWriter {
             case "radio":
                 writeRadioButtonField(element, name, id, depth);
                 break;
+            case "columnGroup":
+                writeColumnGroup(element, name, id, depth);
+                break;
+            case "buttonGroup":
+                writeButtonGroup(element, name, id, depth);
+                break;
             case "pages":
                 writePages(element, name, id, depth);
                 break;
@@ -757,6 +781,30 @@ public class FormWriter extends XmlWriter {
                 break;
             case "calendar":
                 writeCalendarField(element, name, id, depth);
+                break;
+            case "spreadsheet":
+                writeSimpleDocumentField("spreadsheet", element, name, id, depth);
+                break;
+            case "html":
+                writeSimpleDocumentField("html", element, name, id, depth);
+                break;
+            case "textDoc":
+                writeSimpleDocumentField("textDoc", element, name, id, depth);
+                break;
+            case "formattedDoc":
+                writeSimpleDocumentField("formattedDoc", element, name, id, depth);
+                break;
+            case "progressBar":
+                writeSimpleDocumentField("progressBar", element, name, id, depth);
+                break;
+            case "trackBar":
+                writeSimpleDocumentField("trackBar", element, name, id, depth);
+                break;
+            case "periodField":
+                writeSimpleDocumentField("periodField", element, name, id, depth);
+                break;
+            case "graphicalSchema":
+                writeSimpleDocumentField("graphicalSchema", element, name, id, depth);
                 break;
             case "cmdBar":
                 writeCommandBar(element, name, id, depth);
@@ -943,6 +991,11 @@ public class FormWriter extends XmlWriter {
         }
         //++agent TASK-174
 
+        writeChoiceList(element);
+        writeChoiceParameters(element);
+        writeChoiceParameterLinks(element);
+        writeTypeLink(element);
+
         // Остаточные (НЕ порядок-критичные) свойства; всё порядок-значимое выведено выше и исключено
         writeElementProperties(element, java.util.Set.of(
             "visible", "userVisible", "enabled", "readOnly",
@@ -950,7 +1003,8 @@ public class FormWriter extends XmlWriter {
             "titleLocation", "multiLine", "passwordMode", "choiceButton", "clearButton",
             "spinButton", "dropListButton", "markIncomplete", "textEdit", "skipOnInput",
             "autoMaxWidth", "maxWidth", "autoMaxHeight", "maxHeight",
-            "width", "height", "horizontalStretch", "verticalStretch"));
+            "width", "height", "horizontalStretch", "verticalStretch",
+            "choiceList", "choiceParameters", "choiceParameterLinks", "typeLink"));
 
         // ContextMenu и ExtendedTooltip (автоматически)
         writeAutoElements(name, id, depth + 1);
@@ -1284,8 +1338,14 @@ public class FormWriter extends XmlWriter {
             writeMultilingualString("Title", element.get("title").toString());
         }
         
-        // Свойства
-        writeElementProperties(element);
+        //++agent TASK-199 [27.06.2026 23:34:00]
+        // LabelField uses the same XDTO shape for UserVisible as InputField:
+        // <UserVisible><xr:Common>false</xr:Common></UserVisible>.
+        writeCommonFlags(element);
+        writeElementProperties(element, java.util.Set.of(
+            "visible", "userVisible", "enabled", "readOnly",
+            "hidden", "disabled"));
+        //++agent TASK-199
         
         // ExtendedTooltip
         writeAutoElements(name, id, depth + 1);
@@ -1326,8 +1386,14 @@ public class FormWriter extends XmlWriter {
             writeMultilingualString("Title", element.get("title").toString());
         }
         
-        // Свойства
-        writeElementProperties(element);
+        //++agent TASK-199 [27.06.2026 23:34:00]
+        // LabelField uses the same XDTO shape for UserVisible as InputField:
+        // <UserVisible><xr:Common>false</xr:Common></UserVisible>.
+        writeCommonFlags(element);
+        writeElementProperties(element, java.util.Set.of(
+            "visible", "userVisible", "enabled", "readOnly",
+            "hidden", "disabled"));
+        //++agent TASK-199
         
         // ContextMenu и ExtendedTooltip
         writeAutoElements(name, id, depth + 1);
@@ -1472,6 +1538,290 @@ public class FormWriter extends XmlWriter {
         writer.writeEndElement(); // xr:Value
         writer.writeCharacters("\n");
         endElement(); // xr:Item
+    }
+
+    @SuppressWarnings("unchecked")
+    private void writeColumnGroup(Map<String, Object> element, String name, int id, int depth) throws XMLStreamException {
+        String indent = "\t".repeat(depth);
+
+        writer.writeCharacters(indent);
+        writer.writeStartElement(xmlElementName("columnGroup"));
+        writer.writeAttribute("name", name);
+        writer.writeAttribute("id", String.valueOf(id));
+        writer.writeCharacters("\n");
+
+        int oldIndent = indentLevel;
+        indentLevel = depth + 1;
+
+        if (element.containsKey("title")) {
+            writeMultilingualString("Title", element.get("title").toString());
+        }
+        if (element.containsKey("group")) {
+            writeElement("Group", toPascalCase(element.get("group").toString()));
+        }
+        if (Boolean.FALSE.equals(element.get("showTitle"))) {
+            writeElement("ShowTitle", "false");
+        }
+        if (element.containsKey("showInHeader")) {
+            writeElement("ShowInHeader", element.get("showInHeader").toString().toLowerCase());
+        }
+
+        writeElementProperties(element, java.util.Set.of("group", "showTitle", "showInHeader"));
+        writeElementEvents(element, name, depth + 1);
+
+        writer.writeCharacters("\t".repeat(depth + 1));
+        writer.writeStartElement("ChildItems");
+        writer.writeCharacters("\n");
+        Object children = element.get("children");
+        if (children instanceof List<?>) {
+            writeElementsWithImplicitUserSettingsGroups((List<Map<String, Object>>) children, depth + 2);
+        }
+        writer.writeCharacters("\t".repeat(depth + 1));
+        writer.writeEndElement(); // ChildItems
+        writer.writeCharacters("\n");
+
+        indentLevel = oldIndent;
+        writer.writeCharacters(indent);
+        writer.writeEndElement(); // ColumnGroup
+        writer.writeCharacters("\n");
+    }
+
+    @SuppressWarnings("unchecked")
+    private void writeButtonGroup(Map<String, Object> element, String name, int id, int depth) throws XMLStreamException {
+        String indent = "\t".repeat(depth);
+
+        writer.writeCharacters(indent);
+        writer.writeStartElement(xmlElementName("buttonGroup"));
+        writer.writeAttribute("name", name);
+        writer.writeAttribute("id", String.valueOf(id));
+        writer.writeCharacters("\n");
+
+        int oldIndent = indentLevel;
+        indentLevel = depth + 1;
+
+        if (element.containsKey("title")) {
+            writeMultilingualString("Title", element.get("title").toString());
+        }
+        if (element.containsKey("commandSource")) {
+            writeElement("CommandSource", element.get("commandSource").toString());
+        }
+        if (element.containsKey("representation")) {
+            writeElement("Representation", element.get("representation").toString());
+        }
+        writeCommonFlags(element);
+        writeElementProperties(element, java.util.Set.of(
+                "visible", "userVisible", "enabled", "readOnly",
+                "hidden", "disabled", "commandSource", "representation"));
+        writeExtendedTooltipOnly(name, id, depth + 1);
+        writeElementEvents(element, name, depth + 1);
+
+        Object children = element.get("children");
+        if (children instanceof List<?> && !((List<?>) children).isEmpty()) {
+            writer.writeCharacters("\t".repeat(depth + 1));
+            writer.writeStartElement("ChildItems");
+            writer.writeCharacters("\n");
+            writeElementsWithImplicitUserSettingsGroups((List<Map<String, Object>>) children, depth + 2);
+            writer.writeCharacters("\t".repeat(depth + 1));
+            writer.writeEndElement(); // ChildItems
+            writer.writeCharacters("\n");
+        }
+
+        indentLevel = oldIndent;
+        writer.writeCharacters(indent);
+        writer.writeEndElement(); // ButtonGroup
+        writer.writeCharacters("\n");
+    }
+
+    private void writeSimpleDocumentField(String dslType, Map<String, Object> element, String name, int id, int depth)
+            throws XMLStreamException {
+        String indent = "\t".repeat(depth);
+
+        writer.writeCharacters(indent);
+        writer.writeStartElement(xmlElementName(dslType));
+        writer.writeAttribute("name", name);
+        writer.writeAttribute("id", String.valueOf(id));
+        writer.writeCharacters("\n");
+
+        int oldIndent = indentLevel;
+        indentLevel = depth + 1;
+
+        String dataPath = dataPath(element);
+        if (dataPath != null) {
+            writeElement("DataPath", dataPath);
+        }
+        if (element.containsKey("title")) {
+            writeMultilingualString("Title", element.get("title").toString());
+        }
+        writeCommonFlags(element);
+        if (element.containsKey("titleLocation")) {
+            writeElement("TitleLocation", mapTitleLocation(element.get("titleLocation").toString()));
+        }
+        if (element.containsKey("editMode")) {
+            writeElement("EditMode", element.get("editMode").toString());
+        }
+
+        for (String key : List.of("minValue", "maxValue", "largeStep", "markingStep", "step")) {
+            if (element.containsKey(key)) {
+                writeElement(toPascalCase(key), element.get(key).toString());
+            }
+        }
+
+        writeElementProperties(element, java.util.Set.of(
+                "visible", "userVisible", "enabled", "readOnly",
+                "hidden", "disabled", "titleLocation", "editMode",
+                "minValue", "maxValue", "largeStep", "markingStep", "step"));
+        writeAutoElements(name, id, depth + 1);
+        writeElementEvents(element, name, depth + 1);
+
+        indentLevel = oldIndent;
+        writer.writeCharacters(indent);
+        writer.writeEndElement();
+        writer.writeCharacters("\n");
+    }
+
+    @SuppressWarnings("unchecked")
+    private void writeChoiceList(Map<String, Object> element) throws XMLStreamException {
+        Object raw = element.get("choiceList");
+        if (!(raw instanceof List<?>) || ((List<?>) raw).isEmpty()) {
+            return;
+        }
+        startElement("ChoiceList");
+        for (Object item : (List<?>) raw) {
+            if (!(item instanceof Map<?, ?>)) {
+                continue;
+            }
+            writeChoiceListItem((Map<String, Object>) item);
+        }
+        endElement(); // ChoiceList
+    }
+
+    private void writeChoiceListItem(Map<String, Object> item) throws XMLStreamException {
+        startElement("xr:Item");
+        writer.writeCharacters("\t".repeat(indentLevel));
+        writer.writeStartElement("xr:Value");
+        writer.writeAttribute("http://www.w3.org/2001/XMLSchema-instance", "type", "FormChoiceListDesTimeValue");
+        writer.writeCharacters("\n");
+        indentLevel++;
+        String presentation = item.get("presentation") != null
+                ? item.get("presentation").toString()
+                : item.getOrDefault("title", "").toString();
+        writeMultilingualString("Presentation", presentation);
+        writeTypedValue("Value", item.get("value"), item.get("valueType"));
+        indentLevel--;
+        writer.writeCharacters("\t".repeat(indentLevel));
+        writer.writeEndElement(); // xr:Value
+        writer.writeCharacters("\n");
+        endElement(); // xr:Item
+    }
+
+    @SuppressWarnings("unchecked")
+    private void writeChoiceParameters(Map<String, Object> element) throws XMLStreamException {
+        Object raw = element.get("choiceParameters");
+        if (!(raw instanceof List<?>) || ((List<?>) raw).isEmpty()) {
+            return;
+        }
+        startElement("ChoiceParameters");
+        for (Object item : (List<?>) raw) {
+            if (!(item instanceof Map<?, ?> p) || p.get("name") == null) {
+                continue;
+            }
+            writer.writeCharacters("\t".repeat(indentLevel));
+            writer.writeStartElement("app:item");
+            writer.writeAttribute("name", p.get("name").toString());
+            writer.writeCharacters("\n");
+            indentLevel++;
+            startElement("app:value");
+            writeChoiceParameterValue(((Map<String, Object>) p).get("value"));
+            endElement(); // app:value
+            indentLevel--;
+            writer.writeCharacters("\t".repeat(indentLevel));
+            writer.writeEndElement(); // app:item
+            writer.writeCharacters("\n");
+        }
+        endElement(); // ChoiceParameters
+    }
+
+    private void writeChoiceParameterValue(Object value) throws XMLStreamException {
+        if (value instanceof List<?> values) {
+            writer.writeCharacters("\t".repeat(indentLevel));
+            writer.writeStartElement("Value");
+            writer.writeAttribute("http://www.w3.org/2001/XMLSchema-instance", "type", "v8:FixedArray");
+            writer.writeCharacters("\n");
+            indentLevel++;
+            for (Object item : values) {
+                startElement("v8:Value");
+                writeTypedValue("Value", item, null);
+                endElement(); // v8:Value
+            }
+            indentLevel--;
+            writer.writeCharacters("\t".repeat(indentLevel));
+            writer.writeEndElement(); // Value
+            writer.writeCharacters("\n");
+            return;
+        }
+        writeTypedValue("Value", value, null);
+    }
+
+    @SuppressWarnings("unchecked")
+    private void writeChoiceParameterLinks(Map<String, Object> element) throws XMLStreamException {
+        Object raw = element.get("choiceParameterLinks");
+        if (!(raw instanceof List<?>) || ((List<?>) raw).isEmpty()) {
+            return;
+        }
+        startElement("ChoiceParameterLinks");
+        for (Object item : (List<?>) raw) {
+            if (!(item instanceof Map<?, ?> link)) {
+                continue;
+            }
+            startElement("xr:Link");
+            writeElement("xr:Name", stringValue(link.get("name")));
+            writeElement("xr:DataPath", stringValue(link.get("dataPath")));
+            if (link.get("valueChange") != null) {
+                writeElement("xr:ValueChange", link.get("valueChange").toString());
+            }
+            endElement(); // xr:Link
+        }
+        endElement(); // ChoiceParameterLinks
+    }
+
+    @SuppressWarnings("unchecked")
+    private void writeTypeLink(Map<String, Object> element) throws XMLStreamException {
+        Object raw = element.get("typeLink");
+        if (!(raw instanceof Map<?, ?> link)) {
+            return;
+        }
+        startElement("TypeLink");
+        writeElement("xr:DataPath", stringValue(link.get("dataPath")));
+        if (link.get("linkItem") != null) {
+            writeElement("xr:LinkItem", link.get("linkItem").toString());
+        }
+        endElement(); // TypeLink
+    }
+
+    private void writeTypedValue(String tag, Object value, Object explicitType) throws XMLStreamException {
+        writer.writeCharacters("\t".repeat(indentLevel));
+        writer.writeStartElement(tag);
+        writer.writeAttribute("http://www.w3.org/2001/XMLSchema-instance", "type",
+                explicitType != null ? explicitType.toString() : inferValueType(value));
+        if (value != null) {
+            writer.writeCharacters(value.toString());
+        }
+        writer.writeEndElement();
+        writer.writeCharacters("\n");
+    }
+
+    private static String inferValueType(Object value) {
+        if (value instanceof Boolean) {
+            return "xs:boolean";
+        }
+        if (value instanceof Number) {
+            return "xs:decimal";
+        }
+        return "xs:string";
+    }
+
+    private static String stringValue(Object value) {
+        return value == null ? "" : value.toString();
     }
     
     /**

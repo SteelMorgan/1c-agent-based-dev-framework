@@ -44,14 +44,14 @@
 │   контекст  │    │             │    │             │    │             │    │  проверка   │
 └─────────────┘    └─────────────┘    └─────────────┘    └─────────────┘    └─────────────┘
   (вне агента)      spec-writing       bsl-practices       bsl-practices    test-execution
-                    platform-data-core code-navigation     tool-usage/core  visual-check
+                    platform-data-core code-navigation     tool-usage/core  va-visual-check
                     search-before-w.   review-*            xml-gen          syntax-checking
                     code-navigation    event-log-analysis  review-*         event-log-analysis
                                        tech-log-analysis   spec-writing     tech-log-analysis
                                        platform-data-core                   review-*
 ```
 
-> **Примечание о пайплайне:** Перед Phase 1 (ФА) запускается **Phase 0 (Explorer)** — техническая роль оркестратора для классификации задачи (простая → `quick-fix`, средняя/сложная → full-cycle). Explorer не является бизнес-ролью жизненного цикла. Подробнее см. [`framework/workflows/full-cycle.md`](../../../framework/workflows/full-cycle.md).
+> **Примечание о пайплайне:** Перед Phase 1 (ФА) запускается **Phase 0 (Explorer)** — техническая роль оркестратора для классификации задачи (простая → `quick-fix`, средняя/сложная → full-cycle). Explorer не является бизнес-ролью жизненного цикла. Подробнее см. [`framework/workflows/full-cycle/SKILL.md`](../../../framework/workflows/full-cycle/SKILL.md).
 
 **Оценка покрытия** — качественная, отражает долю типичных действий роли, которые агент может выполнить самостоятельно или при минимальном контроле человека. БА — внешний входной контекст: агентная цепочка начинается с ФА, который получает уже сформулированное требование.
 
@@ -184,7 +184,7 @@
 | tool-usage | `search-before-write` | Поиск перед написанием кода | `navigate_symbol`, `list_metadata_objects`, `get_metadata_structure`, `search_syntax_reference`, `get_type_info`, `search_ssl_functions`, `ask_ai_assistant` |
 | tool-usage | `syntax-checking` | Проверка синтаксиса BSL | `check_syntax`, `get_diagnostics` |
 | tool-usage | `test-execution` | TDD: сборка, запуск тестов, анализ | `run_tests`, `build_project`, `navigate_symbol`, `check_syntax` |
-| tool-usage | `visual-check` | Визуальная проверка форм в браузере | `browser_navigate`, `browser_snapshot`, `browser_fill`, `browser_click`, `browser_take_screenshot`, `browser_console_messages`, `browser_wait_for` |
+| tool-usage | `va-visual-check` | Визуальная проверка форм 1С через Vanessa/VA MCP; browser fallback по правилам навыка | VA MCP, `web-test-1c`/Playwright как fallback |
 | **tool-usage / xml-gen** | | | |
 | tool-usage | `xml-generation` | Обзор генерации XML-метаданных + CLI (validate, edit, replace-text) | — (CLI) |
 | tool-usage | `epf-full` | Создание EPF/ERF, макеты объектов, BSP-регистрация | — (CLI) |
@@ -212,7 +212,7 @@
 | framework-meta | `agent-development` | Разработка субагентов | — |
 | framework-meta | `agent-development-ext` | Разработка субагентов (1С) | — |
 
-**Пример рабочего сценария:** Программист реализует справочник «ПромоКоды» с формой. Агент: (1) через `search-before-write` ищет аналоги в конфигурации, (2) через `epf-full` / `form-dsl` генерирует XML-метаданные справочника и формы, (3) пишет BSL-код модуля по `coding-standards`, (4) через `syntax-checking` проверяет синтаксис, (5) через `test-execution` запускает YaxUnit-тесты, (6) через `visual-check` проверяет отображение формы в браузере, (7) через `cross-provider-review` получает второе мнение от opposite-family модели.
+**Пример рабочего сценария:** Программист реализует справочник «ПромоКоды» с формой. Агент: (1) через `search-before-write` ищет аналоги в конфигурации, (2) через `epf-full` / `form-dsl` генерирует XML-метаданные справочника и формы, (3) пишет BSL-код модуля по `coding-standards`, (4) через `syntax-checking` проверяет синтаксис, (5) через `test-execution` запускает YaxUnit-тесты, (6) через `va-visual-check` проверяет отображение формы, (7) через `cross-provider-review` получает второе мнение от opposite-family модели.
 
 **Незакрытые зоны:**
 - Работа с жизненным циклом ТЖ — покрыто навыком `tech-log-analysis`
@@ -235,7 +235,7 @@
 | Категория | Навык | Назначение | MCP Tools |
 |-----------|-------|------------|-----------|
 | tool-usage | `test-execution` | Сборка проекта и запуск YaxUnit-тестов | `run_tests`, `build_project`, `navigate_symbol`, `check_syntax` |
-| tool-usage | `visual-check` | Визуальная проверка форм через браузер | `browser_navigate`, `browser_snapshot`, `browser_fill`, `browser_click`, `browser_take_screenshot`, `browser_console_messages`, `browser_wait_for` |
+| tool-usage | `va-visual-check` | Визуальная проверка форм через Vanessa/VA MCP; browser fallback по правилам навыка | VA MCP, `web-test-1c`/Playwright как fallback |
 | tool-usage | `syntax-checking` | Проверка синтаксиса BSL | `check_syntax`, `get_diagnostics` |
 | tool-usage | `event-log-analysis` | Анализ ЖР на ошибки | `search_event_log`, `navigate_symbol` |
 | tool-usage | `tech-log-analysis` | Анализ ТЖ на блокировки и исключения | `search_tech_log`, `navigate_symbol` |
@@ -244,7 +244,7 @@
 | tool-usage | `cross-provider-review` | Cross-family ревью кода (Claude↔Codex) | CLI-адаптеры |
 | tool-usage | `gemini-review` | Ревью кода через Gemini | — (внешний CLI) |
 
-**Пример рабочего сценария:** QA проверяет реализацию промокодов. Агент: (1) через `test-execution` запускает YaxUnit-тесты модуля, (2) через `visual-check` открывает форму справочника в браузере и проверяет элементы по чеклисту `form-visual-requirements`, (3) через `event-log-analysis` ищет ошибки в ЖР, через `tech-log-analysis` — блокировки и исключения в ТЖ, (4) через `cross-provider-review` инициирует финальное ревью.
+**Пример рабочего сценария:** QA проверяет реализацию промокодов. Агент: (1) через `test-execution` запускает YaxUnit-тесты модуля, (2) через `va-visual-check` открывает форму и проверяет элементы по чеклисту `form-visual-requirements`, (3) через `event-log-analysis` ищет ошибки в ЖР, через `tech-log-analysis` — блокировки и исключения в ТЖ, (4) через `cross-provider-review` инициирует финальное ревью.
 
 **Незакрытые зоны:**
 - Визуальная регрессия (сравнение скриншотов) — нет инструмента
@@ -266,7 +266,7 @@
 | 7 | `search-before-write` | tool-usage | | ● | ● | ● | |
 | 8 | `syntax-checking` | tool-usage | | | ● | ● | ● |
 | 9 | `test-execution` | tool-usage | | | | ● | ● |
-| 10 | `visual-check` | tool-usage | | | | ● | ● |
+| 10 | `va-visual-check` | tool-usage | | | | ● | ● |
 | 11 | `xml-generation` | tool-usage | | | | ● | |
 | 12 | `epf-full` | tool-usage | | | | ● | |
 | 14 | `form-dsl` | tool-usage | | | | ● | |
@@ -310,7 +310,7 @@
 | MCP-инструмент | Провайдер | Описание | Затронутые роли | Статус |
 |----------------|-----------|----------|-----------------|--------|
 | **Не требуют навыка** | | | | |
-| `launch_app` | mcp-onec-test-runner | Запуск клиентов 1С | — | ⚪ YaxUnit запускает клиент автоматически через `run_tests`; интерактивная работа с толстым/тонким клиентом агенту недоступна; веб-клиент покрыт `visual-check` |
+| `launch_app` | mcp-onec-test-runner | Запуск клиентов 1С | — | ⚪ YaxUnit запускает клиент автоматически через `run_tests`; интерактивная работа с толстым/тонким клиентом идёт через Vanessa/TestClient и профильные навыки |
 | `explain_1c_syntax` | spring-mcp-1c-copilot | Объяснение конструкций BSL | — | ⚪ Современный агент справляется без инструмента |
 | `check_1c_code` | spring-mcp-1c-copilot | AI-проверка кода через copilot (старая модель) | — | ⚪ Слабее `cross-provider-review`; ревью закрыто review-навыками |
 | `range` | mcp-bsl-lsp-bridge | Анализ диапазона кода | Программист | 🟡 Инструмент доступен; навык не нужен — низкоуровневой LSP-операции достаточно |
@@ -352,13 +352,13 @@
 | `logc_disable_techlog` | 1c-log-checker | Отключение ТЖ | Программист, QA | 🟢 `tech-log-analysis` |
 | `logc_get_techlog_config` | 1c-log-checker | Чтение конфигурации ТЖ | Программист, QA | 🟢 `tech-log-analysis` |
 | `logc_get_actual_log_timestamp` | 1c-log-checker | Актуальная метка времени журнала | Программист, QA | 🟢 `tech-log-analysis` |
-| `browser_navigate` | chrome-devtools | Навигация в браузере (= `navigate_page`) | Программист, QA | 🟢 `visual-check` |
-| `browser_snapshot` | chrome-devtools | Снимок страницы (= `take_snapshot`) | Программист, QA | 🟢 `visual-check` |
-| `browser_fill` | chrome-devtools | Заполнение полей (= `fill`) | Программист, QA | 🟢 `visual-check` |
-| `browser_click` | chrome-devtools | Клик по элементу (= `click`) | Программист, QA | 🟢 `visual-check` |
-| `browser_take_screenshot` | chrome-devtools | Скриншот (= `take_screenshot`) | Программист, QA | 🟢 `visual-check` |
-| `browser_console_messages` | chrome-devtools | Сообщения консоли (= `list_console_messages`) | Программист, QA | 🟢 `visual-check` |
-| `browser_wait_for` | chrome-devtools | Ожидание элемента (= `wait_for`) | Программист, QA | 🟢 `visual-check` |
+| `browser_navigate` | chrome-devtools | Навигация в браузере (= `navigate_page`) | Программист, QA | 🟢 `web-test-1c` / `playwright`; для 1C UI только browser-layer или fallback по `va-visual-check` |
+| `browser_snapshot` | chrome-devtools | Снимок страницы (= `take_snapshot`) | Программист, QA | 🟢 `web-test-1c` / `playwright`; для 1C UI только browser-layer или fallback по `va-visual-check` |
+| `browser_fill` | chrome-devtools | Заполнение полей (= `fill`) | Программист, QA | 🟢 `web-test-1c` / `playwright`; для 1C UI только browser-layer или fallback по `va-visual-check` |
+| `browser_click` | chrome-devtools | Клик по элементу (= `click`) | Программист, QA | 🟢 `web-test-1c` / `playwright`; для 1C UI только browser-layer или fallback по `va-visual-check` |
+| `browser_take_screenshot` | chrome-devtools | Скриншот (= `take_screenshot`) | Программист, QA | 🟢 `web-test-1c` / `playwright`; для 1C UI только browser-layer или fallback по `va-visual-check` |
+| `browser_console_messages` | chrome-devtools | Сообщения консоли (= `list_console_messages`) | Программист, QA | 🟢 `web-test-1c` / `playwright`; для 1C UI только browser-layer или fallback по `va-visual-check` |
+| `browser_wait_for` | chrome-devtools | Ожидание элемента (= `wait_for`) | Программист, QA | 🟢 `web-test-1c` / `playwright`; для 1C UI только browser-layer или fallback по `va-visual-check` |
 
 > **Альтернативные MCP-провайдеры.** Помимо основных серверов, зарегистрированных в `registry.yaml`, существуют альтернативные провайдеры: **1c-batch** (сборка/выгрузка конфигурации — альтернатива `test-runner` для `build_project`/`dump_config`), **1c-mcp-tools** (метаданные/запросы — альтернатива `1c-mcp`), **1c_mcp** (прозрачный прокси с динамическими инструментами на стороне 1С — потенциальный путь для закрытия пробелов без создания новых MCP-серверов). Фреймворк выбрал конкретные провайдеры; альтернативы подключаются через `registry.yaml` при необходимости.
 
@@ -371,7 +371,7 @@
 | Интеграция с трекерами | Нет MCP-сервера для Jira/YouTrack — ФА забирает задачу вручную | ФА | 🟢 Низкий приоритет, удобство а не необходимость |
 | Моделирование процессов | Нет генератора BPMN/EPC-диаграмм | БА | 🔴 Нет инструмента |
 | Визуализация архитектуры | Нет генератора C4/компонентных/ER-диаграмм | ФА, СА | 🔴 Нет инструмента |
-| Визуальная регрессия | Нет сравнения скриншотов (pixel diff) | QA | 🟡 Можно реализовать поверх `visual-check` |
+| Визуальная регрессия | Нет сравнения скриншотов (pixel diff) | QA | 🟡 Можно реализовать поверх `va-visual-check` |
 | Нагрузочное тестирование | Нет профилировщика и генератора нагрузки | СА, QA | 🔴 Нет инструмента |
 | E2E-тестирование | Нет оркестратора сквозных сценариев | QA | 🔴 Нет инструмента |
 
@@ -381,9 +381,9 @@
 
 | # | Имя навыка | Категория | Приоритет | Описание | MCP Tools |
 |---|------------|-----------|-----------|----------|-----------|
-| 1 | `visual-regression` | tool-usage | 🟢 Низкий | Сравнение скриншотов форм (pixel diff) для регрессионного тестирования UI | `browser_take_screenshot` + внешний diff |
+| 1 | `visual-regression` | tool-usage | 🟢 Низкий | Сравнение скриншотов форм (pixel diff) для регрессионного тестирования UI | VA/browser screenshot + внешний diff |
 
-**Рекомендуемый порядок реализации:** `visual-regression` — зависит от `visual-check`, требует внешнего инструмента сравнения скриншотов.
+**Рекомендуемый порядок реализации:** `visual-regression` — зависит от `va-visual-check`, требует внешнего инструмента сравнения скриншотов.
 
 ---
 
@@ -417,8 +417,9 @@ framework/skills/tool-usage/
 ├── test-execution/
 │   └── SKILL.md                       # TDD: сборка + тесты YaxUnit
 │
-├── visual-check/
-│   └── SKILL.md                       # Визуальная проверка форм в браузере
+├── vanessa/
+│   └── va-visual-check/
+│       └── SKILL.md                   # Визуальная проверка форм 1С через VA MCP
 │
 ├── xml-generation/
 │   ├── xml-generation/

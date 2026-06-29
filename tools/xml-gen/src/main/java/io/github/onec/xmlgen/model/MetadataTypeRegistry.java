@@ -217,6 +217,24 @@ public class MetadataTypeRegistry {
         return typeName != null && typeName.endsWith("Register");
     }
 
+    /**
+     * Хранится ли объект в БД (персистентный)? Реквизиты/ТЧ-реквизиты обработок и
+     * отчётов (DataProcessor/Report) — РАНТАЙМНЫЕ, их XDTO-схема Attribute НЕ содержит
+     * FillFromFillingValue/FillValue/Indexing/FullTextSearch/DataHistory. Эмиссия этих
+     * свойств для нехранимого объекта = "Неверное свойство ... не входит в состав
+     * объекта метаданных Attribute" при загрузке Designer'ом (XG-50). У всех остальных
+     * объектов (справочники, документы, регистры, ПВХ и т.п.) реквизит персистентный.
+     */
+    public static boolean isStorable(String typeName) {
+        if (typeName == null) {
+            return true;
+        }
+        return switch (typeName) {
+            case "Report", "DataProcessor" -> false;
+            default -> true;
+        };
+    }
+
     /** Имеет Attribute + TabularSection в ChildObjects? */
     public static boolean hasAttributes(String typeName) {
         TypeDescriptor td = get(typeName);

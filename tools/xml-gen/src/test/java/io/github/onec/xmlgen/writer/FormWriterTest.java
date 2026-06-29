@@ -90,6 +90,70 @@ class FormWriterTest {
         assertThat(content).contains("<v8:Digits>10</v8:Digits>");
         assertThat(content).contains("<v8:FractionDigits>2</v8:FractionDigits>");
     }
+
+    //++agent TASK-199 [27.06.2026 23:30:00]
+    /**
+     * TASK-199 / XG-64: DynamicList must use Designer canonical Settings,
+     * not XDTO-invalid DynamicListExtInfo.
+     */
+    @Test
+    void task199_dynamicListAttribute_emitsSettingsInsteadOfExtInfo() throws Exception {
+        Map<String, Object> settings = new HashMap<>();
+        settings.put("mainTable", "Document.биг_КорректировкаЗаписейРегистров");
+        settings.put("dynamicDataRead", true);
+
+        List<FormDsl.Attribute> attributes = List.of(
+                new FormDsl.Attribute("Список", null, "DynamicList", true,
+                        null, settings, null));
+
+        FormDsl dsl = new FormDsl(
+                "Форма списка",
+                null, null, null, null,
+                attributes,
+                null, null
+        );
+
+        Path outputXml = tempDir.resolve("Form.xml");
+        FormWriter writer = new FormWriter(OutputFormat.DESIGNER);
+        writer.create(dsl, outputXml);
+
+        String content = Files.readString(outputXml);
+
+        assertThat(content).contains("<Settings xsi:type=\"DynamicList\">");
+        assertThat(content).contains("<ManualQuery>false</ManualQuery>");
+        assertThat(content).contains("<DynamicDataRead>true</DynamicDataRead>");
+        assertThat(content).contains("<MainTable>Document.биг_КорректировкаЗаписейРегистров</MainTable>");
+        assertThat(content).doesNotContain("DynamicListExtInfo");
+        assertThat(content).doesNotContain("<ExtInfo");
+    }
+
+    @Test
+    void task199_labelFieldUserVisible_emitsXrCommonStructure() throws Exception {
+        Map<String, Object> hiddenLabel = new HashMap<>();
+        hiddenLabel.put("type", "labelField");
+        hiddenLabel.put("name", "Ссылка");
+        hiddenLabel.put("dataPath", "Список.Ref");
+        hiddenLabel.put("userVisible", false);
+
+        FormDsl dsl = new FormDsl(
+                "Форма списка",
+                null, null, null,
+                List.of(hiddenLabel),
+                null,
+                null, null
+        );
+
+        Path outputXml = tempDir.resolve("Form.xml");
+        FormWriter writer = new FormWriter(OutputFormat.DESIGNER);
+        writer.create(dsl, outputXml);
+
+        String content = Files.readString(outputXml);
+
+        assertThat(content).contains("<UserVisible>");
+        assertThat(content).contains("<xr:Common>false</xr:Common>");
+        assertThat(content).doesNotContain("<UserVisible>false</UserVisible>");
+    }
+    //++agent TASK-199
     
     /**
      * Тест 3: Форма с командами.
@@ -420,5 +484,58 @@ class FormWriterTest {
         assertThat(content).contains("<Event name=\"OnCreateAtServer\">ПриСозданииНаСервере</Event>");
         assertThat(content).contains("<Attribute name=\"Параметр1\" id=\"1\">");
         assertThat(content).contains("<Command name=\"Выполнить\" id=\"1\">");
+    }
+
+    @Test
+    void formCompile_supportsButtonGroupSimpleFieldsAndChoiceControls() throws Exception {
+        String json = """
+                {
+                  "title": "Расширенная форма",
+                  "elements": [
+                    {
+                      "type": "input",
+                      "name": "ПолеВыбора",
+                      "path": "Объект.Контрагент",
+                      "choiceList": [
+                        {"value": "A", "presentation": "Вариант A"}
+                      ],
+                      "choiceParameters": [
+                        {"name": "Owner", "value": "Объект.Владелец"}
+                      ],
+                      "choiceParameterLinks": [
+                        {"name": "Owner", "dataPath": "Объект.Владелец", "valueChange": "Clear"}
+                      ],
+                      "typeLink": {"dataPath": "Объект.Вид", "linkItem": 1}
+                    },
+                    {
+                      "type": "buttonGroup",
+                      "name": "ГруппаКоманд",
+                      "commandSource": "Form",
+                      "children": [
+                        {"type": "button", "name": "Кнопка", "command": "Выполнить"}
+                      ]
+                    },
+                    {"type": "spreadsheet", "name": "ПолеТабличногоДокумента", "path": "Объект.Макет"},
+                    {"type": "progressBar", "name": "Прогресс", "path": "Объект.Процент", "minValue": 0, "maxValue": 100}
+                  ]
+                }
+                """;
+
+        FormDsl dsl = new ObjectMapper().readValue(json, FormDsl.class);
+        Path outputXml = tempDir.resolve("Form.xml");
+
+        new FormWriter(OutputFormat.DESIGNER).create(dsl, outputXml);
+
+        String content = Files.readString(outputXml);
+        assertThat(content).contains("<ChoiceList>");
+        assertThat(content).contains("<ChoiceParameters>");
+        assertThat(content).contains("<ChoiceParameterLinks>");
+        assertThat(content).contains("<TypeLink>");
+        assertThat(content).contains("<ButtonGroup name=\"ГруппаКоманд\"");
+        assertThat(content).contains("<CommandSource>Form</CommandSource>");
+        assertThat(content).contains("<SpreadsheetDocumentField name=\"ПолеТабличногоДокумента\"");
+        assertThat(content).contains("<ProgressBarField name=\"Прогресс\"");
+        assertThat(content).contains("<MinValue>0</MinValue>");
+        assertThat(content).contains("<MaxValue>100</MaxValue>");
     }
 }

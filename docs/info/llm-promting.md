@@ -309,8 +309,8 @@ AGI обычно подразумевает устойчивый универс�
 - Правила и навыки: [docs/info/rules-skills.md](./rules-skills.md)
 - SDD: [docs/info/sdd.md](./sdd.md)
 - TDD: [docs/info/tdd.md](./tdd.md)
-- Workflow: [framework/workflows/full-cycle.md](../../framework/workflows/full-cycle.md)
-- Orchestrator: [framework/workflows/orchestrator.md](../../framework/workflows/orchestrator.md)
+- Workflow: [framework/workflows/full-cycle/SKILL.md](../../framework/workflows/full-cycle/SKILL.md)
+- Orchestrator: [framework/workflows/orchestrator/SKILL.md](../../framework/workflows/orchestrator/SKILL.md)
 
 ---
 

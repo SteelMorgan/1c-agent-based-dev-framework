@@ -28,11 +28,11 @@
 6. git-diff всех фаз (от исходного состояния до конца)
 7. Сырой stdout всех тест-прогонов (не «зелёные», а вывод с exit_code'ами)
 8. Список rule-файлов, действующих на оркестратора:
-   - `framework/workflows/orchestrator.md`
-   - `framework/rules/agent-context-protocol.md`
-   - `framework/workflows/full-cycle.md`
-   - `framework/skills/framework-meta/quick-fix/SKILL.md`
-   - `framework/rules/source-of-truth.md`
+   - `framework/workflows/orchestrator/SKILL.md`
+   - `framework/rules/agent-context-protocol/SKILL.md`
+   - `framework/workflows/full-cycle/SKILL.md`
+   - `framework/skills/agent-process/quick-fix/SKILL.md`
+   - `framework/rules/source-of-truth/SKILL.md`
    - `.claude/CLAUDE.md` (project-level overrides, если есть)
 
 Если какой-либо пункт evidence pack не предоставлен — немедленно `verdict: FAIL` с finding «missing evidence: <что именно>». Не пытайся восстановить недостающее — это задача оркестратора.

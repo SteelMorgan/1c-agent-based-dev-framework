@@ -75,7 +75,7 @@ framework/subagents/developer.md: зависимость не существуе
 
 **Найдено:**
 ```
-framework/rules/framework-bootstrap.mdc: упоминается 
+framework/rules/framework-bootstrap/SKILL.md: упоминается 
 framework/rules/mandatory-tools.md, но не задекларировано в depends_on
 ```
 

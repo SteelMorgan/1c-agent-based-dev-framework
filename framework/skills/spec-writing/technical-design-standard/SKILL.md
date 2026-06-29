@@ -1,6 +1,6 @@
 ---
 name: technical-design-standard
-description: "Use for написания технического дизайна (Phase 2). Defines структуру technical-design.md, правила заполнения секций (MUST/SHOULD/MAY) и чеклист качества для архитектора и ревьюера (scope=arch)."
+description: "Для technical-design.md 1C с MUST/SHOULD/MAY"
 ---
 
 # Стандарт технического дизайна (Technical Design)

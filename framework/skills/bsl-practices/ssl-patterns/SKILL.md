@@ -1,6 +1,6 @@
 ---
 name: ssl-patterns
-description: "MUST use WHEN используешь или расширяешь функциональность БСП (Библиотека стандартных подсистем). Provides каталог готовых функций ОбщегоНазначения и правила вызова подсистем без дублирования."
+description: "Перед логикой на БСП проверить готовые механизмы"
 uses_capabilities:
   - get_signature_help
 alwaysApply: false

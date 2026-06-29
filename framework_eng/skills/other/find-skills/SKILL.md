@@ -1,6 +1,6 @@
 ---
 name: find-skills
-description: "Use for discovering and installing agent skills when the user asks whether there is a skill for X or wants to extend capabilities. Helps find a suitable skill through `npx skills find` and install it."
+description: "When you need to search for or install an agent skill"
 capabilities: skills-management
 ---
 
@@ -43,4 +43,3 @@ If no skills found: offer to help directly, suggest `npx skills init` for custom
 | Productivity    | workflow, automation, git                |
 
 Machine-readable copy: `domains.json` next to this skill.
-

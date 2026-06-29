@@ -1,6 +1,6 @@
 ---
 name: bug-reporting
-description: "MUST use WHEN сабагент исчерпал лимит самовосстановления и должен передать проблему оркестратору на расследование. Provides стандарт формы bug-report.json и критерии «это баг для дебаггера»."
+description: "Эскалация бага после лимита самовосстановления агента"
 alwaysApply: false
 ---
 
@@ -114,6 +114,23 @@ alwaysApply: false
     }
   },
 
+  "debug_trigger": {                                        // recommended, * если репортёр знает как вызвать код
+    "context": "server",                                    // client | server | unknown
+    "preferred_method": "yaxunit",                          // yaxunit | vanessa | ui_mcp | mcp_tool | http | scheduled_job | unknown
+    "run_after_breakpoint": "запустить один unit-test РасчётСкидки_GivenVIP_Returns20",
+    "entry_point": {
+      "module": "ОбщийМодуль.Скидки",
+      "procedure": "РассчитатьСкидку",
+      "line_hint": null
+    },
+    "target_hint": {
+      "user": "AgentAI",
+      "infobase_session_number": null,
+      "client_kind": "unit-test"
+    },
+    "timeout_hint_seconds": 30
+  },
+
   "self_fix_attempts": [                                    // * минимум одна запись
     {"what_tried": "проверил формулу в РассчитатьСкидку()",  "result": "формула совпадает со спекой"},
     {"what_tried": "перепрогнал тест после rebuild",         "result": "то же значение 15"}
@@ -154,6 +171,7 @@ alwaysApply: false
 - **`hypotheses` — опциональны, но если указаны — с `reasoning`.** Гипотеза без обоснования = шум.
 - **`context.files_touched_this_phase` обязательно.** Дебаггер должен знать, что менялось недавно.
 - **Конкретные значения, не «обычный документ».** Цитировать фактические данные из теста/фикстуры/прогона.
+- **`debug_trigger` заполнять всегда, когда известно как вызвать код.** Это не инструкция дебаггеру обязательно использовать DAP; это стартовая подсказка для выбора между DAP и trace через ЖР.
 
 ### 4.2 `scenario_context` — что и как заполнять
 
@@ -181,7 +199,22 @@ alwaysApply: false
 
 **`relevant_db_state`** — заполняется только если репортёр уже проверил состояние БД (`platform-data-core` § Query Execution); иначе `"не проверялось"`. Дебаггер сам проверит.
 
-### 4.3 Когда `scenario_context.incomplete: true`
+### 4.3 `debug_trigger` — как дебаггеру инициировать код
+
+`debug_trigger` описывает, как воспроизвести выполнение после того, как Debugger поставит breakpoint или подготовит trace.
+
+Заполнять:
+
+- `context` — где исполняется основной код: `client`, `server`, `unknown`.
+- `preferred_method` — самый узкий способ запуска: `yaxunit`, `vanessa`, `ui_mcp`, `mcp_tool`, `http`, `scheduled_job`, `unknown`.
+- `run_after_breakpoint` — что именно запускать после установки breakpoint: команда, тест, сценарий, UI-действие, tool-вызов.
+- `entry_point` — модуль/процедура/строка, если репортёр знает предполагаемую точку входа.
+- `target_hint` — пользователь, номер сеанса ИБ, тип клиента или другие признаки target, если видны из прогона.
+- `timeout_hint_seconds` — 30 для быстрого кода; для тяжёлой операции указать осознанный предел или `null` с пояснением в `self_fix_attempts`.
+
+Если способ запуска неизвестен, ставить `preferred_method: "unknown"` и объяснить, что именно неизвестно. Не выдумывать target или строку breakpoint.
+
+### 4.4 Когда `scenario_context.incomplete: true`
 
 Если репортёр не может заполнить контекст полностью (например, Developer-Code не видит, как тест готовит документ):
 
@@ -204,6 +237,7 @@ alwaysApply: false
 - `symptom.error_message` — assertion verbatim из stdout/event-log.
 - `expectation.source` — секция спеки или ассерт-строка из теста.
 - `scenario_context.input_data.kind = "function_call"` если упал unit на конкретной функции; добавить `document` если тест прогоняется на документе.
+- `debug_trigger.preferred_method = "yaxunit"`; `run_after_breakpoint` — команда запуска одного теста; `entry_point` — функция/процедура из падающего стека, если известна.
 - `hypotheses` — если подозрение на test/data/scenario/step, указать с reasoning.
 - `context.files_touched_this_phase` — все BSL/XML, изменённые в Phase 3d.
 
@@ -215,6 +249,7 @@ alwaysApply: false
 - Полный `scenario_context` — Tester видит сценарий end-to-end и обязан заполнить максимум.
 - `symptom.what_ran` — имя теста / `.feature` / scenario name.
 - `expectation.source` — спека ИЛИ Acceptance Scenario из спеки ИЛИ ассерт.
+- `debug_trigger` — заполнить по фактическому способу запуска: `yaxunit` для unit, `vanessa` для сценария, `ui_mcp` если действие воспроизводилось через тестовый клиент.
 - `hypotheses` — текущая классификация Tester (`test_error` / `implementation_error` / `spec_mismatch`) перекладывается в `hypotheses[].layer`.
 - `self_fix_attempts` — все 3 попытки с описанием что меняли и результатом.
 
@@ -229,6 +264,7 @@ alwaysApply: false
 - `expectation.source` — Acceptance Scenario из спеки + ожидаемое поведение Red-гейта (должен быть красным).
 - `scenario_context.action` — что делает сценарий (Given-блоки `.feature` дают данные).
 - `scenario_context.input_data` — из Given-шагов сценария.
+- `debug_trigger.preferred_method = "vanessa"`; если шаг реализован через клиентские UI-действия — добавить target_hint тест-клиента, если он известен.
 - `hypotheses` — например `layer: step` если подозрение на скрытый мок в реализации шага.
 
 ---
@@ -258,9 +294,10 @@ alwaysApply: false
 | `self_fix_attempts: []` пустой | Не было даже попытки разобраться → значит не баг для дебаггера |
 | Создание нового bug-report при том же симптоме | Дубли мешают трекингу; обновлять существующий |
 | `scenario_context` с выдуманными данными вместо `incomplete: true` | Дебаггер пойдёт по ложному следу |
+| `debug_trigger` пустой при известном способе запуска | Дебаггер тратит время на восстановление того, что репортёр уже знает |
 
 ---
 
 depends_on:
-  - framework/rules/source-of-truth.md
+  - framework/rules/source-of-truth/SKILL.md
 ---

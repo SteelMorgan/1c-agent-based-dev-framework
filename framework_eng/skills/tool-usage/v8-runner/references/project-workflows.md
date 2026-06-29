@@ -1,6 +1,6 @@
 # Project workflows
 
-Use these flows based on the user's intent. Do not split the workflow just because the sources are Designer or EDT; many commands share the same lifecycle and differ only in `format`, `builder`, or tool availability.
+Use these flows according to the user's intent. Do not split workflows just because the sources are Designer or EDT; many commands share the same lifecycle and differ only in `format`, `builder`, or tool availability.
 
 Read the exact support rules in `config-and-backends.md` together with this file.
 
@@ -50,7 +50,7 @@ If `tools.client_mcp.extension` is configured, `build` also prepares this tool e
 
 1. Launch in the background (`Bash run_in_background: true`) and redirect stdout to a file.
 2. Subscribe via **Monitor** with the filter `ERROR:|Failed|error:` — a notification arrives on the first match.
-3. Terminate the wait when the process exits OR stdout contains `ERROR:` / `Failed` / an explicit success marker.
+3. Stop waiting when the process exits OR stdout contains `ERROR:` / `Failed` / an explicit success marker.
 4. After completion: exit code 0 = success; otherwise read stdout for the error.
 
 ## Syntax
@@ -148,17 +148,17 @@ Read `testing.md` for `launch mcp va`; it is part of the workflow for debugging 
 > - v8-runner: upstream [`alkoleft/v8-runner-rust`](https://github.com/alkoleft/v8-runner-rust) → used fork [`SteelMorgan/v8-runner-rust`](https://github.com/SteelMorgan/v8-runner-rust)
 > - onec-client-mcp-devkit: used fork [`SteelMorgan/onec-client-mcp-devkit`](https://github.com/SteelMorgan/onec-client-mcp-devkit)
 
-When [`v8-client-session-manager`](https://github.com/SteelMorgan/v8-client-session-manager) is running alongside the project, the 1С client can connect to it over WebSocket instead of the local HTTP MCP server (legacy `runMcp` mode). v8-runner makes the choice automatically.
+When [`v8-client-session-manager`](https://github.com/SteelMorgan/v8-client-session-manager) is running alongside the project, the 1С client can connect to it over WebSocket instead of the local HTTP MCP server (`runMcp` mode). v8-runner makes the choice automatically.
 
 ### Transport and autodetection
 
 `tools.client_mcp.transport`:
 
-- `auto` (default) — a short TCP probe (200 ms) to the host:port from `manager_url`. Listener detected → WS, otherwise → legacy.
+- `auto` (default) — a short TCP probe (200 ms) to the host:port from `manager_url`. Listener detected → WS, otherwise → `mcp`.
 - `ws` — strict WS; if the manager is unavailable, launch fails with `session-manager unreachable at <url>`.
-- `legacy` — the old HTTP mode without a probe.
+- `mcp` — local HTTP MCP mode without a probe.
 
-Override via `--mcp-transport={ws|legacy|auto}`. CLI takes priority over config.
+Override via `--mcp-transport={ws|mcp|auto}`. CLI takes priority over config.
 
 ### What v8-runner injects into `/C` in the WS branch
 
@@ -200,13 +200,13 @@ WS branch:
 ```json
 { "transport": "ws", "client_uid": "...", "kind": "...", "manager_url": "...", "corr_id": "..." }
 ```
-Legacy branch:
+MCP branch:
 ```json
-{ "transport": "legacy", "mcp_port": 9874 }
+{ "transport": "mcp", "mcp_port": 9874 }
 ```
 
 An external orchestrator (CI, AI agent) uses `client_uid` to find the session in the manager's `session_list`. The structure of the session entry and `session_list` is described in the `v8-session-manager` skill.
 
 ### The manager is not started from v8-runner
 
-v8-runner only connects to a running manager. Starting the manager is a separate step (`cargo run --release` in the `v8-client-session-manager` repo, or the `systemd/v8-session-manager.service` unit, or Docker Compose). If the manager is not needed, `--mcp-transport=legacy` forces the old flow.
+v8-runner only connects to a running manager. Starting the manager is a separate step (`cargo run --release` in the `v8-client-session-manager` repo, or the `systemd/v8-session-manager.service` unit, or Docker Compose). If the manager is not needed, `--mcp-transport=mcp` forces the local HTTP MCP flow.

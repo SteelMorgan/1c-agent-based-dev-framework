@@ -30,9 +30,14 @@ public class SkdInfoPrinter {
      */
     public void print(XmlDocument document, String mode, String nameFilter,
                       int limit, int offset, PrintStream out) {
+        print(document, mode, nameFilter, limit, offset, null, out);
+    }
+
+    public void print(XmlDocument document, String mode, String nameFilter,
+                      int limit, int offset, Integer batch, PrintStream out) {
         XmlNode root = document.getRoot();
         List<String> lines = new ArrayList<>();
-        printByMode(root, document.getFile(), mode, nameFilter, lines);
+        printByMode(root, document.getFile(), mode, nameFilter, batch, lines);
 
         // Pagination
         int totalLines = lines.size();
@@ -63,12 +68,20 @@ public class SkdInfoPrinter {
      * Dispatch to mode-specific method.
      */
     public void printByMode(XmlNode root, Path file, String mode, String nameFilter, List<String> lines) {
+        printByMode(root, file, mode, nameFilter, null, lines);
+    }
+
+    public void printByMode(XmlNode root, Path file, String mode, String nameFilter,
+                            Integer batch, List<String> lines) {
+        if (batch != null && !"query".equals(mode)) {
+            throw new IllegalArgumentException("--batch is supported only for skd info --mode query");
+        }
         switch (mode) {
             case "overview":
                 printOverview(root, file, lines);
                 break;
             case "query":
-                printQuery(root, nameFilter, lines);
+                printQuery(root, nameFilter, batch, lines);
                 break;
             case "fields":
                 printFields(root, nameFilter, lines);
@@ -291,6 +304,10 @@ public class SkdInfoPrinter {
     // printQuery. Нужно для lossless round-trip `skd info --raw | skd edit set-query`:
     // строка-разделитель батчей //// сохраняется как есть, запрос не нормализуется.
     public void printRawQuery(XmlNode root, String name, PrintStream out) {
+        printRawQuery(root, name, null, out);
+    }
+
+    public void printRawQuery(XmlNode root, String name, Integer batch, PrintStream out) {
         XmlNode targetDs = findQueryDataset(root, name);
         if (targetDs == null) {
             out.println("No Query dataset found" + (name != null ? " with name '" + name + "'" : ""));
@@ -301,11 +318,15 @@ public class SkdInfoPrinter {
             out.println("Dataset has no query element");
             return;
         }
-        out.println(safeText(queryNode.getText()));
+        out.println(selectQueryBatch(safeText(queryNode.getText()), batch));
     }
     //++agent TASK-176
 
     private void printQuery(XmlNode root, String name, List<String> lines) {
+        printQuery(root, name, null, lines);
+    }
+
+    private void printQuery(XmlNode root, String name, Integer batch, List<String> lines) {
         XmlNode targetDs = findQueryDataset(root, name);
         if (targetDs == null) {
             lines.add("No Query dataset found" + (name != null ? " with name '" + name + "'" : ""));
@@ -326,6 +347,17 @@ public class SkdInfoPrinter {
         int totalQueryLines = rawQuery.split("\n").length;
 
         if (batches.length > 1) {
+            if (batch != null) {
+                String selected = selectQueryBatch(rawQuery, batch);
+                int selectedLines = selected.split("\n").length;
+                lines.add("=== Query: " + dsName + " (batch " + batch + "/" + batches.length
+                        + ", " + selectedLines + " lines) ===");
+                lines.add("");
+                for (String ql : selected.split("\n")) {
+                    lines.add(ql.replaceFirst("\\s+$", ""));
+                }
+                return;
+            }
             lines.add("=== Query: " + dsName + " (" + totalQueryLines + " lines, " + batches.length + " batches) ===");
             // Table of contents
             int lineNum = 1;
@@ -346,12 +378,30 @@ public class SkdInfoPrinter {
                 lines.add("");
             }
         } else {
+            if (batch != null && batch != 1) {
+                throw new IllegalArgumentException("Query has 1 batch, requested batch " + batch);
+            }
             lines.add("=== Query: " + dsName + " (" + totalQueryLines + " lines) ===");
             lines.add("");
             for (String ql : rawQuery.split("\n")) {
                 lines.add(ql.replaceFirst("\\s+$", ""));
             }
         }
+    }
+
+    private String selectQueryBatch(String rawQuery, Integer batch) {
+        if (batch == null) {
+            return rawQuery;
+        }
+        if (batch < 1) {
+            throw new IllegalArgumentException("--batch must be >= 1");
+        }
+        String[] batches = BATCH_SEPARATOR.split(rawQuery);
+        if (batch > batches.length) {
+            throw new IllegalArgumentException("Query has " + batches.length
+                    + " batch(es), requested batch " + batch);
+        }
+        return batches[batch - 1];
     }
 
     private String extractTempTableName(String batch) {

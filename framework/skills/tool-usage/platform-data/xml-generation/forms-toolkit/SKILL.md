@@ -1,6 +1,6 @@
 ---
 name: forms-toolkit
-description: "Use for анализа структуры форм, добавления элементов, валидации и маппинга Title→Name для Vanessa-сценариев. Helps работать с Form.xml и EPF/ERF через xml-gen form-info/form-edit/form-validate/form-element-mapping/epf-validate."
+description: "xml-gen forms: info, edit, validate, mapping"
 argument-hint: <operation> <FormPath> [<JsonPath>]
 allowed-tools:
   - Bash
@@ -19,6 +19,7 @@ depends_on:
 
 ```
 form-info → form-edit → form-validate → form-info
+form-decompile → form-compile — только для scaffold новой формы по образцу
 epf-validate — для EPF/ERF
 form-element-mapping — маппинг Title→Name для Vanessa-сценариев
 ```
@@ -28,6 +29,7 @@ form-element-mapping — маппинг Title→Name для Vanessa-сценар
 | Триггер | Операция | Reference |
 |---------|----------|-----------|
 | Понять структуру формы | `form-info` | [references/info.md](references/info.md) |
+| Получить JSON-черновик новой формы по образцу | `form-decompile` | draft, не lossless |
 | Добавить поле / реквизит / команду | `form-edit` | [references/edit.md](references/edit.md) |
 | Проверить Form.xml после изменений | `form-validate` | [references/validate.md](references/validate.md) |
 | Написание Vanessa-шагов (Title→Name) | `form-element-mapping` | [references/element-mapping.md](references/element-mapping.md) |
@@ -38,6 +40,7 @@ form-element-mapping — маппинг Title→Name для Vanessa-сценар
 | Операция | Команда | Ключевые параметры |
 |----------|---------|-------------------|
 | `form-info` | `xml-gen form info "<FormPath>"` | `--limit N`, `--offset N` |
+| `form-decompile` | `xml-gen form decompile "<FormPath>" [out.json]` | scaffold JSON для `form compile` |
 | `form-edit` | `xml-gen form edit "<FormPath>" --json "<JsonPath>"` | JSON: elements / attributes / commands |
 | `form-validate` | `xml-gen validate --type form "<FormPath>"` | `--output json` |
 | `epf-validate` | `xml-gen validate --type epf "<ObjectPath>"` | `--output json` |
@@ -54,6 +57,9 @@ xml-gen form edit "src/.../Form.xml" --json "spec.json"
 
 # 3. Проверить результат
 xml-gen validate --type form "src/.../Form.xml"
+
+# Scaffold новой формы по образцу
+xml-gen form decompile "src/.../Form.xml" draft-form.json
 
 # Валидация EPF
 xml-gen validate --type epf "src/МояОбработка/"

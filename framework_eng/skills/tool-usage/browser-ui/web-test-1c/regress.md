@@ -1,38 +1,43 @@
 # Playwright Regression Engine
 
-Use this document when you need to cover a 1C solution with automated regression tests: run several .feature / JSON scenarios in sequence, aggregate results, get fail/pass reports, configure retry for flaky tests, and save screenshots on failures. For one-off automation (a single scenario), stay in the `run`/`exec` modes from SKILL.md.
+Use this document when you need to cover a 1C solution with automated regression tests: run several `.feature` / JSON scenarios in sequence, aggregate results, get a fail/pass report, configure retry for flaky tests, save screenshots on failures. For one-off automation (a single scenario), stay in the `run`/`exec` modes from `SKILL.md`.
 
-The runner is the same `run.mjs`. The mode is `test`:
+For 1C UI this is not the default regression path. If a test checks a form, command, field, TЧ, client handler, or business flow without browser-specific behavior, first write/run Vanessa `.feature` through TestClient. Choose Playwright regression through `web-test-1c` for the web-client/browser layer or as a fallback for `va-visual-check`: DOM/CSS/HTML, console/network, web-auth/publication, viewport/pixel rendering, browser extension, or browser-only I/O. In the test or report, record the VA steps, the reason for choosing browser/fallback, and the residual risk.
+
+The runner is the same `run.mjs`. Mode is `test`:
 
 ```bash
-node $RUN test [url] <dir|file> [флаги]
+node $RUN test <dir|file> [--url=<url>] [flags]
 ```
+
+The current implementation in this repository is a single-context runner: `url`, discovery, hooks, `step`, `assert`, `--tags`, `--grep`, `--retry`, JSON/JUnit/Allure-smoke reports, and screenshots on failure are supported. The multi-user `contexts` below describes the target contract, but it is not yet enabled in `tools/web-test` runtime.
 
 Tests live next to the project they cover, not inside the skill. Convention: `tests/` at the project root, `_hooks.mjs` and `webtest.config.mjs` at the suite root.
 
 ## When to use test, not exec
 
 | Goal | Mode |
-|------|-------|
-| Explore a form, prototype one step, debug a selector | `exec` (interactive session) |
+|------|------|
+| Explore a form / prototype a step without a browser-specific reason | Vanessa/TestClient or platform TestClient MCP |
+| Debug a DOM/CSS selector or browser-only behavior | `exec` (interactive web session) |
 | Reproduce a bug as a failing test before the fix | `test` |
 | Cover a feature with tests for the future | `test` |
-| Run a project regression on a new build | `test` |
+| Run project regression on a new build | `test` |
 | Create a screencast workflow | `exec` with `startRecording` |
 
 Do not write `.test.mjs` for a one-off request. Do not run a regression suite through a chain of `exec` calls.
 
-## Reconnaissance before writing tests
+## Reconnaissance Before Writing Tests
 
 Two levels, in order.
 
-**1. Static reconnaissance - metadata.** Never invent identifiers. For each metadata object, run the corresponding skill: `/meta-info` (attributes/Tables), `/form-info` (form layout), `/skd-info` (SKD), `/role-info` (permissions). If you cannot find it, ask.
+**1. Static reconnaissance - metadata.** Never invent identifiers. For each metadata object, run the corresponding skill: `/meta-info` (attributes/TЧ), `/form-info` (form layout), `/skd-info` (СКД), `/role-info` (permissions). If you cannot find it, ask.
 
-**2. Live reconnaissance - interactive run.** For a non-trivial scenario, walk through it in `exec` mode before writing the test. Metadata tells you what exists; a live run tells you what actually happens. Capture from `getFormState()`: exact button names, table section names, required fields, and where real waits occur. Then move the working sequence into `*.test.mjs`, wrapping logical blocks in `step('...', async () => { ... })`.
+**2. Live reconnaissance - interactive run.** For a non-trivial scenario, walk through it in `exec` mode before writing the test. Metadata tells you what exists; the live run tells you what actually happens. Capture from `getFormState()`: exact button names, table section names, required fields, and places where you really need to wait. Then transfer the working sequence into `*.test.mjs`, wrapping logical blocks in `step('...', async () => { ... })`.
 
 ## Suite Structure
 
-**Each application has its own subfolder in `tests/`.** One repository can contain several isolated suites side by side - they must not share `_hooks.mjs` or `webtest.config.mjs`, because each restores a different DB and publishes to a different URL.
+**Each application has its own subfolder in `tests/`.** One repository can contain several isolated suites side by side - they must not share `_hooks.mjs` or `webtest.config.mjs`, because each one restores a different DB and publishes to a different URL.
 
 ```
 tests/
@@ -47,26 +52,26 @@ tests/
   <another-app>/      # second solution, fully isolated
 ```
 
-Inside the application subfolder, organize by **feature**, not by metadata type. Numeric prefixes in folders and files define the execution order. Entries starting with `_` or `.` are excluded from discovery (so `_hooks.mjs`, `_allure/` do not become tests).
+Inside the application subfolder, organize by **feature**, not by metadata type. Numeric prefixes in folders and files define the run order. Entries starting with `_` or `.` are excluded from discovery (therefore `_hooks.mjs`, `_allure/` are not picked up as tests).
 
 ## Test File Anatomy
 
 ```js
-export const name = 'Создание контрагента';       // обязательно
-export const tags = ['catalog', 'create'];        // опционально, для фильтрации + Allure
-export const timeout = 60000;                     // опционально, по умолчанию 30000
-// export const skip = 'ожидаем фикс #123';       // опционально: true | string
-// export const only = true;                      // только для отладки — не коммитить
-// export const context = 'manager';             // опционально, один нестандартный контекст
-// export const contexts = ['clerk', 'manager']; // опционально, multi-user тест
-// export const severity = 'critical';           // опционально, переопределяет config
+export const name = 'Создание контрагента';       // required
+export const tags = ['catalog', 'create'];        // optional, for filtering + Allure
+export const timeout = 60000;                     // optional, default is 30000
+// export const skip = 'ожидаем фикс #123';       // optional: true | string
+// export const only = true;                      // debug only - do not commit
+// export const context = 'manager';             // optional, one non-standard context
+// export const contexts = ['clerk', 'manager']; // optional, multi-user test
+// export const severity = 'critical';           // optional, overrides config
 
 export async function setup(ctx) {
-  // подготовка перед тестом — выполняется до дефолтного
+  // preparation before the test - runs before the default one
 }
 
 export async function teardown(ctx) {
-  // очистка после теста — выполняется всегда (даже при падении)
+  // cleanup after the test - always runs (even on failure)
 }
 
 export default async function(ctx) {
@@ -74,59 +79,60 @@ export default async function(ctx) {
           readTable, closeForm, getFormState,
           assert, step, log } = ctx;
 
-  await step('Открыть список контрагентов', async () => {
+  await step('Open the counterparty list', async () => {
     await navigateSection('Продажи');
     await openCommand('Контрагенты');
   });
 
-  await step('Создать нового контрагента', async () => {
+  await step('Create a new counterparty', async () => {
     await clickElement('Создать');
     await fillFields({ 'Наименование': 'Тест ' + Date.now() });
     await clickElement('Записать и закрыть');
   });
 
-  await step('Убедиться, что элемент появился в списке', async () => {
+  await step('Make sure the item appeared in the list', async () => {
     const t = await readTable();
     assert.tableHasRow(t, r => r['Наименование']?.startsWith('Тест '));
   });
 }
 ```
 
-**Step names should be in Russian and descriptive.** Step labels appear in the console output, JSON/JUnit, and Allure steps. Use a full action phrase (`'Create a new counterparty'`), not a tag (`'create'`).
+**Step names should be in Russian and descriptive.** Step labels appear in the console output, JSON/JUnit, and Allure steps. Use the full action phrase (`'Создать нового контрагента'`), not a tag (`'create'`).
 
-## `ctx` Contract
+## ctx Contract
 
-The runner injects all `browser.mjs` exports into `ctx` (all 1C API functions), plus testing utilities:
+The runner injects all exports from `browser.mjs` (all 1C API functions) into `ctx`, plus testing utilities:
 
 ```js
 step(name, fn)   // async wrapper. Records start/stop. Supports nesting.
-log(...args)     // adds a line to ctx.testInfo output (goes to JSON/Allure attachment)
+log(...args)     // appends a line to ctx.testInfo output (goes into JSON/Allure attachment)
 assert.*         // see "Assertions" below
 ```
 
-### `ctx.testInfo` (always set, read-only)
+### ctx.testInfo (always set, read-only)
 
 ```js
 {
-  name,          // 'Navigation by sections' (with parameters substituted)
+  name,          // 'Навигация по разделам' (with parameters substituted)
   file,          // '01-navigation.test.mjs' (basename)
   tags,          // ['nav', 'smoke']
   timeout,       // ms
   attempt,       // 1..maxAttempts
   maxAttempts,   // 1 + retry
   param,         // { ... } | undefined (only when export const params is set)
-  contexts: { clerk: { url, ... }, manager: { ... } },
-  primaryContext // the active context name on test entry
+  // planned after modular engine migration:
+  // contexts: { clerk: { url, ... }, manager: { ... } },
+  // primaryContext: 'clerk'
 }
 ```
 
-### `ctx.testResult` (only in afterEach)
+### ctx.testResult (only in afterEach)
 
 ```js
 {
   status,    // 'passed' | 'failed'
   duration,  // ms
-  attempts,  // actually executed attempts
+  attempts,  // number of attempts actually executed
   error,     // { message, step?, screenshot? } | null
   steps      // array of step results
 }
@@ -134,7 +140,7 @@ assert.*         // see "Assertions" below
 
 ## Assertions
 
-All of them are on `ctx.assert`. They throw `AssertionError` with `.message`, `.actual`, `.expected`.
+All on `ctx.assert`. They throw an `AssertionError` with `.message`, `.actual`, `.expected`.
 
 ```js
 // generic
@@ -154,7 +160,7 @@ assert.tableRowCount(table, expected, msg?)
 assert.noErrors(state, msg?)
 ```
 
-## `webtest.config.mjs`
+## webtest.config.mjs
 
 ```js
 export default {
@@ -181,18 +187,18 @@ export default {
 };
 ```
 
-CLI flags override the config. Use Latin context IDs + Russian `displayName` values for ergonomics.
+CLI flags override the config. Use Latin context IDs plus Russian `displayName` values for ergonomics.
 
-## `_hooks.mjs`
+## _hooks.mjs
 
 ```js
-// Infrastructure hooks - run without a browser
+// Infrastructure hooks - work without a browser
 export async function prepare({ hookArgs, log, config }) {
-  // Restore DB, publish, build EPF. Make it idempotent.
+  // Restore DB, publication, EPF build. Make it idempotent.
 }
 export async function cleanup({ log, config }) { /* optional */ }
 
-// Test-level hooks - run with browser ctx
+// Test level - work with browser ctx
 export async function beforeAll(ctx) { }
 export async function afterAll(ctx)  { }
 export async function beforeEach(ctx) { }
@@ -222,19 +228,19 @@ node $RUN test tests/<app-name>/ --format=allure --report-dir=allure-results
 node $RUN test tests/<app-name>/ -- --rebuild-stand  # hookArgs
 ```
 
-The `--retry=1` flag gives one retry for a flaky test - especially useful for unstable environments with 1C licenses.
+The `--retry=1` flag gives one retry attempt for a flaky test - especially useful for unstable environments with 1C licenses.
 
-### Screenshots on failures
+### Failure Screenshots
 
-`screenshot: 'on-failure'` in `webtest.config.mjs` (or `--screenshot=on-failure`) automatically captures a PNG for every failed test. The screenshot path is placed in `ctx.testResult.error.screenshot` and in the report. With `'every-step'`, a screenshot is taken after each `step()`.
+`screenshot: 'on-failure'` in `webtest.config.mjs` (or `--screenshot=on-failure`) automatically captures a PNG for each failed test. The screenshot path goes into `ctx.testResult.error.screenshot` and into the report. With `'every-step'`, a shot is taken after each `step()`.
 
-## Ready-made Patterns
+## Ready-Made Patterns
 
 ### SKD Report
 
 ```js
 await openCommand('Остатки товаров');
-// Сбрасываем пользовательские настройки (1С их сохраняет между сессиями)
+// Reset user settings (1C saves them between sessions)
 await clickElement('Ещё');
 await clickElement('Установить стандартные настройки');
 await selectValue('Номенклатура', 'Товар 02');
@@ -246,7 +252,7 @@ assert.ok(r.data.length >= 1);
 assert.ok(r.totals?.['Сумма']);
 ```
 
-### Multi-user Process
+### Multi-User Process
 
 ```js
 export const contexts = ['clerk', 'manager'];
@@ -269,7 +275,7 @@ export default async function({ clerk, manager, step, assert }) {
     const s = await clerk.getFormState();
     assert.equal(s.fields['Статус']?.value, 'Утверждён');
   });
-  // Освобождаем лицензию 1С
+  // Free the 1C license
   await manager.closeContext('clerk');
 }
 ```
@@ -306,40 +312,40 @@ export default async function({ openCommand, clickElement, getFormState, assert,
 }
 ```
 
-Start red, deliver it to the user, fix it, rerun it green.
+Write it red first, give it to the user, fix it, rerun green.
 
 ## Test Severity
 
-| Test type | Recommendation |
-|-----------|--------------|
-| Login + navigation, basic CRUD for covered entities | `critical` (+ tag `smoke`) |
-| Document posting, report generation, end-to-end processes | `critical` |
+| Test Type | Recommendation |
+|-----------|-----------------|
+| Login + navigation, basic CRUD for covered entities | `critical` (+ `smoke` tag) |
+| Posting documents, generating reports, end-to-end flows | `critical` |
 | Edge cases for fields, formatting, optional flows | `normal` |
 | Video recording / non-functional | `minor` |
 
-Do not mark everything as `critical` - that destroys the signal in the Allure dashboard.
+Do not mark everything as `critical` - that loses signal in the Allure dashboard.
 
-## Anti-patterns
+## Anti-Patterns
 
-- **sleep instead of waiting for state.** `wait(5)` after `openCommand` is fine; `wait(30)` because it flickers is a bug.
+- **Sleep instead of waiting for state.** `wait(5)` after `openCommand` is normal; `wait(30)` because it is flaky is a bug.
 - **Retry instead of understanding.** "Not found" twice means the data is missing or the name is wrong.
-- **Binding to a row position** (`rows[0]`) when the DB has shared data. Filter by a unique marker.
-- **Resetting state manually in `afterEach`.** The runner already closes forms and hides errors.
-- **Dependence on test order.** Every test must start from the desktop and prepare its own data.
+- **Binding to row position** (`rows[0]`) when the DB has shared data. Filter by a unique marker.
+- **Manually resetting state in `afterEach`.** The runner already closes forms and hides errors.
+- **Dependence on test order.** Each test should start from the desktop and prepare its own data.
 - **`tags: ['smoke']` on a 90-second test.** Smoke means fast.
 
 ## Failure Analysis
 
-1. Check the JSON or Allure summary for `failed`.
+1. Look at the JSON or Allure summary for `failed`.
 2. For each failure: `error.message` + `error.step` + screenshot.
-3. If `error.onecError.stack` exists, it is a 1C exception; inspect the platform stack trace.
+3. If there is `error.onecError.stack`, that is a 1C exception, check the platform trace.
 4. Classify:
    - **Test bug** - wrong selector, wrong expectation, race condition -> fix the test.
-   - **Application bug** -> report it to the user with the name of the failing step and the stack trace.
-   - **Environment instability** - Apache timeout, no license -> fix hook idempotence.
-5. After the fixes, rerun only the failed files, then the full suite.
+   - **Application bug** -> report to the user with the name of the failing step and the stack.
+   - **Environment instability** - Apache timeout, no license -> fix the hook idempotency.
+5. After fixes, rerun only the failed files, then the full suite.
 
 ## Reference
 
-- Base browser API: [SKILL.md](SKILL.md)
+- Browser base API: [SKILL.md](SKILL.md)
 - Video recording + subtitles: [recording.md](recording.md)

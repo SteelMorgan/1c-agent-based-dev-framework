@@ -1,11 +1,15 @@
 ---
 name: "playwright"
-description: "Use for browser automation from the terminal (navigation, form filling, snapshots, screenshots, data extraction, UI-flow debugging) via `playwright-cli`. Helps run a scenario without an interactive IDE."
+description: "Browser UI automation: scenarios, forms, screenshots"
 ---
 
 # Playwright CLI Skill
 
 CLI-first browser automation. Do not pivot to `@playwright/test` unless explicitly asked.
+
+## 1C Boundary
+
+For 1C:Enterprise UI, Playwright is not the preferred test or screenshot path for ordinary forms. First use the `va-visual-check` policy for Vanessa Automation/TestClient and VA MCP. Use Playwright/browser screenshots for 1C only as browser-layer work or as fallback under `va-visual-check`, recording the VA steps already attempted, why browser evidence is sufficient, and the residual risk.
 
 ## Prerequisite check
 

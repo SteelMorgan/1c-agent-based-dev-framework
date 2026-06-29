@@ -1,6 +1,6 @@
 ---
 name: vanessa-diagnostics
-description: "MUST use WHEN feature-сценарий не прошёл, артефакты не создались или нужно классифицировать сбой после запуска. Provides алгоритм разбора артефактов прогона и классификации типа ошибки."
+description: "Vanessa diagnostics: падения, артефакты и причины"
 ---
 
 # Диагностика Vanessa Automation
@@ -39,7 +39,7 @@ description: "MUST use WHEN feature-сценарий не прошёл, арте
 | `va-status.json` не создан | Считать запуск аварийным, идти в диагностику |
 | `va-status.json != 0` | Читать артефакты и классифицировать падение |
 | `vanessa-execution.log` содержит ошибку | Определить класс ошибки |
-| Подозрение на блокировку GUI | Визуальная диагностика |
+| Подозрение на блокировку GUI | Визуальная диагностика по `va-visual-check`: сначала VA MCP-скриншот, при необходимости fallback с фиксацией причины |
 | Прогон «зелёный», но 0 шагов выполнено / шаги `undefined`/`skipped` | Ложный успех — классифицировать как `step_resolution_error`/`scenario_error` |
 
 ---
@@ -49,14 +49,15 @@ description: "MUST use WHEN feature-сценарий не прошёл, арте
 1. Проверить `va-status.json`.
 2. Проверить `vanessa-execution.log`.
 3. Проверить `event-log`: сначала последние `Error`; если пусто — без фильтра уровня.
-4. Если сигнал на модальное окно / security warning — `gui-control` / `screenshot`.
-5. Только если недостаточно — `tech-log-analysis`.
+4. Если нужно увидеть состояние формы тест-клиента — применяй `va-visual-check`: VA MCP-скриншот, проверка PNG, затем fallback при необходимости.
+5. Если сигнал на модальное окно / security warning / manager window, визуальный артефакт также получай по `va-visual-check`.
+6. Только если недостаточно — `tech-log-analysis`.
 
 ### Special-case: `Предупреждение безопасности`
 
 Если в `event-log` запись о `Предупреждение безопасности` для `bddRunner.epf` или плагинов:
 1. Считать триггером на визуальную проверку.
-2. Открыть реальный экран через noVNC или снять скриншот (не полагаться на заголовки X11-окон).
+2. Снять реальный экран по `va-visual-check`, не полагаясь только на заголовки X11-окон.
 3. Только после визуального подтверждения трактовать повторный запуск.
 
 ---
@@ -97,8 +98,8 @@ next_action = choose another fixture or prepare stable test data
 
 ---
 depends_on:
-  - framework/rules/vanessa-diagnostics-policy.mdc
-  - framework/rules/vanessa-security-warning.mdc
+  - framework/rules/vanessa-diagnostics-policy/SKILL.md
+  - framework/rules/vanessa-security-warning/SKILL.md
   - framework/skills/tool-usage/v8-runner/SKILL.md
   - framework/skills/tool-usage/diagnostics/event-log-analysis/SKILL.md
   - framework/skills/tool-usage/diagnostics/tech-log-analysis/SKILL.md

@@ -1,9 +1,9 @@
 ---
 name: api-design
-description: "Use for designing and reviewing the public API of 1C subsystems. Helps classify export methods into 5 categories, verify backward compatibility, and design versioning with deprecated wrappers."
+description: "For designing and reviewing the public API of 1C subsystems"
 ---
 
-# API Design — design and review of 1C subsystem interfaces
+# API Design — designing and reviewing 1C subsystem interfaces
 
 Based on the Infostart article "API Base": `https://infostart.ru/1c/articles/2683808/`.
 
@@ -16,20 +16,20 @@ Based on the Infostart article "API Base": `https://infostart.ru/1c/articles/268
 ## When to use
 
 | Trigger | Action |
-|---------|---------|
-| Designing a new common module or export method | Apply interface classification (5 categories), document the contract |
-| Changing the signature of an existing export method | Check backward compatibility against the table below |
-| Adding a parameter to an export method | Determine whether it is mandatory or optional; assess the impact on the version |
+|---------|----------|
+| Designing a new common module or export method | Apply the interface classification (5 categories), document the contract |
+| Changing the signature of an existing export method | Check backward compatibility using the table below |
+| Adding a parameter to an export method | Determine whether it is required or optional; assess the impact on the version |
 | Deleting or renaming an export method | Create a deprecated wrapper in `УстаревшиеПроцедурыИФункции` |
 | Code review: calling a method from another subsystem | Check the category of the called method (is the call allowed?) |
-| Code review: changing behavior without changing the signature | Check whether this breaks the contract (`ПрограммныйИнтерфейс`) |
-| Question about a version bump when releasing changes | Apply versioning rules (section "Versioning") |
+| Code review: behavior change without a signature change | Check whether this violates the contract (`ПрограммныйИнтерфейс`) |
+| Question about a version bump when releasing changes | Apply the versioning rules (section "Versioning") |
 
 ---
 
-## Classification of export methods (5 БСП categories)
+## Export method classification (5 БСП categories)
 
-Each export method must belong to exactly one of the 5 categories. The category is determined by the module `#Область` in which the method is located.
+Every export method must belong to exactly one of the 5 categories. The category is determined by the #Область of the module containing the method.
 
 ### 1. `#Область ПрограммныйИнтерфейс`
 
@@ -42,15 +42,15 @@ Public contract for **external consumers** - other libraries, application soluti
 ```bsl
 #Область ПрограммныйИнтерфейс
 
-// Возвращает курс валюты на указанную дату.
+// Returns the exchange rate on the specified date.
 //
-// Параметры:
-//  Валюта    - СправочникСсылка.Валюты - валюта, курс которой нужно получить.
-//  ДатаКурса - Дата - дата, на которую нужен курс.
-//              Если не указана, используется текущая дата сеанса.
+// Parameters:
+//  Валюта    - СправочникСсылка.Валюты - the currency whose rate must be retrieved.
+//  ДатаКурса - Дата - the date for which the rate is needed.
+//              If not specified, the current session date is used.
 //
-// Возвращаемое значение:
-//  Число - курс валюты. 0 если курс не найден.
+// Return value:
+//  Число - the exchange rate. 0 if the rate is not found.
 //
 Функция КурсВалюты(Валюта, ДатаКурса = Неопределено) Экспорт
     Возврат РаботаСВалютами.КурсВалюты(Валюта, ДатаКурса);
@@ -69,8 +69,8 @@ Contract for calls **from other modules within the same library** (not for exter
 ```bsl
 #Область СлужебныйПрограммныйИнтерфейс
 
-// Обновляет кэш курсов валют при изменении данных.
-// Вызывается только из подписки на событие РаботаСВалютамиОбновлениеКурсов.
+// Updates the exchange rate cache when data changes.
+// Called only from the subscription to the РаботаСВалютамиОбновлениеКурсов event.
 //
 Процедура ОбновитьКэшКурсовВалют() Экспорт
     // ...
@@ -83,23 +83,23 @@ Contract for calls **from other modules within the same library** (not for exter
 
 Extension point: the library **calls** a consumer method (through overridable modules).
 
-- You cannot add **new mandatory** procedures or parameters.
+- You cannot add **new required** procedures or parameters.
 - You cannot change parameter types.
 - You cannot remove parameters that existing implementations may receive.
 - New **optional** procedures and parameters are allowed if old implementations continue to work.
 
 ```bsl
-// Модуль: РаботаСФайламиПереопределяемый
+// Module: РаботаСФайламиПереопределяемый
 #Область ПереопределяемыйИнтерфейс
 
-// Определяет настройки хранения присоединённых файлов.
+// Defines attached file storage settings.
 //
-// Параметры:
-//  НастройкиХранения - Структура - настройки, которые нужно заполнить.
+// Parameters:
+//  НастройкиХранения - Структура - settings to be populated.
 //
 Процедура ОпределитьНастройкиХраненияФайлов(НастройкиХранения) Экспорт
 
-    // Обязательно вызовите Базовую реализацию или заполните структуру самостоятельно.
+    // You must either call the Base implementation or fill the structure yourself.
 
 КонецПроцедуры
 
@@ -108,9 +108,9 @@ Extension point: the library **calls** a consumer method (through overridable mo
 
 ### 4. `#Область ДляВызоваИзДругихПодсистем`
 
-Stable integration zone **between subsystems of one solution**.
+Stable integration zone **between subsystems of the same solution**.
 
-- Methods are stable, but they are not the library's public API.
+- Methods are stable, but they are not the public API of the library.
 - A call from another **library** without an explicit contract is a defect.
 - Changes are coordinated with consumer teams.
 
@@ -119,44 +119,44 @@ Stable integration zone **between subsystems of one solution**.
 Internal implementation of one functional subsystem. **Not exported.**
 
 - A call from another subsystem is a defect (except for cases explicitly documented in the project).
-- If the method is exported and located in this area, either remove `Export` or move it to the appropriate category.
+- If a method is exported and located in this area, either remove `Экспорт` or move it to the appropriate category.
 
 ---
 
 ## Backward compatibility rules
 
-### What does not break compatibility (can be done in a build-bump)
+### What does not break compatibility (can be done in a build bump)
 
 | Change | Condition |
-|--------|-----------|
+|-----------|---------|
 | Adding an optional parameter | Old calls work without it |
 | Adding a new method to `ПрограммныйИнтерфейс` | Does not conflict with consumer names |
 | Changing the implementation without changing behavior | The contract is not violated |
 | Fixing a bug in the implementation | Documented in the changelog |
 
-### What breaks compatibility (requires a version-bump or deprecated wrappers)
+### What breaks compatibility (requires a version bump or deprecated wrapper)
 
 | Change | Requirement |
-|--------|-------------|
-| Adding a **mandatory** parameter | Preserve the old signature as deprecated, the new method must have a new name or overload |
+|-----------|------------|
+| Adding a **required** parameter | Preserve the old signature as deprecated, new method - a new name or overload |
 | Removing a method from `ПрограммныйИнтерфейс` | Deprecated wrapper in `УстаревшиеПроцедурыИФункции` + migration path |
 | Renaming a method | Deprecated wrapper with the old name |
-| Changing a parameter type (incompatible) | Deprecated wrapper, new parameter through an optional parameter or overload |
-| Changing the meaning of a parameter (behavior break) | New parameter name or documenting the breaking change |
-| Direct access to another subsystem's data | Forbidden without an explicit API |
+| Changing the parameter type (incompatible) | Deprecated wrapper, new parameter - via optional parameter or overload |
+| Changing the **meaning** of a parameter (behavior break) | New parameter name or documentation of the breaking change |
+| Direct access to another subsystem's data | Prohibited without an explicit API |
 
-### Compatibility takes precedence over style
+### Compatibility takes priority over style
 
-Backward compatibility requirements **override** cosmetic standards. You cannot rename a public method "for better style" without a deprecated wrapper.
+Backward compatibility requirements **override** cosmetic standards. You cannot rename a public method "for the sake of correct style" without a deprecated wrapper.
 
 ---
 
 ## Deprecated areas and migration
 
-When deprecating a method:
+When a method becomes obsolete:
 
 1. Move the method to `#Область УстаревшиеПроцедурыИФункции`.
-2. Add to the method header: `// Deprecated. Use <NewMethod>().`
+2. Add to the method header: `// Устарела. Используйте <НовыйМетод>().`
 3. Call the new method from within it (adapter pattern).
 4. Specify the removal version or removal condition.
 
@@ -185,13 +185,13 @@ When deprecating a method:
 ## Interface versioning
 
 | Change type | Bump |
-|-------------|------|
-| Fixing a bug without changing API behavior | `build` (x.x.x.**N**) |
-| New optional parameter, new method in PI | `minor` (x.**N**.0.0) |
+|---------------|------|
+| Bug fix without changing API behavior | `build` (x.x.x.**N**) |
+| New optional parameter, new method in the public interface | `minor` (x.**N**.0.0) |
 | Breaking change with a deprecated wrapper | `minor` + documentation |
 | Removal of a deprecated method, incompatible type | `major` (**N**.0.0.0) |
 
-**Forbidden:** introducing a public API expansion (new methods, new parameters) in a release with only a `build` bump. Build is for bug fixes only.
+**Prohibited:** introducing a public API extension (new methods, new parameters) in a release with only a build bump. Build is for bug fixes only.
 
 ---
 
@@ -199,19 +199,19 @@ When deprecating a method:
 
 ### Step 1. Reconnaissance
 
-Use `code-navigation` (grep over source files) to search for:
-- The method by name - find its declaration and determine `#Область`.
-- All method call sites - assess the consumer base.
-- `#Область УстаревшиеПроцедурыИФункции` sections - check for deprecated wrappers.
+Use `code-navigation` (grep over sources) to search for:
+- The method by name - find its declaration and determine the #Область.
+- All call sites of the method - assess the consumer scope.
+- Sections `#Область УстаревшиеПроцедурыИФункции` - check for deprecated wrappers.
 
 ```bsl
-// Поиск объявления метода
-// grep: "Функция КурсВалюты" или "Процедура КурсВалюты"
+// Search for the method declaration
+// grep: "Функция КурсВалюты" or "Процедура КурсВалюты"
 
-// Поиск вызовов
+// Search for calls
 // grep: "РаботаСВалютами.КурсВалюты"
 
-// Поиск deprecated-области
+// Search for the deprecated area
 // grep: "Устаревшие процедуры и функции"
 ```
 
@@ -220,16 +220,16 @@ Use `code-navigation` (grep over source files) to search for:
 Determine which category the method belongs to, and choose from the table below:
 
 | Change type | Method category | Requirement |
-|-------------|-----------------|-------------|
-| New method | Any | Place it in the correct `#Область` |
+|---------------|-----------------|------------|
+| New method | Any | Place it in the correct #Область |
 | New optional parameter | `ПрограммныйИнтерфейс` | Allowed, version bump |
-| New mandatory parameter | `ПрограммныйИнтерфейс` | Deprecated wrapper required |
+| New required parameter | `ПрограммныйИнтерфейс` | Deprecated wrapper required |
 | Method removal | `ПрограммныйИнтерфейс` | Deprecated wrapper required |
 | Behavior change | `ПрограммныйИнтерфейс` | Considered a breaking change |
 | Any change | `СлужебныеПроцедурыИФункции` | Free (within the subsystem) |
-| New mandatory parameter | `ПереопределяемыйИнтерфейс` | Forbidden |
+| New required parameter | `ПереопределяемыйИнтерфейс` | Prohibited |
 
-### Step 3. Verify through `syntax-checking`
+### Step 3. Check through `syntax-checking`
 
 After changing the signature:
 - Run static analysis on the calling modules.
@@ -238,7 +238,7 @@ After changing the signature:
 
 ### Step 4. Document the contract
 
-Every method in `ПрограммныйИнтерфейс` and `ПереопределяемыйИнтерфейс` must have:
+Every method from `ПрограммныйИнтерфейс` and `ПереопределяемыйИнтерфейс` must have:
 - Purpose description.
 - Parameters with types and descriptions (including optional parameters and default values).
 - Return value (for functions).
@@ -250,24 +250,24 @@ Every method in `ПрограммныйИнтерфейс` and `Переопре
 
 ### Scenario 1: Adding a new method to a common module
 
-**Context:** developer asks to add the `ПолучитьОстатокТоваров()` function to the common module `УправлениеЗапасами`.
+**Context:** developer asks to add the function `ПолучитьОстатокТоваров()` to the common module `УправлениеЗапасами`.
 
 **Steps:**
 1. Determine who the method is for - external consumers or only this subsystem.
-2. If it is for external consumers, place it in `#Область ПрограммныйИнтерфейс`.
-3. Write a full comment header with parameter types.
-4. Make sure nothing unnecessary is exported (the implementation belongs in `СлужебныеПроцедурыИФункции`).
-5. Note in the changelog: new Program Interface method -> minor version bump.
+2. If for external consumers, place it in `#Область ПрограммныйИнтерфейс`.
+3. Write a complete comment header with parameter types.
+4. Make sure nothing unnecessary is exported (the implementation is in `СлужебныеПроцедурыИФункции`).
+5. Mark in the changelog: new public-interface method -> minor version bump.
 
-### Scenario 2: Review of a signature change
+### Scenario 2: Reviewing a signature change
 
-**Context:** reviewer receives a PR where a new **mandatory** parameter `ИсточникКурса` has been added to `РаботаСВалютами.КурсВалюты()`.
+**Context:** reviewer receives a PR where a new **required** parameter `ИсточникКурса` has been added to `РаботаСВалютами.КурсВалюты()`.
 
 **Steps:**
 1. `code-navigation`: find all calls to `РаботаСВалютами.КурсВалюты(` - assess the number of consumers.
-2. Check the method's `#Область` - if it is `ПрограммныйИнтерфейс`, then it is a breaking change.
-3. Require that the old signature be moved to `УстаревшиеПроцедурыИФункции` with a call to the new method.
-4. The new method with a mandatory parameter should have a new name (`КурсВалютыИзИсточника`) or the parameter should be made optional.
+2. Check the method #Область - if `ПрограммныйИнтерфейс`, then this is a breaking change.
+3. Require the old signature to be moved to `УстаревшиеПроцедурыИФункции` with a call to the new method.
+4. The new method with the required parameter should have a new name (`КурсВалютыИзИсточника`) or the parameter should be made optional.
 
 ### Scenario 3: Designing an overridable module
 
@@ -275,9 +275,9 @@ Every method in `ПрограммныйИнтерфейс` and `Переопре
 
 **Steps:**
 1. Determine the procedures that will be called by the library.
-2. Make all parameters either structures (easy to extend) or strictly document the types.
-3. Do NOT add mandatory procedures after release - only optional ones.
-4. Document the contract: what the library passes in, and what it expects on output.
+2. Make all parameters either structures (easy to extend) or document the types precisely.
+3. Do NOT add required procedures after release - only optional ones.
+4. Document the contract: what the library passes in, what it expects in return.
 5. Place it in `#Область ПереопределяемыйИнтерфейс`.
 
 ### Scenario 4: Detecting a violation during review
@@ -285,24 +285,24 @@ Every method in `ПрограммныйИнтерфейс` and `Переопре
 **Context:** reviewer notices a call to `ЧастнаяПодсистема.ВнутреннийМетод()` from another module.
 
 **Steps:**
-1. Find the `#Область` of the called method.
-2. If it is `СлужебныеПроцедурыИФункции`, it is a defect; record it in the review comment.
+1. Find the #Область of the called method.
+2. If it is `СлужебныеПроцедурыИФункции`, this is a defect, and it should be recorded in the review comment.
 3. Suggest an alternative: create a method in `ДляВызоваИзДругихПодсистем` or `ПрограммныйИнтерфейс`.
-4. If the method is `СлужебныйПрограммныйИнтерфейс` and the call comes from another library, request an explicit agreement or a refactor.
+4. If the method is in `СлужебныйПрограммныйИнтерфейс` and the call is from another library, request an explicit agreement or a refactoring.
 
 ---
 
 ## Common mistakes
 
 | Mistake | Consequence | How to avoid |
-|---------|-------------|--------------|
-| Calling `СлужебныеПроцедурыИФункции` from another subsystem | Fragile integration, break during refactoring | Check `#Область` before calling |
-| Adding a mandatory parameter without a deprecated wrapper | Breaks all calls in CI | Always create an adapter in `УстаревшиеПроцедурыИФункции` |
+|--------|-------------|--------------|
+| Calling `СлужебныеПроцедурыИФункции` from another subsystem | Fragile integration, break during refactoring | Check #Область before calling |
+| Adding a required parameter without a deprecated wrapper | Breaks all calls in CI | Always create an adapter in `УстаревшиеПроцедурыИФункции` |
 | API expansion in a build-only release | Versioning violation, confusion for consumers | Build is for bug fixes only |
-| A method in `ПереопределяемыйИнтерфейс` with a new mandatory parameter | Errors in all existing implementations | Only optional parameters in overridable interfaces |
-| Changing the meaning of a parameter without documentation | Silent behavioral break | Document in the changelog, consider a version bump |
+| A method in `ПереопределяемыйИнтерфейс` with a new required parameter | Errors in all existing implementations | Only optional parameters are allowed in overridable interfaces |
+| Changing the meaning of a parameter without documenting it | Silent behavioral break | Document it in the changelog, consider a version bump |
 | Suppressing BSL LS warnings without a reason | Hidden breaking changes | Always document the reason for suppression |
-| Direct access to another subsystem's data tables | Tight coupling, architectural debt | Use only documented API |
+| Direct access to another subsystem's data tables | Tight coupling, architectural debt | Use only the documented API |
 
 ---
 
@@ -310,21 +310,21 @@ Every method in `ПрограммныйИнтерфейс` and `Переопре
 
 Before implementing a new API:
 
-- [ ] The API is really needed (there is no simpler way)
+- [ ] The API is truly needed (there is no simpler way)
 - [ ] Use cases and consumers are defined
-- [ ] A category (`#Область`) is chosen for each method
+- [ ] A category (#Область) has been chosen for each method
 - [ ] The contract is described: parameters, types, exceptions, idempotency
 - [ ] A versioning strategy is defined
-- [ ] Tests that model consumer calls are written
-- [ ] The changelog and consumer notification are planned
+- [ ] Tests that model consumer calls have been written
+- [ ] Changelog and consumer notification are planned
 
 ---
 
 ## Related resources
 
-- [coding-standards](../coding-standards/SKILL.md) — module structure (`#Область`), rules for commenting export methods
-- [test-writing](../test-writing/SKILL.md) — writing tests that model API calls
-- [ssl-patterns](../ssl-patterns/SKILL.md) — БСП working patterns (subsystems, interface calls)
+- [coding-standards](../coding-standards/SKILL.md) - module structure (#Область), rules for commenting export methods
+- [test-writing](../test-writing/SKILL.md) - writing tests that model API calls
+- [ssl-patterns](../ssl-patterns/SKILL.md) - patterns for working with БСП (subsystems, interface-based calls)
 - Article "API Base": `https://infostart.ru/1c/articles/2683808/`
 
 ---

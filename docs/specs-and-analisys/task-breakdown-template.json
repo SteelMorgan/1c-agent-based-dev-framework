@@ -64,7 +64,7 @@
           "Requirements:MUST-6"
         ],
         "deliverables": [
-          "framework/workflows/full-cycle.md"
+          "framework/workflows/full-cycle/SKILL.md"
         ],
         "done_criteria": [
           "Phase 2 включает Task Breakdown JSON",

@@ -165,9 +165,9 @@ IDE_CONFIGS = {
         "rules_dir": ".codex/rules",
         "skills_dir": ".codex/skills",
         "agents_dir": ".codex/agents",
-        "description": "Codex CLI (OpenAI) — правила → навыки .codex/skills/<name>/SKILL.md, агенты → .codex/agents/<name>.toml",
+        "description": "Codex CLI (OpenAI) — правила → навыки .codex/skills/<name>/ (dir symlink), агенты → .codex/agents/<name>.toml",
         # Codex-специфика (см. _codex_mode / _install_codex_component):
-        #   rule  → .codex/skills/<rule-name>/SKILL.md (симлинк на файл правила, имя правила = имя навыка)
+        #   rule/workflow → .codex/skills/<name>/ (симлинк на каталог с SKILL.md)
         #   agent → .codex/agents/<agent-name>.toml (конвертация: frontmatter name/description + тело → developer_instructions)
     },
     "antigravity": {
@@ -337,8 +337,8 @@ class Component:
         self.depends_on = depends_on
         self.requires = requires or []
         self.filepath = filepath
-        # alwaysApply: true в frontmatter → правило помещается в always-on каталог IDE.
-        # Правила без флага остаются только в component_map (читаются по требованию).
+        # alwaysApply: true в frontmatter → правило считается guardrail/триггером.
+        # Физический канал установки зависит от IDE.
         self.always_apply = always_apply
 
     @property
@@ -470,9 +470,9 @@ class FrameworkGraph:
             if isinstance(requires, str):
                 requires = [requires] if requires else []
 
-            # alwaysApply: true → правило-guardrail/триггер, попадает в always-on каталог IDE.
-            # Без флага → правило читается только по требованию (component_map).
-            # Навыки (skill) флаг не используют — они всегда в skills_dir, не в rules_dir.
+            # alwaysApply: true → правило-guardrail/триггер.
+            # Без флага → on-demand правило.
+            # Флаг не влияет на физическую установку компонента.
             always_apply = str(fm.get("alwaysApply", "")).strip().lower() == "true"
 
             if comp_type == "template":
@@ -549,9 +549,9 @@ class FrameworkGraph:
     def is_always_on_rule(self, comp_id: str) -> bool:
         """Возвращает True, если правило помечено alwaysApply: true.
 
-        Только правила (type=rule) из always-on каталога IDE становятся guardrail/триггерами.
-        Workflow-файлы и всё без флага — только component_map (on-demand).
-        Навыки (skill) этот метод не касается — они всегда в skills_dir.
+        Только правила (type=rule) с alwaysApply становятся guardrail/триггерами.
+        Workflow-файлы и всё без флага остаются on-demand для оценки контекста,
+        но всё равно физически устанавливаются.
         """
         comp = self.components.get(comp_id)
         if not comp:
@@ -697,8 +697,8 @@ def print_tree(graph: FrameworkGraph, selected: Optional[Set[str]] = None):
     - always-on правила (alwaysApply: true) выводятся со связанным навыком-парой
       (→ имя навыка), если такая пара существует по _build_trigger_skill_pairs.
     - on-demand правила (без alwaysApply или alwaysApply: false) выводятся в
-      отдельной подгруппе «on-demand (component_map)» с явной пометкой — чтобы
-      пользователь видел, что они НЕ попадут в always-on канал IDE.
+      отдельной подгруппе с явной пометкой — они устанавливаются, но не попадают
+      в always-on канал IDE/оценки контекста.
     """
     installable = graph.get_installable_for_user()
     fw_dir = graph.framework_dir
@@ -727,9 +727,9 @@ def print_tree(graph: FrameworkGraph, selected: Optional[Set[str]] = None):
             always_on = [c for c in comps if c.always_apply]
             on_demand = [c for c in comps if not c.always_apply]
 
-            # Подгруппа: always-on правила (попадают в rules_dir IDE)
+            # Подгруппа: always-on правила (автозагрузка/контекст IDE)
             if always_on:
-                print(f"\n    {dim('always-on (в rules-каталог IDE)')}")
+                print(f"\n    {dim('always-on (автозагрузка/контекст IDE)')}")
                 for c in sorted(always_on, key=lambda x: x.id):
                     marker = green(" ✓") if selected and c.id in selected else ""
                     linked = graph.get_linked_components(c.id)
@@ -741,9 +741,9 @@ def print_tree(graph: FrameworkGraph, selected: Optional[Set[str]] = None):
                     idx_map[idx] = c.id
                     idx += 1
 
-            # Подгруппа: on-demand правила (только component_map, НЕ в always-on канал)
+            # Подгруппа: on-demand правила (устанавливаются, но НЕ в always-on канал)
             if on_demand:
-                print(f"\n    {dim('on-demand (только component_map, НЕ в always-on канал IDE)')}")
+                print(f"\n    {dim('on-demand (устанавливаются, НЕ в always-on канал IDE)')}")
                 for c in sorted(on_demand, key=lambda x: x.id):
                     marker = green(" ✓") if selected and c.id in selected else ""
                     linked = graph.get_linked_components(c.id)
@@ -891,8 +891,8 @@ def _build_checklist_items(graph: FrameworkGraph) -> List:
     Для секции «Правила»:
     - always-on правила выводятся в подгруппе «always-on», со связанным навыком в описании
       (переиспользует _build_trigger_skill_pairs, не дублирует логику).
-    - on-demand правила выводятся в подгруппе «on-demand (component_map)» с явной пометкой
-      в описании — чтобы пользователь видел, что в always-on канал IDE они не попадут.
+    - on-demand правила выводятся в отдельной подгруппе с явной пометкой
+      в описании — они устанавливаются, но в always-on канал IDE не попадают.
     """
     items = []  # (id, label, description, is_header)
     installable = graph.get_installable_for_user()
@@ -918,9 +918,9 @@ def _build_checklist_items(graph: FrameworkGraph) -> List:
             always_on = [c for c in comps if c.always_apply]
             on_demand = [c for c in comps if not c.always_apply]
 
-            # Подгруппа: always-on (попадают в rules_dir IDE)
+            # Подгруппа: always-on (автозагрузка/контекст IDE)
             if always_on:
-                items.append(("", "    always-on (в rules-каталог IDE)", "", True))
+                items.append(("", "    always-on (автозагрузка/контекст IDE)", "", True))
                 for c in sorted(always_on, key=lambda x: x.id):
                     paired_skill = pairs_map.get(c.id)
                     desc = c.short_description()
@@ -928,9 +928,9 @@ def _build_checklist_items(graph: FrameworkGraph) -> List:
                         desc = f"{desc} → навык: {paired_skill.split('/')[-1]}"
                     items.append((c.id, c.id, desc, False))
 
-            # Подгруппа: on-demand (только component_map, НЕ в always-on канал)
+            # Подгруппа: on-demand (устанавливаются, но НЕ в always-on канал)
             if on_demand:
-                items.append(("", "    on-demand (component_map, не в always-on канал IDE)", "", True))
+                items.append(("", "    on-demand (устанавливаются, не в always-on канал IDE)", "", True))
                 for c in sorted(on_demand, key=lambda x: x.id):
                     desc = f"[on-demand] {c.short_description()}"
                     items.append((c.id, c.id, desc, False))
@@ -1653,7 +1653,7 @@ def write_session_log(
                 continue
             ru_path = str(comp.filepath.resolve())
             entry: dict = {"type": comp.type, "ru_path": ru_path}
-            # alwaysApply: true → правило в always-on каталоге IDE; False → только component_map
+            # alwaysApply сохраняется как метаданные: физическое размещение зависит от IDE.
             if comp.type == "rule":
                 entry["always_apply"] = comp.always_apply
             # Строим EN-путь: framework/x/y → framework_eng/x/y
@@ -1766,7 +1766,7 @@ def _component_source_paths(
     """
     Возвращает (source_file, source_path_for_link, short_name).
     source_path_for_link:
-      - skill -> директория навыка
+      - skill/rule/workflow с SKILL.md -> директория навыка
       - остальное -> файл компонента
 
     Если mirror_dir задан (framework_eng/) — source_path_for_link указывает на EN-зеркало.
@@ -1782,7 +1782,7 @@ def _component_source_paths(
         try:
             rel = ru_path.relative_to(framework_dir)
             m = mirror_dir / rel
-            return m if m.exists() else None
+            return m.resolve() if m.exists() else None
         except ValueError:
             return None
 
@@ -1790,6 +1790,11 @@ def _component_source_paths(
         ru_dir = source_file.parent
         short_name = ru_dir.name
         source_path = _mirror_of(ru_dir) or ru_dir
+    elif comp.type in ("rule", "workflow") and source_file.name == "SKILL.md":
+        ru_dir = source_file.parent
+        short_name = ru_dir.name
+        source_path = _mirror_of(ru_dir) or ru_dir
+        source_file = source_path / "SKILL.md"
     else:
         short_name = comp.id.rpartition("/")[2] or comp.id.replace("/", "-")
         mirrored = _mirror_of(source_file)
@@ -1802,18 +1807,28 @@ def _component_source_paths(
 
 # ─── Codex-специфичная установка ─────────────────────────────────────────────
 # Codex CLI разворачивает компоненты иначе остальных IDE:
-#   rule  → навык:   .codex/skills/<rule-name>/SKILL.md  (симлинк на файл правила)
+#   rule/workflow → навык: .codex/skills/<name>/  (симлинк на каталог с SKILL.md)
 #   agent → профиль: .codex/agents/<agent-name>.toml      (конвертация из *.md)
+
+def _rule_workflow_file_skill_mode(comp: Component, ide_key: str) -> bool:
+    """True, если IDE явно требует rule/workflow в каталоге skills как file-style skill.
+
+    По умолчанию rule/workflow идут в rules/workflows-каталоги IDE. Это важно
+    для Claude Code: правила оформлены в framework как skill-каталоги с SKILL.md,
+    но устанавливаются как файловые ссылки .claude/rules/<name>.md.
+    """
+    ide_cfg = IDE_CONFIGS[ide_key]
+    return bool(ide_cfg.get("rule_workflow_file_skill_mode")) and comp.type in ("rule", "workflow")
 
 def _codex_mode(comp: Component, ide_key: str) -> Optional[str]:
     """Режим codex-специфичной установки для компонента или None.
 
-    'rule_skill' — правило разворачивается как навык (skills/<name>/SKILL.md);
+    'rule_skill' — правило/воркфлоу разворачивается как навык (skills/<name>/);
     'agent_toml' — агент конвертируется в TOML-профиль (agents/<name>.toml).
     """
     if ide_key != "codex":
         return None
-    if comp.type == "rule":
+    if comp.type in ("rule", "workflow"):
         return "rule_skill"
     if comp.type in ("agent", "subagent"):
         return "agent_toml"
@@ -1925,42 +1940,56 @@ def _install_codex_component(
     comp: Component,
     mode: str,
     source_file: Path,
-    target_file: Path,
+    source_path: Path,
+    target_path: Path,
+    use_symlinks: bool,
     dry_run: bool,
 ) -> int:
     """Размещает codex-компонент. Возвращает 1 (установлен).
 
-    rule_skill — симлинк SKILL.md → файл правила (имя правила = имя навыка);
+    rule_skill — симлинк skills/<name>/ → каталог с SKILL.md;
     agent_toml — генерирует .toml-профиль из тела агента.
     """
     if dry_run:
         action = (
-            "→ (symlink as skill, SKILL.md)"
+            "→ (symlink skill dir)"
+            if mode == "rule_skill" and use_symlinks
+            else "→ (copy skill)"
             if mode == "rule_skill"
             else "→ (convert → .toml)"
         )
-        print(f"    {action} {target_file}")
+        print(f"    {action} {target_path}")
         return 1
 
-    # Удаляем прежний артефакт (симлинк или файл) до пересоздания
-    if target_file.is_symlink() or target_file.exists():
-        target_file.unlink()
-    target_file.parent.mkdir(parents=True, exist_ok=True)
-
     if mode == "rule_skill":
-        try:
+        if use_symlinks:
+            if target_path.is_symlink() or target_path.is_file():
+                target_path.unlink()
+            elif target_path.exists():
+                shutil.rmtree(target_path)
+            target_path.parent.mkdir(parents=True, exist_ok=True)
             try:
-                rel_path = os.path.relpath(source_file, target_file.parent)
-                target_file.symlink_to(rel_path)
-            except ValueError:
-                target_file.symlink_to(source_file)
-        except OSError as e:
-            print(red(f"  ✗ Ошибка симлинка {comp.id}: {e}"))
-            shutil.copy2(source_file, target_file)
-            print(yellow(f"    → скопирован как fallback"))
+                try:
+                    rel_path = os.path.relpath(source_path, target_path.parent)
+                    target_path.symlink_to(rel_path, target_is_directory=True)
+                except ValueError:
+                    target_path.symlink_to(source_path, target_is_directory=True)
+            except OSError as e:
+                print(red(f"  ✗ Ошибка симлинка {comp.id}: {e}"))
+                target_path.mkdir(parents=True, exist_ok=True)
+                shutil.copy2(source_file, target_path / "SKILL.md")
+                print(yellow(f"    → скопирован как fallback"))
+        else:
+            if target_path.is_symlink() or target_path.exists():
+                target_path.unlink()
+            target_path.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(source_file, target_path)
     else:  # agent_toml
+        if target_path.is_symlink() or target_path.exists():
+            target_path.unlink()
+        target_path.parent.mkdir(parents=True, exist_ok=True)
         fallback_name = comp.id.rpartition("/")[2] or comp.id
-        target_file.write_text(
+        target_path.write_text(
             generate_codex_agent_toml(source_file, fallback_name), encoding="utf-8"
         )
     return 1
@@ -1979,16 +2008,19 @@ def _component_target_file(
     dir_key = _dir_key_for_component(comp.type, ide_cfg)
     target_base = project_dir / ide_cfg[dir_key]
     source_file, _, short_name = _component_source_paths(comp)
-    # Codex: правило → навык skills/<name>/SKILL.md, агент → agents/<name>.toml
+    # Codex: правило/воркфлоу → навык skills/<name>/, агент → agents/<name>.toml
     codex_mode = _codex_mode(comp, ide_key)
     if codex_mode == "rule_skill":
         folder = short_name
         # Коллизия с одноимённым навыком → префикс rule_ (см. codex_prefixed_rule_names)
         if graph is not None and short_name in graph.codex_prefixed_rule_names():
             folder = f"rule_{short_name}"
-        return project_dir / ide_cfg["skills_dir"] / folder / "SKILL.md"
+        skill_dir = project_dir / ide_cfg["skills_dir"] / folder
+        return skill_dir if use_symlinks else skill_dir / "SKILL.md"
     if codex_mode == "agent_toml":
         return project_dir / ide_cfg["agents_dir"] / f"{short_name}.toml"
+    if _rule_workflow_file_skill_mode(comp, ide_key):
+        return project_dir / ide_cfg["skills_dir"] / f"{short_name}.md"
     if comp.type == "skill":
         if use_symlinks:
             return target_base / short_name  # симлинк на каталог
@@ -2002,9 +2034,83 @@ def _component_target_file(
     return target_base / f"{short_name}{ext}"
 
 
+def _codex_legacy_rule_workflow_target_file(
+    comp: Component,
+    ide_key: str,
+    project_dir: Path,
+    source_file: Path,
+) -> Optional[Path]:
+    """Старый путь Codex для rule/workflow до разворачивания их как skills."""
+    if ide_key != "codex" or comp.type not in ("rule", "workflow"):
+        return None
+    ide_cfg = IDE_CONFIGS[ide_key]
+    _, _, short_name = _component_source_paths(comp)
+    ext = source_file.suffix if source_file.suffix in (".md", ".mdc") else ".md"
+    return project_dir / ide_cfg["rules_dir"] / f"{short_name}{ext}"
+
+
+def _legacy_rule_workflow_rules_target_file(
+    comp: Component,
+    ide_key: str,
+    project_dir: Path,
+    source_file: Path,
+) -> Optional[Path]:
+    """Старый путь rule/workflow в rules/workflows-каталоге IDE до file-style skills."""
+    if not _rule_workflow_file_skill_mode(comp, ide_key):
+        return None
+    ide_cfg = IDE_CONFIGS[ide_key]
+    dir_key = _dir_key_for_component(comp.type, ide_cfg)
+    if dir_key not in ide_cfg:
+        return None
+    _, _, short_name = _component_source_paths(comp)
+    if comp.type == "rule" and "rules_ext" in ide_cfg:
+        ext = ide_cfg["rules_ext"]
+    else:
+        ext = source_file.suffix if source_file.suffix in (".md", ".mdc") else ".md"
+    return project_dir / ide_cfg[dir_key] / f"{short_name}{ext}"
+
+
+def _legacy_rule_workflow_file_skill_target_file(
+    comp: Component,
+    ide_key: str,
+    project_dir: Path,
+) -> Optional[Path]:
+    """Ошибочный старый путь rule/workflow как .claude/.cursor skills/<name>.md."""
+    if comp.type not in ("rule", "workflow"):
+        return None
+    if _rule_workflow_file_skill_mode(comp, ide_key):
+        return None
+    ide_cfg = IDE_CONFIGS[ide_key]
+    if "skills_dir" not in ide_cfg:
+        return None
+    _, _, short_name = _component_source_paths(comp)
+    return project_dir / ide_cfg["skills_dir"] / f"{short_name}.md"
+
+
 def _norm_path(path: Path) -> str:
     """Нормализует путь для безопасного сравнения."""
     return str(path.resolve(strict=False))
+
+
+def _component_expected_symlink_source(
+    comp: Component,
+    ide_key: str,
+    use_symlinks_target: bool,
+    graph: FrameworkGraph,
+) -> Path:
+    """Ожидаемый источник symlink-а для конкретной формы target-а."""
+    source_file, source_path, _ = _component_source_paths(
+        comp, graph.framework_dir, graph.mirror_dir
+    )
+    if comp.type == "skill" and use_symlinks_target:
+        return source_path
+    if _codex_mode(comp, ide_key) == "rule_skill" and use_symlinks_target:
+        return source_path
+    if _rule_workflow_file_skill_mode(comp, ide_key):
+        return source_file
+    if comp.type in ("rule", "workflow"):
+        return source_file
+    return source_file if not use_symlinks_target else source_path
 
 
 def detect_existing_component_symlinks(
@@ -2021,14 +2127,22 @@ def detect_existing_component_symlinks(
     for comp in graph.get_installable_for_user():
         # Навыки: проверяем оба варианта (short_name и short_name.md) для совместимости
         target_candidates = [
-            _component_target_file(comp, ide_key, project_dir, use_symlinks=True, graph=graph),
-            _component_target_file(comp, ide_key, project_dir, use_symlinks=False, graph=graph),
+            (
+                _component_target_file(comp, ide_key, project_dir, use_symlinks=True, graph=graph),
+                _component_expected_symlink_source(comp, ide_key, True, graph),
+            ),
+            (
+                _component_target_file(comp, ide_key, project_dir, use_symlinks=False, graph=graph),
+                _component_expected_symlink_source(comp, ide_key, False, graph),
+            ),
         ]
-        target_file = next((t for t in target_candidates if t.is_symlink()), None)
+        detected_pair = next(((t, expected) for t, expected in target_candidates if t.is_symlink()), None)
+        if not detected_pair:
+            continue
+        target_file, expected_source = detected_pair
         if not target_file:
             continue
 
-        _, expected_source, _ = _component_source_paths(comp, graph.framework_dir, graph.mirror_dir)
         try:
             raw_link = os.readlink(target_file)
         except OSError:
@@ -2149,7 +2263,7 @@ def install_components(
     # Показываем пары «триггер + навык» для наглядности
     print_trigger_skill_pairs(graph, all_ids)
 
-    # Подсчёт правил: сколько always-on, сколько only component_map
+    # Подсчёт правил: сколько always-on, сколько on-demand.
     always_on_rules = [cid for cid in all_ids
                        if graph.components.get(cid) and graph.components[cid].type == "rule"
                        and graph.components[cid].always_apply]
@@ -2158,7 +2272,7 @@ def install_components(
                   and not graph.components[cid].always_apply]
     if always_on_rules or lazy_rules:
         print(f"\n  {bold('Правила')}: {green(str(len(always_on_rules)))} always-on"
-              f" + {dim(str(len(lazy_rules)) + ' component_map-only (alwaysApply отсутствует)')}")
+              f" + {dim(str(len(lazy_rules)) + ' on-demand (alwaysApply отсутствует)')}")
 
     print(f"\n  Итого к установке: {bold(str(len(all_ids)))} компонентов")
     print(f"  Метод: {bold('симлинки' if use_symlinks else 'копирование файлов')}")
@@ -2193,12 +2307,6 @@ def install_components(
                 else:
                     target_file.unlink()
                     removed += 1
-                    # Codex: правило-как-навык оставляет пустой каталог skills/<name>/ — чистим
-                    if _codex_mode(comp, ide_key) == "rule_skill":
-                        try:
-                            target_file.parent.rmdir()
-                        except OSError:
-                            pass
                 break
 
     for comp_id in sorted(all_ids):
@@ -2215,30 +2323,46 @@ def install_components(
             skipped += 1
             continue
 
-        # Фильтр alwaysApply: правила без alwaysApply: true НЕ попадают в always-on каталог IDE.
-        # Такие правила доступны через component_map (читаются агентом по требованию).
-        # Навыки (skill) этот фильтр не затрагивает — они идут в skills_dir всегда.
-        # Codex: правила разворачиваются как навыки → фильтр alwaysApply не применяется (берём все).
-        if comp.type == "rule" and not comp.always_apply and ide_key != "codex":
-            # Правило не-always-on: пропускаем физическое размещение, но включаем в component_map.
-            # Вывод только в dry-run для наглядности.
+        # Удаляем хвосты прежнего ошибочного размещения rule/workflow как
+        # skills/<name>.md до штатной установки в rules/workflows-каталоги.
+        legacy_skill_target = _legacy_rule_workflow_file_skill_target_file(
+            comp, ide_key, project_dir
+        )
+        if legacy_skill_target and (legacy_skill_target.exists() or legacy_skill_target.is_symlink()):
             if dry_run:
-                print(f"    → (component_map only, alwaysApply missing) {comp_id}")
-            skipped += 1
-            continue
+                print(f"    ← remove legacy {legacy_skill_target}")
+            else:
+                legacy_skill_target.unlink()
 
         source_file, source_path, _ = _component_source_paths(comp, graph.framework_dir, graph.mirror_dir)
         target_file = _component_target_file(comp, ide_key, project_dir, use_symlinks=use_symlinks, graph=graph)
 
-        # Codex: правило → навык (symlink SKILL.md), агент → TOML-профиль (конвертация).
+        # Codex: правило/воркфлоу → навык (symlink каталога), агент → TOML-профиль (конвертация).
         # Одноимённые навыку правила автоматически получают префикс rule_ в target_file
         # (см. _component_target_file + codex_prefixed_rule_names) — коллизии каталогов нет.
         codex_mode = _codex_mode(comp, ide_key)
         if codex_mode:
+            legacy_target = _codex_legacy_rule_workflow_target_file(
+                comp, ide_key, project_dir, source_file
+            )
+            if legacy_target and (legacy_target.exists() or legacy_target.is_symlink()):
+                if dry_run:
+                    print(f"    ← remove legacy {legacy_target}")
+                else:
+                    legacy_target.unlink()
             installed += _install_codex_component(
-                comp, codex_mode, source_file, target_file, dry_run
+                comp, codex_mode, source_file, source_path, target_file, use_symlinks, dry_run
             )
             continue
+
+        legacy_target = _legacy_rule_workflow_rules_target_file(
+            comp, ide_key, project_dir, source_file
+        )
+        if legacy_target and (legacy_target.exists() or legacy_target.is_symlink()):
+            if dry_run:
+                print(f"    ← remove legacy {legacy_target}")
+            else:
+                legacy_target.unlink()
 
         # IDE с кастомным именем файла навыка (skill.md вместо SKILL.md)
         # При симлинках: создаём каталог навыка и симлинк на файл.
@@ -2246,12 +2370,15 @@ def install_components(
         use_skill_file_link = (
             comp.type == "skill" and skill_fn and skill_fn != "SKILL.md" and use_symlinks
         )
+        use_rule_workflow_file_link = _rule_workflow_file_skill_mode(comp, ide_key) and use_symlinks
         if use_skill_file_link:
             target_file = _component_target_file(comp, ide_key, project_dir, use_symlinks=False)
 
         if dry_run:
             if use_skill_file_link:
                 action = f"→ (symlink file, {skill_fn})"
+            elif use_rule_workflow_file_link:
+                action = "→ (symlink file skill)"
             else:
                 action = "→ (symlink)" if use_symlinks else "→ (copy)"
             print(f"    {action} {target_file}")
@@ -2290,7 +2417,7 @@ def install_components(
 
         target_file.parent.mkdir(parents=True, exist_ok=True)
 
-        if use_skill_file_link:
+        if use_skill_file_link or use_rule_workflow_file_link:
             try:
                 try:
                     rel_path = os.path.relpath(source_file, target_file.parent)
@@ -2306,10 +2433,12 @@ def install_components(
         elif use_symlinks:
             try:
                 try:
-                    rel_path = os.path.relpath(source_path, target_file.parent)
+                    link_source = source_file if comp.type in ("rule", "workflow") else source_path
+                    rel_path = os.path.relpath(link_source, target_file.parent)
                     target_file.symlink_to(rel_path)
                 except ValueError:
-                    target_file.symlink_to(source_path)
+                    link_source = source_file if comp.type in ("rule", "workflow") else source_path
+                    target_file.symlink_to(link_source)
                 installed += 1
             except OSError as e:
                 print(red(f"  ✗ Ошибка симлинка {comp.id}: {e}"))
@@ -2319,7 +2448,9 @@ def install_components(
                     if comp.type == "skill"
                     else target_file
                 )
-                if comp.type == "skill":
+                if comp.type == "skill" or _rule_workflow_file_skill_mode(comp, ide_key):
+                    shutil.copy2(source_file, copy_target)
+                elif comp.type in ("rule", "workflow"):
                     shutil.copy2(source_file, copy_target)
                 else:
                     shutil.copy2(source_path, copy_target)
@@ -2327,7 +2458,9 @@ def install_components(
                 installed += 1
         else:
             # При копировании: для навыков копируем SKILL.md, для остальных — сам файл
-            if comp.type == "skill":
+            if comp.type == "skill" or _rule_workflow_file_skill_mode(comp, ide_key):
+                shutil.copy2(source_file, target_file)
+            elif comp.type in ("rule", "workflow"):
                 shutil.copy2(source_file, target_file)
             else:
                 shutil.copy2(source_path, target_file)
@@ -2805,8 +2938,16 @@ def _sha256_of(path: Path) -> str:
     return h.hexdigest()
 
 
-def _extract_to(archive: Path, kind: str, dest_dir: Path) -> bool:
-    """Распаковывает архив в dest_dir. Для kind=raw — копирует файл как есть."""
+def _extract_to(archive: Path, kind: str, dest_dir: Path, binary: Optional[str] = None) -> bool:
+    """Распаковывает архив в dest_dir. Для kind=raw — копирует файл сразу под
+    целевым именем бинаря (`binary`), если оно задано.
+
+    Почему raw кладётся под именем `binary`, а не сохраняет имя ассета: raw-ассет
+    САМ является бинарём, но его имя в релизе обычно платформо-суффиксное
+    (например `v8-session-manager-linux-x86_64`). `_place_binary` ищет файл по
+    ТОЧНОМУ имени `binary` (`rglob(binary)`), и суффиксное имя не матчилось →
+    бинарь не клался, установка молча падала «не удалось найти бинарь»
+    (инцидент 2026-06-20, v8-session-manager). Кладём сразу правильно."""
     import tarfile, zipfile
     dest_dir.mkdir(parents=True, exist_ok=True)
     try:
@@ -2817,8 +2958,8 @@ def _extract_to(archive: Path, kind: str, dest_dir: Path) -> bool:
             with zipfile.ZipFile(archive) as zf:
                 zf.extractall(dest_dir)
         elif kind == "raw":
-            # Имя сохранится при копировании в `_place_binary`.
-            shutil.copy2(archive, dest_dir / archive.name)
+            target_name = binary or archive.name
+            shutil.copy2(archive, dest_dir / target_name)
         else:
             print(red(f"    Неизвестный тип архива: {kind}"))
             return False
@@ -2876,10 +3017,17 @@ def _select_release_source(spec: dict, asset_name: str) -> Optional[tuple[str, s
 
     Логика выбора (см. EXTERNAL_TOOLS[*]["fork_repo"]):
       1. Тянем Latest у upstream и fork (если fork_repo задан).
-      2. Если у форка есть нужный ассет И его published_at СТРОГО позже
-         upstream — берём форк.
-      3. Иначе берём upstream (включая случай «у форка нет ассета для
-         этой платформы», «форк недоступен», «форк старше или равен»).
+      2. Форк — ОСНОВНОЙ источник: если у него есть ассет под текущую
+         платформу — берём форк (вне зависимости от даты релиза upstream).
+      3. Upstream — ЗАПАСНОЙ: только когда форк недоступен или в его релизе
+         нет ассета для этой платформы.
+
+    ВНИМАНИЕ: раньше здесь сравнивались published_at и форк брался лишь когда
+    его релиз СТРОГО свежее upstream. Это приводило к молчаливой подмене: более
+    поздний upstream-релиз (v0.5.1, 2026-05-25) затирал форк-сборку v0.5.0-sm.1
+    (2026-05-22) с WS-режимом / unlock_code / --dynamic. Форк специально держит
+    PR-ы, которые upstream не принимает, поэтому он приоритетен по определению,
+    а не по дате (инцидент 2026-06-20).
     """
     upstream_repo = spec["repo"]
     fork_repo = spec.get("fork_repo")
@@ -2900,32 +3048,21 @@ def _select_release_source(spec: dict, asset_name: str) -> Optional[tuple[str, s
     fork_has = _has_asset(fork)
     upstream_has = _has_asset(upstream)
 
-    fork_date = (fork or {}).get("published_at") or ""
-    upstream_date = (upstream or {}).get("published_at") or ""
-
-    # ISO-8601 строки сравниваются лексикографически — это и есть сравнение времени.
-    fork_newer = bool(fork_date) and fork_date > upstream_date
-
-    if fork and fork_has and fork_newer:
-        print(dim(f"    Источник: fork ({fork_repo}) — релиз {fork.get('tag_name')} "
-                  f"свежее upstream {upstream.get('tag_name') if upstream else '(нет)'}"))
-        return ("fork", fork_repo, fork)
-
-    # Если fork-релиза нет/нет ассета/он не свежее — упадём на upstream
-    if upstream and upstream_has:
-        if fork:
-            reason = (
-                "форк старше или равен upstream" if not fork_newer
-                else "у форка нет ассета для этой платформы"
-            )
-            print(dim(f"    Источник: upstream ({upstream_repo}) — {reason}"))
-        return ("upstream", upstream_repo, upstream)
-
-    # Крайний случай: fork есть и подходит, но upstream вообще недоступен —
-    # тоже берём fork, лишь бы что-то поставить.
+    # Форк — основной источник: есть ассет под платформу → берём форк
+    # независимо от даты upstream-релиза.
     if fork and fork_has:
-        print(dim(f"    Источник: fork ({fork_repo}) — upstream недоступен"))
+        suffix = ""
+        if upstream and upstream_has:
+            up_tag = upstream.get("tag_name") or "?"
+            suffix = f" (upstream {up_tag} проигнорирован — форк приоритетен)"
+        print(dim(f"    Источник: fork ({fork_repo}) — релиз {fork.get('tag_name')}{suffix}"))
         return ("fork", fork_repo, fork)
+
+    # Upstream — запасной: форк недоступен или без ассета под эту платформу.
+    if upstream and upstream_has:
+        reason = "у форка нет ассета для этой платформы" if fork else "форк недоступен"
+        print(dim(f"    Источник: upstream ({upstream_repo}) — {reason}"))
+        return ("upstream", upstream_repo, upstream)
 
     return None
 
@@ -3027,7 +3164,7 @@ def install_external_tool(
             shutil.rmtree(tool_dir)
         tool_dir.mkdir(parents=True, exist_ok=True)
 
-        if not _extract_to(archive_path, kind, tool_dir):
+        if not _extract_to(archive_path, kind, tool_dir, binary):
             return False
 
         binary_path = _place_binary(tool_dir, binary)
@@ -3169,13 +3306,13 @@ def main():
 
     # Install xml-gen only
     if args.install_xml_gen:
-        install_xml_gen(script_dir=Path(__file__).resolve().parent, dry_run=False)
+        install_xml_gen(script_dir=Path(__file__).resolve().parent, dry_run=args.dry_run)
         print()
         return
 
     # Install external tools only
     if args.install_external_tools:
-        install_all_external_tools(script_dir=Path(__file__).resolve().parent, dry_run=False)
+        install_all_external_tools(script_dir=Path(__file__).resolve().parent, dry_run=args.dry_run)
         print()
         return
 

@@ -248,6 +248,31 @@ class FormValidatorTest {
                 i.getCode().equals("FORM-102") && i.getMessage().contains("NonExistentAttr"));
     }
 
+    @Test
+    void testTitleDataPathToMissingAttribute() throws Exception {
+        Path file = writeXml("Form.xml",
+                "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n" +
+                "<Form xmlns=\"http://v8.1c.ru/8.3/xcf/logform\" version=\"2.17\">\n" +
+                "\t<AutoCommandBar name=\"ФормаКоманднаяПанель\" id=\"-1\"/>\n" +
+                "\t<Attributes>\n" +
+                "\t\t<Attribute name=\"ExistingAttr\" id=\"1\"/>\n" +
+                "\t</Attributes>\n" +
+                "\t<ChildItems>\n" +
+                "\t\t<InputField name=\"Field1\" id=\"2\">\n" +
+                "\t\t\t<TitleDataPath>NonExistentTitleAttr</TitleDataPath>\n" +
+                "\t\t</InputField>\n" +
+                "\t</ChildItems>\n" +
+                "</Form>\n");
+
+        XmlDocument doc = reader.parse(file);
+        List<ValidationIssue> issues = validator.validate(doc, ValidationLevel.SEMANTIC);
+
+        assertThat(issues).anyMatch(i ->
+                i.getCode().equals("FORM-102")
+                        && i.getMessage().contains("TitleDataPath")
+                        && i.getMessage().contains("NonExistentTitleAttr"));
+    }
+
     // ==================== FORM-103: Button to missing command ====================
 
     @Test

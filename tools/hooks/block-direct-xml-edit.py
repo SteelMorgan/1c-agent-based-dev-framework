@@ -187,7 +187,7 @@ HINT_MESSAGE = (
     "  - Структурная + семантическая валидация:              xml-gen validate --type <kind>\n"
     "\n"
     "Skill: framework/skills/tool-usage/platform-data/xml-generation/SKILL.md\n"
-    "Правило: framework/rules/no-manual-xml-edit.md\n"
+    "Правило: framework/rules/no-manual-xml-edit/SKILL.md\n"
     "\n"
     "Если xml-gen реально не поддерживает нужную операцию — следуй процедуре\n"
     "«ДОПУСТИМО (исключение)» из no-manual-xml-edit.md: залогируй MANUAL_XML_EDIT\n"

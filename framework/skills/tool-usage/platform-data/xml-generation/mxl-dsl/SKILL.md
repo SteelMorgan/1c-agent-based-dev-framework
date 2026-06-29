@@ -1,6 +1,6 @@
 ---
 name: mxl-dsl
-description: "Use for генерации и доработки печатных форм 1С (MXL) через JSON DSL. Helps описать области, ячейки и статические стили для xml-gen mxl compile/decompile/info/validate."
+description: "xml-gen MXL print forms: compile/edit/info"
 ---
 
 # MXL DSL

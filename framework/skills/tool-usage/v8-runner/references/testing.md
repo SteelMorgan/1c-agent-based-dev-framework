@@ -25,7 +25,7 @@ v8-runner test yaxunit --mcp-transport=ws all                 # ❌
 ```yaml
 tools:
   client_mcp:
-    transport: auto         # ws | legacy | auto
+    transport: auto         # mcp | ws | auto
     manager_url: ws://127.0.0.1:4000/sessions
     log_level: info
     ws_timeout_ms: 1000
@@ -40,7 +40,7 @@ tools:
 Если yaxunit_runner / vanessa_test_client не появляется в `session_list` менеджера:
 
 1. **Лог менеджера** — `/tmp/v8sm/logs/mcp/actions.log` (путь зависит от `workPath` менеджера). Искать `WS connection accepted (handshake completed)` в окне прогона. Запустить менеджер с `--log-level debug`, если он стоит на `info`.
-2. **`/C`-payload** — поднять v8-runner с `--log-level=trace` (на уровне глобальных опций) и смотреть, дописался ли `mcpMode=ws;manager_url=...` к `RunUnitTests=...`. Если нет — `decide_mcp_transport` вернул `Legacy`.
+2. **`/C`-payload** — поднять v8-runner с `--log-level=trace` (на уровне глобальных опций) и смотреть, дописался ли `mcpMode=ws;manager_url=...` к `RunUnitTests=...`. Если нет — выбор транспорта ушёл в `mcp`.
 3. **Лог Enterprise-1С** — `<workPath>/temp/yaxunit/runs/<run-id>/enterprise.out.log` и `runner.log`. Искать `[MCP INFO ...] Logging params applied` и `Регистрация провайдера ...` — это диагностика MCP-инициализации со стороны BSL devkit.
 4. **Stdout v8-runner** — диагностический блок `[MCP INFO ...]` появляется в `diagnostic`-секции `test`-output (только при удачной MCP-инициализации клиента).
 
@@ -68,6 +68,8 @@ v8-runner test yaxunit --full module <MODULE_NAME>
 
 ## Vanessa Automation
 
+Конфиг запуска VA описан в `references/config-and-backends.md`, раздел «Vanessa Automation в `v8project.yaml`»: `tools.va.epf_path`, `tests.va.params_path`, `tests.va.profile`, `tests.va.profiles.*` и профиль TestClient внутри VAParams. Перед изменением команд сначала проверь именно эти секции.
+
 Запусти настроенный профиль Vanessa Automation:
 
 ```bash
@@ -89,11 +91,60 @@ v8-runner test va
 ```bash
 v8-runner launch mcp va
 v8-runner launch mcp va --mode thin
-v8-runner launch mcp va --mcp-port <PORT>
-v8-runner launch mcp va --mcp-config <FILE>
+v8-runner launch mcp va --mcp-transport ws --manager-url ws://127.0.0.1:4000/sessions
 ```
 
 Это запускает клиентский MCP-сервер в 1С и загружает Vanessa Automation из `tools.va`. Предпочитай его для разведочной работы с VA; для настроенного автоматического прогона тестов используй `test va`.
+
+Перед запуском проверь конфиг:
+
+1. `tools.va.epf_path` указывает на существующую `vanessa-automation.epf`.
+2. `tests.va.params_path` указывает на JSON-шаблон VAParams.
+3. `tests.va.profile` существует в `tests.va.profiles`.
+4. В VAParams есть профиль TestClient в `ДанныеКлиентовТестирования`; его `Имя` — это будущий `profileName` для `connect_test_client`.
+
+### Точная цепочка VA manager → TestClient
+
+1. Убедись, что session-manager отвечает на `session_list`. Если менеджер не запущен, подними его по навыку `v8-session-manager`.
+
+2. Запусти VA test-manager через `v8-runner launch mcp va` в detached-режиме, если клиент должен жить после возврата shell-команды:
+
+```bash
+uid=$(cat /proc/sys/kernel/random/uuid)
+setsid nohup v8-runner --no-color --log-level debug launch mcp va \
+  --mcp-transport ws \
+  --manager-url ws://127.0.0.1:4000/sessions \
+  --client-uid "$uid" \
+  --corr-id "va-$uid" \
+  --mcp-log-level debug \
+  --mcp-ws-timeout-ms 5000 \
+  > "/tmp/va-mcp-$uid.log" 2>&1 &
+echo $!
+```
+
+3. Дождись live-сессии VA manager:
+
+```json
+{"name":"session_list","arguments":{}}
+```
+
+Критерий готовности: `kind=vanessa_test_client`, `state=active`, `disconnected_secs_ago=null`, `inflight=0`, появились VA-инструменты (`connect_test_client`, `get_form_analysis`). Наличие имени tool только в кешированном `tools/list` не считается готовностью. Нормальное появление сессии и VA-tools после старта занимает 10-90 секунд; опрашивай `session_list` каждые 5-10 секунд и держи диагностический предел 120 секунд.
+
+4. Подключи тестируемое приложение. Его запускает VA manager по профилю из VAParams; агент не должен отдельно запускать `/TESTCLIENT` для этого VA-пути. `connect_test_client` принимает обязательный аргумент `profileName`:
+
+```json
+{"name":"connect_test_client","arguments":{"profileName":"<test-client-profile-name>"}}
+```
+
+Если live-сессий несколько, передавай `session_id` VA manager-сессии в каждый MCP-вызов. Успешный запуск должен дать реальный PID тест-клиента в профиле/логе VA, не `0`. После этого доступны клиентские MCP-методы VA: анализ формы, управление командным интерфейсом и элементами формы, чтение данных, скриншоты и выполнение VA-действий.
+
+5. После исследования закрой тест-клиент. `close_test_client` можно вызвать с тем же `profileName`; без него tool закрывает текущий подключенный профиль:
+
+```json
+{"name":"close_test_client","arguments":{"profileName":"<test-client-profile-name>"}}
+```
+
+Если VA manager запускался только для исследования, останови и его штатным завершением клиента или точечным завершением сохранённого PID. Не оставляй открытые TestClient-процессы перед следующим запуском с тем же фиксированным портом.
 
 ## Опции launch во время тестов
 
@@ -127,7 +178,7 @@ v8-runner syntax edt
 |------------|----------|
 | Мониторинг stdout v8-runner | Агент MUST читать stdout v8-runner каждые **20 секунд** пока тест выполняется. Стандартный вывод содержит маркеры успеха и падения сразу (`[diagnostic]`, `[artifact]`, `ERROR: runtime error: test run reported failures` и т.п.) — это надёжнее ЖР. |
 | Прерывание при ошибке | Если в stdout появилась строка `ERROR:` (например `ERROR: runtime error: test run reported failures`) — агент MUST прервать ожидание, прочитать `runner.log` + `junit/junit.xml` в каталоге прогона и перейти к диагностике. ЖР смотреть дополнительно, если первичных артефактов недостаточно. |
-| Детект зависания | Если в stdout v8-runner нет новых строк >60 сек И процесс `1cv8c.*vanessa-automation` ещё жив — агент MUST снять скриншоты (noVNC/X11) и оценить, жив ли тест. |
+| Детект зависания | Если в stdout v8-runner нет новых строк >60 сек И процесс `1cv8c.*vanessa-automation` ещё жив — агент MUST проверить процессы manager/test-client и первичные логи запуска, затем перейти к диагностике Vanessa. |
 | Корректное условие завершения | Условие выхода из ожидания: появился `va-status.log` (создаётся И при success, И при failure) ИЛИ исчез процесс `1cv8c.*vanessa-automation` ИЛИ в stdout появился `ERROR:`. **Не использовать только `va-status.json`** — он создаётся только при штатном завершении сценария; при ранних падениях (ошибка шага, краш клиента) его не будет, и блокирующее ожидание зависнет. |
 | Обязательный анализ артефактов | После прогона агент MUST проверить `va-status.json` и `vanessa-execution.log` под `workPath/temp/<runner-id>/runs/<run-id>/`. |
 | Обязательный анализ ЖР | После прогона агент MUST проверить `event-log`, если сценарий не прошёл или запуск выглядит подозрительно. |

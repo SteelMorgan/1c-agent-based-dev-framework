@@ -1,6 +1,6 @@
 ---
 name: coding-standards
-description: "MUST use WHEN пишешь или ревьюишь BSL-код. Provides стандарты именования, структуру модулей, типовые антипаттерны и рекомендации ИТС для платформы 1С:Предприятие."
+description: "При написании или ревью BSL применять стандарты 1С"
 alwaysApply: false
 ---
 

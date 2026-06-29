@@ -34,9 +34,14 @@ skills:
 4. **Identify blockers** — ВСЕ вопросы одним списком, НЕ по одному
 5. **Save context** → если blockers: `clarification_needed`, НЕ писать частичную спеку
 6. **Write specification** — context, decision, assumptions, acceptance criteria, test plan
-7. **Write Acceptance Scenarios** — Gherkin бизнес-уровня для MUST; НЕ шаги Vanessa
-8. **Self-review** по чек-листу `spec-standard`
-9. **Update context** → `completed`
+7. **Coverage by runtime layer** — для каждого MUST явно указать затронутый runtime-слой и тип проверки:
+   - серверная логика/серверный контекст → YaxUnit; если тест уже есть — актуализировать и перепрогнать, если нет — создать;
+   - UI/клиентский контекст → сценарный UI/BDD-тест, открывающий пользовательский entrypoint и выполняющий изменённое действие;
+   - связанный пользовательский процесс → end-to-end сценарий процесса с переиспользованием/актуализацией существующего сценария;
+   - интеграция/фоновые задания → integration/job-проверка с наблюдаемым эффектом.
+8. **Write Acceptance Scenarios** — Gherkin бизнес-уровня для MUST; НЕ шаги Vanessa
+9. **Self-review** по чек-листу `spec-standard`
+10. **Update context** → `completed`
 
 **Когда спрашивать:**
 
@@ -95,9 +100,9 @@ depends_on:
   - framework/skills/tool-usage/platform-data/platform-data-core/SKILL.md
   - framework/skills/tool-usage/platform-data/xml-generation/SKILL.md
   - framework/skills/tool-usage/v8-session-manager/SKILL.md
-  - framework/rules/agent-context-protocol.md
-  - framework/rules/capability-resolution.mdc
-  - framework/rules/no-direct-db-access.md
-  - framework/rules/skill-learning-policy.md
-  - framework/rules/source-of-truth.md
+  - framework/rules/agent-context-protocol/SKILL.md
+  - framework/rules/capability-resolution/SKILL.md
+  - framework/rules/no-direct-db-access/SKILL.md
+  - framework/rules/skill-learning-policy/SKILL.md
+  - framework/rules/source-of-truth/SKILL.md
 ---

@@ -1,17 +1,17 @@
 ---
 name: config-operations
-description: "Use for creating a configuration, analyzing and changing its properties and ChildObjects, and validating Configuration.xml. Helps manage the composition and parameters of Configuration.xml through xml-gen config."
+description: "xml-gen Configuration.xml: properties and ChildObjects"
 ---
 
 # Config Operations
 
-## When to use
+## When to Use
 
 | Trigger | Action |
 |---------|----------|
 | Create a new configuration | `config init --name <Name> <output_dir>` |
 | View the configuration contents | `config info <configPath>` |
-| Change a configuration property | `config edit <configPath> --op modify-property --value "PropName=Value"` |
+| Modify a configuration property | `config edit <configPath> --op modify-property --value "PropName=Value"` |
 | Add/remove an object from ChildObjects | `config edit <configPath> --op add-child --value "Type.Name"` |
 | Validate Configuration.xml | `config validate <configPath>` |
 
@@ -31,7 +31,7 @@ Result: `Configuration.xml` + `Languages/Русский.xml` + `ConfigDumpInfo.x
 xml-gen config info [--mode brief|overview|full] <configPath>
 ```
 
-`brief` — one-line summary; `overview` — properties + object counters; `full` — all properties and objects.
+`brief` — one-line summary; `overview` — properties + object counts; `full` — all properties and objects.
 
 ### config edit
 

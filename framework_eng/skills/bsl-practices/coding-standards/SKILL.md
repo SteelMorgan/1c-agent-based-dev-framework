@@ -1,22 +1,22 @@
 ---
 name: coding-standards
-description: "BSL coding standards (1C). This skill teaches the agent to write code in the built-in 1C language (BSL) in accordance with the standards of the 1C:Enterprise platform and ITS recommendations."
+description: "When writing or reviewing BSL, apply 1C standards"
 alwaysApply: false
 ---
 
 # BSL Coding Standards (1C)
 
-## Rule 1: Variable naming - CamelCase in Russian
+## Rule 1: Variable Naming - CamelCase in Russian
 
-ITS standard: "Module texts" - names in Russian, CamelCase.
+ITS standard: "Module Texts" - names in Russian, ВерблюжийРегистр.
 
 | Element | Format | Example |
 |---------|--------|--------|
-| Variable | NounOrPhrase | `КоличествоСтрок`, `ДатаНачалаПериода` |
-| Procedure | VerbPhrase | `ЗаполнитьТабличнуюЧасть`, `УстановитьОтбор` |
-| Function | NounOrQuestion | `ПолучитьСписокДокументов`, `ЭтоНовый` |
+| Variable | СуществительноеИлиФраза | `КоличествоСтрок`, `ДатаНачалаПериода` |
+| Procedure | ГлагольнаяФраза | `ЗаполнитьТабличнуюЧасть`, `УстановитьОтбор` |
+| Function | СуществительноеИлиВопрос | `ПолучитьСписокДокументов`, `ЭтоНовый` |
 | Boolean variable | Affirmative form | `ЭтоНовый`, `РазрешеноРедактирование`, `ЕстьОшибки` |
-| Parameter | LikeVariable | `ДокументСсылка`, `РежимОткрытия` |
+| Parameter | КакПеременная | `ДокументСсылка`, `РежимОткрытия` |
 
 ```bsl
 Процедура ЗаполнитьТабличнуюЧастьТовары(ДокументОбъект, ДанныеЗаполнения)
@@ -35,16 +35,16 @@ ITS standard: "Module texts" - names in Russian, CamelCase.
 
 ---
 
-## Rule 2: Module structure - interface and implementation sections
+## Rule 2: Module Structure - Interface and Implementation Sections
 
-ITS standard: "Module structure" - regions (#Область) in a specific order.
+ITS standard: "Module Structure" - regions (#Область) in a specific order.
 
-### Section order for a common module
+### Order of sections in a common module
 
 ```bsl
 #Область ПрограммныйИнтерфейс
 
-// Экспортные процедуры и функции — публичный API модуля.
+// Exported procedures and functions - the module's public API.
 
 Функция ПолучитьКурсВалюты(Валюта, ДатаКурса) Экспорт
     // ...
@@ -54,7 +54,7 @@ ITS standard: "Module structure" - regions (#Область) in a specific order
 
 #Область СлужебныйПрограммныйИнтерфейс
 
-// Экспортные процедуры для вызова только из других модулей данной подсистемы.
+// Exported procedures for use only from other modules of this subsystem.
 
 Функция ПересчитатьКурсВнутренний(ПараметрыПересчета) Экспорт
     // ...
@@ -64,7 +64,7 @@ ITS standard: "Module structure" - regions (#Область) in a specific order
 
 #Область СлужебныеПроцедурыИФункции
 
-// Внутренняя реализация. Не экспортные.
+// Internal implementation. Not exported.
 
 Функция СформироватьЗапросКурса(Валюта, Дата)
     // ...
@@ -73,7 +73,7 @@ ITS standard: "Module structure" - regions (#Область) in a specific order
 #КонецОбласти
 ```
 
-### Section order for an object module
+### Order of sections in an object module
 
 ```bsl
 #Область ОписаниеПеременных
@@ -106,16 +106,16 @@ ITS standard: "Module structure" - regions (#Область) in a specific order
 
 ---
 
-## Rule 3: Compilation directives - &НаКлиенте, &НаСервере, &НаСервереБезКонтекста
+## Rule 3: Compilation Directives - &НаКлиенте, &НаСервере, &НаСервереБезКонтекста
 
-When `&НаСервере` is called, the platform serializes **the entire form context** back and forth. `&НаСервереБезКонтекста` passes only parameters - drastically less traffic.
+When calling `&НаСервере`, the platform serializes **the entire form context** back and forth. `&НаСервереБезКонтекста` passes only parameters - dramatically less traffic.
 
 | Directive | Where it runs | Access to form data | When to use |
 |-----------|----------------|----------------------|-------------------|
 | `&НаКлиенте` | Client (thin/web) | Yes (client copy) | Interactive logic: dialogs, navigation |
-| `&НаСервере` | Server | Yes (full form context) | Need access to form attributes + database |
-| `&НаСервереБезКонтекста` | Server | No | Database queries, calculations without form data |
-| `&НаКлиентеНаСервереБезКонтекста` | Both client and server | No | Pure calculations, validation without database |
+| `&НаСервере` | Server | Yes (full form context) | Need access to form attributes + DB |
+| `&НаСервереБезКонтекста` | Server | No | DB queries, calculations without form data |
+| `&НаКлиентеНаСервереБезКонтекста` | Both client and server | No | Pure calculations, validation without DB |
 
 ```bsl
 &НаКлиенте
@@ -137,12 +137,12 @@ When `&НаСервере` is called, the platform serializes **the entire form 
 
 ---
 
-## Rule 6: Do not shadow the global context
+## Rule 6: Do Not Shadow the Global Context
 
-A local variable with the name of a global collection hides the manager - later references to it in the code will fail.
+A local variable with the name of a global collection hides the manager - later accesses to it will raise an error.
 
 ```bsl
-// Правильно — конкретное имя
+// Correct - a specific name
 МассивДокументовКОбработке = Новый Массив;
 СправочникНоменклатура = Справочники.Номенклатура;
 ```
@@ -153,21 +153,21 @@ A local variable with the name of a global collection hides the manager - later 
 
 ---
 
-## Rule 7: String concatenation - do not use `+` in loops
+## Rule 7: String Concatenation - Do Not Use "+" in Loops
 
-In BSL, strings are immutable. `Строка1 + Строка2` in a loop with N iterations gives O(N^2) in memory and time - each iteration copies everything before it.
+In BSL, strings are immutable. `Строка1 + Строка2` in a loop of N iterations gives O(N^2) in memory and time - each iteration copies everything before it.
 
-ITS standard: "Efficient string handling".
+ITS standard: "Efficient work with strings".
 
 ```bsl
-// O(N) — массив + СтрСоединить()
+// O(N) - array + StrJoin()
 ЧастиСтроки = Новый Массив;
 Для Каждого Элемент Из КоллекцияДанных Цикл
     ЧастиСтроки.Добавить(Элемент.Наименование);
 КонецЦикла;
 РезультатСтрока = СтрСоединить(ЧастиСтроки, ", ");
 
-// Для фиксированного числа подстановок — СтрШаблон() (до 10 параметров)
+// For a fixed number of substitutions - StrTemplate() (up to 10 parameters)
 ТекстСообщения = СтрШаблон(
     НСтр("ru = 'Документ %1 от %2 на сумму %3 руб.'"),
     НомерДокумента,
@@ -177,9 +177,9 @@ ITS standard: "Efficient string handling".
 
 ---
 
-## Rule 8: Regions (#Область) for organizing code
+## Rule 8: Regions (#Область) for Code Organization
 
-ITS standard: "Module structure" - mandatory standard regions.
+ITS standard: "Module Structure" - mandatory standard regions.
 
 ### Standard regions for a form module
 
@@ -207,47 +207,47 @@ Rules: do not nest deeper than 2 levels; do not create empty regions; use the st
 
 ---
 
-## Rule 9: Comments - explain "why", not "what"
+## Rule 9: Comments - Explain "Why", Not "What"
 
-ITS standard: "Description of procedures and functions" - exported procedures MUST have a descriptive comment.
+ITS standard: "Description of procedures and functions" - exported procedures MUST have a description comment.
 
 ### Description of an exported function
 
 ```bsl
-// Возвращает курс валюты на указанную дату.
-// Если на указанную дату курс не установлен, возвращает курс на ближайшую предыдущую дату.
+// Returns the currency exchange rate for the specified date.
+// If the rate is not set for the specified date, returns the rate for the nearest previous date.
 //
-// Параметры:
-//  Валюта   - СправочникСсылка.Валюты - валюта, курс которой нужно получить.
-//  ДатаКурса - Дата - дата, на которую нужен курс.
-//              Если не указана, используется текущая дата сеанса.
+// Parameters:
+//  Валюта   - СправочникСсылка.Валюты - currency whose rate needs to be retrieved.
+//  ДатаКурса - Дата - date for which the rate is needed.
+//              If not specified, the current session date is used.
 //
-// Возвращаемое значение:
-//  Число - курс валюты. 0 если курс не найден.
+// Return value:
+//  Число - currency rate. 0 if the rate is not found.
 //
 Функция ПолучитьКурсВалюты(Валюта, ДатаКурса = Неопределено) Экспорт
 ```
 
-### Comment "why"
+### "Why" comment
 
 ```bsl
-// Сумму округляем до копеек, потому что бухгалтерский учёт не допускает дробных копеек,
-// а при пересчёте НДС могут возникнуть дроби.
+// Round the amount to kopeks because accounting does not allow fractional kopeks,
+// and fractions may appear when recalculating VAT.
 СуммаНДС = Окр(СуммаБезНДС * СтавкаНДС / 100, 2);
 ```
 
 ---
 
-## Rule 10: Use НСтр() for string literals
+## Rule 10: Use НСтр() for String Literals
 
-All strings shown to the user are wrapped in `НСтр()` for localization.
+All strings displayed to the user are wrapped in `НСтр()` for localization.
 
 ITS standard: "Using the НСтр() function".
 
 ```bsl
 ТекстПредупреждения = НСтр("ru = 'Документ не может быть проведён. Не заполнена дата.'");
 
-// С параметрами — НСтр() + СтрШаблон()
+// With parameters - НСтр() + СтрШаблон()
 ТекстСообщения = СтрШаблон(
     НСтр("ru = 'Остаток товара ""%1"" на складе: %2 %3'"),
     Номенклатура,
@@ -257,9 +257,9 @@ ITS standard: "Using the НСтр() function".
 
 ---
 
-## Rule 11: One procedure - one responsibility
+## Rule 11: One Procedure - One Responsibility
 
-A procedure longer than 100 lines is a signal to decompose it. Splitting into small functions with descriptive names makes the code self-documenting.
+A procedure longer than 100 lines is a signal to decompose it. Splitting it into small functions with descriptive names makes the code self-documenting.
 
 ```bsl
 Процедура ОбработкаПроведения(Отказ, РежимПроведения)
@@ -276,62 +276,62 @@ A procedure longer than 100 lines is a signal to decompose it. Splitting into sm
 
 ---
 
-## Rule 12: Explicitly type parameters in comments
+## Rule 12: Explicit Typing of Parameters in Comments
 
-BSL is dynamically typed. Describing types in the comment for an exported function is the only way to document the contract.
+BSL is dynamically typed. Type descriptions in the comment for an exported function are the only way to document the contract.
 
 ```bsl
-// Создаёт новый элемент справочника «Номенклатура» с заполнением по умолчанию.
+// Creates a new item in the "Номенклатура" catalog with default filling.
 //
-// Параметры:
-//  ДанныеЗаполнения - Структура - содержит поля:
-//    * Наименование      - Строка - наименование номенклатуры (обязательно).
-//    * ВидНоменклатуры    - ПеречислениеСсылка.ВидыНоменклатуры - вид (обязательно).
-//    * ЕдиницаИзмерения  - СправочникСсылка.ЕдиницыИзмерения - ед. изм. Необязательно,
-//                          по умолчанию «шт.».
-//    * Артикул            - Строка - артикул. Необязательно.
+// Parameters:
+//  ДанныеЗаполнения - Структура - contains fields:
+//    * Наименование      - Строка - item name (required).
+//    * ВидНоменклатуры    - ПеречислениеСсылка.ВидыНоменклатуры - type (required).
+//    * ЕдиницаИзмерения  - СправочникСсылка.ЕдиницыИзмерения - unit of measure. Optional,
+//                          default is "шт.".
+//    * Артикул            - Строка - item code. Optional.
 //
-// Возвращаемое значение:
-//  СправочникСсылка.Номенклатура - ссылка на созданный элемент.
+// Return value:
+//  СправочникСсылка.Номенклатура - reference to the created item.
 //
 Функция СоздатьНоменклатуру(ДанныеЗаполнения) Экспорт
 ```
 
 ---
 
-## Rule 13: Do not use `Выполнить()` and `Вычислить()` unless absolutely necessary
+## Rule 13: Do Not Use "Выполнить()" and "Вычислить()" Unless Absolutely Necessary
 
-Security risk (an eval-like equivalent), invisible to static analysis, difficult to debug.
+Security threat (analogous to eval), invisible to static analysis, hard to debug.
 
 ```bsl
-// Правильно — прямой вызов через метаданные
+// Correct - direct call through metadata
 МенеджерОбъекта = ОбщегоНазначения.МенеджерОбъектаПоСсылке(СсылкаНаОбъект);
 ```
 
 ---
 
-## Rule 14: Magic numbers and strings - move them into parameters
+## Rule 14: Magic Numbers and Strings - Move Them to Parameters
 
-Hard-coded values are unclear, duplicated, and not configurable.
+Hardcoded values are unclear, duplicated, and not configurable.
 
 ```bsl
-// Правильно — перечисление, значение самодокументировано
+// Correct - enumeration, the value is self-documenting
 Если Документ.Статус = Перечисления.СтатусыДокументов.Согласован Тогда
     // ...
 КонецЕсли;
 
-// Или константа для настраиваемых значений
+// Or a constant for configurable values
 МаксимальноеКоличествоПопыток = Константы.МаксимальноеКоличествоПопытокОтправки.Получить();
 ```
 
 ---
 
-## Rule 15: Explicit JOINs instead of dot notation through references
+## Rule 15: Explicit JOINs Instead of Dotted Notation Through References
 
-Reference chains create implicit JOINs. For compound types, the platform makes a JOIN to **all** possible tables.
+Reference chains create implicit JOINs. For composite types, the platform performs JOINs to **all** possible tables.
 
 ```bsl
-// Правильно — один запрос с явными JOIN
+// Correct - one query with explicit JOINs
 Запрос = Новый Запрос;
 Запрос.Текст =
 "ВЫБРАТЬ
@@ -344,7 +344,7 @@ Reference chains create implicit JOINs. For compound types, the platform makes a
 |   Товары.Ссылка = &ДокументСсылка";
 ```
 
-### Incorrect - dot access in a loop (N+1)
+### Incorrect - access through dot notation in a loop (N+1)
 
 ```bsl
 Для Каждого СтрокаТоваров Из Документ.Товары Цикл
@@ -355,9 +355,9 @@ Reference chains create implicit JOINs. For compound types, the platform makes a
 
 ---
 
-## Rule 16: Open forms through ОткрытьФорму()
+## Rule 16: Open Forms via OpenForm()
 
-`ПолучитьФорму()` is for the classic application and does not work in the managed interface.
+`ПолучитьФорму()` - classic application, does not work in the managed interface.
 
 ```bsl
 ПараметрыФормы = Новый Структура;
@@ -374,12 +374,12 @@ Reference chains create implicit JOINs. For compound types, the platform makes a
 
 ---
 
-## Rule 17: Business logic should not live in the form module
+## Rule 17: Business Logic Should Not Live in the Form Module
 
-Put write and validation logic in the object module - for testability and reuse.
+Place write and validation logic in the object module - for testability and reuse.
 
 ```bsl
-// Модуль объекта документа
+// Object module of the document
 Процедура ПередЗаписью(Отказ)
     Для Каждого Строка Из Товары Цикл
         Строка.Сумма = Строка.Количество * Строка.Цена;
@@ -389,22 +389,22 @@ Put write and validation logic in the object module - for testability and reuse.
 
 ---
 
-## Rule 18: Do not swallow exceptions
+## Rule 18: Do Not Swallow Exceptions
 
 See `error-handling`, rule 1.
 
 ---
 
-## Rule 19: Aggregate server calls from the form
+## Rule 19: Aggregate Server Calls from the Form
 
 See `form-patterns`.
 
 ---
 
-## Verification via Partner
+## Verification via Buddy
 
-- **Code check against standards and БСП equivalents:** `ask_ai_assistant` (VALIDATE_BSL template from `buddy-prompting`). Provide a code fragment - get standards violations and recommendations for replacing them with БСП/platform methods.
-- **Check the standard against the primary source:** `ask_ai_assistant` (SEARCH_ITS template from `buddy-prompting`). If the skill differs from ITS, ITS takes priority.
+- **Check code against standards and BСП analogs:** `ask_ai_assistant` (template VALIDATE_BSL from `buddy-prompting`). Give a code fragment - get standard violations and recommendations for replacement with BСП/platform methods.
+- **Check the standard against the primary source:** `ask_ai_assistant` (template SEARCH_ITS from `buddy-prompting`). If the skill conflicts with ITS, ITS takes priority.
 
 ---
 depends_on: []

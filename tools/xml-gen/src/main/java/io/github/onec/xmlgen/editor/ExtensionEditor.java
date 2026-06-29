@@ -28,6 +28,13 @@ public class ExtensionEditor {
 
     private static final byte[] BOM = {(byte) 0xEF, (byte) 0xBB, (byte) 0xBF};
 
+    private static final List<String> FORM_BINDING_DATA_TAGS = List.of(
+            "DataPath", "TitleDataPath", "FooterDataPath", "HeaderDataPath",
+            "MultipleValueDataPath", "MultipleValuePresentDataPath");
+
+    private static final List<String> FORM_BINDING_PICTURE_TAGS = List.of(
+            "RowPictureDataPath", "MultipleValuePictureDataPath");
+
     private static final String XMLNS = "xmlns=\"http://v8.1c.ru/8.3/MDClasses\" "
             + "xmlns:app=\"http://v8.1c.ru/8.2/managed-application/core\" "
             + "xmlns:cfg=\"http://v8.1c.ru/8.1/data/enterprise/current-config\" "
@@ -286,7 +293,8 @@ public class ExtensionEditor {
                     extCfgContent = borrowObject(extDir, configDir, item.typeName,
                             item.objName, dirName, extCfgContent, formatVersion);
                 }
-                borrowForm(extDir, configDir, item.typeName, item.objName, item.formName, dirName, formatVersion);
+                borrowForm(extDir, configDir, item.typeName, item.objName, item.formName, dirName,
+                        formatVersion, mainAttributeMode != null);
                 if (mainAttributeMode != null) {
                     borrowMainAttributeInto(extDir, configDir, item.typeName, item.objName,
                             item.formName, dirName, mainAttributeMode);
@@ -332,10 +340,12 @@ public class ExtensionEditor {
         String sourceUuid = readSourceObjectUuid(configDir, dirName, objName, typeName);
         out.println("[INFO]   Source UUID: " + sourceUuid);
 
-        // Read CommonModule properties if applicable
+        // Read source properties if applicable
         Map<String, String> sourceProps = Collections.emptyMap();
         if ("CommonModule".equals(typeName)) {
             sourceProps = readCommonModuleProperties(configDir, dirName, objName);
+        } else if ("DefinedType".equals(typeName)) {
+            sourceProps = readDefinedTypeProperties(configDir, dirName, objName);
         }
 
         // Generate borrowed object XML
@@ -357,7 +367,7 @@ public class ExtensionEditor {
 
     private void borrowForm(Path extDir, Path configDir, String typeName,
                             String objName, String formName, String dirName,
-                            String formatVersion) throws IOException {
+                            String formatVersion, boolean keepObjectDataBindings) throws IOException {
         out.println("[INFO] Borrowing form " + typeName + "." + objName + ".Form." + formName + "...");
 
         // 1. Read source form UUID
@@ -383,7 +393,7 @@ public class ExtensionEditor {
         writeIfMissing(formMetaFile, formMetaXml);
 
         // 5. Generate Form.xml with BaseForm
-        String formXml = buildFormXmlWithBaseForm(srcFormContent);
+        String formXml = buildFormXmlWithBaseForm(srcFormContent, keepObjectDataBindings);
         Path formXmlDir = formMetaDir.resolve(formName).resolve("Ext");
         Files.createDirectories(formXmlDir);
         Path formXmlFile = formXmlDir.resolve("Form.xml");
@@ -445,6 +455,21 @@ public class ExtensionEditor {
         return props;
     }
 
+    private Map<String, String> readDefinedTypeProperties(Path configDir, String dirName,
+                                                          String objName) throws IOException {
+        Path srcFile = configDir.resolve(dirName).resolve(objName + ".xml");
+        String content = readString(srcFile);
+        Map<String, String> props = new LinkedHashMap<>();
+        String properties = extractFirstElementBlock(content, "Properties");
+        if (properties != null) {
+            String typeXml = extractFirstElementBlock(properties, "Type");
+            if (typeXml != null) {
+                props.put("__TypeXml", stripNamespaceDeclarations(typeXml));
+            }
+        }
+        return props;
+    }
+
     // ─── XML generation ───────────────────────────────────────────────
 
     private String buildBorrowedObjectXml(String typeName, String objName,
@@ -472,6 +497,8 @@ public class ExtensionEditor {
                 String val = sourceProps.getOrDefault(prop, "false");
                 sb.append("\t\t\t<").append(prop).append(">").append(val).append("</").append(prop).append(">\n");
             }
+        } else if ("DefinedType".equals(typeName) && sourceProps.containsKey("__TypeXml")) {
+            sb.append("\t\t\t").append(sourceProps.get("__TypeXml")).append("\n");
         }
 
         sb.append("\t\t</Properties>\n");
@@ -534,7 +561,7 @@ public class ExtensionEditor {
         return sb.toString();
     }
 
-    private String buildFormXmlWithBaseForm(String srcFormContent) {
+    private String buildFormXmlWithBaseForm(String srcFormContent, boolean keepObjectDataBindings) {
         // Extract xml declaration
         String xmlDecl = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>";
         Matcher mDecl = Pattern.compile("^(<\\?xml[^?]*\\?>)").matcher(srcFormContent);
@@ -555,9 +582,8 @@ public class ExtensionEditor {
         if (childItemsXml == null) childItemsXml = "<ChildItems/>";
 
         // Strip namespace declarations
-        Pattern nsPattern = Pattern.compile("\\s+xmlns(?::\\w+)?=\"[^\"]*\"");
         if (autoCommandBarXml != null) {
-            autoCommandBarXml = nsPattern.matcher(autoCommandBarXml).replaceAll("");
+            autoCommandBarXml = stripNamespaceDeclarations(autoCommandBarXml);
             autoCommandBarXml = autoCommandBarXml.replaceAll("<CommandName>[^<]*</CommandName>", "<CommandName>0</CommandName>");
             autoCommandBarXml = autoCommandBarXml.replace("<Autofill>true</Autofill>", "<Autofill>false</Autofill>");
             //++agent TASK-175 [07.06.2026 18:45:00]
@@ -565,24 +591,23 @@ public class ExtensionEditor {
             // Ссылки на стандартные команды и пути данных базовой формы невалидны в расширении —
             // Designer отказывается загружать форму. Набор для ACB отличается от набора для
             // ChildItems (см. ниже) — НЕ объединять (риск 1 §7.2 дизайна TASK-175).
-            // Условный keep Объект.* (флаг -BorrowMainAttribute, f7695a95) — new-feature, не портирован.
+            // В режиме --borrow-main-attribute сохраняем Объект.* data bindings: соответствующие
+            // реквизиты будут заимствованы в объект расширения ниже.
             autoCommandBarXml = autoCommandBarXml.replaceAll("\\s*<ExcludedCommand>[^<]*</ExcludedCommand>", "");
-            autoCommandBarXml = autoCommandBarXml.replaceAll("\\s*<DataPath>[^<]*</DataPath>", "");
+            autoCommandBarXml = stripFormBindings(autoCommandBarXml, keepObjectDataBindings);
             // CommandSet, опустевший после strip ExcludedCommand, не несёт информации — убираем,
             // иначе в выводе останется пустая обёртка, которой нет в каноне Designer
             autoCommandBarXml = autoCommandBarXml.replaceAll("\\s*<CommandSet>\\s*</CommandSet>", "");
             //++agent TASK-175
         }
-        childItemsXml = nsPattern.matcher(childItemsXml).replaceAll("");
+        childItemsXml = stripNamespaceDeclarations(childItemsXml);
         childItemsXml = childItemsXml.replaceAll("<CommandName>[^<]*</CommandName>", "<CommandName>0</CommandName>");
         //++agent TASK-175 [07.06.2026 18:45:00]
         // XG-35: strip-набор для ChildItems формы (безусловная ветка cfe-borrow.py @ HEAD):
         // DataPath/TitleDataPath ссылаются на реквизиты базовой формы (в расширении их нет),
         // RowPictureDataPath и ExcludedCommand невалидны в расширении (7abe26af),
         // TypeLink с человекочитаемым DataPath Items.* и element-level Events не переносимы.
-        childItemsXml = childItemsXml.replaceAll("\\s*<DataPath>[^<]*</DataPath>", "");
-        childItemsXml = childItemsXml.replaceAll("\\s*<TitleDataPath>[^<]*</TitleDataPath>", "");
-        childItemsXml = childItemsXml.replaceAll("\\s*<RowPictureDataPath>[^<]*</RowPictureDataPath>", "");
+        childItemsXml = stripFormBindings(childItemsXml, keepObjectDataBindings);
         childItemsXml = childItemsXml.replaceAll("\\s*<ExcludedCommand>[^<]*</ExcludedCommand>", "");
         childItemsXml = childItemsXml.replaceAll("(?s)\\s*<TypeLink>\\s*<xr:DataPath>Items\\.[^<]*</xr:DataPath>.*?</TypeLink>", "");
         childItemsXml = childItemsXml.replaceAll("(?s)\\s*<Events>.*?</Events>", "");
@@ -611,6 +636,24 @@ public class ExtensionEditor {
         sb.append("</Form>");
 
         return sb.toString();
+    }
+
+    private String stripFormBindings(String xml, boolean keepObjectDataBindings) {
+        String result = xml;
+        for (String tag : FORM_BINDING_DATA_TAGS) {
+            String pattern = keepObjectDataBindings
+                    ? "\\s*<" + tag + ">(?!Объект\\.)[^<]*</" + tag + ">"
+                    : "\\s*<" + tag + ">[^<]*</" + tag + ">";
+            result = result.replaceAll(pattern, "");
+        }
+        for (String tag : FORM_BINDING_PICTURE_TAGS) {
+            result = result.replaceAll("\\s*<" + tag + ">[^<]*</" + tag + ">", "");
+        }
+        return result;
+    }
+
+    private static String stripNamespaceDeclarations(String xml) {
+        return xml.replaceAll("\\s+xmlns(?::\\w+)?=\"[^\"]*\"", "");
     }
 
     /** Append multi-line XML with extra indentation: first line gets firstIndent, rest get otherIndent prefix */
@@ -854,6 +897,31 @@ public class ExtensionEditor {
         return content.substring(tagStart, endIdx);
     }
 
+    private String extractFirstElementBlock(String content, String tagName) {
+        Matcher start = Pattern.compile("<" + Pattern.quote(tagName) + "(?:\\s[^>]*)?>").matcher(content);
+        if (!start.find()) return null;
+        int tagStart = start.start();
+        Pattern openOrClose = Pattern.compile("<(/?" + Pattern.quote(tagName) + ")(?:\\s|>|/>)");
+        Matcher m = openOrClose.matcher(content);
+        int depth = 0;
+        int pos = tagStart;
+        while (m.find(pos)) {
+            String matched = m.group(1);
+            String fullMatch = m.group();
+            if (matched.startsWith("/")) {
+                depth--;
+                if (depth == 0) {
+                    int closeEnd = content.indexOf('>', m.start()) + 1;
+                    return content.substring(tagStart, closeEnd);
+                }
+            } else if (!fullMatch.endsWith("/>")) {
+                depth++;
+            }
+            pos = m.end();
+        }
+        return null;
+    }
+
     private boolean isObjectBorrowed(Path extDir, String dirName, String objName) {
         return Files.isRegularFile(extDir.resolve(dirName).resolve(objName + ".xml"));
     }
@@ -966,33 +1034,43 @@ public class ExtensionEditor {
                 + tabularXmlBlocks.size() + " tabular section(s) → " + extObjXml);
     }
 
-    /** Список имён, извлечённых из {@code DataPath} (берётся только первый сегмент до точки). */
+    /** Список имён, извлечённых из data-binding тегов (берётся сегмент после {@code Объект.}). */
     private Set<String> extractTopLevelAttributeNamesFromDataPaths(String formContent) {
         Set<String> names = new LinkedHashSet<>();
-        Matcher m = Pattern.compile("<DataPath>([^<]+)</DataPath>").matcher(formContent);
-        while (m.find()) {
-            String path = m.group(1).trim();
-            if (path.isEmpty()) continue;
-            int dot = path.indexOf('.');
-            String top = dot < 0 ? path : path.substring(0, dot);
-            // Пропускаем псевдо-реквизиты формы
-            if ("Объект".equalsIgnoreCase(top) || "Object".equalsIgnoreCase(top)
-                    || "Список".equalsIgnoreCase(top) || "List".equalsIgnoreCase(top)
-                    || "Запись".equalsIgnoreCase(top) || "Record".equalsIgnoreCase(top)
-                    || "НаборЗаписей".equalsIgnoreCase(top) || "RecordSet".equalsIgnoreCase(top)
-                    || "Отчет".equalsIgnoreCase(top) || "Отчёт".equalsIgnoreCase(top)
-                    || "Report".equalsIgnoreCase(top)) {
-                if (dot >= 0) {
-                    String rest = path.substring(dot + 1);
-                    int dot2 = rest.indexOf('.');
-                    String next = dot2 < 0 ? rest : rest.substring(0, dot2);
-                    if (!next.isEmpty()) names.add(next);
-                }
-            } else {
-                names.add(top);
+        for (String tag : FORM_BINDING_DATA_TAGS) {
+            Matcher m = Pattern.compile("<" + tag + ">([^<]+)</" + tag + ">").matcher(formContent);
+            while (m.find()) {
+                addTopLevelAttributeName(names, m.group(1));
             }
         }
+        Matcher fields = Pattern.compile("<Field>[^<]*\\bОбъект\\.(\\w+(?:\\.\\w+)*)</Field>").matcher(formContent);
+        while (fields.find()) {
+            addTopLevelAttributeName(names, "Объект." + fields.group(1));
+        }
         return names;
+    }
+
+    private void addTopLevelAttributeName(Set<String> names, String rawPath) {
+        String path = rawPath == null ? "" : rawPath.trim();
+        if (path.isEmpty()) return;
+        int dot = path.indexOf('.');
+        String top = dot < 0 ? path : path.substring(0, dot);
+        // Пропускаем псевдо-реквизиты формы
+        if ("Объект".equalsIgnoreCase(top) || "Object".equalsIgnoreCase(top)
+                || "Список".equalsIgnoreCase(top) || "List".equalsIgnoreCase(top)
+                || "Запись".equalsIgnoreCase(top) || "Record".equalsIgnoreCase(top)
+                || "НаборЗаписей".equalsIgnoreCase(top) || "RecordSet".equalsIgnoreCase(top)
+                || "Отчет".equalsIgnoreCase(top) || "Отчёт".equalsIgnoreCase(top)
+                || "Report".equalsIgnoreCase(top)) {
+            if (dot >= 0) {
+                String rest = path.substring(dot + 1);
+                int dot2 = rest.indexOf('.');
+                String next = dot2 < 0 ? rest : rest.substring(0, dot2);
+                if (!next.isEmpty()) names.add(next);
+            }
+        } else {
+            names.add(top);
+        }
     }
 
     /** Имена top-level элементов с тегом {@code <tag>}, имеющих внутри {@code <Name>...</Name>}. */

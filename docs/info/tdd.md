@@ -2,7 +2,7 @@
 
 TDD в этом фреймворке — это дисциплина **Red → Green → Refactor**, где тесты пишутся до реализации, а порядок фаз контролирует оркестратор.
 
-Базовое правило: [framework/rules/tdd-policy.md](../../framework/rules/tdd-policy.md)
+Базовое правило: [framework/rules/tdd-policy/SKILL.md](../../framework/rules/tdd-policy/SKILL.md)
 
 ## Что это значит на практике
 
@@ -38,8 +38,8 @@ TDD в этом фреймворке — это дисциплина **Red → G
    - формирует `test-report.md`.
 
 Подробно:
-- [framework/workflows/full-cycle.md](../../framework/workflows/full-cycle.md)
-- [framework/workflows/orchestrator.md](../../framework/workflows/orchestrator.md)
+- [framework/workflows/full-cycle/SKILL.md](../../framework/workflows/full-cycle/SKILL.md)
+- [framework/workflows/orchestrator/SKILL.md](../../framework/workflows/orchestrator/SKILL.md)
 
 ## Обязательные требования
 
@@ -74,7 +74,7 @@ TDD в этом фреймворке — это дисциплина **Red → G
 - **`implementation_error`**: ошибка в бизнес-логике — задача маршрутизируется обратно в Developer-Code с описанием: какой тест упал, что ожидалось, что получено.
 
 Это поведение зафиксировано в:
-- [framework/workflows/orchestrator.md](../../framework/workflows/orchestrator.md)
+- [framework/workflows/orchestrator/SKILL.md](../../framework/workflows/orchestrator/SKILL.md)
 - [framework/subagents/tester.md](../../framework/subagents/tester.md)
 
 ## Какие артефакты участвуют
@@ -88,8 +88,8 @@ TDD в этом фреймворке — это дисциплина **Red → G
 
 ## Связанные ресурсы
 
-- Политика TDD: [framework/rules/tdd-policy.md](../../framework/rules/tdd-policy.md)
-- Политика SDD: [framework/rules/sdd-policy.md](../../framework/rules/sdd-policy.md)
+- Политика TDD: [framework/rules/tdd-policy/SKILL.md](../../framework/rules/tdd-policy/SKILL.md)
+- Политика SDD: [framework/rules/sdd-policy/SKILL.md](../../framework/rules/sdd-policy/SKILL.md)
 - Кросс-ревью: [framework/rules/cross-review-policy.md](../../framework/rules/cross-review-policy.md)
 - Mandatory tools: [framework/rules/mandatory-tools.md](../../framework/rules/mandatory-tools.md)
 - Тестовый subagent: [framework/subagents/developer-tests.md](../../framework/subagents/developer-tests.md)

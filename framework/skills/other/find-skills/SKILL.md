@@ -1,6 +1,6 @@
 ---
 name: find-skills
-description: "Use for поиска и установки навыков агента когда пользователь спрашивает «есть ли навык для X» или хочет расширить возможности. Helps найти подходящий skill через npx skills find и установить его."
+description: "Когда нужен поиск или установка агентского навыка"
 capabilities: skills-management
 ---
 

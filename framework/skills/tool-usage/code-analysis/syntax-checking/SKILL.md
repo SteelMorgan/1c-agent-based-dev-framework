@@ -1,6 +1,6 @@
 ---
 name: syntax-checking
-description: "MUST use BEFORE коммитом или передачей BSL-кода на ревью. Defines двухуровневый процесс (LSP get_diagnostics → полная проверка Конфигуратором) как доказательство отсутствия синтаксических ошибок."
+description: "Перед handoff BSL: LSP и полная проверка синтаксиса"
 uses_capabilities:
   - get_diagnostics
   - get_quality_diagnostics

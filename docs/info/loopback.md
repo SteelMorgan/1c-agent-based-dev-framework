@@ -67,8 +67,8 @@
 Связанные материалы:
 - [docs/info/sdd.md](./sdd.md)
 - [docs/info/tdd.md](./tdd.md)
-- [framework/workflows/full-cycle.md](../../framework/workflows/full-cycle.md)
-- [framework/workflows/orchestrator.md](../../framework/workflows/orchestrator.md)
+- [framework/workflows/full-cycle/SKILL.md](../../framework/workflows/full-cycle/SKILL.md)
+- [framework/workflows/orchestrator/SKILL.md](../../framework/workflows/orchestrator/SKILL.md)
 
 ---
 

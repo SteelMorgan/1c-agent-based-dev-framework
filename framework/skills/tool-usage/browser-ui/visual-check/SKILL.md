@@ -1,64 +1,21 @@
 ---
 name: visual-check
-description: "MUST use WHEN форма 1С создана или изменена и требует приёмки по UI-чеклисту. Provides скриншот через веб-клиент, проверку JS-ошибок в консоли и анализ по form-visual-requirements."
+description: "Deprecated: визуальная проверка форм 1С перенесена в va-visual-check"
 alwaysApply: false
 ---
 
-# Визуальная проверка форм (Visual Check)
+# Deprecated: visual-check
 
-Требуется: URL веб-клиента 1С (опубликованная база), учётные данные.
+Этот навык оставлен как совместимый указатель для старых ссылок. Для визуальной проверки 1С-форм используй профильный навык `va-visual-check`:
 
-## Процесс проверки
+- основной маршрут Vanessa/TestClient + VA MCP;
+- Linux headless X11/Xvfb рецепт для чёрных VA-скриншотов;
+- browser fallback и правила фиксации остаточного риска.
 
-### 1. Навигация к форме
-
-Предпочитай Deep Linking — быстрее навигации через интерфейс.
-
-- Список: `<base_url>/e1cib/list/<ТипМетаданных>.<Имя>`
-- Новый объект: `<base_url>/e1cib/data/<ТипМетаданных>.<Имя>?ref=00000000-0000-0000-0000-000000000000`
-- Существующий объект: `<base_url>/e1cib/data/<ТипМетаданных>.<Имя>?ref=<UUID>`
-
-### 2. Авторизация (если перенаправил на вход)
-
-`browser_snapshot` → `browser_fill` (логин/пароль по ref) → `browser_click` (Войти).
-
-### 3. Снимок и консоль
-
-После загрузки (дождаться исчезновения индикатора):
-1. `browser_take_screenshot`
-2. `browser_console_messages` — искать «Error», «Exception», «Uncaught»
-
-### 4. Анализ по чеклисту `form-visual-requirements`
-
-- Расположение и выравнивание (группировка, отступы, ширина)
-- Элементы управления и подписи (метки, обрезка, заголовки, командная панель)
-- Удобство (порядок обхода, ключевые поля, таблицы, горизонтальная прокрутка)
-- Специфика типа объекта (справочники, документы, обработки)
-
-**Отчёт:** результат анализа скриншота + наличие/отсутствие JS-ошибок.
-
-## Capabilities
-
-| Capability | Назначение |
-|------------|------------|
-| `browser_navigate` | Открытие URL формы |
-| `browser_snapshot` | Структура страницы и ref-ы элементов |
-| `browser_fill` | Заполнение полей |
-| `browser_click` | Клик по элементам |
-| `browser_take_screenshot` | Снимок формы |
-| `browser_console_messages` | Проверка JS-ошибок |
-| `browser_wait_for` | Ожидание загрузки |
-
-## Типичные ошибки
-
-| Ошибка | Обходной путь |
-|--------|---------------|
-| Скриншот пустой | `browser_wait_for` перед скриншотом |
-| Deep Link не работает для нового | Список → «Создать» через `browser_click` |
-| `browser_fill` не находит поле | `browser_snapshot` для актуальных ref-ов |
-| JS-ошибки при нормальной форме | Зафиксировать — проявятся при сохранении |
+Оценку качества формы выполняй по `form-visual-requirements`.
 
 ---
 depends_on:
+  - framework/skills/tool-usage/vanessa/va-visual-check/SKILL.md
   - framework/skills/bsl-practices/form-visual-requirements/SKILL.md
 ---

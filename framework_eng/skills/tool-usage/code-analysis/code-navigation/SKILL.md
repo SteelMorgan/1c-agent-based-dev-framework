@@ -1,6 +1,6 @@
 ---
 name: code-navigation
-description: "Use for navigating BSL code through LSP (finding definitions, references, call graphs, renaming). Helps precisely locate symbols from the project index without guessing their location."
+description: "BSL LSP navigation: definitions, refs, call graph"
 uses_capabilities:
   - navigate_symbol
   - get_call_graph
@@ -13,7 +13,7 @@ uses_capabilities:
 
 # Code Navigation
 
-Do not guess where code is located - use LSP. Accurate results from the project index.
+Do not guess code location - use LSP. Exact results from the project index.
 
 ## When to use
 
@@ -21,16 +21,16 @@ Do not guess where code is located - use LSP. Accurate results from the project 
 |---------|----------|
 | Search for procedure/function definitions | `navigate_symbol` operation `definition` |
 | All calls to function X | `navigate_symbol` `search` or `get_call_graph` `incoming` |
-| Who a function calls | `get_call_graph` `outgoing` |
+| What a function calls | `get_call_graph` `outgoing` |
 | Rename across the project | `rename_symbol` (first `preview: true`) |
 | Quick Fixes | `get_code_actions` |
 | File diagnostics | `get_diagnostics` |
 | Investigating unknown code | `navigate_symbol` → `get_call_graph` → hover |
-| Error «method not found» on a platform type | `getMembers` / `getMember` / `getConstructors` |
-| Object structure / tabular sections / attributes, enum values, predefined items | `get_completion` after a dot (see «Metadata discovery») |
+| Error "method not found" on a platform type | `getMembers` / `getMember` / `getConstructors` |
+| Object structure / tabular sections / attributes, enum values, predefined items | `get_completion` after a dot (see "Metadata discovery") |
 | Where a metadata object is used in code | `search_ssl_functions` references on `Документы.X` + grep (see below) |
-| Estimate who a procedure/function change affects | `get_symbol_impact` (callers + references + classification) |
-| Parameter hints while writing a call | `signature_help` — cursor INSIDE the call parentheses (see «Parameter hints») |
+| Estimate who a procedure/function change affects | `get_symbol_impact` (incoming + references + classification) |
+| Parameter hints while writing a call | `signature_help` — cursor INSIDE the call parentheses (see "Parameter hints") |
 
 ## Algorithms
 
@@ -53,7 +53,7 @@ Do not guess where code is located - use LSP. Accurate results from the project 
 
 ### Verify the platform API after an error
 
-**Trigger:** error «Object method not found» / «Incorrect number of parameters» on a platform type. Do not guess again - verify.
+**Trigger:** error "Object method not found" / "Incorrect number of parameters" on a platform type. Do not guess again - verify.
 
 1. `search_syntax_reference(query: "ТипОбъекта")` → confirm the name, get `id`
 2. `getMembers(typeId)` → exact list of methods/properties
@@ -73,16 +73,16 @@ BSL LS Type System v2 exposes configuration metadata through completion. One too
 | Predefined items | after `Справочники.Имя.` / `ПланыСчетов.Имя.` | predefined items + manager methods |
 | Composition of a DefinedType | cursor on an attribute of type ОпределяемыйТип | `get_completion` + `get_hover_info` reveal the composing types |
 
-**Inverse signal:** if `get_completion` after `перем.` returns nothing or does not include the expected member, the variable type was inferred incorrectly/unknown. No completion here = a type error indicator (a common 1C bug), not «no data».
+**Inverse signal:** if `get_completion` after `перем.` returns nothing or does not include the expected member, the variable type was inferred incorrectly/unknown. No completion here = a type error indicator (a common 1C bug), not "no data".
 
 ### Find where a metadata object is used in code
 
 The picture is hybrid (how the object is used in BSL itself):
 
-1. `search_ssl_functions` (references mode) on the manager symbol `Документы.ИмяОбъекта` → **semantically precise** manager-access locations. References exclude matches in comments/strings/query text.
-2. **Complement with grep** for what is not a symbol and therefore is not visible to references: string type literals (`"ДокументСсылка.ИмяОбъекта"`, `Тип("ДокументСсылка.…")`) and metadata paths inside query text (`ИЗ Документ.ИмяОбъекта`).
+1. `search_ssl_functions` (references mode) on the manager symbol `Документы.ИмяОбъекта` → **semantically exact** manager-access locations. References exclude matches in comments/strings/query text.
+2. **Supplement with grep** for what is not a symbol and therefore is not visible to references: string literals of the type (`"ДокументСсылка.ИмяОбъекта"`, `Тип("ДокументСсылка.…")`) and metadata paths inside query text (`ИЗ Документ.ИмяОбъекта`).
 
-> For “where used”, prefer references over a bare grep by name: grep produces false positives in comments and strings. Use grep only to pick up string/query usages.
+> For "where used", prefer references over a bare grep by name: grep produces false positives in comments and strings. Use grep only to pick up string/query usages.
 
 ### Change-impact analysis: `get_symbol_impact`
 
@@ -102,7 +102,7 @@ Returns the list of parameters for the called method and which argument the curs
 **You MUST pass `line`/`character` as 0-based, with the cursor INSIDE the call parentheses** — between `(` and `)`, NOT on the method name and NOT before `(`. The provider finds the enclosing call (`doCall`), resolves the called method, and only then returns signatures.
 
 ```
-// Line (1-based 8):  Аккаунт = ПолучитьАккаунт(ДокументОперации, ПараметрыОперации);
+// Строка (1-based 8):  Аккаунт = ПолучитьАккаунт(ДокументОперации, ПараметрыОперации);
 signature_help(uri, line=7, character=29)   // immediately after "(" → param 0
 //   → ПолучитьАккаунт(ДокументОперации?, ПараметрыОперации?), Active parameter: 0
 signature_help(uri, line=7, character=47)   // after comma   → Active parameter: 1
@@ -110,7 +110,7 @@ signature_help(uri, line=7, character=47)   // after comma   → Active paramete
 
 **Empty result ≠ tool is broken.** `signature_help` returns signatures only when the called method resolves to a method with a known parameter list. It works reliably for **methods in the same module** (resolution from parsed source). It returns empty for:
 - cursor NOT inside the parentheses (on the name / before `(`) — the most common mistake;
-- cross-module call (`Модуль.Метод(`) — requires the configuration type index, and works only when BSL LS is pointed at a single configuration root (see “Common mistakes”: cross-module resolution);
+- cross-module call (`Модуль.Метод(`) — requires the configuration type index, and works only when BSL LS is pointed at a single configuration root (see "Common mistakes": cross-module resolution);
 - global platform methods (`СтрШаблон(`, `ЗначениеЗаполнено(`) and platform object methods (`Запрос.УстановитьПараметр(`) — requires a loaded **1C platform context** (`.hbk` syntax helper). The mcp-lsp container is lightweight — the platform is NOT baked into the image, it is provisioned at runtime. The `bsl-ls` run script generates a global config and passes it through `-Dapp.globalConfiguration.path`: when `BSL_PLATFORM_BIN` is set (compose `docker-compose.platform.yml` mounts the `.hbk` directory read-only) — the explicit `v8platform.binPath` takes priority; when it is not set — BSL LS auto-detects the installed platform (including Windows). Without either, the startup log shows `Failed to load platform contexts: No 1C platform installations found`, and platform hover/completion/signatures are empty. With a loaded context (`Loaded N platform contexts from 1C syntax helper`) — they resolve with full parameter docs (in Russian when `language:ru`).
 
 For a confirmed parameter list regardless of call site - `getMember(typeId, member)` (platform types) or `navigate_symbol`→hover (the method's own declaration).

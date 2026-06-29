@@ -1,6 +1,6 @@
 ---
 name: db-performance
-description: "Use for диагностики производительности БД и запросов 1С. Helps выявить slow query, план СУБД, блокировки, deadlock, TEMPDB/WAL, размеры таблиц и СКД на больших данных."
+description: "Диагностика медленных запросов, блокировок и планов СУБД"
 target_agents:
   - debugger
   - developer-code

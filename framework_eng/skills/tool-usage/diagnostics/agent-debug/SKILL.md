@@ -1,24 +1,24 @@
 ---
 name: agent-debug
-description: "MUST use WHEN standard diagnostics (event-log, screenshots) do not reveal the actual system behavior - you need to insert temporary logging points into code, run a test, and analyze the registration log entries. Provides a debug-block pattern with AGENTDEBUG markers and cleanup afterward."
+description: "Trace BSL when the event log/screenshots do not explain the failure"
 alwaysApply: false
 ---
 
-# Debug messages (Agent Debug)
+# Debug Messages (Agent Debug)
 
-## When to use
+## When to Use
 
 | Trigger | Action |
-|---------|--------|
-| Standard diagnostics do not reveal the behavior | Insert debug points |
-| A hypothesis about the root cause needs confirmation/refutation | Log key values |
-| It is unclear which branch of code is being executed | Place markers across branches |
+|---------|----------|
+| Standard diagnostics do not explain the behavior | Insert debug points |
+| A hypothesis about the cause of the error needs confirmation or refutation | Log key values |
+| It is unclear which code branch is executing | Place markers on branches |
 
-**Do not use** if the answer can be obtained by reading the code, event-log, or a screenshot.
+**DO NOT** use if the answer can be obtained by reading the code, event log, or a screenshot.
 
 ---
 
-## Debug block format
+## Debug Block Format
 
 ```bsl
 //[AGENTDEBUG-001]
@@ -30,90 +30,90 @@ alwaysApply: false
 ///[AGENTDEBUG-001]
 ```
 
-### Marker rules
+### Marker Rules
 
 - Opening: `//[AGENTDEBUG-NNN]`
 - Closing: `///[AGENTDEBUG-NNN]` (three slashes)
-- NNN is the sequential point number (001, 002, ...)
-- Between markers - **ONLY** debug code. No production code inside the block
-- Nested blocks are forbidden
+- NNN is the ordinal number of the point (001, 002, ...)
+- Between markers there must be **ONLY** debugging code. No production code inside the block
+- Nested blocks are prohibited
 
 ### Parameters for ЗаписьЖурналаРегистрации
 
 | Parameter | Value | Why |
-|-----------|-------|-----|
-| ИмяСобытия | `"AgentDebug"` | Filtering: all debug entries with one query |
-| Уровень | `Информация` | Persisted reliably in the registration log (note may not be saved) |
-| МетаданныеОбъекта | `Неопределено` or a specific object | If obvious, specify it for additional filtering |
-| Данные | Reference to an object or `Неопределено` | For correlation with a specific document/element |
+|----------|----------|-------|
+| ИмяСобытия | `"AgentDebug"` | Filtering: all debug records with one query |
+| Уровень | `Информация` | Reliably saved in the event log (Note may not be saved) |
+| МетаданныеОбъекта | `Неопределено` or a specific object | If obvious, specify for additional filtering |
+| Данные | Object reference or `Неопределено` | For correlation with a specific document/item |
 | Комментарий | `STEP=NNN PROC=... MSG=... \| key=value` | Structured format, easy to parse |
 
-### Comment format
+### Comment Format
 
 ```
-STEP=001 PROC=ОбработкаПроведения MSG=Brief description of the hypothesis | Key1=Value1 | Key2=Value2
+STEP=001 PROC=ОбработкаПроведения MSG=Краткое описание гипотезы | Ключ1=Значение1 | Ключ2=Значение2
 ```
 
-- `STEP` is the point number (matches the marker)
-- `PROC` is the name of the procedure/function
-- `MSG` is what is being verified (the hypothesis)
-- After `|` - key values in `key=value` format
+- `STEP` — point number (matches the marker)
+- `PROC` — procedure/function name
+- `MSG` — what is being checked (hypothesis)
+- After `|` — key values in `key=value` format
 - Do not log: large structures, value tables, binary data, passwords
 
 ---
 
 ## Procedure
 
-1. **Formulate the hypothesis** - what exactly is being verified and why
-2. **Identify points** - where in the code to insert logging (1-3 per hypothesis, max 5)
+1. **Formulate the hypothesis** — what exactly we are checking and why
+2. **Determine the points** — where to insert logging in the code (1-3 per hypothesis, max 5)
 3. **Insert debug blocks** with markers `//[AGENTDEBUG-NNN]` ... `///[AGENTDEBUG-NNN]`
-4. **Run the test** - unit test or Vanessa scenario
-5. **Read the registration log** - filter by `ИмяСобытия = "AgentDebug"`, sort by time
-6. **Draw the conclusion** - hypothesis confirmed or refuted
+4. **Run the test** — unit test or Vanessa scenario
+5. **Read the event log** — filter by `ИмяСобытия = "AgentDebug"`, sort by time
+6. **Draw a conclusion** — hypothesis confirmed/refuted
 7. **Remove ALL debug blocks** (see cleanup checklist)
 
-If one iteration is not enough - adjust the points and repeat (steps 2-6).
-If 10+ points are needed - the hypothesis is too broad; split it into several.
+If one iteration is not enough, adjust the points and repeat (steps 2-6).
+If you need 10+ points, the hypothesis is too broad; split it into several.
 
 ---
 
-## Where to insert
+## Where to Insert
 
-Search order for a suitable place:
+Order of finding a suitable place:
 
-1. **Form module** - event handlers, ПриИзменении, ПередЗаписью
-2. **Object module** - ОбработкаПроведения, ПередЗаписью, ПриЗаписи
-3. **Manager module** - if the logic is in a manager
-4. **Common modules** - if the call goes into a common module
+1. **Form module** — event handlers, ПриИзменении, ПередЗаписью
+2. **Object module** — ОбработкаПроведения, ПередЗаписью, ПриЗаписи
+3. **Manager module** — if the logic is in the manager
+4. **Common modules** — if the call goes into a common module
 
-It is preferable to delegate code inspection to a subagent (Explorer / `code-navigation`).
+It is preferable to delegate code inspection to a sub-agent (Explorer / `code-navigation`).
 
 ---
 
-## Cleanup checklist
+## Cleanup Checklist
 
-**MUST** before finishing the task:
+**MUST** before completing the task:
 
-1. Search the code for `AGENTDEBUG` - no occurrences should remain
-2. Check that only the lines between the markers were removed, and production code was not touched
+1. Search in code: `AGENTDEBUG` — no occurrences should remain
+2. Check that only the lines between markers were removed, production code was not affected
 3. Check module syntax after removal
-4. Make sure the marker comments are also removed (opening and closing)
+4. Make sure marker comments are also removed (opening and closing)
 
-**Line-by-line removal:**
+**Remove line by line:**
 - Find the line with `//[AGENTDEBUG-NNN]`
-- Delete all lines up to and including the matching `///[AGENTDEBUG-NNN]`
-- If the matching marker is not found - **STOP**, report the error
+- Remove all lines up to the matching `///[AGENTDEBUG-NNN]` inclusive
+- If the matching marker is not found — **STOP**, report an error
 
 ---
 
-## Anti-patterns
+## Anti-Patterns
 
 | Anti-pattern | Consequence |
-|--------------|-------------|
-| Production code inside the debug block | Removing the block breaks business logic |
-| Debug blocks left in the final code | Registration log pollution, data leakage |
-| 10+ points for one hypothesis | The hypothesis is too broad; the result is unclear |
-| Logging value tables / large structures | Registration log overflow, slowdown |
+|-------------|-------------|
+| Production code inside a debug block | Removing the block will break business logic |
+| Debug blocks left in the final code | Event log clutter, data leakage |
+| 10+ points for one hypothesis | Overly broad hypothesis, unclear result |
+| Logging value tables / large structures | Event log overflow, slowdown |
 | Free text instead of key=value | Hard to parse during analysis |
 
 ---

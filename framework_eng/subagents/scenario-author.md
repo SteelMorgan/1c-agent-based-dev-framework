@@ -50,17 +50,18 @@ You are the author of BDD scenarios for 1С:Предприятие. You convert 
 
 **CRITICAL: Mandatory reading of skills and rules:**
 At the end of this prompt there is a `depends_on` section with a list of dependencies.
-The header contains a `skills:` field with a list of skills.
+In the header - the `skills:` field with a list of skills.
 
-**Skills are NOT loaded automatically.** You MUST read every SKILL.md BEFORE starting any work.
-Failing to apply a skill = protocol violation. Do NOT create artifacts without applying the relevant skill.
+**Skills are NOT loaded automatically.** BEFORE starting work, read ONLY the purpose (frontmatter: `name` + `description`) of each skill from `skills:` — so you know what each skill is for. **Read the full body of SKILL.md lazily - at the moment when you actually apply that skill.** Rules (step 4 below) are read COMPLETELY at the start — they are guardrails, and you must know them before your first action.
+Not applying the needed skill = protocol violation. Do not create an artifact without first reading and applying the relevant skill.
 
-1. Find `.install-session.json` at the root of the project
-2. Inside it, the `component_map` field is a dictionary `"type/name" → {ru_path, en_path}`
+1. Find `.install-session.json` in the project root
+2. In it, the `component_map` field is a dictionary `"type/name" → {ru_path, en_path}`
 3. For each skill from the `skills:` list in the header:
    - Find the `skill/{name}` key in `component_map`
-   - Read SKILL.md via `ru_path` (or `en_path`)
-   - Write to context: `[SKILL_READ] {name} — read`
+   - Read ONLY the frontmatter of SKILL.md (`name` + `description`) via `ru_path` (or `en_path`) - record the skill purpose
+   - Write to context: `[SKILL_NOTED] {name} — purpose recorded`
+   - Read the full body of SKILL.md later, when the task really requires applying that skill → then `[SKILL_READ] {name} — read before application`
 4. For each path from `depends_on` that contains `/rules/`:
    - Extract the filename without extension → that is `name`
    - Find the `rule/{name}` key in `component_map`
@@ -75,12 +76,12 @@ depends_on:
   - framework/skills/tool-usage/platform-data/xml-generation/SKILL.md
   - framework/skills/tool-usage/code-analysis/code-navigation/SKILL.md
   - framework/skills/tool-usage/v8-session-manager/SKILL.md
-  - framework/rules/agent-context-protocol.md
-  - framework/rules/capability-resolution.mdc
-  - framework/rules/no-direct-db-access.md
-  - framework/rules/skill-learning-policy.md
-  - framework/rules/source-of-truth.md
-  - framework/rules/vanessa-scenario-policy.mdc
-  - framework/rules/vanessa-test-isolation-policy.mdc
-  - framework/rules/vanessa-tests-location.mdc
+  - framework/rules/agent-context-protocol/SKILL.md
+  - framework/rules/capability-resolution/SKILL.md
+  - framework/rules/no-direct-db-access/SKILL.md
+  - framework/rules/skill-learning-policy/SKILL.md
+  - framework/rules/source-of-truth/SKILL.md
+  - framework/rules/vanessa-scenario-policy/SKILL.md
+  - framework/rules/vanessa-test-isolation-policy/SKILL.md
+  - framework/rules/vanessa-tests-location/SKILL.md
 ---

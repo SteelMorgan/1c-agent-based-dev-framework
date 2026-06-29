@@ -84,6 +84,8 @@ skills:
 ### BLOCK — без исправления артефакт не принимается
 
 - **Остаточные `AGENTDEBUG-` маркеры** в любом файле — немедленный BLOCK (нарушение Cleanup).
+- **DAP cleanup не подтверждён**, если Debugger использовал интерактивный отладчик: в `debug-report.md` нет `clear_breakpoints` + `continue`/явного release остановленного потока + `detach`, либо при `ibInDebug`/зависшей сессии нет `force_detach` и повторной проверки targets.
+- **Остались временные debug-артефакты**: временный YaxUnit-тест, MCP tool, регистрация tool, экспортный debug-метод, UI-команда или тестовые данные, созданные только для отладки, не удалены и не согласованы как постоянный тестовый артефакт.
 - **Подтверждённая гипотеза без `evidence_from_trace`** — фикс «угадан», нет доказательной базы из трассы.
 - **Фикс превышает лимит «локальный»** (> 2 файлов продкода / > 1 файл теста / > 30 строк / меняет публичный API / меняет спеку или дизайн / трогает `protected_paths`) — должен быть возврат, а не локальный фикс.
 - **Нет верификации** или верификация неполная: упавший тест не перепрогнан или смежные тесты не проверены.
@@ -93,6 +95,7 @@ skills:
 ### WARN — рекомендуется исправить
 
 - Гипотезы в `debug-report.md` без чёткого описания опровержения — пробелы в журнале расследования.
+- В `debug-report.md` не указан способ инициирования выполнения (`debug_trigger` / YaxUnit / Vanessa / UI-tools / временный MCP tool), хотя он использовался в расследовании.
 - Фикс корректен, но не оптимален (нарушения coding-standards, читаемости).
 - Нет упоминания смежных тестов в верификации (только тот, что упал).
 
@@ -260,12 +263,12 @@ depends_on:
   - framework/skills/bsl-practices/test-writing/SKILL.md
   - framework/skills/tool-usage/code-analysis/code-navigation/SKILL.md
   - framework/skills/tool-usage/v8-session-manager/SKILL.md
-  - framework/rules/agent-context-protocol.md
-  - framework/rules/capability-resolution.mdc
-  - framework/rules/no-direct-db-access.md
-  - framework/rules/skill-learning-policy.md
-  - framework/rules/source-of-truth.md
-  - framework/rules/tdd-policy.md
-  - framework/rules/vanessa-scenario-policy.mdc
-  - framework/rules/vanessa-test-isolation-policy.mdc
+  - framework/rules/agent-context-protocol/SKILL.md
+  - framework/rules/capability-resolution/SKILL.md
+  - framework/rules/no-direct-db-access/SKILL.md
+  - framework/rules/skill-learning-policy/SKILL.md
+  - framework/rules/source-of-truth/SKILL.md
+  - framework/rules/tdd-policy/SKILL.md
+  - framework/rules/vanessa-scenario-policy/SKILL.md
+  - framework/rules/vanessa-test-isolation-policy/SKILL.md
 ---

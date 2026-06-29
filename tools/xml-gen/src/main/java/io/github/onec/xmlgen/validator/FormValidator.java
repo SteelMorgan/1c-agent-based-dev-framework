@@ -67,6 +67,10 @@ public class FormValidator implements XmlValidator {
     private static final Set<String> KNOWN_DATE_FRACTIONS = Set.of("Date", "Time", "DateTime");
     private static final Set<String> KNOWN_CALL_TYPES = Set.of("Before", "After", "Override");
 
+    private static final List<String> DATA_BINDING_TAGS = List.of(
+            "DataPath", "TitleDataPath", "FooterDataPath", "HeaderDataPath",
+            "MultipleValueDataPath", "MultipleValuePresentDataPath");
+
     @Override
     public String objectType() {
         return "form";
@@ -560,7 +564,8 @@ public class FormValidator implements XmlValidator {
      *   <li>Иначе → взять первый сегмент через точку.</li>
      * </ol>
      *
-     * @param dataPath  значение DataPath из XML
+     * @param bindingName имя data-binding тега
+     * @param dataPath  значение data-binding пути из XML
      * @param attrNames имена реквизитов формы
      * @param tableMap  имена Table-элементов → DataPath таблицы (из ChildItems)
      * @param elemLine  строка для отчёта
@@ -568,7 +573,7 @@ public class FormValidator implements XmlValidator {
      * @param issues    список для добавления ошибок
      * @return true = резолв выполнен (не нужна дальнейшая проверка), false = стандартная проверка не нужна
      */
-    private boolean resolveDataPath(String dataPath, Set<String> attrNames,
+    private boolean resolveDataPath(String bindingName, String dataPath, Set<String> attrNames,
                                     Map<String, String> tableMap,
                                     int elemLine, String elemPath,
                                     List<ValidationIssue> issues) {
@@ -592,8 +597,9 @@ public class FormValidator implements XmlValidator {
                 String tableName = parts[1];
                 if (!tableMap.containsKey(tableName)) {
                     issues.add(ValidationIssue.error("FORM-102",
-                            "DataPath '" + dataPath + "': Items table '" + tableName + "' not found in form ChildItems",
-                            elemLine, elemPath + "/DataPath"));
+                            bindingName + " '" + dataPath + "': Items table '" + tableName
+                                    + "' not found in form ChildItems",
+                            elemLine, elemPath + "/" + bindingName));
                     return true;
                 }
                 String tableDataPath = tableMap.get(tableName);
@@ -606,16 +612,17 @@ public class FormValidator implements XmlValidator {
                 String rootAttr = cleaned.contains(".") ? cleaned.split("\\.")[0] : cleaned;
                 if (!rootAttr.isEmpty() && !attrNames.contains(rootAttr) && !"Object".equals(rootAttr)) {
                     issues.add(ValidationIssue.error("FORM-102",
-                            "DataPath '" + dataPath + "': table '" + tableName + "' DataPath='"
+                            bindingName + " '" + dataPath + "': table '" + tableName + "' DataPath='"
                                     + tableDataPath + "' references unknown attribute '" + rootAttr + "'",
-                            elemLine, elemPath + "/DataPath"));
+                            elemLine, elemPath + "/" + bindingName));
                 }
                 return true;
             } else {
                 // Items.* но не Items.<T>.CurrentData — предупреждение (unknown shape)
                 issues.add(ValidationIssue.warning("FORM-102",
-                        "DataPath '" + dataPath + "' has unknown Items.* shape; expected Items.<Table>.CurrentData.<Field>",
-                        elemLine, elemPath + "/DataPath"));
+                        bindingName + " '" + dataPath
+                                + "' has unknown Items.* shape; expected Items.<Table>.CurrentData.<Field>",
+                        elemLine, elemPath + "/" + bindingName));
                 return true;
             }
         }
@@ -626,8 +633,9 @@ public class FormValidator implements XmlValidator {
             String rootAttr = withoutTilde.contains(".") ? withoutTilde.split("\\.")[0] : withoutTilde;
             if (!rootAttr.isEmpty() && !attrNames.contains(rootAttr) && !"Object".equals(rootAttr)) {
                 issues.add(ValidationIssue.error("FORM-102",
-                        "DataPath '" + dataPath + "' references unknown attribute '" + rootAttr + "' (relative ~path)",
-                        elemLine, elemPath + "/DataPath"));
+                        bindingName + " '" + dataPath + "' references unknown attribute '" + rootAttr
+                                + "' (relative ~path)",
+                        elemLine, elemPath + "/" + bindingName));
             }
             return true;
         }
@@ -682,21 +690,22 @@ public class FormValidator implements XmlValidator {
             }
             //++agent TASK-175
 
-            // FORM-102: DataPath → существующий Attribute.name (с расширенным резолвом)
-            String dataPath = elem.childText("DataPath");
-            //**agent TASK-175 [07.06.2026 19:10:00]
-            //if (dataPath != null && !dataPath.isEmpty()) {
-            if (dataPath != null && !dataPath.isEmpty() && !baseElementOfBorrowedForm) {
-            //**agent TASK-175
-                boolean handled = resolveDataPath(dataPath, attrNames, tableMap,
-                        elem.getLine(), elemPath, issues);
-                if (!handled) {
-                    // Стандартная логика: берём первый сегмент
-                    String rootAttr = dataPath.contains(".") ? dataPath.split("\\.")[0] : dataPath;
-                    if (!attrNames.contains(rootAttr) && !"Object".equals(rootAttr)) {
-                        issues.add(ValidationIssue.error("FORM-102",
-                                "DataPath '" + dataPath + "' references unknown attribute '" + rootAttr + "'",
-                                elem.getLine(), elemPath + "/DataPath"));
+            // FORM-102: data-binding path → существующий Attribute.name (с расширенным резолвом)
+            if (!baseElementOfBorrowedForm) {
+                for (String bindingName : DATA_BINDING_TAGS) {
+                    String dataPath = elem.childText(bindingName);
+                    if (dataPath == null || dataPath.isEmpty()) continue;
+                    boolean handled = resolveDataPath(bindingName, dataPath, attrNames, tableMap,
+                            elem.getLine(), elemPath, issues);
+                    if (!handled) {
+                        // Стандартная логика: берём первый сегмент
+                        String rootAttr = dataPath.contains(".") ? dataPath.split("\\.")[0] : dataPath;
+                        if (!attrNames.contains(rootAttr) && !"Object".equals(rootAttr)) {
+                            issues.add(ValidationIssue.error("FORM-102",
+                                    bindingName + " '" + dataPath + "' references unknown attribute '"
+                                            + rootAttr + "'",
+                                    elem.getLine(), elemPath + "/" + bindingName));
+                        }
                     }
                 }
             }

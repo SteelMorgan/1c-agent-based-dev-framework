@@ -1,6 +1,6 @@
 ---
 name: v8-runner
-description: "Use for управления v8-runner на локальных 1С-проектах: настройка v8project.yaml, сборка, синтаксические проверки, тесты, выгрузка/загрузка ИБ, конвертация форматов, запуск клиентов 1С."
+description: "v8-runner: базы, сборка, проверки, тесты, клиенты 1С"
 provides_capabilities:
   - build_project
   - full_rebuild_project
@@ -64,6 +64,19 @@ v8-runner --json-message build
 - `--log-level <error|warn|info|debug|trace>` — для диагностики.
 - `--no-color` — простой текстовый вывод.
 
+## Жизненный цикл запущенных клиентов 1С
+
+Интерактивные клиенты 1С и MCP/VA-сессии, которые должны оставаться доступными после возврата команды агенту, запускай как самостоятельные процессы с явным управлением жизненным циклом. Не используй `sleep`, `tail -f`, бесконечный shell-loop или похожую wrapper-команду как способ «удержать» клиент 1С живым: при завершении wrapper'а терминал/PTY или окружение агента может закрыть дочерний процесс 1С, а `session-manager` увидит это как обрыв WS без нормального закрытия.
+
+Правильный порядок:
+
+1. Запусти клиент через штатную команду `v8-runner launch ...`.
+2. Если среда выполнения прибирает дочерние процессы после завершения shell-команды, запускай команду detached-средствами окружения (`nohup`, `setsid`, service/job runner или эквивалент проекта), сохрани PID и лог запуска.
+3. Готовность проверяй внешним наблюдаемым состоянием: `session_list`, появление нужных MCP-tools, окно 1С, файл-протокол или запись в ЖР.
+4. Завершай клиент явным действием: штатным инструментом session-manager/VA, командой закрытия клиента или точечным `kill <PID>` только для своего сохранённого PID.
+
+`sleep` допустим только как короткое ожидание между проверками готовности внутри скрипта/poll-loop. Он не должен быть владельцем жизненного цикла 1С-процесса.
+
 ## Первый проход
 
 1. Проверь, существует ли `v8project.yaml` в корне 1С-проекта.
@@ -89,7 +102,7 @@ v8-runner init
 - Переключение ветки, rebase, большие перемещения объектов, устаревшее состояние tool-расширения на основе исходников или подозрительное инкрементальное состояние: запусти `v8-runner build --full-rebuild`.
 - Синтаксическая проверка: посмотри `format` и `builder`, затем выбери `syntax designer-modules`, `syntax designer-config` или `syntax edt`.
 - Валидация поведения: запусти подходящую команду `v8-runner test ...`; тесты сначала собирают.
-- Отладка Vanessa Automation или написание сценариев: используй `v8-runner launch mcp va ...`, чтобы запустить клиентский MCP-сервер с загруженной VA.
+- Отладка Vanessa Automation, исследование форм и написание сценариев через MCP: используй `v8-runner launch mcp va ...`, чтобы запустить сеанс менеджера тестирования VA с MCP-инструментами. После старта проверяй готовность по `session_list`: нужен `kind=vanessa_test_client` и появление VA-tools, а не только первичная WS-регистрация.
 - Нужна синхронизация свойств расширений: используй `v8-runner extensions` или `extensions --name <SOURCE_SET>`.
 - Изменения в ИБ должны стать Git-видимыми файлами: проверь `git status`, затем запусти подходящую команду `v8-runner dump ...`.
 - Нужна конвертация исходников между Designer и EDT: используй `v8-runner convert`; это только CLI и не использует ИБ.
@@ -116,7 +129,7 @@ WS-сопряжение с [v8-client-session-manager](https://github.com/SteelM
 
 ### CLI-флаги
 
-- `--mcp-transport={ws|legacy|auto}` — `auto` (по умолчанию) делает TCP-пробу `manager_url` ~200 ms; `ws` — строго WS, падает при недоступности; `legacy` — старый HTTP-режим без probe.
+- `--mcp-transport={mcp|ws|auto}` — `auto` (по умолчанию) делает TCP-пробу `manager_url` ~200 ms; `ws` — строго WS, падает при недоступности; `mcp` — локальный HTTP MCP-режим без probe.
 - `--manager-url <URL>` — переопределить `tools.client_mcp.manager_url` (дефолт `ws://127.0.0.1:4000/sessions`).
 - `--client-uid <UUID>` — переопределить автогенерированный UUID v4.
 - `--corr-id <STR>` — переопределить `vr-<первые 8 символов client_uid>`.
@@ -128,22 +141,34 @@ WS-сопряжение с [v8-client-session-manager](https://github.com/SteelM
 ```yaml
 tools:
   client_mcp:
-    transport: auto         # ws | legacy | auto
+    transport: auto         # mcp | ws | auto
     manager_url: ws://127.0.0.1:4000/sessions
     log_level: info
     ws_timeout_ms: 1000
 ```
 
-`kind` фиксируется точкой входа и из CLI не переопределяется ни в одном режиме.
+Для специализированных точек входа `kind` фиксируется точкой входа и из CLI не переопределяется. Для обычных UI-клиентов (`launch thin/thick/ordinary`) `kind` в `/C` не передаётся: расширение `client_mcp` само объявляет свой клиентский kind при `session.register`.
 
 ### Внутренний mapping `kind`
 
 | Команда | `kind` |
 |---|---|
+| `launch thin/thick/ordinary` | не передаётся; клиентская сторона объявляет дефолтный kind |
 | `launch mcp` | `v8_runner_client` |
 | `launch mcp va` | `vanessa_test_client` |
 | `test yaxunit ...` | `yaxunit_runner` |
 | `test va ...` | `vanessa_test_client` |
+
+### Режимы запуска клиентов и тестов
+
+| Режим | Назначение | MCP/VA поведение |
+|---|---|---|
+| `launch designer` | Открыть Конфигуратор. | Не запускает клиентские MCP-tools и не применяет enterprise additional keys. |
+| `launch thin`, `launch thick`, `launch ordinary` | Открыть обычный UI-клиент 1С. | При WS-сопряжении регистрирует базовый клиентский MCP-набор без `kind`; сам по себе не даёт VA-tools. |
+| `launch mcp` | Запустить onec-client-mcp-devkit внутри 1С без Vanessa. | `kind=v8_runner_client` для WS; локальный HTTP MCP при `--mcp-transport=mcp` или fallback из `auto`. |
+| `launch mcp va` | Запустить менеджер тестирования Vanessa для исследования, авторинга и клиентских MCP-tools VA. | `kind=vanessa_test_client`; runner добавляет `/TESTMANAGER`, `/DisableUnsafeActionProtection`, `/Execute <vanessa-automation.epf>`, runtime `VAParams`, отключает автозапуск/автозакрытие сценариев и не использует `StartFeaturePlayer`. |
+| `test yaxunit ...` | Выполнить YAxUnit тесты. | `kind=yaxunit_runner` в WS-режиме; это тестовый runner, а не интерактивная UI-сессия. |
+| `test va` | Выполнить Vanessa feature-сценарии. | `kind=vanessa_test_client`, но payload — `StartFeaturePlayer;VAParams=...`; это прогон сценариев, не режим исследования менеджера. |
 
 ### Что v8-runner подставляет в `/C` в WS-ветке
 
@@ -151,9 +176,113 @@ tools:
 /C"mcpMode=ws;manager_url=<URL>;client_uid=<UUID>;kind=<KIND>;corr_id=<CORR>;mcp_log_level=<LVL>;mcp_ws_timeout_ms=<MS>"
 ```
 
-Для launch — это весь `/C`; для test-команд WS-фрагмент дописывается через `;` к существующему `RunUnitTests=…` / Vanessa-плееру (если transport=ws выбран через yaml-конфиг).
+Для `launch mcp` / `launch mcp va` — это весь `/C`. Для `launch thin/thick/ordinary` используется тот же WS-фрагмент, но **без** `kind=<KIND>`, и он дописывается через `;` к существующему `/C`, если он уже задан. Для test-команд WS-фрагмент дописывается через `;` к существующему `RunUnitTests=…` / Vanessa-плееру (если transport=ws выбран через yaml-конфиг).
 
-Полный payload, JSON-форму вывода (`--json-message`), правила probe и поведение при недоступности менеджера — в `references/project-workflows.md` (раздел «WS-режим к session-manager»). Подъём самого менеджера в v8-runner **не входит** — см. навык `v8-session-manager`.
+Обычный тонкий клиент в WS-режиме:
+
+```text
+/C"mcpMode=ws;manager_url=<URL>;client_uid=<UUID>;corr_id=<CORR>;mcp_log_level=<LVL>;mcp_ws_timeout_ms=<MS>"
+```
+
+Важно: в обычном `launch thin/thick/ordinary` не добавляй `kind`. Такой клиент регистрирует базовые инструменты `client_mcp`, но сам по себе не публикует MCP-инструменты Vanessa Automation.
+
+### Vanessa Automation MCP через session-manager
+
+Для workflow Vanessa Research/Scenario через наш `v8-client-session-manager` запускается не простой тонкий клиент, а сеанс менеджера тестирования с открытой обработкой Vanessa Automation:
+
+```bash
+v8-runner launch mcp va \
+  --mcp-transport ws \
+  --manager-url ws://127.0.0.1:4000/sessions \
+  --client-uid <uid> \
+  --corr-id <uid> \
+  --mcp-log-level debug \
+  --mcp-ws-timeout-ms 5000
+```
+
+Ожидаемая форма запуска 1С, которую должен собрать runner:
+
+```text
+1cv8c ENTERPRISE
+  /TESTMANAGER
+  /DisableStartupDialogs
+  /DisableUnsafeActionProtection
+  /IBConnectionString <строка подключения из v8project.yaml>
+  /N <пользователь>
+  /P <пароль>
+  /Execute <путь>/vanessa-automation.epf
+  /C"mcpMode=ws;manager_url=ws://127.0.0.1:4000/sessions;client_uid=<uid>;kind=vanessa_test_client;corr_id=<uid>;mcp_log_level=debug;mcp_ws_timeout_ms=5000;VAParams=<runtime va-params.json>"
+```
+
+Обязательный смысл этой строки запуска: MCP-сессия должна жить на стороне процесса тест-менеджера с открытой внешней обработкой Vanessa Automation. Не запускай тестируемое приложение с формой `MCPVA`: `MCPVA` — внутренняя форма/модуль внешней обработки VA, и именно VA в процессе `/TESTMANAGER` должна выполнить `MCPVA.ЗарегистрироватьИнструментыMCP()`.
+
+Критерий готовности VA MCP-сессии: в `session_list` появилась live-сессия `kind=vanessa_test_client`, и в её tools есть VA-инструменты (`get_VanessaAutomation_state`, `connect_test_client`, `get_window_list_os`, `get_window_screenshot_os`, `get_form_analysis`, `manage_command_interface`) или число tools стало больше базового набора `client_mcp`. Первичная регистрация с базовыми tools ещё не означает, что `MCPVA.ЗарегистрироватьИнструментыMCP()` уже отработал.
+
+Сразу после `v8-runner launch mcp va` ответ `session_list=[]` или отсутствие VA-tools **не является ошибкой**: запуск тест-менеджера и регистрация инструментов штатно могут занимать 10-90 секунд. Обязательный readiness-loop:
+
+1. Опроси `session_list` каждые 5-10 секунд.
+2. Жди суммарно до 120 секунд с момента запуска: 10-90 секунд — нормальный диапазон, 90-120 секунд — диагностический запас.
+3. Продолжай только при live-сессии `kind=vanessa_test_client`, `state=active`, `disconnected_secs_ago=null`, `inflight=0`, и наличии нужных VA-tools для текущей задачи.
+4. Имена tools из кеша MCP/showcase без live-сессии не доказывают готовность.
+5. Если условие не выполнено за 120 секунд — стоп и доклад `VA MCP readiness blocker`.
+
+После готовности WS-сессии тестируемое приложение в VA-контуре запускает сам тест-менеджер: вызови MCP-tool `connect_test_client` с аргументом `profileName` (имя профиля клиента тестирования, например `Codex thin AgentAI`). VA поднимет отдельный процесс `/TESTCLIENT -TPort <auto>` из профиля и подключит к нему `ТестируемоеПриложение`; после этого становятся доступны клиентские MCP-методы VA (`get_form_analysis`, `manage_command_interface`, `manage_form_elements`, screenshot/data tools и т.п.). Не запускай этот `/TESTCLIENT` вручную для VA-пути, если только не отлаживаешь сам механизм профилей.
+
+После исследования, прогона ручных действий или ошибки обязательно вызови MCP-tool `close_test_client`. Передавай тот же `profileName`, если работал с конкретным профилем; без `profileName` tool закрывает текущий подключенный профиль. Это освобождает test-client процесс и не оставляет лишние 1С-сессии перед следующим запуском.
+
+Скриншотные MCP-инструменты VA (`get_window_list_os`, `get_window_screenshot_os`) считай готовыми только после короткой smoke-проверки на текущем окружении: live-сессия должна оставаться активной, `inflight=0`, а PNG должен быть не пустым и не чёрным. Детальный порядок визуальной проверки и fallback-условия описаны в навыке `va-visual-check`.
+
+Секцию `tools.va` / `tests.va` в `v8project.yaml` и профиль TestClient в VAParams настраивай по `references/config-and-backends.md` (раздел «Vanessa Automation в `v8project.yaml`»). Точную командную цепочку запуска manager → `connect_test_client` → close см. в `references/testing.md` (раздел «Точная цепочка VA manager → TestClient»). Полный payload, JSON-форму вывода (`--json-message`), правила probe и поведение при недоступности менеджера — в `references/project-workflows.md` (раздел «WS-режим к session-manager»). Подъём самого менеджера в v8-runner **не входит** — см. навык `v8-session-manager`.
+
+### UI MCP через платформенный тест-клиент
+
+Если задача — пройти интерфейс 1С через клиентские MCP-tools (`open_form`, `click`, `input`, `get_value`, `get_table_rows`, `test_client_start`), этот контур допустим только для структурного управления, когда нужная функция принципиально отсутствует в VA MCP или когда он используется как часть VA/TestClient-сценария.
+
+Рабочая цепочка:
+
+1. Подними session-manager и проверь HTTP endpoint: `tools/call session_list` должен отвечать, даже если `sessions=[]`.
+2. Запусти управляющий MCP-клиент detached, обязательно с `/TESTMANAGER`:
+
+```bash
+uid=$(cat /proc/sys/kernel/random/uuid)
+setsid nohup v8-runner --no-color --log-level debug launch thin \
+  --mcp-transport ws \
+  --manager-url ws://127.0.0.1:4000/sessions \
+  --client-uid "$uid" \
+  --corr-id "ui-$uid" \
+  --mcp-log-level debug \
+  --mcp-ws-timeout-ms 5000 \
+  --raw-key /TESTMANAGER \
+  > "/tmp/ui-mcp-$uid.log" 2>&1 &
+```
+
+3. Дождись в `session_list` live-сессии `kind=1c-client`, `state=active`, `inflight=0`, `infobase_name=<нужная ИБ>`. Базовая проверка перед UI-вызовами: `infobase_info` должен быстро вернуть ответ.
+4. Запусти тестируемое приложение отдельным процессом с `/TESTCLIENT -TPort <порт>` и теми же параметрами подключения, пользователем и паролем, что в проектном запуске. Это предпочтительный путь: агент сам поднимает тестируемое приложение detached и сохраняет PID/лог, а `test_client_start` на следующем шаге используется как подключение управляющего `/TESTMANAGER` к уже слушающему порту. Если в проекте есть готовый launcher, он тоже должен передавать `/N`, `/P`, `/UC` и тот же connection string; иначе используй прямую форму платформы:
+
+```bash
+setsid nohup /opt/1cv8/x86_64/<version>/1cv8c ENTERPRISE \
+  /DisableStartupDialogs \
+  /IBConnectionString 'Srvr="<server>";Ref="<infobase>";' \
+  /N <user> /P <password> /UC <unlock_code> \
+  /TESTCLIENT -TPort 1538 \
+  > /tmp/test-client-1538.log 2>&1 &
+```
+
+5. Подключи тестируемое приложение через управляющую MCP-сессию:
+
+```json
+{"name":"test_client_start","arguments":{"session_id":"<1c-client session_id>","port":1538}}
+```
+
+Успешный критерий: `{"ok": true, "data": {"connected": true}}`.
+
+6. После этого выполняй UI MCP-tools только через `session_id` управляющей сессии: `open_form` → `click/input/select` → `get_value/get_table_rows`. Для элементов формы можно строить URI напрямую как `control://<urlencoded form name>/<urlencoded element name>`, если `find` нестабилен.
+
+Не делай так:
+
+- Не запускай управляющий клиент без `/TESTMANAGER`: при первом `test_client_start` платформа может упасть с `Тип не определен (ТестируемоеПриложение)`.
+- Не полагайся на `test_client_start` как на единственный способ запуска `/TESTCLIENT`, если он стартует клиента без `/N` и `/P`: такой процесс может остаться на входе в базу, а подключение вернёт `Отсутствует подходящий клиент тестирования`.
+- Не считай `tools/list` доказательством готовности: proxied tools могут быть только из кеша session-manager. Готовность подтверждает live-сессия в `session_list` и успешный простой вызов (`infobase_info`).
 
 ### Resolved: WS-сессии в `test yaxunit` (DRIVE 2026-05-11)
 
@@ -168,6 +297,50 @@ tools:
 ```
 
 После фикса yaxunit-Enterprise регистрируется как `kind=yaxunit_runner` в `session_list` менеджера (подтверждение в stdout v8-runner: `[MCP INFO ...] WS-сессия зарегистрирована: uid=... kind=yaxunit_runner ... tools=24`).
+
+## Headless-запуск внешней обработки (.epf) с вызовом серверного метода
+
+Запуск внешней обработки в пакетном (headless) режиме с автоматическим выполнением её логики делается через `v8-runner launch <thin|thick|ordinary> --execute "<путь к .epf>"` (это `1cv8 ENTERPRISE /Execute<epf>`). Ключевой нюанс, без которого приём не работает:
+
+- **`/Execute<epf>` ОТКРЫВАЕТ ФОРМУ обработки** (эмулирует «Открыть обработку»). Сам по себе он **НЕ вызывает** экспортный метод модуля объекта. Поэтому **обработка без формы** (только модуль объекта с экспортной процедурой) через `/Execute` **не исполнит** свою логику — точка входа никогда не будет вызвана.
+- Канонический headless-приём: у обработки **есть управляемая форма**, в её модуле — обработчик `&НаКлиенте Процедура ПриОткрытии(Отказ)`, который распознаёт пакетный режим по **параметру запуска**, вызывает `&НаСервере`-метод (он и делает работу / дёргает экспортную процедуру модуля объекта), затем корректно завершает сеанс через `ЗавершитьРаботуСистемы(Ложь)`.
+
+### Передача параметра и подавление предупреждения безопасности
+
+- Параметр запуска передаётся ключом `--c "<строка>"` (это `/C"<строка>"`) и читается в BSL через `ПараметрЗапуска()`. Используй sentinel-строку, чтобы форма отличала headless-запуск от интерактивного открытия и не авто-исполнялась при ручном открытии.
+- **Первый запуск** внешней обработки поднимает диалог предупреждения безопасности (защита от опасных действий) — в headless он повесит процесс. Подавляется ключом `--raw-key /DisableUnsafeActionProtection`. Альтернатива — снять у пользователя флаг «Защита от опасных действий» или настроить профиль безопасности (но CLI-ключ предпочтительнее для разовых прогонов).
+
+### Минимальный скелет обработки
+
+```bsl
+// Модуль формы обработки
+&НаКлиенте
+Процедура ПриОткрытии(Отказ)
+    Если ПараметрЗапуска() = "ЗАПУСК_ПАКЕТНО" Тогда   // sentinel из --c
+        Протокол = ВыполнитьОперациюНаСервере();      // серверная работа
+        // записать Протокол в известный файл для верификации снаружи
+        ЗавершитьРаботуСистемы(Ложь);                 // корректный выход без диалогов
+    КонецЕсли;
+КонецПроцедуры
+
+&НаСервере
+Функция ВыполнитьОперациюНаСервере()
+    // разрешить все параметры СЕРВЕРНО (не из реквизитов формы — в headless их никто не заполнил),
+    // выполнить бизнес-логику, вернуть текст протокола
+КонецФункции
+```
+
+### Команда и верификация
+
+```bash
+v8-runner launch thin --execute "<абс. путь к .epf>" --c "ЗАПУСК_ПАКЕТНО" --raw-key /DisableUnsafeActionProtection
+```
+
+- Подключение к ИБ берётся из `v8project.yaml` — отдельный `/S`/`/F` указывать не нужно.
+- **Условие завершения:** жди выхода процесса 1cv8 ИЛИ появления файла-протокола, который пишет сама обработка. Один лишь exit-код процесса — слабый сигнал.
+- **Верифицируй результат по поведению, а не по факту запуска:** дельта данных (запрос до/после), содержимое файла-протокола, запись в журнале регистрации. «Процесс отработал без ошибки» ≠ «логика выполнилась».
+
+> Альтернатива без `/Execute`: из **уже подключённой** серверной сессии — `ВнешниеОбработки.Создать(<путь>, Ложь)` + вызов её экспортного метода (или БСП `ДлительныеОперации.ВыполнитьПроцедуруМодуляОбъектаОбработки`). Это требует канала «выполнить код на сервере» (менеджер сессий / тест-раннер), а `/Execute` — самодостаточен из командной строки.
 
 ## Защитные правила
 

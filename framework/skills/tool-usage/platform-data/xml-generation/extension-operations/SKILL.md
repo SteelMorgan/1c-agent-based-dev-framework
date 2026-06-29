@@ -1,6 +1,6 @@
 ---
 name: extension-operations
-description: "Use for создания расширений конфигурации (CFE), заимствования объектов, генерации перехватчиков методов и анализа состава расширения. Helps управлять CFE через xml-gen extension init/borrow/diff/validate."
+description: "xml-gen CFE: init, borrow, interceptors, validate"
 ---
 
 # Extension Operations (CFE)
@@ -81,6 +81,8 @@ xml-gen extension borrow <extPath> <configPath> "Catalog.Номенклатур�
 - `all` — все реквизиты объекта (нужно, если планируешь выводить реквизиты, которых на форме ещё нет).
 
 Типовой сценарий: borrow с `--borrow-main-attribute form` → добавить реквизит → `form-edit`.
+
+Поведение borrow формы: без `--borrow-main-attribute` базовые data bindings формы вырезаются, чтобы расширение не ссылалось на отсутствующие реквизиты. С `--borrow-main-attribute` привязки `Объект.*` сохраняются, а referenced-реквизиты добираются в объект расширения; picture bindings (`RowPictureDataPath`, `MultipleValuePictureDataPath`) всё равно вырезаются.
 
 **Важно:** если объект уже заимствован — CLI добавляет недостающее, не перезаписывает.
 

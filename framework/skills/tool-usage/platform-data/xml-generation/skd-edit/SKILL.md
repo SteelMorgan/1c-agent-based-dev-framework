@@ -1,6 +1,6 @@
 ---
 name: skd-edit
-description: "Use for атомарного изменения существующей Schema.xml СКД: добавить/удалить поля, итоги, параметры, переписать запрос набора данных, изменить структуру варианта. Helps точечно дорабатывать СКД без полной перекомпиляции через xml-gen skd edit."
+description: "xml-gen atomic edits of existing SKD Schema.xml"
 ---
 
 # SKD Edit — точечное редактирование Schema.xml
@@ -68,8 +68,9 @@ xml-gen skd edit Schema.xml clear-conditionalAppearance "*"
 3. **Дубликаты при `add-*`.** Если объект с таким именем уже есть — warning + skip. Для обновления — используй `modify-*`.
 4. **`@once` для `patch-query`.** Если в тексте 0 или ≥2 совпадений — ошибка, файл не меняется. Без флага — заменяет все вхождения.
 5. **`availableValue=` в `modify-parameter` — полная замена,** не merge. Старые значения удаляются.
-6. **`set-query` против `patch-query`.** Полная замена против точечной правки. Большие изменения — через `set-query` (можно из файла `@path`). Локальный fix — `patch-query @once`.
-7. **`modify-structure` требует `@name=`.** Без явного имени операция падает. Имя задаётся при создании структуры в skd-dsl (`set-structure "... @name=ДанныеОтчета"`).
+6. **Списочное значение параметра** задаётся через `value=A, B` или `@valueList`; при нескольких default-значениях пишутся несколько `<value>` и `valueListAllowed=true`.
+7. **`set-query` против `patch-query`.** Полная замена против точечной правки. Большие изменения — через `set-query` (можно из файла `@path`). Локальный fix — `patch-query @once`.
+8. **`modify-structure` требует `@name=`.** Без явного имени операция падает. Имя задаётся при создании структуры в skd-dsl (`set-structure "... @name=ДанныеОтчета"`).
 
 ## Правила для агента
 

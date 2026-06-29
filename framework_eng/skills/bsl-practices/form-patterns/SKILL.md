@@ -1,6 +1,6 @@
 ---
 name: form-patterns
-description: "Form module patterns. MUST use WHEN writing 1C managed form module code. Provides rules for choosing context directives (&НаСервереБезКонтекста and others) and minimizing server round-trips."
+description: "Use for managed form code and server calls"
 alwaysApply: false
 ---
 
@@ -24,12 +24,12 @@ alwaysApply: false
 ### Decision rule
 
 ```
-Нужно ли обращаться к базе данных?
-├── Нет → &НаКлиенте или &НаКлиентеНаСервереБезКонтекста
-└── Да →
-    Нужен ли доступ к реквизитам формы?
-    ├── Нет → &НаСервереБезКонтекста (передаём только параметры)
-    └── Да → &НаСервере (передаётся весь контекст)
+Need to access the database?
+├── No → &НаКлиенте or &НаКлиентеНаСервереБезКонтекста
+└── Yes →
+    Do you need access to form attributes?
+    ├── No → &НаСервереБезКонтекста (pass only parameters)
+    └── Yes → &НаСервере (the full context is passed)
 ```
 
 ```bsl
@@ -148,11 +148,11 @@ On the server, form data is not a real object but `ДанныеФормы*`. You
 ### Event order during saving
 
 ```
-1. ПередЗаписьюНаКлиенте    — клиент: можно отменить (Отказ = Истина)
-2. ПередЗаписьюНаСервере     — сервер: последняя проверка
-3. ПриЗаписиНаСервере        — сервер: в той же транзакции
-4. ПослеЗаписиНаСервере      — сервер: обновление формы
-5. ПослеЗаписи               — клиент: оповещение
+1. ПередЗаписьюНаКлиенте    — client: can cancel (Отказ = Истина)
+2. ПередЗаписьюНаСервере     — server: final check
+3. ПриЗаписиНаСервере        — server: in the same transaction
+4. ПослеЗаписиНаСервере      — server: form refresh
+5. ПослеЗаписи               — client: notification
 ```
 
 ```bsl
