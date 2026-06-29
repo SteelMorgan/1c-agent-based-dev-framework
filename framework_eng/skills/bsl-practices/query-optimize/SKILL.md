@@ -228,7 +228,6 @@ Totals generate extra summary rows. If a flat result set is needed, use `GROUP B
 5. **Do not transfer an optimization based on one DBMS** to another without verification: PostgreSQL and MS SQL Server have different planner models.
 
 ---
-
 depends_on:
   - framework/skills/bsl-practices/query-patterns/SKILL.md
   - framework/skills/tool-usage/diagnostics/db-performance/SKILL.md

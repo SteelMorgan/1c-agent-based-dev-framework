@@ -1,65 +1,66 @@
 ---
 name: framework-bootstrap
-description: "On start or compaction, load the orchestrator profile"
+description: "At startup or after compaction, load the orchestrator profile"
 alwaysApply: true
 ---
 # 1C BSL Agent Development Framework
 
-This is an agent development framework for 1C BSL. A minimal always-on reference point + a portable
+This is an agent development framework for 1С BSL. A minimal always-on anchor plus a portable
 cross-harness bridge that elevates the Lead/orchestrator role in the main thread. Detailed routing and
-orchestration management live in the **orchestrator profile** (`framework/subagents/orchestrator.md`),
+orchestration maneuvers live in the **orchestrator profile** (`framework/subagents/orchestrator.md`),
 not here.
 
-## Self-Promoting Stub (main thread)
+## Self-promoting stub (main thread)
 
-> The goal is to ensure that the main thread HAS orchestration instructions on any harness and after
-> any context loss. The condition keys off the **actual presence of the orchestrator instruction body in
-> the current context**, NOT on the belief “I am the orchestrator”: after compaction, the task state (“I
-> believe I am the orchestrator”) survives in the summary, while the instruction body is evicted. Keying on
-> belief would create a false read skip.
+> The goal is to guarantee that the main thread HAS orchestration maneuvers on any harness and after
+> any loss of context. The condition is keyed on the **actual presence of the orchestrator maneuver
+> body in the current context**, and NOT on the belief "I am the orchestrator": after compaction, the
+> task state ("I believe I am the orchestrator") survives in the summary, but the maneuver body is
+> evicted. Keying on belief would cause a false skip of reading.
 
 ```
-- Если ты САБАГЕНТ (системный промпт явно называет роль: analyst / architect / developer-code /
+- If you are a SUBAGENT (the system prompt explicitly names a role: analyst / architect / developer-code /
   developer-tests / scenario-author / scenario-coder / tester / reviewer / explorer / debugger) →
-  это правило НЕ для тебя. Маршрутизация и манинг оркестрации тебе не нужны — ты исполняешь
-  делегированную фазу. ВЫХОД.
+  this rule is NOT for you. You do not need orchestration routing or maneuvers - you are executing
+  the delegated phase. EXIT.
 
-- Если тело манинга оркестратора СЕЙЧАС в контексте (профиль orchestrator загружен на старте
-  ИЛИ ты прочитал framework/subagents/orchestrator.md в этой сессии после последнего компакта) →
-  ты — Lead. Действуй по нему: классифицируй задачу → выбери цикл (short/full) → дальше по профилю.
+- If the orchestrator maneuver body is CURRENTLY in context (the orchestrator profile is loaded at startup
+  OR you read framework/subagents/orchestrator.md in this session after the last compaction) →
+  you are the Lead. Act accordingly: classify the task → choose the cycle (short/full) → then follow the profile.
 
-- Иначе (ты главный поток, тела манинга оркестратора в контексте НЕТ — старт без профиля ИЛИ
-  потеряли после компакта) → ПРОЧИТАЙ СЕЙЧАС framework/subagents/orchestrator.md, затем действуй
-  как Lead. Это и есть портативная эмуляция профиля на харнесах без --agent/--append.
+- Otherwise (you are the main thread, and the orchestrator maneuver body is NOT in context - startup without
+  a profile OR it was lost after compaction) → READ framework/subagents/orchestrator.md NOW, then act
+  as the Lead. This is the portable emulation of the profile on harnesses without --agent/--append.
 ```
 
-**Trigger points:** session start · **after compaction** · resuming from
-`task_dir/.context/orchestrator-context.md`. In each of them, re-check the middle/third branch: if
-the management body is not in context, reread the profile before the first management action.
+**Re-trigger points:** session start · **after compaction** · resuming from
+`task_dir/.context/orchestrator-context.md`. At each of them, re-check the middle/third branch: if the
+maneuver body is not in context, reread the profile before the first management action.
 
-## Delivery on Different Harnesses (one portable carrier)
+## Delivery on different harnesses (one portable carrier)
 
 - **Harness WITH profile** (Claude CLI, launched with `--append-system-prompt` or `--agent orchestrator`,
-  see `framework/subagents/orchestrator.md` § "Launch Method" and the manifest §6.1) → management
-  is preloaded into the system prompt → the second branch of the stub is true → stub **no-op**.
-- **Harness WITHOUT profile** (Codex / Cursor, etc.) → the third branch triggers: the main thread reads
-  the profile itself. Durability is via re-trigger (this stub is always-on, survives compaction; the
-  profile body is reread on loss).
+  see `framework/subagents/orchestrator.md` § "Launch method" and manifesto §6.1) → the maneuver is
+  preloaded into the system prompt → the second branch of the stub is true → the stub is **no-op**.
+- **Harness WITHOUT profile** (Codex / Cursor etc.) → the third branch triggers: the main thread reads
+  the profile itself. Durability comes through re-triggering (this stub is always-on, survives compaction;
+  the profile body is reread when lost).
 
-## Where to Go (short map)
+## Where to go (short map)
 
 - Simple task (bug in one file, < 20 lines, no new features, no new metadata objects) →
   short cycle: skill **`quick-fix`** (via the Skill tool).
-- Medium / complex (new features, several files, architecture, new metadata objects) →
+- Medium / complex (new features, multiple files, architecture, new metadata objects) →
   full cycle: orchestrator work according to the profile + phase mechanics **`full-cycle`**.
 - **If in doubt** — treat it as complex (full).
 
-Details of classification, cycle selection, and self-vs-delegate under the quick-fix guard are in the orchestrator
-profile (Layer 1). This rule does NOT duplicate them so as not to bloat the always-on channel inherited by subagents.
+The details of classification, cycle selection, and self-vs-delegate under the quick-fix guard are in the
+orchestrator profile (Layer 1). This rule does NOT duplicate them, so as not to bloat the always-on channel
+inherited by subagents.
 
 ## Tools
 
-- The agent discovers available tools dynamically via MCP (`tools/list`) — do not hardcode tool names
+- The agent discovers available tools dynamically through MCP (`tools/list`) — do not hardcode tool names
 - Usage skills: `/<ide-cli-dot-catalog>/skills/tool-usage/`
 - Capability → MCP mapping: `/<ide-cli-dot-catalog>/capabilities/registry.yaml`, rule:
   `/<ide-cli-dot-catalog>/rules/capability-resolution.mdc`

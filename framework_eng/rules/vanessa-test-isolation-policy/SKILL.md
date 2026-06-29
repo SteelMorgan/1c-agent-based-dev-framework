@@ -1,14 +1,14 @@
 ---
 name: vanessa-test-isolation-policy
-description: "For data-writing Vanessa tests, isolate test data"
+description: "For data-writing Vanessa tests, isolate data"
 alwaysApply: true
 ---
 
-# Vanessa Test Data Isolation Policy
+# Vanessa test data isolation policy
 
-> **Trigger:** writing a scenario that creates, modifies, or writes objects to the database. When triggered, apply the `vanessa-authoring` skill (`framework/skills/tool-usage/vanessa/vanessa-authoring/SKILL.md`).
+> **Trigger:** writing a scenario that creates, modifies, or writes objects to the DB. When triggered, apply the `vanessa-authoring` skill (`framework/skills/tool-usage/vanessa/vanessa-authoring/SKILL.md`).
 
-## Isolation Criterion (MUST)
+## Isolation criterion (MUST)
 
 | Does the test write to the DBMS? | Isolation | Data |
 |---|---|---|
@@ -17,13 +17,13 @@ alwaysApply: true
 
 The main question: **can the test pass again** without intervention? If not, increase isolation.
 
-## MUST for Full Isolation
+## MUST for full isolation
 
-- The test creates its own document/object at the start of the scenario.
+- The test creates its own document/object at the beginning of the scenario.
 - Identifiers are passed between steps through Vanessa variables (`$VarName$`).
-- When switching TestClient, the document is saved and closed **before** switching.
-- Do not post test documents unless necessary - movements affect other tests.
-- Business-critical dependencies (counterparties with contracts, limit settings) should be fixed in the scenario comment, with the specific object indicated.
+- When switching TestClient, the document is saved and closed **before** the switch.
+- Do not post test documents unless necessary - postings affect other tests.
+- Record business-critical dependencies (counterparties with contracts, limit settings) in the scenario comment with the specific object indicated.
 
 ---
 depends_on:

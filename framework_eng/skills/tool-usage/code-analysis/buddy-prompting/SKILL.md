@@ -6,19 +6,19 @@ uses_capabilities:
 alwaysApply: false
 ---
 
-# Prompts for 1С Buddy (Buddy Prompting)
+# Prompts for 1C Buddy (Buddy Prompting)
 
-## Decision Table — template selection
+## Decision Table — choosing a template
 
 | Agent task | Template | When |
 |---------------|--------|-------|
-| Platform API, syntax, methods, types, events | `SEARCH_DOCS` | Question about the built-in language or behavior of platform objects |
-| Standards, methodology, БСП, typical configurations | `SEARCH_ITS` | Question about development rules, EDT, Configurator, 1С products |
-| Full text of a specific ITS document | `FETCH_ITS` | Document id already available after SEARCH_ITS |
-| Changes between platform versions | `DIFF_VERSIONS` | Migration, compatibility, "what changed" |
-| Code validation for standards and searching for analogs in БСП | `VALIDATE_BSL` | Review of a BSL fragment: syntax + compliance with standards + recommendations for using БСП |
+| Platform API, syntax, methods, types, events | `SEARCH_DOCS` | A question about the built-in language or the behavior of platform objects |
+| Standards, methodology, BСП, typical configurations | `SEARCH_ITS` | A question about development rules, EDT, Configurator, 1C products |
+| Full text of a specific ITS document | `FETCH_ITS` | You already have the document id after SEARCH_ITS |
+| Differences between platform versions | `DIFF_VERSIONS` | Migration, compatibility, "what changed" |
+| Code review for standards and searching for analogs in BСП | `VALIDATE_BSL` | Review of a BSL fragment: syntax + compliance with standards + recommendations for using BСП |
 
-## Prompt templates
+## Prompt Templates
 
 ### SEARCH_DOCS — platform documentation
 
@@ -45,7 +45,7 @@ alwaysApply: false
 3. Если неоднозначность — перечисли варианты.
 ```
 
-**Formulating the query:** for general topics add "List of all...", "General information about...". Example: "Form parameters" → "List of all parameters of the managed form". Empty result → rephrase the query.
+**Query formation:** for general topics add "List all...", "General information about...". Example: "Form parameters" → "List all parameters of the managed form". Empty result → rephrase.
 
 ### SEARCH_ITS — standards and methodology
 
@@ -72,7 +72,7 @@ alwaysApply: false
 
 ### FETCH_ITS — full text of an ITS document
 
-Only after SEARCH_ITS, when a document id is already available.
+Only after SEARCH_ITS, when you already have the document id.
 
 ```
 Задача: получить содержание документа ИТС.
@@ -93,13 +93,13 @@ ID документа: {doc_id}
 3. Важные ограничения и исключения из документа.
 ```
 
-**Orchestration of SEARCH_ITS → FETCH_ITS** — two separate `ask_ai_assistant` calls:
+**SEARCH_ITS → FETCH_ITS orchestration** — two separate `ask_ai_assistant` calls:
 
 1. Call 1: SEARCH_ITS → list of documents with ids
-2. Agent selects the best id
+2. The agent selects the best id
 3. Call 2: FETCH_ITS with the selected id → full text
 
-### DIFF_VERSIONS — version differences
+### DIFF_VERSIONS — differences between versions
 
 ```
 Задача: сравнить документацию платформы между версиями.
@@ -122,7 +122,7 @@ ID документа: {doc_id}
 4. Практический вывод для разработчика.
 ```
 
-### VALIDATE_BSL — code validation for standards and БСП analogs
+### VALIDATE_BSL — code validation for standards and BСП analogs
 
 ```
 Задача: проверить код 1С на соответствие стандартам разработки
@@ -152,29 +152,29 @@ ID документа: {doc_id}
 
 ## Stop rules
 
-1. **Ban on inventing signatures.** Do not specify a method, property, or parameter
-   unless `ask_ai_assistant` (SEARCH_DOCS) has confirmed it. If documentation was not found,
+1. **Prohibition on inventing signatures.** Do not specify a method, property, or parameter
+   unless `ask_ai_assistant` (SEARCH_DOCS) has confirmed it. If the documentation was not found —
    report the absence; do not construct a signature by analogy or from memory.
 
-2. **Pre-flight context for SEARCH_DOCS.** Before the call, explicitly record four parameters:
+2. **Pre-flight context for SEARCH_DOCS.** Before the call, explicitly fix four parameters:
    object (`{object}`), execution mode (`{context}`: client / server / background job),
    platform version (`{version}`), and form type (`{form_mode}`: managed / ordinary).
-   A missing parameter means a query with undefined context, and the result is unreliable.
+   A missing parameter = a request with undefined context, the result is unreliable.
 
-3. **Ban on answering from memory when the result depends on version or mode.** If the behavior of an API
-   or object can differ depending on the platform version or execution mode, always clarify it first
-   through `ask_ai_assistant` (SEARCH_DOCS or DIFF_VERSIONS).
-   An answer "from memory" in such cases is forbidden regardless of the agent's confidence.
+3. **Prohibition on answering from memory when version or mode matters.** If the behavior of an API
+   or object may differ depending on the platform version or execution mode —
+   always clarify it first through `ask_ai_assistant` (SEARCH_DOCS or DIFF_VERSIONS).
+   Answering "from memory" in such cases is prohibited regardless of the agent's confidence.
 
 ## Errors and limitations
 
 | Problem | Workaround |
 |----------|------------|
-| Empty SEARCH_DOCS result | Rephrase the query: "List of all..."; verify the version |
-| Irrelevant SEARCH_ITS results | Clarify the query with ITS terminology; narrow the request |
-| Buddy answered from memory without invoking the tool | Emphasize: "FORBIDDEN to answer without the tool" |
-| False VALIDATE_BSL errors | "Undeclared variable" on global methods is normal; filter these |
-| FETCH_ITS without an id | First SEARCH_ITS → choose an id → then FETCH_ITS |
+| Empty SEARCH_DOCS result | Rephrase query: "List all..."; check version |
+| Irrelevant SEARCH_ITS results | Refine the query with ITS terminology; narrow the search |
+| Buddy answered from memory without calling the tool | Strengthen: "It is PROHIBITED to answer without the tool" |
+| False VALIDATE_BSL errors | "Undefined variable" on global methods is normal; filter them out |
+| FETCH_ITS without id | First SEARCH_ITS → select id → then FETCH_ITS |
 | No project context (session_id) | DO NOT try to trigger FindRelated, FindSimilar, GetObject |
 
 ---

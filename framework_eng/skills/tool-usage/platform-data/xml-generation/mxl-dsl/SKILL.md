@@ -5,45 +5,45 @@ description: "xml-gen MXL print forms: compile/edit/info"
 
 # MXL DSL
 
-Compact JSON format for describing 1C tabular documents (SpreadsheetDocument). Claude describes **what** (areas, cells, styles, parameters), while the CLI ensures XML **correctness** (palettes, indices, merges, namespace).
+A compact JSON format for describing 1C tabular documents (SpreadsheetDocument). Claude describes **what** (areas, cells, styles, parameters), while the CLI ensures **correct** XML (palettes, indexes, merges, namespace).
 
-The canon is taken from Shirokov's specification (cc-1c-skills) and extended with the `--format designer|edt` flag for two output formats.
+The canon comes from Shirokov's specification (cc-1c-skills) and is extended with the `--format designer|edt` flag for two output formats.
 
 ## When to use
 
 | Trigger | Action |
 |---------|----------|
 | Create a print form from scratch | `mxl compile` + JSON DSL → `references/dsl-spec.md` |
-| Refine an existing layout | `mxl decompile` → edit JSON → `mxl compile` |
-| Understand the structure of someone else's layout (areas, parameters, drill-downs) | `mxl info` → `references/info-modes.md` |
-| Check the correctness of the assembled Template.xml | `xml-gen validate --type mxl` → `references/validate-classes.md` |
-| Reverse-engineer print output from a sample (screenshot/scan) | `mxl decompile` or build from scratch on a grid — set `page` + `"Nx"` widths |
+| Improve an existing layout | `mxl decompile` → edit JSON → `mxl compile` |
+| Understand the structure of someone else's layout (areas, parameters, drilldowns) | `mxl info` → `references/info-modes.md` |
+| Check the correctness of a built Template.xml | `xml-gen validate --type mxl` → `references/validate-classes.md` |
+| Reverse-engineer printing from an example (screenshot/scan) | `mxl decompile` or build from scratch using the grid — set `page` + `"Nx"` widths |
 
-## Intentionally outside the DSL — do it in code
+## Intentionally outside the DSL - do it in code
 
-The DSL covers **static** cell formatting — `font/align/valign/border/wrap/format` through the map of `styles`. It intentionally does NOT generate **runtime-conditional** formatting: cell coloring/styling depending on the displayed value. This is done programmatically when filling the tabular document — `Область.ТекстЦвет = …`, `Область.ЦветФона = …` on the populated area. The absence is a **design choice**, not a tool defect; see rule `no-manual-xml-edit.md` § "What is done in code, and NOT through xml-gen".
+The DSL covers **static** cell formatting - `font/align/valign/border/wrap/format` through the `styles` map. It intentionally does NOT generate **runtime-conditional** formatting: coloring/styling a cell depending on the rendered value. This is done programmatically when filling the tabular document - `Область.ТекстЦвет = …`, `Область.ЦветФона = …` on the filled area. Its absence is a **design choice**, not a tool defect; see rule `no-manual-xml-edit.md` § "What is done in code, and NOT through xml-gen".
 
 ## Commands
 
 ```bash
-# Компиляция JSON → Template.xml
+# Compile JSON → Template.xml
 xml-gen mxl compile [--format designer|edt] <input.json> <output.xml>
 
-# Декомпиляция Template.xml → JSON DSL
+# Decompile Template.xml → JSON DSL
 xml-gen mxl decompile <Template.xml> <output.json>
 
-# Анализ структуры (области, параметры, расшифровки, текст)
+# Structure analysis (areas, parameters, drilldowns, text)
 xml-gen mxl info <Template.xml> [--with-text] [--limit N] [--offset N] [--format text|json]
 
-# Валидация
+# Validation
 xml-gen validate --type mxl <Template.xml> [--detailed] [--max-errors N]
 ```
 
 **`output.xml`** for compile is the path to the layout in EPF/ERF: `.../Templates/<Name>/Ext/Template.xml`.
 
 **`--format`** (compile only):
-- `designer` - configuration designer format (Template.xml in `Ext/`)
-- `edt` - EDT format (XML inside the `.mxl` folder of the EDT project)
+- `designer` — configuration designer format (Template.xml in `Ext/`)
+- `edt` — EDT format (XML inside the `.mxl` folder of the EDT project)
 
 ## Minimal DSL
 
@@ -67,21 +67,21 @@ xml-gen validate --type mxl <Template.xml> [--detailed] [--max-errors N]
 
 | Was (old) | Became (canon) |
 |--------------|---------------|
-| `{"text": "[Parameter]"}` - parameter in brackets in the text | `{"param": "Parameter"}` - separate cell type |
-| `{"text": "Inv. No. [Number]"}` - parameter in the template in brackets | `{"template": "Inv. No. [Number]"}` - separate type |
+| `{"text": "[Parameter]"}` — parameter in square brackets in text | `{"param": "Parameter"}` — a separate cell type |
+| `{"text": "Inv. No. [Number]"}` — parameter in the template through square brackets | `{"template": "Inv. No. [Number]"}` — a separate type |
 | `span` without `col` (sequential filling) | `col` 1-based + `span` (explicit positioning) |
 | Column widths were not specified | `columns` + `columnWidths` + `page` + `"Nx"` |
-| Solid row borders - every cell is explicit | `rowStyle` - automatic filling of gaps |
+| Solid row borders - each cell explicitly | `rowStyle` - automatic filling of gaps |
 | Only horizontal merging | `rowspan` (vertical) + rowStyle takes occupied cells into account |
-| Drill-down was not described | `detail` - drill-down parameter next to `param` |
+| Drilldown was not described | `detail` — a drilldown parameter next to `param` |
 | Row height was not specified | `height` on the row |
 | N empty rows - N `{}` objects | `{ "empty": N }` |
 
-The full field specification (top level, fonts, styles, areas, rows, cells, fillType detection, rowStyle with rowspan, `"Nx"` proportions, 1С formats `ЧДЦ=`/`ДФ=`) - **`references/dsl-spec.md`**.
+The full field specification (top level, fonts, styles, areas, rows, cells, fillType detection, rowStyle with rowspan, `"Nx"` proportions, 1C formats `ЧДЦ=`/`ДФ=`) — **`references/dsl-spec.md`**.
 
 ## Using areas in BSL
 
-Area names from the DSL (`name`) and parameter names (`param`) are what BSL uses to address the layout:
+Area names from the DSL (`name`) and parameter names (`param`) are what BSL uses to access the layout:
 
 ```bsl
 ТД = ЭтотОбъект.ПолучитьМакет("ПечатнаяФорма");
@@ -100,7 +100,7 @@ Area names from the DSL (`name`) and parameter names (`param`) are what BSL uses
 КонецЦикла;
 ```
 
-For **intersections** (Rows area + Columns area, for example labels/price tags), access via `|`:
+For **intersections** (Rows area + Columns area, for example labels/price tags), use `|`:
 
 ```bsl
 Область = ТД.ПолучитьОбласть("ВысотаЭтикетки|ШиринаЭтикетки");
@@ -108,8 +108,8 @@ For **intersections** (Rows area + Columns area, for example labels/price tags),
 
 ## Decompile - what is important to know
 
-- Fonts and styles receive **automatic meaningful names** (`default`, `bold`, `header`, `bordered`, `bordered-right`, `bold-right`, `border-top`, etc.) based on property combinations - they do not have to match the original.
-- If all empty cells in a row have the same style, it is collapsed into `rowStyle`, and the empty cells are removed from the output.
+- Fonts and styles get **automatic meaningful names** (`default`, `bold`, `header`, `bordered`, `bordered-right`, `bold-right`, `border-top`, etc.) based on combinations of properties - they do not have to match the original ones.
+- If all empty cells in a row have the same style, it is collapsed into `rowStyle`, and empty cells are removed from the output.
 - Template parameters (`[Name]` in text) are extracted into separate `template` cells.
 
 ## Workflow (typical)
@@ -118,8 +118,8 @@ For **intersections** (Rows area + Columns area, for example labels/price tags),
 2. Write JSON (`Write`).
 3. `mxl compile` → Template.xml.
 4. `xml-gen validate --type mxl` → if there are errors, see `references/validate-classes.md`.
-5. `mxl info` → inspect the structure of areas and parameters with the agent's eyes.
-6. (for refining someone else's layout) `mxl decompile` → edit → compile.
+5. `mxl info` → check the structure of areas and parameters visually as an agent.
+6. (when improving someone else's layout) `mxl decompile` → edit → compile.
 
 ## Correct / Incorrect
 
@@ -149,10 +149,10 @@ For **intersections** (Rows area + Columns area, for example labels/price tags),
 
 ## Links
 
-- `references/dsl-spec.md` - full DSL field specification
-- `references/info-modes.md` - how to read `mxl info` output (area types, intersections, `[tpl]` parameters, detail)
-- `references/validate-classes.md` - validator error classes
-- Adjacent DSLs: `../role-dsl/`, `../form-dsl/`
+- `references/dsl-spec.md` — full DSL field specification
+- `references/info-modes.md` — how to read `mxl info` output (area types, intersections, `[tpl]` parameters, detail)
+- `references/validate-classes.md` — validator error classes
+- Neighboring DSLs: `../role-dsl/`, `../form-dsl/`
 
 ---
 depends_on: []

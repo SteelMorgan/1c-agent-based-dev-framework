@@ -1,6 +1,6 @@
 ---
 name: sdd-policy
-description: "For features, architecture, complex bugs, write spec first"
+description: "For features, architecture, and complex bugs, start with a spec"
 alwaysApply: true
 ---
 
@@ -20,14 +20,14 @@ alwaysApply: true
 
 - The spec is created and reviewed **before** implementation.
 - Task Breakdown JSON is a separate `.json`, reviewed before implementation.
-- Any deviation from the approved spec -> stop implementation, update the spec, re-review.
+- Any deviation from the approved spec → stop implementation, update the spec, re-review.
 - Any change to the approved spec/JSON requires re-review.
 
 ## Exceptions
 
 - Simple tasks do not need a spec.
-- Prototype work at the user's request - without a spec.
-- Free mode (without full-cycle) - advisory.
+- Prototyping at the user's request — without a spec.
+- Free mode (without full-cycle) — advisory.
 
 ---
 depends_on:

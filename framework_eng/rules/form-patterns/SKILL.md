@@ -1,11 +1,11 @@
 ---
 name: form-patterns
-description: "Before managed form modules, apply form-patterns"
+description: "Before the managed form module, apply form-patterns"
 alwaysApply: true
 ---
 # Managed Form Module Patterns
 
-> **Trigger:** before writing or making a significant change to a 1C managed form module. When triggered, apply the `form-patterns` skill (`framework/skills/bsl-practices/form-patterns/SKILL.md`).
+> **Trigger:** before writing or significantly changing a 1С managed form module. When triggered, apply the `form-patterns` skill (`framework/skills/bsl-practices/form-patterns/SKILL.md`).
 
 ---
 depends_on:

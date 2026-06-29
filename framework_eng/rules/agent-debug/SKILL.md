@@ -1,6 +1,6 @@
 ---
 name: agent-debug
-description: "If logs/screenshots fail, add agent-debug tracing"
+description: "If the registration log/screenshots do not help, add agent-debug"
 alwaysApply: true
 ---
 # Debug Messages (Agent Debug)

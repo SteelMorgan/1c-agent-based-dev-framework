@@ -21,7 +21,7 @@ Any change to BSL code requires immediate validation. Without checking, the agen
 | Tool | Speed | When to use |
 |------------|----------|-------------------|
 | `get_diagnostics` (LSP) | Fast (seconds) | After every change, intermediate checks |
-| `v8-runner syntax …` | Slow (dozens of seconds to minutes) | Final check: before commit, before PR, after major refactoring |
+| `v8-runner syntax …` | Slow (dozens of seconds — minutes) | Final check: before commit, before PR, after major refactoring |
 
 Server-side checking is now done **only through the `v8-runner` CLI** — separate MCP tools `check_syntax`/`build_project`/`dump_config` have been deprecated. Details of the commands and selection rules are in the `v8-runner` skill (`framework/skills/tool-usage/v8-runner/`).
 
@@ -104,7 +104,7 @@ A suppression comment is **evidence**, not decorative noise. From it, extract co
 
 | Tool | Syntax |
 |------------|-----------|
-| **APK** | `//{ APK:142 - comment` … `//}` |
+| **APK** | `//{ АПК:142 - comment` … `//}` |
 | **BSL Language Server** | `// BSLLS:LineLength-off` … `// BSLLS:LineLength-on` |
 | **EDT** | `// @suppress-warning("module-empty-method")` or `//@skip-check` |
 
@@ -134,7 +134,7 @@ The comment contains neither the diagnostic code nor a reference to the standard
 ## Capabilities and tools
 
 | Capability / CLI | Purpose | Cost |
-|------------------|------------|-----------|
+|------------------|-----------|-----------|
 | `get_diagnostics` (MCP `lsp-bsl-bridge`) | LSP diagnostics for a file | Fast - the main tool |
 | `v8-runner syntax designer-modules` | Check Designer modules through the platform | Slow - final check only |
 | `v8-runner syntax designer-config` | Check Designer configuration | Slow |
@@ -145,8 +145,8 @@ The comment contains neither the diagnostic code nor a reference to the standard
 `v8-runner syntax …` can take dozens of seconds to minutes. For long runs, use the Monitor tool:
 
 1. Start it in the background (`Bash run_in_background: true`), redirect stdout to a log file.
-2. Subscribe through **Monitor** with the filter `ERROR:|error:|Errors:|success` - you will get a notification on the first match.
-3. End the wait when the process finishes OR `error:` / `Errors: 0` / `success` appears in stdout.
+2. Subscribe through **Monitor** with the filter `ERROR:|error:|Ошибок:|success` - you will get a notification on the first match.
+3. End the wait when the process finishes OR `error:` / `Ошибок: 0` / `success` appears in stdout.
 4. After completion, read the final result from stdout: if there are errors - file, line, text.
 
 For short runs (`--source-set <NAME>`), Monitor is not required - a synchronous run is enough.

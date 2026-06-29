@@ -1,20 +1,20 @@
 ---
 name: error-handling
-description: "Use for BSL exceptions, transactions, rollback, locks"
+description: "For BSL exceptions, transactions, rollbacks, and locks"
 alwaysApply: false
 ---
 
-# Error handling, transactions, and locks
+# Error handling, transactions, and locking
 
-**Key principle:** In 1C there is no automatic transaction management. The developer **manually** controls start, commit, and rollback. Every unclosed transaction is a potential disaster.
+**Key principle:** In 1С there is no automatic transaction management. The developer manages the start, commit, and rollback **manually**. Every unclosed transaction is a potential catastrophe.
 
 ---
 
-## Rule 1: Try/Except - always log, never swallow
+## Rule 1: Try/Exception - always log, never swallow
 
-A swallowed exception is the most dangerous anti-pattern: data is not written, the user does not know about the error, there is no trace in the registration log, and debugging is impossible.
+A swallowed exception is the most dangerous antipattern: data is not written, the user does not know about the error, there are no traces in the Event Log, and debugging is impossible.
 
-ITS standard: "In an exception handler, error information must be recorded in the registration log."
+ITS standard: "In the exception handler, it is mandatory to record error information in the registration log."
 
 ### Canonical exception handling pattern
 
@@ -45,7 +45,7 @@ ITS standard: "In an exception handler, error information must be recorded in th
 ### Example: different handling levels
 
 ```bsl
-// Lower level - logging + rethrow
+// Lower level — logging + rethrow
 Функция ЗаписатьДокумент(ДокументОбъект)
     Попытка
         ДокументОбъект.Записать(РежимЗаписиДокумента.Проведение);
@@ -61,7 +61,7 @@ ITS standard: "In an exception handler, error information must be recorded in th
     КонецПопытки;
 КонецФункции
 
-// Upper level (form) - show to the user
+// Upper level (form) — show to the user
 &НаКлиенте
 Процедура ЗаписатьДокумент(Команда)
     Попытка
@@ -79,7 +79,7 @@ ITS standard: "In an exception handler, error information must be recorded in th
 
 An unclosed transaction blocks writes in the DBMS. Other sessions wait (timeout ~20 sec) and receive an error.
 
-ITS standard: "Transactions: usage rules" - `НачатьТранзакцию()` is ALWAYS placed immediately before `Попытка`.
+ITS standard: "Transactions: rules of use" - `НачатьТранзакцию()` ALWAYS immediately before `Попытка`.
 
 ### Canonical pattern (MANDATORY)
 
@@ -93,21 +93,21 @@ ITS standard: "Transactions: usage rules" - `НачатьТранзакцию()`
     ЭлементБлокировки.УстановитьЗначение("Ссылка", ДокументСсылка);
     Блокировка.Заблокировать();
 
-    // 2. Read and modify data
+    // 2. Reading and modifying data
     ДокументОбъект = ДокументСсылка.ПолучитьОбъект();
     ДокументОбъект.Статус = Перечисления.СтатусыДокументов.Согласован;
 
-    // 3. Write
+    // 3. Writing
     ДокументОбъект.Записать();
 
-    // === Commit is the LAST operation before Исключение ===
+    // === Commit - the LAST operation before Исключение ===
     ЗафиксироватьТранзакцию();
 
 Исключение
-    // === Rollback is the FIRST operation in the Исключение block ===
+    // === Rollback - the FIRST operation in the Исключение block ===
     ОтменитьТранзакцию();
 
-    // Logging AFTER rollback (an entry in the registration log inside a rolled-back transaction will be lost!)
+    // Logging AFTER rollback (a write to the Event Log inside a rolled-back transaction will be lost!)
     ЗаписьЖурналаРегистрации(
         НСтр("ru = 'Согласование документа'"),
         УровеньЖурналаРегистрации.Ошибка,
@@ -123,12 +123,12 @@ ITS standard: "Transactions: usage rules" - `НачатьТранзакцию()`
 
 | Requirement | Why |
 |------------|--------|
-| `НачатьТранзакцию()` immediately before `Попытка` | If an error occurs between them, the transaction will not close |
-| `ЗафиксироватьТранзакцию()` is the last statement before `Исключение` | An operation after commit will not roll back if it fails |
-| `ОтменитьТранзакцию()` is the first statement in `Исключение` | Logging can also fail; if rollback has not happened yet, it becomes a cascading problem |
-| `ЗаписьЖурналаРегистрации()` is AFTER `ОтменитьТранзакцию()` | An entry in the registration log inside a rolled-back transaction will be lost |
+| `НачатьТранзакцию()` immediately before `Попытка` | If an error occurs between them, the transaction will remain open |
+| `ЗафиксироватьТранзакцию()` is the last statement before `Исключение` | Any operation after commit will not be rolled back if it fails |
+| `ОтменитьТранзакцию()` is the first statement in `Исключение` | Logging can also fail; if rollback has not been done yet, it becomes a cascading problem |
+| `ЗаписьЖурналаРегистрации()` is AFTER `ОтменитьТранзакцию()` | A write to the Event Log inside a rolled-back transaction will be lost |
 
-### Wrong variants (platform traps)
+### Incorrect variants (platform traps)
 
 ```bsl
 // BAD: code between НачатьТранзакцию and Попытка
@@ -138,15 +138,15 @@ ITS standard: "Transactions: usage rules" - `НачатьТранзакцию()`
     // ...
 КонецПопытки;
 
-// BAD: registration log entry BEFORE ОтменитьТранзакцию
+// BAD: ЗаписьЖурнала before ОтменитьТранзакцию
 Исключение
-    ЗаписьЖурналаРегистрации(...); // Can be lost during rollback!
+    ЗаписьЖурналаРегистрации(...); // May be lost on rollback!
     ОтменитьТранзакцию();
 КонецПопытки;
 
 // BAD: code after ЗафиксироватьТранзакцию, but before the end of Попытка
     ЗафиксироватьТранзакцию();
-    ОтправитьОповещение(); // Error here - the transaction is already committed, but Исключение will run!
+    ОтправитьОповещение(); // Error here - transaction is already committed, but Исключение will execute!
 Исключение
     ОтменитьТранзакцию(); // Error! The transaction is already committed!
 КонецПопытки;
@@ -156,7 +156,7 @@ ITS standard: "Transactions: usage rules" - `НачатьТранзакцию()`
 
 ## Rule 3: Nested transactions are counter-based
 
-In 1C, a nested `НачатьТранзакцию()` does not create a new transaction; it increments a counter. `ОтменитьТранзакцию()` marks the transaction as "rolled back", and **any subsequent** `ЗафиксироватьТранзакцию()` (even at the outer level) will raise an exception.
+In 1С, a nested `НачатьТранзакцию()` does not create a new transaction, but increments the counter. `ОтменитьТранзакцию()` marks the transaction as "cancelled", and **any subsequent** `ЗафиксироватьТранзакцию()` (even at an outer level) will raise an exception.
 
 ### Correct - each level uses the canonical pattern and rethrows the exception
 
@@ -173,13 +173,13 @@ In 1C, a nested `НачатьТранзакцию()` does not create a new trans
             НСтр("ru = 'Запись данных'"),
             УровеньЖурналаРегистрации.Ошибка,,,
             ПодробноеПредставлениеОшибки(ИнформацияОбОшибке()));
-        ВызватьИсключение; // MUST rethrow - the outer code must know
+        ВызватьИсключение; // REQUIRED: rethrow - outer code must know
     КонецПопытки;
 
 КонецПроцедуры
 ```
 
-### Rule: DO NOT use `ТранзакцияАктивна()` as a substitute for the correct pattern
+### Rule: DO NOT use ТранзакцияАктивна() as a substitute for the correct pattern
 
 ```bsl
 // BAD: ТранзакцияАктивна() masks an error in the code structure
@@ -230,11 +230,11 @@ While a transaction is open, modified data is locked in the DBMS. A long transac
 КонецПопытки;
 ```
 
-External HTTP calls inside a transaction are a disaster: HTTP timeout = 30 sec = 30 sec lock.
+External HTTP calls inside a transaction are a catastrophe: HTTP timeout = 30 sec = 30 sec lock.
 
 ---
 
-## Rule 5: Managed locks - `БлокировкаДанных`
+## Rule 5: Managed locks - БлокировкаДанных
 
 Without granular locking before read-modify, a race condition occurs: two sessions read the same value, both modify it - one update is lost.
 
@@ -246,7 +246,7 @@ ITS standard: "Managed locks".
 НачатьТранзакцию();
 Попытка
 
-    // 1. FIRST lock
+    // 1. FIRST we lock
     Блокировка = Новый БлокировкаДанных;
     ЭлементБлокировки = Блокировка.Добавить("РегистрНакопления.ТоварыНаСкладах");
     ЭлементБлокировки.УстановитьЗначение("Номенклатура", НоменклатураСсылка);
@@ -273,7 +273,7 @@ ITS standard: "Managed locks".
     Выборка = Результат.Выбрать();
     Выборка.Следующий();
 
-    // 3. Check
+    // 3. Validate
     Если Выборка.Остаток < ТребуемоеКоличество Тогда
         ВызватьИсключение СтрШаблон(
             НСтр("ru = 'Недостаточно остатков. На складе: %1, требуется: %2.'"),
@@ -281,7 +281,7 @@ ITS standard: "Managed locks".
     КонецЕсли;
 
     // 4. Write
-    // ... movement posting ...
+    // ... writing movements ...
 
     ЗафиксироватьТранзакцию();
 Исключение
@@ -295,9 +295,9 @@ ITS standard: "Managed locks".
 
 ```
 Without locking (race condition):
-  Session A: Reads balance = 10      | Session B: Reads balance = 10
-  Session A: 10 >= 8? Yes, write off 8   | Session B: 10 >= 7? Yes, write off 7
-  Total: 15 units written off with a balance of 10 -> negative balance!
+  Session A: Reads balance = 10        | Session B: Reads balance = 10
+  Session A: 10 >= 8? Yes, write off 8 | Session B: 10 >= 7? Yes, write off 7
+  Total: 15 units written off with balance 10 -> negative balance!
 
 With locking:
   Session A: Locks -> Reads 10 -> Writes off 8 -> Commits -> Unlocks
@@ -306,9 +306,9 @@ With locking:
 
 ---
 
-## Rule 6: `ЗаблокироватьДанныеДляРедактирования` - pessimistic object locking
+## Rule 6: ЗаблокироватьДанныеДляРедактирования - pessimistic object locking
 
-Prevents lost update: the second user will get the error "Object locked by user X".
+Prevents lost update: the second user receives the error "Object locked by user X".
 
 ```bsl
 Процедура ИзменитьСтатусДокумента(ДокументСсылка, НовыйСтатус)
@@ -338,21 +338,21 @@ Prevents lost update: the second user will get the error "Object locked by user 
 
 | Lock type | Mechanism | When to use |
 |----------------|----------|-------------------|
-| `БлокировкаДанных` | DBMS (managed), row level | Balance control, atomic operations |
-| `ЗаблокироватьДанныеДляРедактирования` | 1C server (pessimistic), whole object | Preventing lost update |
+| `БлокировкаДанных` | DBMS (managed), record level | Balance control, atomic operations |
+| `ЗаблокироватьДанныеДляРедактирования` | 1С server (pessimistic), whole object | Preventing lost update |
 
 ---
 
-## Rule 7: `ЗаписьЖурналаРегистрации` - proper logging
+## Rule 7: ЗаписьЖурналаРегистрации - correct logging
 
-### Full entry format
+### Full record format
 
 ```bsl
 ЗаписьЖурналаРегистрации(
     ИмяСобытия,         // String - hierarchical name (with dots)
     УровеньСобытия,     // УровеньЖурналаРегистрации - Ошибка/Предупреждение/Информация/Примечание
-    МетаданныеОбъекта,  // Metadata object - for filtering by type
-    Данные,             // Object reference - for navigation from the registration log
+    МетаданныеОбъекта,  // Metadata object - for type filtering
+    Данные,             // Object reference - for navigation from the Event Log
     Комментарий);       // String - detailed description (up to 1024 characters)
 ```
 
@@ -360,8 +360,8 @@ Prevents lost update: the second user will get the error "Object locked by user 
 
 | Level | When |
 |---------|-------|
-| `Ошибка` | The operation did not complete, data is lost or invalid |
-| `Предупреждение` | The operation completed, but with limitations |
+| `Ошибка` | The operation was not completed, data was lost or invalid |
+| `Предупреждение` | The operation was completed, but with limitations |
 | `Информация` | Significant events for audit |
 | `Примечание` | Diagnostic information |
 
@@ -389,9 +389,9 @@ Prevents lost update: the second user will get the error "Object locked by user 
 
 ---
 
-## Rule 8: Generating error messages for the user
+## Rule 8: Building error messages for the user
 
-For the user - **what happened** and **what to do**. In the registration log - technical information.
+For the user - **what happened** and **what to do**. In the Event Log - technical information.
 
 ```bsl
 Попытка
@@ -418,12 +418,12 @@ For the user - **what happened** and **what to do**. In the registration log - t
 
 ---
 
-## Rule 9: Proper exception propagation - `ВызватьИсключение`
+## Rule 9: Correct rethrowing of exceptions - ВызватьИсключение
 
 | Method | When | Why |
 |--------|-------|--------|
 | `ВызватьИсключение;` | In intermediate code (object module, common module) | Preserves the original stack |
-| `ВызватьИсключение "Text";` | At the user boundary (form) | Replaces the technical stack with a clear message |
+| `ВызватьИсключение "Текст";` | At the user boundary (form) | Replaces the technical stack with a readable message |
 
 ```bsl
 // Intermediate layer - rethrow the original
@@ -453,7 +453,7 @@ For the user - **what happened** and **what to do**. In the registration log - t
 
 ## Rule 10: Error handling for bulk operations
 
-An error in one document must not stop the processing of the others. Each transaction is item-by-item.
+An error in one document should not stop processing of the others. Each transaction is per item.
 
 ```bsl
 Процедура ПровестиДокументыПакетно(МассивДокументов)
@@ -498,9 +498,9 @@ An error in one document must not stop the processing of the others. Each transa
 
 ---
 
-## Rule 11: Unified lock order - deadlock prevention
+## Rule 11: Consistent lock order - preventing deadlock
 
-When two sessions lock data in different orders - deadlock. The DBMS rolls back one of the transactions.
+When two sessions lock data in different orders, a deadlock occurs. The DBMS rolls back one of the transactions.
 
 ```bsl
 // Always lock resources in a fixed order (by reference)
@@ -546,9 +546,9 @@ When two sessions lock data in different orders - deadlock. The DBMS rolls back 
 
 ---
 
-## Rule 12: Try/Except for external calls
+## Rule 12: Try/Exception for external calls
 
-Calls to external systems are unreliable. **Always** wrap them in `Try/Except`.
+Calls to external systems are unreliable. **Always** wrap them in `Попытка/Исключение`.
 
 ### Pattern: HTTP call with retries
 

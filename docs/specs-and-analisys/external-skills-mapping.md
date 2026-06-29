@@ -1,7 +1,7 @@
 # Сводный маппинг внешних навыков → наш фреймворк
 
 > **Статус документа:** 🟢 живой (living document). Обновляется при каждой сверке с upstream и при каждом заимствовании.
-> **Последнее обновление:** `2026-06-22` (rev.7 — сверка SH `6e14f25` → `3d36c202`: support-контроль переносим в `xml-gen`, web-test runner переносим, form/SKD — выборочно; db-dt, 1cv8.exe resolve, Yandex Code Assistant — skipped)
+> **Последнее обновление:** `2026-06-29` (rev.8 — сверка SH `3d36c202` → `3a7f1c17`: берём web-test multi-select/headerless/modal-row, CFE-borrow инварианты, dangling form bindings; db/ibcmd-дельту не берём)
 > **Ответственный:** orchestrator / архитектор фреймворка
 >
 > **Назначение:** единая таблица отслеживания того, какие навыки из внешних источников мы заимствовали, какие планируем взять, какие отвергли. Используется для:
@@ -15,7 +15,7 @@
 
 | ID | Репозиторий | URL | Последний просмотренный коммит | Дата сверки | Метод снапшота |
 |----|-------------|-----|--------------------------------|-------------|----------------|
-| **SH** | `Nikolay-Shirokov/cc-1c-skills` | https://github.com/Nikolay-Shirokov/cc-1c-skills | `3d36c202` (main / tag `w-2026-06-21`, 2026-06-21) | 2026-06-22 | `git clone` + `git diff 6e14f25..3d36c202` |
+| **SH** | `Nikolay-Shirokov/cc-1c-skills` | https://github.com/Nikolay-Shirokov/cc-1c-skills | `3a7f1c17` (main / tag `w-2026-06-28`, 2026-06-28) | 2026-06-29 | `git clone` + `git diff 3d36c202..3a7f1c17` |
 | **UN** | `IngvarConsulting/unica` | https://github.com/IngvarConsulting/unica | `db254e4` (main, 2026-05-21) | 2026-05-21 | `gh api repos/.../contents/plugins/unica/skills` |
 | **CO** | `comol/cursor_rules_1c` | — | — (не отслеживается активно, см. sources-analysis.md §1) | 2026-02-12 | — |
 | **AE** | `AndreevED/1c-ai-feature-dev-workflow` | — | — (концепция фаз уже взята, см. §2) | 2026-02-12 | — |
@@ -138,6 +138,17 @@ gh api repos/IngvarConsulting/unica/commits?per_page=30 --jq '.[] | .commit.mess
 | `skill-suggester` / hook-инфраструктура | Подсказчик навыков и отдельные hook-скрипты. | 🔶 **Partial**. Идею guard берём через `xml-gen support check`; отдельный `skill-suggester` не переносим. |
 | Yandex Code Assistant в `switch.py` | Переключение внешнего ассистента. | ❌ **Skipped**. Не относится к нашему стеку. |
 | Мелкие фиксы портов/валидаторов | Локальные исправления Python-скриптов и валидаторов SH. | 🔶 **Partial / Watching**. Переносить только если совпадает с Java-CLI контрактом. `meta-edit -Path` для нас нерелевантен; role-compile parity уже покрыт. |
+
+### 3.5. Изменения upstream после последней сверки (`3d36c202` → `3a7f1c17`, tag `w-2026-06-28`)
+
+Сверка выполнена `2026-06-29`. Решение пользователя: **берём пункты 1, 2, 3; пункт 4 (`db/ibcmd`) не берём**.
+
+| Кластер SH | Что изменилось | Решение для нашего фреймворка |
+|------------|----------------|-------------------------------|
+| `web-test` | `selectValue(field, [...])` для мультивыбора, поля-списки значений, headerless grids, клик по строке широкой модальной формы подбора, фиксы `fillTableRow`. Новые регрессы: `20-modal-select-row`, `21-headerless`, `22-multiselect-listfield`. | ✅ **Adopt / P1** в `tools/web-test` + `browser-ui/web-test-1c`. Переносить не прямым копированием модульного upstream runtime в наш монолит, а scoped patch: сначала контракт и тест-кейсы, затем реализация `selectValue` array / headerless-grid helpers / modal row click. |
+| `cfe-borrow` | Расширенный strip-набор data bindings (`Title/Footer/Header/MultipleValue*`), picture bindings, сохранение `Module.bsl`, idempotent re-borrow, формат-версия расширения, сбор зависимостей из `<Field>Объект.*</Field>`, перенос `<Type>` у `DefinedType`. | ✅ **Adopt / P0** в `tools/xml-gen`: инварианты в `ExtensionEditor`/`ExtensionValidator`, регрессы в `ExtensionEditorTest`. Не переносить PS/Python-скрипты, только поведение. |
+| `form-validate` | Dangling binding validation: форма должна ловить привязки к отсутствующим реквизитам, включая не только обычный `DataPath`, но и связанные binding-теги. | ✅ **Adopt / P0** в `tools/xml-gen` `FormValidator`: расширить `FORM-102` на data-binding теги и добавить регрессы. |
+| `db-*`, `epf-*` через `ibcmd` | Частичная загрузка/выгрузка, `-AllExtensions`, проброс `--user/--password`, platform resolver fixes. | ❌ **Skipped**. Не добавляем в `xml-gen` и не заводим как отдельные навыки; рабочий контур остаётся `v8-runner`. |
 
 ---
 

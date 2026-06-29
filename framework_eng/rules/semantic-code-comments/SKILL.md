@@ -1,22 +1,22 @@
 ---
 name: semantic-code-comments
-description: "In comments, explain why, not what the code does"
+description: "In comments, explain why, not restate the code"
 alwaysApply: true
 ---
 
-# Semantic Comments in Code
+# Semantic Code Comments
 
-> A good comment explains **why**, not **what**. Names, structure, and expressions already show what the code does; a comment is needed for business meaning, constraints, tradeoffs, and hidden invariants.
+> A good comment explains **why**, not **what**. Names, structure, and expressions already show what the code does; a comment is needed for business meaning, constraints, trade-offs, and hidden invariants.
 
 ## Principle
 
-Code is written once and read many times. If a future reader will ask "why is it like this?", "what breaks if I remove it?", "which business rule is protected here?" - you need a semantic comment.
+Code is written once, but read many times. If a future reader will ask "why is it like this?", "what breaks if we remove it?", "what business rule is protected here?" - a semantic comment is needed.
 
-The goal is not comment density, but reducing guesswork when reading complex or non-obvious code.
+The goal is not comment density, but removing guesswork when reading complex or non-obvious code.
 
 ## What to Comment
 
-### Non-obvious Business Rules
+### Non-obvious business rules
 
 ```bsl
 // Скидку применяем только после подтверждения лимита, потому что договор
@@ -24,84 +24,84 @@ The goal is not comment density, but reducing guesswork when reading complex or 
 Если ЛимитПодтвержден И ДоговорРазрешаетИзменениеЦены Тогда
 ```
 
-### Protection Against External Failures and Edge Cases
+### Protection against external failures and edge cases
 
 ```bsl
-// Внешний сервис иногда возвращает пустую сумму для закрытого периода.
-// Считаем ее нулем, чтобы отчет остался построимым, а не падал на преобразовании.
+// The external service sometimes returns an empty amount for a closed period.
+// Treat it as zero so the report remains buildable instead of failing on conversion.
 Сумма = ?(ЗначениеЗаполнено(Ответ.Сумма), Ответ.Сумма, 0);
 ```
 
-### Workarounds and Tradeoffs
+### Workarounds and trade-offs
 
 ```bsl
-// Не используем пакетную запись: обработчик записи должен отработать для каждого
-// объекта отдельно, иначе не обновятся зависимые агрегаты.
+// Do not use batch write: the write handler must run for each object separately,
+// otherwise dependent aggregates will not be updated.
 Для Каждого Объект Из Объекты Цикл
 ```
 
-### Hidden Invariants and Call Order
+### Hidden invariants and call order
 
 ```bsl
-// Важно выполнить до расчета итогов: эта процедура заполняет временную таблицу,
-// из которой следующий запрос берет границы периода.
+// Important to run before total calculation: this procedure fills a temporary table
+// that the next query uses to read period boundaries.
 ПодготовитьГраницыПериода(Параметры);
 ```
 
-### Reasons for Rejecting the Obvious Solution
+### Reasons for rejecting the obvious solution
 
 ```bsl
-// Не используем левое соединение: downstream-логика требует обязательную ссылку
-// и не имеет безопасной ветки для пустого значения.
+// Do not use a left join: downstream logic requires a mandatory reference
+// and has no safe branch for an empty value.
 ВНУТРЕННЕЕ СОЕДИНЕНИЕ
 ```
 
-### Magic Numbers and Constants
+### Magic numbers and constants
 
 ```bsl
-МаксимумПопыток = 3; // Больше трех повторов задерживает пользователя сильнее, чем помогает при временном сбое.
+МаксимумПопыток = 3; // More than three retries frustrates the user more than it helps during a temporary failure.
 ```
 
-## What Not to Comment
+## What NOT to Comment
 
-### Code Recap
+### Restating the code
 
 ```bsl
-// Плохо: складываем A и B.
+// Bad: add A and B.
 Сумма = A + B;
 ```
 
-### Obvious Operations
+### Obvious operations
 
 ```bsl
-// Плохо: увеличиваем счетчик.
+// Bad: increment the counter.
 Счетчик = Счетчик + 1;
 ```
 
-### Comments That Contradict the Code
+### Comments that contradict the code
 
-If you change the code, check the nearby comments. An outdated comment is worse than no comment because it creates false confidence.
+If you change the code, check the comments nearby. An outdated comment is worse than no comment because it creates false confidence.
 
 ## SHOULD
 
-- Before a non-trivial block of complex logic, give a short explanation of the block's purpose.
-- At the start of a procedure, add a purpose comment if it does not follow from the name.
-- Refer to the specification, ADR, or task when the reason for the decision is not clear without external context.
+- Before a non-trivial block of complex logic, give a brief explanation of the block's purpose.
+- Add a comment about the purpose at the start of a procedure if it is not obvious from the name.
+- Refer to a specification, ADR, or task when the reason for the decision is unclear without external context.
 - Explain the limitations of external systems, the platform, libraries, and data.
-- Comment intentionally strange code: why it looks unusual and what will break if it is "simplified".
+- Comment intentionally strange code: why it looks unusual and what breaks if it is "simplified".
 
 ## How to Phrase It
 
 | Good | Bad |
 |--------|-------|
-| "Do not use X because Y" | "Here X" |
+| "Do not use X because Y" | "Here is X" |
 | "Protection against an empty response from an external service" | "Check the value" |
 | "If removed, the period invariant will be broken" | "Do not touch" |
-| "First fill the cache because the next query reads it" | "Fill the cache" |
+| "Fill the cache first because the next query reads it" | "Fill the cache" |
 
-## Relationship to Change Markup
+## Relation to Change Marking
 
-`agent-code-marking` shows who changed the code and when. `semantic-code-comments` explains why the code is structured this way. These rules complement each other: markers provide auditability, comments provide meaning.
+`agent-code-marking` shows who changed the code and when. `semantic-code-comments` explains why the code is structured the way it is. These rules complement each other: markers provide auditability, comments provide meaning.
 
 ---
 depends_on:

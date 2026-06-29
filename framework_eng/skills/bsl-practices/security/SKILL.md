@@ -1,18 +1,18 @@
 ---
 name: security
-description: "Use for 1C secrets, tokens, TLS, signatures, privileges"
+description: "For secrets, tokens, TLS, signatures, and 1C privileges"
 alwaysApply: false
 ---
 
-# 1С Security: secrets, authentication, cryptography
+# 1C Security: secrets, authentication, cryptography
 
-This skill is a topic map for security in 1C application code. Platform API specifics are moved into `references/`. Here are the trust boundaries, common mistakes, and stop rules that every agent (architect / developer-code / reviewer) must follow when working with sensitive data.
+This skill is a map of topics on the security of 1C application code. Platform API specifics are moved into `references/`. Here are the trust boundaries, typical mistakes, and stop-rules that any agent (architect / developer-code / reviewer) must follow when working with sensitive data.
 
-Security in 1C is not a separate subsystem, but an end-to-end property of code:
+Security in 1C is not a separate subsystem, but an end-to-end property of the code:
 - Secrets live in `БезопасноеХранилище`, not in code/configuration/logs.
 - Cryptography goes through `МенеджерКриптографии` + an explicit provider (CryptoPro CSP / ViPNet) with an explicit GOST version.
-- Authentication (OpenID / OAuth / basic / client certificate) is a contract with explicit error modes, not a "worked / did not work" binary.
-- Privileged mode is a targeted tool, not a "turn off permissions" switch for the entire module.
+- Authentication (OpenID / OAuth / basic / client certificate) is a contract with explicit error modes, not a "worked / did not work" result.
+- Privileged mode is a point tool, not a "rights switch" for the whole module.
 
 ---
 
@@ -21,7 +21,7 @@ Security in 1C is not a separate subsystem, but an end-to-end property of code:
 | Trigger | Action |
 |---------|----------|
 | You see work with a password/token/secret in a procedure parameter or in a code string | Read `references/secrets.md`, move it to `БезопасноеХранилище`, check masking in logs |
-| You see work with `МенеджерКриптографии`, `СертификатКриптографии`, `ХранилищеСертификатовКриптографии`, `ПараметрыПодписиCMS` | Read `references/crypto.md`, check the provider, GOST version, context (client/server), and private key lifecycle |
+| You see work with `МенеджерКриптографии`, `СертификатКриптографии`, `ХранилищеСертификатовКриптографии`, or `ПараметрыПодписиCMS` | Read `references/crypto.md`, check the provider, GOST version, context (client/server), and the private key lifecycle |
 | You see an HTTP call to an external API, OpenID/OAuth, basic-auth, or a client TLS certificate | Read `references/auth.md`, check error semantics and credential storage |
 | You are reviewing code that touches rights, RLS, privileged mode, or external integrations | Use `references/review-checklist.md` as a mandatory filter before the final answer |
 | You need to design a new integration/service with authentication | First define the trust boundary (see below), then choose the API |
@@ -30,15 +30,15 @@ Security in 1C is not a separate subsystem, but an end-to-end property of code:
 
 ## Trust boundaries
 
-Before you write or review code, explicitly define which boundary it crosses:
+Before writing or reviewing code, explicitly define which boundary it crosses:
 
-1. **User → 1С server** - platform authentication, roles, RLS, data separation.
-2. **1С client → 1С server** - procedure parameters cross the network boundary (see the stop rule about passwords).
-3. **1С server → external API** - `HTTPСоединение`, OpenID/OAuth, client certificate, TLS.
-4. **1С server → OS / cryptography provider** - `МенеджерКриптографии`, CryptoPro CSP / ViPNet, access to the certificate store under the rphost/srv1cv8 account.
-5. **1С server → persistent secret storage** - `БезопасноеХранилище`, or an external vault through a connector.
+1. **User → 1C server** — platform authentication, roles, RLS, data separation.
+2. **1C client → 1C server** — procedure parameters cross the network boundary (see the stop-rule about passwords).
+3. **1C server → external API** — `HTTPСоединение`, OpenID/OAuth, client certificate, TLS.
+4. **1C server → OS / cryptography provider** — `МенеджерКриптографии`, CryptoPro CSP / ViPNet, access to the certificate store under the rphost/srv1cv8 account.
+5. **1C server → persistent secret storage** — `БезопасноеХранилище`, or an external vault through a connector.
 
-If the boundary is not named, the skill is being applied incorrectly: go back to the design stage.
+If the boundary is not named, the skill is applied incorrectly: go back to the design stage.
 
 ---
 
@@ -47,52 +47,52 @@ If the boundary is not named, the skill is being applied incorrectly: go back to
 ### 1. Secrets and `БезопасноеХранилище` → [`references/secrets.md`](references/secrets.md)
 
 - `БезопасноеХранилище.УстановитьДанные(Владелец, Данные[, Ключ])` and `ПрочитатьДанные(Владелец[, Ключ])`.
-- The owner is usually a catalog reference for accounts; never a string constant.
-- All calls are server-side, under `УстановитьПривилегированныйРежим(Истина)` in a targeted way (not for the whole module).
+- The owner is usually a reference to an account directory; never a string constant.
+- All calls are on the server, under `УстановитьПривилегированныйРежим(Истина)` in a targeted way (not for the whole module).
 - Secret lifecycle: source → write → read → rotation → revocation.
-- Masking in logs, registration log, and agent response.
+- Masking in logs, the registration log, and the agent response.
 
 ### 2. Cryptography and digital signatures → [`references/crypto.md`](references/crypto.md)
 
-- `МенеджерКриптографии(ИмяПровайдера, ТипПровайдера)` - the provider is selected explicitly (CryptoPro CSP, ViPNet CSP).
+- `МенеджерКриптографии(ИмяПровайдера, ТипПровайдера)` — the provider is chosen explicitly (CryptoPro CSP, ViPNet CSP).
 - `СертификатКриптографии`, `ХранилищеСертификатовКриптографии`, `ПараметрыПодписиCMS`.
-- GOST R 34.10-2012 (256/512 bits) - the current standard; GOST R 34.10-2001 - only for verifying old signatures.
-- Private key: container on the server, accessible under the rphost account; never in a common module, not in a catalog attribute, not in `Хранилище.Значение`.
-- БСП "Electronic Signature" (`ЭлектроннаяПодпись`, `ЭлектроннаяПодписьСлужебный`) - the preferred path if БСП is present in the configuration.
+- GOST R 34.10-2012 (256/512 bit) is the current standard; GOST R 34.10-2001 is only for verifying old signatures.
+- Private key: container on the server, accessible under the rphost account; never in a common module, not in a directory attribute, and not in `Хранилище.Значение`.
+- БСП "Электронная подпись" (`ЭлектроннаяПодпись`, `ЭлектроннаяПодписьСлужебный`) is the preferred path if БСП is present in the configuration.
 
 ### 3. Authentication and external APIs → [`references/auth.md`](references/auth.md)
 
-- OpenID / OpenID Connect - built-in platform authentication and in БСП (`ИнтернетПользователи`).
-- OAuth 2.0 - on top of `HTTPСоединение`/`HTTPЗапрос`, the token and refresh token are stored in `БезопасноеХранилище`.
-- Basic / API-token - token in `БезопасноеХранилище`, header assembled on the server.
+- OpenID / OpenID Connect — built-in platform authentication and in БСП (`"ИнтернетПользователи"`).
+- OAuth 2.0 — on top of `HTTPСоединение`/`HTTPЗапрос`, the token and refresh-token are stored in `БезопасноеХранилище`.
+- Basic / API-token — the token is in `БезопасноеХранилище`, and the header is assembled on the server.
 - Client TLS certificate: `СертификатКлиентаФайл`, `СертификатКлиентаWindows`, `СертификатКлиентаOpenSSL` in `HTTPСоединение`.
 - Error semantics: `missing credentials`, `expired token`, `invalid certificate`, `provider unavailable`, `denied rights`, `tenant mismatch`, `remote auth failure`.
 
 ### 4. Review checklist → [`references/review-checklist.md`](references/review-checklist.md)
 
-A stack-neutral checklist that the reviewer agent must pass **before** the final answer whenever the code touches any of the topics above.
+A stack-neutral checklist that the agent-reviewer must pass **before** the final answer if the code touches any of the topics above.
 
 ---
 
-## Stop rules (1С-specific)
+## Stop rules (1C-specific)
 
-These rules are **strict**. A violation means a blocking review comment and a code rewrite.
+These rules are **strict**. A violation means a blocking review comment and code rewrite.
 
-1. **A password/token/private key must not be passed through a procedure parameter that crosses the "client ↔ server" boundary**
-   - Forbidden: an exported procedure of a common module with `Server, Server Call` and a `Пароль` parameter.
-   - Correct: on the client - only the secret owner (reference); the secret is read on the server inside privileged mode.
+1. **A password/token/private key must not be passed through a procedure parameter that has a "client ↔ server" boundary**
+   - Forbidden: an exported common-module procedure "Server, Server Call" with a `Пароль` parameter.
+   - Correct: on the client - only the secret owner (reference); secret reading - on the server inside privileged mode.
 
-2. **A private key / cryptography container is not stored in a common module, catalog attribute, or constant**
-   - Forbidden: a base64 string key in code, in `Константа.КлючШифрования`, or in a template.
+2. **A private key / cryptography container is not stored in a common module, directory attribute, or constant**
+   - Forbidden: a base64 key string in code, in `Константа.КлючШифрования`, in a layout.
    - Correct: the container is in the OS store under the 1C server account, accessed through `МенеджерКриптографии`.
 
-3. **`УстановитьПривилегированныйРежим(Истина)` around `БезопасноеХранилище` access is mandatory and targeted**
-   - Without `УстановитьПривилегированныйРежим`, `БезопасноеХранилище.ПрочитатьДанные` will fail on permissions for a regular user.
+3. **`УстановитьПривилегированныйРежим(Истина)` around work with `БезопасноеХранилище` is mandatory and targeted**
+   - Without `УстановитьПривилегированныйРежим`, `БезопасноеХранилище.ПрочитатьДанные` will fail on permissions for an ordinary user.
    - `УстановитьПривилегированныйРежим(Ложь)` must be set immediately after reading, in the same `Попытка/Исключение` block.
    - Forbidden: wrapping the entire exported procedure in privileged mode "just in case".
 
 4. **Logs and the registration log do not contain tokens, passwords, private keys, or full `Authorization` headers**
-   - In `ЗаписьЖурналаРегистрации`, `Сообщить`, and the agent response - only masked values (`***`, last 4 characters, certificate fingerprint).
+   - In `ЗаписьЖурналаРегистрации`, `Сообщить`, or the agent response, only masked values (`***`, last 4 characters, certificate fingerprint) are allowed.
    - The HTTP request/response body is logged only after sanitization.
 
 5. **An authentication error is different from a validation error and a business error**
@@ -107,34 +107,34 @@ These rules are **strict**. A violation means a blocking review comment and a co
 **Context:** You need to call an external REST API with OAuth 2.0 (client credentials).
 
 **Steps:**
-1. Name the trust boundary: "1С server → external API".
-2. Create a catalog of accounts; `client_secret` and `refresh_token` - in `БезопасноеХранилище`, owner = reference to the catalog item.
-3. Read the secret on the server, under `УстановитьПривилегированныйРежим`, in a targeted way.
-4. Assemble the `Authorization` header on the server; do not return the header to the client.
-5. Describe the error semantics: `expired token` → refresh, `invalid client` → configuration error (no retry), `provider unavailable` → retry with backoff.
-6. Logs: `client_id` - plain, `client_secret`/`access_token` - masked (last 4 characters).
+1. Name the trust boundary: "1C server → external API".
+2. Create an account directory; `client_secret` and `refresh_token` go into `БезопасноеХранилище`, owner = reference to the directory item.
+3. Read the secret on the server, in a targeted way under `УстановитьПривилегированныйРежим`.
+4. Build the `Authorization` header on the server; the header is not returned to the client.
+5. Define error semantics: `expired token` → refresh, `invalid client` → configuration error (no retry), `provider unavailable` → retry with backoff.
+6. Logs: `client_id` is visible, `client_secret`/`access_token` are masked (last 4 characters).
 7. Run `references/review-checklist.md`.
 
-### Scenario 2: Signing a document with CMS
+### Scenario 2: Signing a CMS document
 
-**Context:** You need to sign XML/PDF with a qualified digital signature according to GOST R 34.10-2012.
+**Context:** You need to sign XML/PDF with a qualified digital signature under GOST R 34.10-2012.
 
 **Steps:**
-1. Trust boundary: "1С server → CryptoPro CSP" (or ViPNet).
-2. If БСП "Electronic Signature" is present in the configuration - use its modules, do **not** write your own `МенеджерКриптографии` manually.
-3. If БСП is absent - `МенеджерКриптографии("Crypto-Pro GOST R 34.10-2012 Cryptographic Service Provider", 80)` with an explicit `ТипПровайдера`.
-4. Get the certificate by fingerprint (`Отпечаток`), not by "the first suitable one".
+1. Trust boundary: "1C server → CryptoPro CSP" (or ViPNet).
+2. If БСП "Электронная подпись" is in the configuration, use its modules, **do not** write your own `МенеджерКриптографии` manually.
+3. If БСП is not present, use `МенеджерКриптографии("Crypto-Pro GOST R 34.10-2012 Cryptographic Service Provider", 80)` with an explicit `ТипПровайдера`.
+4. Take the certificate by fingerprint (`Отпечаток`), not by "the first suitable one".
 5. `ПараметрыПодписиCMS` (detached/attached, encoding).
 6. The private key container is available under the rphost account - check it in the deployment checklist, not in code.
 7. Do not log `ДанныеПодписи` in full; log the certificate `Отпечаток` and the business object identifier.
 
 ### Scenario 3: Reviewing a pull request that touches rights
 
-**Context:** `УстановитьПривилегированныйРежим(Истина)` appeared in a PR.
+**Context:** A `УстановитьПривилегированныйРежим(Истина)` appeared in the PR.
 
 **Steps:**
-1. Find the matching `УстановитьПривилегированныйРежим(Ложь)` in the same scope and inside `Попытка/Исключение`.
-2. Check that inside the privileged block there is **only** secret/system-table access, not the entire business logic.
+1. Find the paired `УстановитьПривилегированныйРежим(Ложь)` in the same scope and in `Попытка/Исключение`.
+2. Check that inside the privileged block there is **only** access to the secret/system table, not the entire business logic.
 3. Check that the result does not leak into a form/report without an explicit check of the current user's rights.
 4. Run `references/review-checklist.md`.
 
@@ -193,21 +193,21 @@ These rules are **strict**. A violation means a blocking review comment and a co
 | Mistake | Consequence | How to avoid |
 |--------|-------------|--------------|
 | Password/token in the parameter of an exported server procedure | Leak over the network, in dumps, in client logs | Pass only the secret owner (reference), read the secret on the server |
-| `УстановитьПривилегированныйРежим(Истина)` for the whole module/function | Bypasses RLS and role checks across all business logic | A targeted block only around `БезопасноеХранилище` access |
-| Storing `access_token` in a catalog attribute / constant / template | Any user with read access to the catalog gets the token | `БезопасноеХранилище` + owner = reference to the catalog item |
-| `МенеджерКриптографии()` without an explicit provider and type | The code works in one environment and fails in production with another provider | Explicit `ИмяПровайдера` + `ТипПровайдера`, GOST version fixed |
-| Certificate chosen as "the first one in the store" | Signature with the wrong certificate during rotation | Search strictly by `Отпечаток` |
-| `401` from an external API → `Сообщить("Ошибка при сохранении")` | Impossible to distinguish an expired token from a data error | Separate authentication error type + refresh handling |
-| Logging the entire HTTP request/response body | Passwords/tokens/PII end up in the registration log | Sanitize before logging, mask sensitive fields |
+| `УстановитьПривилегированныйРежим(Истина)` for the whole module/function | Bypassing RLS and role checks across all business logic | A targeted block only around work with `БезопасноеХранилище` |
+| Storing `access_token` in a directory attribute / constant / layout | Any user with directory read permission gets the token | `БезопасноеХранилище` + owner = reference to the directory item |
+| `МенеджерКриптографии()` without an explicit provider and type | The code works in the test environment, fails in production with a different provider | Explicit `ИмяПровайдера` + `ТипПровайдера`, GOST version fixed |
+| The certificate is chosen as "the first one in the store" | Signature with the wrong certificate at rotation time | Search strictly by `Отпечаток` |
+| `401` from an external API → `Сообщить("Ошибка при сохранении")` | It is impossible to distinguish an expired token from a data error | Separate authentication error type + refresh handling |
+| Logging the entire HTTP request/response body | Passwords/tokens/PII are stored in the registration log | Sanitization before logging, masking sensitive fields |
 
 ---
 
 ## Related resources
 
-- [`error-handling`](../error-handling/SKILL.md) - the general error model, including distinguishing technical and business errors.
-- [`integration-patterns`](../integration-patterns/SKILL.md) - patterns for HTTP services and external integrations that authentication is attached to.
-- [`ssl-patterns`](../ssl-patterns/SKILL.md) - БСП modules (including "Electronic Signature", "ИнтернетПользователи").
-- [`coding-standards`](../coding-standards/SKILL.md) - general rules for formatting server-side code.
+- [`error-handling`](../error-handling/SKILL.md) — the general error model, including distinguishing technical and business errors.
+- [`integration-patterns`](../integration-patterns/SKILL.md) — patterns for HTTP services and external integrations that authentication is attached to.
+- [`ssl-patterns`](../ssl-patterns/SKILL.md) — БСП modules (including "Электронная подпись", "ИнтернетПользователи").
+- [`coding-standards`](../coding-standards/SKILL.md) — general rules for formatting server code.
 
 ---
 depends_on: []

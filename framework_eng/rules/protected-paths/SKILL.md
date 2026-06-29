@@ -1,6 +1,6 @@
 ---
 name: protected-paths
-description: "Before writes or deletes, check protected paths"
+description: "Before writing or deleting, check protected paths"
 alwaysApply: true
 ---
 
@@ -23,7 +23,7 @@ If a fix requires a protected path:
 3. Provide justification and the prohibited path(s)
 4. Stop and hand off the task to the orchestrator/user
 
-**developer-code:** fixes only bugs in its own code for the current session; all other cases (test failure, infrastructure, protected path) - block per the protocol above.
+**developer-code:** fixes only bugs in its own code for the current session; all other cases (test failure, infrastructure, protected path) are blocked by the protocol above.
 
 ---
 depends_on: []

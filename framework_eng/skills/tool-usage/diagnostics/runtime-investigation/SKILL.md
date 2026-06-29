@@ -49,86 +49,86 @@ The orchestrator asks the user again. Without consent - DO NOT raise it.
 ## 3. Full Algorithm
 
 ```
-PHASE 1. Preparation
-  1.1  Read bug-report.json. Change status -> in_investigation.
-  1.2  Reproduce the bug deterministically (run the specified test/scenario).
-       - Does not reproduce -> flaky, escalate to the orchestrator.
-  1.3  Read the code around the symptom point + the spec/design (L0).
-  1.4  Build the CALL GRAPH from the scenario/test entry point to the symptom point (see §4).
-  1.5  Identify the KEY VARIABLES (see §5).
+ФАЗА 1. Подготовка
+  1.1  Прочитать bug-report.json. Перевести status → in_investigation.
+  1.2  Воспроизвести баг детерминированно (запустить указанный тест/сценарий).
+       - Не воспроизводится → flaky, эскалация оркестратору.
+  1.3  Прочитать код вокруг точки симптома + спеку/дизайн (L0).
+  1.4  Построить ГРАФ ВЫЗОВОВ от точки входа сценария/теста до точки симптома (см. §4).
+  1.5  Выделить КЛЮЧЕВЫЕ ПЕРЕМЕННЫЕ (см. §5).
 
-PHASE 2. First pass (WITHOUT hypotheses)
-  2.1  Choose the runtime observation method:
-       - DAP/MCP debugger: if it is safe to stop the thread and stack/locals/step are needed.
-       - agent-debug + event log: if a broad trace is needed or stopping the thread is risky.
-  2.2  For DAP: set a breakpoint at the key point, run the scenario, poll `wait_for_stop`
-       every 5 seconds (fast code - up to 30 seconds; heavy - by the pre-set limit),
-       record stack/locals/steps in trace-run-1.md, then clear the breakpoint, release the thread and detach.
-  2.3  For agent-debug: place H0 probes on the graph nodes
-       (prefix `AGENTDEBUG-<bug-id>-H0-NNN`):
-       - EXECUTED marker
-       - snapshot of key variables (safe serialization - §6)
-       Run the scenario/test.
-  2.4  Read the event log or DAP observations, assemble the trace: which nodes were passed, variable state.
-       Save to task_dir/.context/debug/<bug-id>/trace-run-1.md.
-  2.5  Compare the trace with the expectation. Localize the first mismatch "expectation != fact".
-       If the trace is sufficient to determine the cause immediately -> move to Phase 4.
+ФАЗА 2. Первая проходка (БЕЗ гипотез)
+  2.1  Выбрать способ runtime-наблюдения:
+       - DAP/MCP-отладчик: если безопасно остановить поток и нужно увидеть stack/locals/step.
+       - agent-debug + ЖР: если нужна широкая трасса или остановка потока рискованна.
+  2.2  Для DAP: поставить breakpoint в ключевой точке, запустить сценарий, poll `wait_for_stop`
+       каждые 5 секунд (быстрый код — до 30 секунд; тяжёлый — по заранее заданному пределу),
+       записать stack/locals/шаги в trace-run-1.md, затем очистить breakpoint, отпустить поток и выполнить detach.
+  2.3  Для agent-debug: расставить пробы H0 на узлах графа
+       (префикс `AGENTDEBUG-<bug-id>-H0-NNN`):
+       - маркер EXECUTED
+       - снимок ключевых переменных (безопасная сериализация — §6)
+       Прогнать сценарий/тест.
+  2.4  Прочитать ЖР или DAP-наблюдения, собрать трассу: какие узлы прошли, состояние переменных.
+       Сохранить в task_dir/.context/debug/<bug-id>/trace-run-1.md.
+  2.5  Сравнить трассу с ожиданием. Локализовать первое расхождение «ожидание ≠ факт».
+       Если трассы достаточно, чтобы сразу определить причину → переход к Фазе 4.
 
-PHASE 3. Hypothesis cycle (<= 5 iterations; +3 extension, max 8 - see §7)
-  For hypothesis N (1..5, with extension 6..8):
+ФАЗА 3. Цикл гипотез (≤ 5 итераций; +3 расширение, max 8 — см. §7)
+  Для гипотезы N (1..5, при расширении 6..8):
 
-    3.N.1  Formulate the most likely hypothesis BASED ON THE CURRENT TRACE
-           (not from thin air). Record in debug-report.md:
-           - formulation
-           - evidence_from_trace (which fact from the trace it is based on)
+    3.N.1  Сформулировать наиболее вероятную гипотезу НА ОСНОВЕ ТЕКУЩЕЙ ТРАССЫ
+           (не из головы). Записать в debug-report.md:
+           - формулировка
+           - evidence_from_trace (на каком факте из трассы основана)
 
-    3.N.2  Choose the verification method:
-           (a) trial fix - a narrow change in code/test/scenario
-               that is easy to roll back;
-           (b) additional probes (prefix `AGENTDEBUG-<bug-id>-H<N>-NNN`) -
-               new key variables, nodes between marked ones,
-               data state through platform-data-core § Query Execution.
+    3.N.2  Выбрать способ проверки:
+           (a) пробный фикс — узкое изменение в коде/тесте/сценарии,
+               которое легко откатить;
+           (b) дополнительные пробы (префикс `AGENTDEBUG-<bug-id>-H<N>-NNN`) —
+               новые ключевые переменные, узлы между размеченными,
+               состояние данных через platform-data-core § Query Execution.
 
-    3.N.3  Apply, run, read the trace. Save trace-run-<N+1>.md.
+    3.N.3  Применить, прогнать, прочитать трассу. Сохранить trace-run-<N+1>.md.
 
-    3.N.4  Branch:
-           ✓ CONFIRMED -> move to Phase 4 (fix by the rules)
-           ✗ NOT confirmed:
-               - roll back the trial fix (if any)
-               - remove probes of THIS hypothesis only (grep H<N>); H0 probes and
-                 previous disproved hypotheses STAY
-               - record in debug-report.md: what was checked, result,
-                 why it was disproved
-               - move to hypothesis N+1
+    3.N.4  Развилка:
+           ✓ ПОДТВЕРЖДЕНА → переход к Фазе 4 (фикс по правилам)
+           ✗ НЕ подтверждена:
+               - откатить пробный фикс (если был)
+               - снять пробы ИМЕННО ЭТОЙ гипотезы (grep H<N>); пробы H0 и
+                 предыдущих опровергнутых гипотез ОСТАЮТСЯ
+               - зафиксировать в debug-report.md: что проверял, результат,
+                 почему опровергнута
+               - переход к гипотезе N+1
 
-  Between iterations, it is allowed to return to Phase 1 and expand the graph/key
-  variables by adding new H0+ probes (for example, new callers appeared).
-  This does not count as a separate hypothesis.
+  Между итерациями допустимо вернуться к Фазе 1 и расширить граф/ключевые
+  переменные, добавив новые H0+ пробы (например, появились новые вызывающие
+  места). Это не считается отдельной гипотезой.
 
-  After 5 unconfirmed hypotheses:
-    - if there is a concrete next hypothesis with high confidence ->
-      contact the orchestrator with a request for a +3 extension (max 8 total)
-    - otherwise -> Phase 5 (escalation)
+  После 5 неподтверждённых:
+    - если есть конкретная следующая гипотеза с высокой уверенностью →
+      обратиться к оркестратору с запросом на расширение +3 (max 8 всего)
+    - иначе → Фаза 5 (эскалация)
 
-PHASE 4. Fix (if the hypothesis was confirmed)
-  4.1  Evaluate the scope by the "local vs return" criterion (§8).
-  4.2  Local -> apply the fix, rerun the failed test/scenario + related ones.
-       - It must turn green
-       - If not, it was a wrong hypothesis, go back to 3.N.4 with rollback
-  4.3  Large-scale -> return to the orchestrator with an explanation and recommendation
-       (which agent to hand off to).
+ФАЗА 4. Фикс (если гипотеза подтвердилась)
+  4.1  Оценить масштаб по критерию «локальный vs возврат» (§8).
+  4.2  Локальный → применить фикс, прогнать упавший тест/сценарий + смежные.
+       - Должно стать зелёным
+       - Если не стало — это была ошибочная гипотеза, вернуться в 3.N.4 с откатом
+  4.3  Масштабный → возврат оркестратору с пояснением и рекомендацией
+       (какому агенту передать).
 
-PHASE 5. Escalation (5/8 hypotheses exhausted or the scope is too large)
-  5.1  Short structured report to the orchestrator (see §9).
-  5.2  The orchestrator forwards it to the user.
+ФАЗА 5. Эскалация (5/8 гипотез исчерпаны или масштаб слишком большой)
+  5.1  Краткий структурированный отчёт оркестратору (см. §9).
+  5.2  Оркестратор передаёт пользователю.
 
-PHASE 6. Cleanup (ALWAYS before finishing - success or escalation)
-  6.1  If DAP was used: `clear_breakpoints`, safe `continue`, `detach`;
-       with `ibInDebug`/a stuck session - `force_detach` and re-check targets.
-  6.2  grep `//[AGENTDEBUG-` -> zero matches in ALL affected files.
-  6.3  If the technical log was enabled - restore the original config.
-  6.4  syntax-checking on the affected modules.
-  6.5  Final debug-report.md with the final status and update
+ФАЗА 6. Очистка (ВСЕГДА перед завершением — успехом или эскалацией)
+  6.1  Если использовался DAP: `clear_breakpoints`, безопасный `continue`, `detach`;
+       при `ibInDebug`/зависшей сессии — `force_detach` и повторная проверка targets.
+  6.2  grep `//[AGENTDEBUG-` → ноль вхождений во ВСЕХ затронутых файлах.
+  6.3  Если поднимали техжурнал — восстановить исходный конфиг.
+  6.4  syntax-checking по затронутым модулям.
+  6.5  Финальный debug-report.md с итоговым статусом и обновление
        bug-report.json (status: fixed_locally / returned_to_author / escalated_to_user).
 ```
 
@@ -325,7 +325,6 @@ Saved to `task_dir/.context/debug/<bug-id>/debug-report.md`.
 | Skipping verification after a local fix | False "fixed", while adjacent behavior actually broke |
 
 ---
-
 depends_on:
   - framework/skills/tool-usage/diagnostics/bug-reporting/SKILL.md
   - framework/skills/tool-usage/diagnostics/dap-bsl-code-debug-procedure/SKILL.md

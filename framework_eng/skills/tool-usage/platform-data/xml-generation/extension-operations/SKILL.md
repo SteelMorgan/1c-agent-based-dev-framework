@@ -82,6 +82,8 @@ xml-gen extension borrow <extPath> <configPath> "Catalog.Номенклатур�
 
 Typical scenario: borrow with `--borrow-main-attribute form` → add an attribute → `form-edit`.
 
+Behavior of form borrowing: without `--borrow-main-attribute`, the base data bindings of the form are cut so the extension does not reference missing attributes. With `--borrow-main-attribute`, `Объект.*` bindings are preserved, and referenced attributes are pulled into the extension object; picture bindings (`RowPictureDataPath`, `MultipleValuePictureDataPath`) are still removed.
+
 **Important:** if the object has already been borrowed, the CLI adds the missing parts and does not overwrite them.
 
 ### extension patch-method

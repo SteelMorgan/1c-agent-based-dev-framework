@@ -426,10 +426,13 @@ public class FormWriter extends XmlWriter {
             endElement(); // Columns
         }
 
-        // ExtInfo для DynamicList (settings.mainTable, settings.dynamicDataRead)
+        //++agent TASK-199 [27.06.2026 23:30:00]
+        // Designer 8.3.27 rejects DynamicListExtInfo in managed forms;
+        // list forms use Settings xsi:type="DynamicList" instead.
         if (attr.getSettings() != null && "DynamicList".equals(attr.getType())) {
-            writeDynamicListExtInfo(attr.getSettings());
+            writeDynamicListSettings(attr.getSettings());
         }
+        //++agent TASK-199
 
         indentLevel = 2;
         writer.writeCharacters("\t\t");
@@ -437,12 +440,24 @@ public class FormWriter extends XmlWriter {
         writer.writeCharacters("\n");
     }
 
-    /** Эмитит <ExtInfo xsi:type="DynamicListExtInfo">…</ExtInfo>. */
+    //++agent TASK-199 [27.06.2026 23:30:00]
+    /** Эмитит <Settings xsi:type="DynamicList">…</Settings>. */
     @SuppressWarnings("unchecked")
-    private void writeDynamicListExtInfo(Map<String, Object> settings) throws XMLStreamException {
+    private void writeDynamicListSettings(Map<String, Object> settings) throws XMLStreamException {
         writer.writeCharacters("\t\t\t");
-        writer.writeStartElement("ExtInfo");
-        writer.writeAttribute("http://www.w3.org/2001/XMLSchema-instance", "type", "DynamicListExtInfo");
+        writer.writeStartElement("Settings");
+        writer.writeAttribute("http://www.w3.org/2001/XMLSchema-instance", "type", "DynamicList");
+        writer.writeCharacters("\n");
+        writer.writeCharacters("\t\t\t\t");
+        writer.writeStartElement("ManualQuery");
+        writer.writeCharacters("false");
+        writer.writeEndElement();
+        writer.writeCharacters("\n");
+        writer.writeCharacters("\t\t\t\t");
+        writer.writeStartElement("DynamicDataRead");
+        Object ddr = settings.get("dynamicDataRead");
+        writer.writeCharacters((ddr instanceof Boolean && !(Boolean) ddr) ? "false" : "true");
+        writer.writeEndElement();
         writer.writeCharacters("\n");
         Object mainTable = settings.get("mainTable");
         if (mainTable != null) {
@@ -452,18 +467,11 @@ public class FormWriter extends XmlWriter {
             writer.writeEndElement();
             writer.writeCharacters("\n");
         }
-        Object ddr = settings.get("dynamicDataRead");
-        if (ddr instanceof Boolean && (Boolean) ddr) {
-            writer.writeCharacters("\t\t\t\t");
-            writer.writeStartElement("DynamicDataRead");
-            writer.writeCharacters("true");
-            writer.writeEndElement();
-            writer.writeCharacters("\n");
-        }
         writer.writeCharacters("\t\t\t");
-        writer.writeEndElement(); // ExtInfo
+        writer.writeEndElement(); // Settings
         writer.writeCharacters("\n");
     }
+    //++agent TASK-199
     
     //++agent TASK-174 [07.06.2026 11:15:00]
     /**
@@ -1330,8 +1338,14 @@ public class FormWriter extends XmlWriter {
             writeMultilingualString("Title", element.get("title").toString());
         }
         
-        // Свойства
-        writeElementProperties(element);
+        //++agent TASK-199 [27.06.2026 23:34:00]
+        // LabelField uses the same XDTO shape for UserVisible as InputField:
+        // <UserVisible><xr:Common>false</xr:Common></UserVisible>.
+        writeCommonFlags(element);
+        writeElementProperties(element, java.util.Set.of(
+            "visible", "userVisible", "enabled", "readOnly",
+            "hidden", "disabled"));
+        //++agent TASK-199
         
         // ExtendedTooltip
         writeAutoElements(name, id, depth + 1);
@@ -1372,8 +1386,14 @@ public class FormWriter extends XmlWriter {
             writeMultilingualString("Title", element.get("title").toString());
         }
         
-        // Свойства
-        writeElementProperties(element);
+        //++agent TASK-199 [27.06.2026 23:34:00]
+        // LabelField uses the same XDTO shape for UserVisible as InputField:
+        // <UserVisible><xr:Common>false</xr:Common></UserVisible>.
+        writeCommonFlags(element);
+        writeElementProperties(element, java.util.Set.of(
+            "visible", "userVisible", "enabled", "readOnly",
+            "hidden", "disabled"));
+        //++agent TASK-199
         
         // ContextMenu и ExtendedTooltip
         writeAutoElements(name, id, depth + 1);

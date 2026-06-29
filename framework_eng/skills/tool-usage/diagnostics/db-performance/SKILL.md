@@ -1,6 +1,6 @@
 ---
 name: db-performance
-description: "Diagnose slow queries, locks, and DBMS plans"
+description: "Diagnostics of slow queries, locks, and DBMS execution plans"
 target_agents:
   - debugger
   - developer-code
@@ -9,7 +9,7 @@ target_agents:
 
 # DB Performance — database performance diagnostics
 
-This skill works on **two levels at once**: the 1С platform (query, metadata, SCD) and the DBMS (plan, locks, waits, temp storage). A diagnosis without both levels is incomplete.
+The skill works at **two levels simultaneously**: the 1С platform (query, metadata, SCD) and the DBMS (plan, locks, waits, temp storage). A diagnosis without both levels is incomplete.
 
 ---
 
@@ -21,9 +21,9 @@ This skill works on **two levels at once**: the 1С platform (query, metadata, S
 | SQL in the tech log with a large `Duration` | Step 2: extract the query + metadata |
 | Locks `TLOCK` / `TDEADLOCK` | Step 3: collect DBMS evidence |
 | TEMPDB/WAL grows during a "read-only" scenario | Steps 3-4: red flags + causes |
-| Table grew - the report became slower | Full algorithm (steps 1-5) |
+| The table grew and the report became slower | Full algorithm (steps 1-5) |
 
-This skill is the **lower evidence layer**. For rewriting query text or SCD, hand it off to `query-optimize`.
+This skill is the **lower evidence layer**. For rewriting the query text or SCD, pass it to `query-optimize`.
 
 ---
 
@@ -31,13 +31,13 @@ This skill is the **lower evidence layer**. For rewriting query text or SCD, han
 
 | Task | Tool |
 |--------|-----------|
-| Search for a query in code | `rg` (ripgrep) over BSL text |
+| Find the query in code | `rg` (ripgrep) over BSL text |
 | Navigate to a symbol / procedure | `code-navigation` |
 | Get SQL from the tech log | `tech-log-analysis` → `search_tech_log` with `name: DBMSSQL` / `DBPOSTGRS` |
-| Test run / syntax check | `v8-runner` |
+| Run a test / syntax check | `v8-runner` |
 | Metadata information | `code-navigation` → register / catalog structure |
 
-There is no direct access to `EXPLAIN ANALYZE`, `pg_stat_statements`, or `sys.dm_exec_query_stats` - instructions for obtaining them are passed to the user/administrator.
+There is no direct access to `EXPLAIN ANALYZE`, `pg_stat_statements`, `sys.dm_exec_query_stats` - instructions for obtaining them are passed to the user/administrator.
 
 ---
 
@@ -45,19 +45,19 @@ There is no direct access to `EXPLAIN ANALYZE`, `pg_stat_statements`, or `sys.dm
 
 ### Step 1. Name the scenario
 
-Precisely determine: what the user is doing / which background process / which exchange step / which report with which filters. Without a specific scenario, diagnosis is impossible.
+Precisely determine: what the user does / which background process / which exchange step / which report with which filters. Without a concrete scenario, diagnosis is impossible.
 
-Record: *name*, *expected time*, *actual time*, *conditions* (data volume, organization, period).
+Record: *name*, *expected time*, *actual time*, *conditions* (data volume, company, period).
 
 ### Step 2. Extract the query + metadata
 
 **Platform layer:**
 - Find the query text in BSL: `rg "Запрос.Текст\s*=" --type-add "bsl:*.bsl" -t bsl`
-- For SCD - find the `.xml` data composition schema via `code-navigation`
+- For SCD - find the `.xml` data composition schema through `code-navigation`
 - Check metadata: register type (accumulation / information), periodicity, resources, dimensions, tabular sections
 - Record: call context, transaction boundary, loop around the query, virtual table parameters
 
-**Requirement:** the 1С query text must be paired with at least one DBMS artifact (step 3). Analysis of the query text alone without DBMS evidence does not provide a basis for proof.
+**Requirement:** the 1C query text must **always be paired** with at least one DBMS artifact (step 3). Analysis of the query text alone, without DBMS evidence, does not provide an evidence base.
 
 ### Step 3. Collect DBMS evidence
 
@@ -67,11 +67,11 @@ Evidence categories (at least one is required):
 |-----------|-----------|---------------|----------------|
 | **Query plan** | `EXPLAIN (ANALYZE, BUFFERS)` | `SET STATISTICS IO, TIME ON` + actual plan | Seq scan vs index scan, hash join cost, actual rows |
 | **Locks / waits** | `pg_locks`, `pg_stat_activity` | `sys.dm_exec_requests`, `sys.dm_os_waiting_tasks` | Lock holder, waiter, lock type |
-| **Temp storage** | WAL size, `pg_stat_bgwriter` | TEMPDB usage, VLF count | Hidden writes in a "read-only" scenario |
+| **Temp storage** | WAL size, `pg_stat_bgwriter` | TEMPDB usage, VLF count | Hidden writes during a "read-only" scenario |
 | **Table statistics** | `pg_stat_user_tables` | `sys.dm_db_index_usage_stats` | Seq scans vs index seeks, stale stats |
 | **Tech log artifacts** | `DBPOSTGRS` events | `DBMSSQL` events | Duration, SQL text, context |
 
-File-based infobase is a separate model: there is no DBMS plan, performance is determined by the structure of dbf files, locking is handled by the platform manager.
+File-based infobase is a separate model: there is no DBMS plan, and performance is determined by the structure of dbf files and platform locks.
 
 **Missing evidence rule:** if a DBMS artifact cannot be obtained, record it explicitly: "DBMS evidence is absent, reason: <...>". Do not replace it with assumptions.
 
@@ -81,15 +81,15 @@ Classify the cause by category:
 
 | Category | Signs |
 |-----------|---------|
-| **Inefficient query** | Seq scan on a large table, missing filter in a virtual table, dot dereference without `ВЫРАЗИТЬ` |
-| **Missing / harmful index** | Full table scan on a field without an index; or the index exists, but is not used because of the condition type |
-| **Broad virtual table read** | `Остатки()` without period / dimension parameters |
+| **Inefficient query** | Seq scan on a large table, no filter in a virtual table, dot dereference without `ВЫРАЗИТЬ` |
+| **Missing / harmful index** | Full table scan on a field without an index; or an index exists but is not used because of the condition type |
+| **Wide read of a virtual table** | `Остатки()` without period / dimension parameters |
 | **Query-in-loop** | N queries for N rows: `Duration * N` in the tech log, repeated SQL with different parameters |
 | **Lock contention** | `TLOCK` / `TDEADLOCK` in the tech log; blocking query in `pg_locks` / `sys.dm_exec_requests` |
-| **DBMS maintenance** | Autovacuum, index rebuild, statistics are stale - the plan has degraded |
-| **Data growth** | The query is correct, but the table volume has grown - the plan changed |
+| **DBMS maintenance** | Autovacuum, index rebuild, stale statistics - the plan degraded |
+| **Data growth** | The query is correct, but the table volume grew - the plan changed |
 
-One cause per iteration. If there are multiple causes, start with the most likely one according to the evidence.
+One cause per iteration. If there are multiple causes, start with the most likely one based on evidence.
 
 ### Step 5. One measurable change + verification
 
@@ -102,33 +102,33 @@ One cause per iteration. If there are multiple causes, start with the most likel
 
 ## Stop rules
 
-1. **Do not recommend an index without** a specific predicate / JOIN / sort / group + an estimate of the write-cost tradeoff.
-2. **Do not remove `РАЗРЕШЕННЫЕ`** and do not disable RLS/rights filters for the sake of performance without explicit security approval.
-3. **Do not assert the cause at the DBMS level without DBMS evidence.** Record missing evidence.
+1. **Do not recommend an index without** a specific predicate / JOIN / sort / grouping + an estimate of the write-cost tradeoff.
+2. **Do not remove `РАЗРЕШЕННЫЕ`** and do not disable RLS/permission filters for performance without explicit security approval.
+3. **Do not claim a DBMS-level cause without DBMS evidence.** Record missing evidence.
 4. **Do not generalize** a PostgreSQL-specific conclusion to MS SQL Server and vice versa.
-5. **Do not propose several changes at once** - it is impossible to measure each contribution.
+5. **Do not propose multiple changes at once** - it is impossible to measure each one's contribution.
 
 ---
 
-## DBMS evidence models
+## Evidence models by DBMS
 
 ### PostgreSQL
 - Main tool: `EXPLAIN (ANALYZE, BUFFERS, FORMAT TEXT)`
-- Problem patterns: Seq Scan on a table with > 100K rows, Hash Join with large `rows=`, high `shared hit` with low `actual rows`
-- Temp files: `work_mem` overflows -> temp file in the plan -> WAL pressure
+- Problem patterns: Seq Scan on a table > 100K rows, Hash Join with large `rows=`, high `shared hit` with low `actual rows`
+- Temp files: `work_mem` overflow → temp file in the plan → WAL pressure
 - Locks: `pg_stat_activity.wait_event_type = 'Lock'`
 
 ### MS SQL Server
 - Main tool: Actual Execution Plan + `SET STATISTICS IO ON`
 - Patterns: Table Scan / Clustered Index Scan instead of Seek, Key Lookup, implicit conversion due to types
-- TEMPDB: spill to disk in Sort / Hash Match -> `tempdb.sys.dm_db_task_space_usage`
+- TEMPDB: spill to disk in Sort / Hash Match → `tempdb.sys.dm_db_task_space_usage`
 - Locks: `sys.dm_exec_requests.blocking_session_id`
 
 ### File-based infobase
 - No DBMS plan
 - Performance depends on the size of dbf files and platform indexes
 - Locks are a platform mechanism, visible in the tech log (`TLOCK`)
-- Recommendation: migrate to the client-server variant as volume grows
+- Recommendation: migrate to the client-server variant as the volume grows
 
 ---
 
@@ -151,18 +151,18 @@ One cause per iteration. If there are multiple causes, start with the most likel
 <How to measure: command / scenario / tech log comparison>
 
 ## Residual risks
-<Data volume / locks / DBMS-specific details>
+<Data volume / locks / DBMS-specific behavior>
 ```
 
 ---
 
-## Red flags (immediate markers)
+## Red flags (immediate indicators)
 
-- The report filters by date / organization / tenant **after** joining large tables
+- The report filters by date / company / tenant **after** joining large tables
 - A virtual table is called without period / dimension parameters
-- The same SQL in the tech log is repeated N times with different parameters (query-in-loop)
-- Long locks coincide with large write operations: posting, exchange, background jobs
-- Temp storage or the transaction log grows in a "read-only" scenario
+- The same SQL in the tech log repeats N times with different parameters (query-in-loop)
+- Long locks coincide with large writes: posting, exchange, background jobs
+- Temp storage or transaction log grows in a "read-only" scenario
 
 ---
 depends_on:

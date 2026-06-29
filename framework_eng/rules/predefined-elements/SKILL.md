@@ -1,6 +1,6 @@
 ---
 name: predefined-elements
-description: "Before new settings, search predefined values"
+description: "Before creating a new setting, search for a predefined value"
 alwaysApply: true
 ---
 
@@ -10,7 +10,7 @@ alwaysApply: true
 
 ## Principle
 
-Settings replicated across copies or hardcoded as literals in code diverge between installations and silently break logic. If the project already has a centralized storage for settings or named predefined values, the agent must first look for the value there and use the standard access layer for it.
+Settings duplicated across copies or hardcoded as literals in code diverge between installations and silently break logic. If the project already has a centralized store for settings or named predefined values, the agent must first look for the value there and use the standard access layer for it.
 
 ## MUST
 
@@ -26,7 +26,7 @@ Settings replicated across copies or hardcoded as literals in code diverge betwe
 ## SHOULD
 
 - If a setting is needed in multiple places, all of them read it through the same key and the same access layer.
-- If the project does not have a centralized settings storage, first check standard or library mechanisms instead of creating a local catalog/register without an architectural decision.
+- If the project does not have a centralized settings store, first check standard or library mechanisms instead of creating a local catalog/register without an architectural decision.
 - For migrating old hardcoded values, first find all usages of the literal and define a single key, then replace accesses through a shared API.
 
 ## What this rule does NOT cover

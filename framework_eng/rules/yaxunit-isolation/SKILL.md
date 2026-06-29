@@ -6,20 +6,20 @@ alwaysApply: false
 
 # YaxUnit Test Isolation (transaction rollback)
 
-> **Trigger:** a server test (`ДобавитьСерверныйТест`) writes to the DB - it creates, posts, modifies, and deletes objects. When this happens, apply the `test-writing` skill (`framework/skills/bsl-practices/test-writing/SKILL.md`), section "Isolating test data".
+> **Trigger:** a server test (`ДобавитьСерверныйТест`) writes to the DB — it creates, posts, modifies, and deletes objects. When this happens, apply the `test-writing` skill (`framework/skills/bsl-practices/test-writing/SKILL.md`), section "Isolating test data".
 
 ## Principle
 
-A test that writes to the DB **must roll back its changes** - otherwise each run leaves garbage in the database, tests become non-idempotent, and the database gradually degrades. YaxUnit solves this with the built-in `.ВТранзакции()` mechanism: before each test, a transaction is opened; after the test, it is rolled back.
+A test that writes to the DB **must roll back its changes** — otherwise each run leaves garbage in the database, tests become non-idempotent, and the database gradually degrades. YaxUnit solves this with the built-in `.ВТранзакции()` mechanism: before each test, a transaction is opened; after the test, it is rolled back.
 
 ## MUST
 
 | Requirement | Description |
 |---|---|
 | `.ВТранзакции()` by default | Any set of server tests that write to the DB is registered with `.ВТранзакции()` immediately after `ДобавитьТестовыйНабор()` |
-| Catalogs via `ЮТест.Данные()` | Create catalog items only through `ЮТест.Данные().СоздатьЭлемент(...)` or `КонструкторОбъекта(...).Записать()` - then they are tracked and removed automatically |
+| Catalogs via `ЮТест.Данные()` | Create catalog items only through `ЮТест.Данные().СоздатьЭлемент(...)` or `КонструкторОбъекта(...).Записать()` — then they are tracked and removed automatically |
 | Exception -> explicit rationale | A set without `.ВТранзакции()` MUST contain a comment before `ДобавитьТестовыйНабор()` stating the reason for the exception (one of the three below) + teardown via `.После("ИмяПроцедурыОчистки")` |
-| Documents without `.ВТранзакции()` -> teardown | Documents created via `Документы.X.СоздатьДокумент()` (not via `ЮТест.Данные()`) are NOT tracked by auto-cleanup - they require explicit teardown in `.После()` |
+| Documents without `.ВТранзакции()` -> teardown | Documents created via `Документы.X.СоздатьДокумент()` (not via `ЮТест.Данные()`) are NOT tracked by auto-cleanup — they require explicit teardown in `.После()` |
 | Client tests - without `.ВТранзакции()` | `ДобавитьКлиентскийТест` runs in the client context, where transactional rollback is unavailable |
 
 ## Allowed Exceptions from `.ВТранзакции()`
@@ -53,11 +53,11 @@ Some production procedures explicitly check for the absence of an active transac
 
 ### (c) Client context
 
-`ДобавитьКлиентскийТест` - transactional rollback on the client is unavailable by platform architecture. Test data under client tests is created and cleaned through `Перед`/`После` handlers in the server context.
+`ДобавитьКлиентскийТест` — transactional rollback on the client is unavailable by platform architecture. Test data under client tests is created and cleaned through `Перед`/`После` handlers in the server context.
 
 ## Object Re-reading Pattern for Reposting
 
-A test that changes the document write mode (posting -> unposting -> reposting) **must reread the object** between mode changes via `ДокОбъект = Ссылка.ПолучитьОбъект()` - this mirrors form behavior:
+A test that changes the document write mode (posting -> unposting -> reposting) **must reread the object** between mode changes via `ДокОбъект = Ссылка.ПолучитьОбъект()` — this mirrors form behavior:
 
 ```bsl
 // Провести
@@ -73,7 +73,7 @@ A test that changes the document write mode (posting -> unposting -> reposting) 
 ДокОбъект.Записать(РежимЗаписиДокумента.Проведение);
 ```
 
-**Important (platform 8.3.27):** programmatic reposting in a server session can trigger a platform error `[ОшибкаХранимыхДанных]` (stack without application frames). Neither rereading nor `.ВТранзакции()` fixes it - this is a platform limitation. In this case, reposting idempotence is checked at the **scenario layer** (Vanessa, path through the form), and the unit test is written with `ЮТест.Пропустить()` and an explicit rationale.
+**Important (platform 8.3.27):** programmatic reposting in a server session can trigger a platform error `[ОшибкаХранимыхДанных]` (stack without application frames). Neither rereading nor `.ВТранзакции()` fixes it — this is a platform limitation. In this case, reposting idempotence is checked at the **scenario layer** (Vanessa, path through the form), and the unit test is written with `ЮТест.Пропустить()` and an explicit rationale.
 
 ## Example of Correct Registration with `.ВТранзакции()`
 

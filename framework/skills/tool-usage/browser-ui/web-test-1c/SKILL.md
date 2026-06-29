@@ -122,6 +122,7 @@ node $RUN stop                          # logout + закрытие (освоб�
 - **Multi-table** — если на форме несколько сеток, `tables[]` перечисляет все; передавай `{ table: 'Исходящие' }` в `readTable`/`clickElement`/`fillTableRow`/`deleteTableRow` чтобы указать нужную
 - **Tree nodes** — по умолчанию клик выбирает, `{expand: true}` раскрывает/сворачивает
 - **Multi-select** — `clickElement(..., { modifier: 'ctrl' })` или `'shift'`
+- **Accepted upstream delta** — в backlog принят перенос `selectValue(field, [values])`, headerless grids и устойчивого клика по строке модальной формы подбора из `cc-1c-skills w-2026-06-28`; перед использованием проверь поддержку в текущем `tools/web-test` runtime
 - **1C browser extension** — если установлена в Chrome/Edge, автоматически подхватывается; можно переопределить через `extensionPath` в `.v8-project.json`
 - **Макс. 2 попытки** — после двух неудач — сообщи пользователю
 

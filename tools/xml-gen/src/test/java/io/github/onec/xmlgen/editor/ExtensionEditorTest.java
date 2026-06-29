@@ -250,6 +250,117 @@ class ExtensionEditorTest {
         assertThat(formMetaXml).doesNotContain("version=\"2.17\"");
     }
 
+    @Test
+    void testBorrowMainAttribute_FormMode_KeepsObjectBindingsAndCollectsBindingTags() throws Exception {
+        Path cfg = makeBaseConfig();
+        Path baseObj = cfg.resolve("Catalogs/X.xml");
+        String objXml = readNoBom(baseObj)
+                .replace("\t\t\t<Form>ФормаЭлемента</Form>",
+                        "\t\t\t<Attribute uuid=\"dddddddd-dddd-dddd-dddd-dddddddddddd\">\n"
+                                + "\t\t\t\t<Properties><Name>Статус</Name></Properties>\n"
+                                + "\t\t\t</Attribute>\n"
+                                + "\t\t\t<Attribute uuid=\"eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee\">\n"
+                                + "\t\t\t\t<Properties><Name>КоличествоАдресатов</Name></Properties>\n"
+                                + "\t\t\t</Attribute>\n"
+                                + "\t\t\t<Form>ФормаЭлемента</Form>");
+        writeBom(baseObj, objXml);
+        writeBom(cfg.resolve("Catalogs/X/Forms/ФормаЭлемента/Ext/Form.xml"),
+                "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
+                        + "<Form version=\"2.17\" xmlns=\"http://v8.1c.ru/8.2/managed-application/logform\">\n"
+                        + "\t<ChildItems>\n"
+                        + "\t\t<InputField name=\"Артикул\" id=\"2\">\n"
+                        + "\t\t\t<DataPath>Объект.Артикул</DataPath>\n"
+                        + "\t\t\t<TitleDataPath>Объект.Статус</TitleDataPath>\n"
+                        + "\t\t\t<RowPictureDataPath>Список.Picture</RowPictureDataPath>\n"
+                        + "\t\t\t<MultipleValuePictureDataPath>Список.Picture</MultipleValuePictureDataPath>\n"
+                        + "\t\t</InputField>\n"
+                        + "\t\t<InputField name=\"Количество\" id=\"3\">\n"
+                        + "\t\t\t<MultipleValueDataPath>Объект.КоличествоАдресатов</MultipleValueDataPath>\n"
+                        + "\t\t</InputField>\n"
+                        + "\t\t<LabelDecoration name=\"Фильтр\" id=\"4\">\n"
+                        + "\t\t\t<Field>Объект.Статус</Field>\n"
+                        + "\t\t</LabelDecoration>\n"
+                        + "\t</ChildItems>\n"
+                        + "\t<Attributes/>\n"
+                        + "</Form>");
+        Path ext = makeExtension("Расш1");
+
+        silent().borrow(ext, cfg, "Catalog.X.Form.ФормаЭлемента",
+                ExtensionEditor.MainAttributeMode.FORM);
+
+        String formXml = readNoBom(ext.resolve("Catalogs/X/Forms/ФормаЭлемента/Ext/Form.xml"));
+        assertThat(formXml).contains("<DataPath>Объект.Артикул</DataPath>");
+        assertThat(formXml).contains("<TitleDataPath>Объект.Статус</TitleDataPath>");
+        assertThat(formXml).contains("<MultipleValueDataPath>Объект.КоличествоАдресатов</MultipleValueDataPath>");
+        assertThat(formXml).doesNotContain("<RowPictureDataPath>");
+        assertThat(formXml).doesNotContain("<MultipleValuePictureDataPath>");
+
+        String extObj = readNoBom(ext.resolve("Catalogs/X.xml"));
+        assertThat(extObj).contains("<Name>Артикул</Name>");
+        assertThat(extObj).contains("<Name>Статус</Name>");
+        assertThat(extObj).contains("<Name>КоличествоАдресатов</Name>");
+        assertThat(extObj).doesNotContain("<Name>Цена</Name>");
+    }
+
+    @Test
+    void testBorrowForm_WithoutMainAttribute_StripsAllBindingTags() throws Exception {
+        Path cfg = makeBaseConfig();
+        writeBom(cfg.resolve("Catalogs/X/Forms/ФормаЭлемента/Ext/Form.xml"),
+                "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
+                        + "<Form version=\"2.17\" xmlns=\"http://v8.1c.ru/8.2/managed-application/logform\">\n"
+                        + "\t<ChildItems>\n"
+                        + "\t\t<InputField name=\"Поле\" id=\"2\">\n"
+                        + "\t\t\t<DataPath>Объект.Артикул</DataPath>\n"
+                        + "\t\t\t<TitleDataPath>Объект.Артикул</TitleDataPath>\n"
+                        + "\t\t\t<FooterDataPath>Объект.Артикул</FooterDataPath>\n"
+                        + "\t\t\t<HeaderDataPath>Объект.Артикул</HeaderDataPath>\n"
+                        + "\t\t\t<MultipleValueDataPath>Объект.Артикул</MultipleValueDataPath>\n"
+                        + "\t\t\t<MultipleValuePresentDataPath>Объект.Артикул</MultipleValuePresentDataPath>\n"
+                        + "\t\t\t<RowPictureDataPath>Список.Picture</RowPictureDataPath>\n"
+                        + "\t\t\t<MultipleValuePictureDataPath>Список.Picture</MultipleValuePictureDataPath>\n"
+                        + "\t\t</InputField>\n"
+                        + "\t</ChildItems>\n"
+                        + "\t<Attributes/>\n"
+                        + "</Form>");
+        Path ext = makeExtension("Расш1");
+
+        silent().borrow(ext, cfg, "Catalog.X.Form.ФормаЭлемента", null);
+
+        String formXml = readNoBom(ext.resolve("Catalogs/X/Forms/ФормаЭлемента/Ext/Form.xml"));
+        assertThat(formXml).doesNotContain("DataPath>");
+        assertThat(formXml).doesNotContain("PictureDataPath>");
+    }
+
+    @Test
+    void testBorrowDefinedType_CopiesTypeDefinition() throws Exception {
+        Path cfg = tempDir.resolve("cfg-defined");
+        writeBom(cfg.resolve("Configuration.xml"),
+                "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
+                        + "<MetaDataObject xmlns=\"http://v8.1c.ru/8.3/MDClasses\">\n"
+                        + "\t<Configuration uuid=\"00000000-0000-0000-0000-000000000001\">\n"
+                        + "\t\t<Properties><Name>Base</Name></Properties>\n"
+                        + "\t\t<ChildObjects><DefinedType>ТипЦены</DefinedType></ChildObjects>\n"
+                        + "\t</Configuration>\n"
+                        + "</MetaDataObject>");
+        writeBom(cfg.resolve("DefinedTypes/ТипЦены.xml"),
+                "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
+                        + "<MetaDataObject xmlns=\"http://v8.1c.ru/8.3/MDClasses\""
+                        + " xmlns:v8=\"http://v8.1c.ru/8.1/data/core\">\n"
+                        + "\t<DefinedType uuid=\"99999999-9999-9999-9999-999999999999\">\n"
+                        + "\t\t<Properties>\n"
+                        + "\t\t\t<Name>ТипЦены</Name>\n"
+                        + "\t\t\t<Type><v8:Type>xs:decimal</v8:Type></Type>\n"
+                        + "\t\t</Properties>\n"
+                        + "\t</DefinedType>\n"
+                        + "</MetaDataObject>");
+        Path ext = makeExtension("Расш1");
+
+        silent().borrow(ext, cfg, "DefinedType.ТипЦены", null);
+
+        String extXml = readNoBom(ext.resolve("DefinedTypes/ТипЦены.xml"));
+        assertThat(extXml).contains("<Type><v8:Type>xs:decimal</v8:Type></Type>");
+    }
+
     // ═══════════════════════════════════════════════════════════════════
     // extension patch-method
     // ═══════════════════════════════════════════════════════════════════

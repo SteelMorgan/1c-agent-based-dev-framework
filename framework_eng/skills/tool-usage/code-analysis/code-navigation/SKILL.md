@@ -103,7 +103,7 @@ Returns the list of parameters for the called method and which argument the curs
 
 ```
 // Строка (1-based 8):  Аккаунт = ПолучитьАккаунт(ДокументОперации, ПараметрыОперации);
-signature_help(uri, line=7, character=29)   // сразу после "(" → param 0
+signature_help(uri, line=7, character=29)   // immediately after "(" → param 0
 //   → ПолучитьАккаунт(ДокументОперации?, ПараметрыОперации?), Active parameter: 0
 signature_help(uri, line=7, character=47)   // after comma   → Active parameter: 1
 ```

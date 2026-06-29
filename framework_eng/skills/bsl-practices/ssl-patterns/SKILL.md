@@ -1,26 +1,26 @@
 ---
 name: ssl-patterns
-description: "Check ready BSP/SSL mechanisms before custom logic"
+description: "Check ready БСП mechanisms before custom logic"
 uses_capabilities:
   - get_signature_help
 alwaysApply: false
 ---
 
-# Patterns for Working with BСП (Standard Subsystems Library)
+# Patterns for Working with БСП (Standard Subsystems Library)
 
-BСП code is battle-tested on millions of installations, updated centrally, and familiar to other developers. Duplicating BСП is an antipattern.
+БСП code is battle-tested on millions of installations, updated centrally, and familiar to other developers. Duplicating БСП is an antipattern.
 
-> **BСП function signatures are available through `get_signature_help`.** Functions from `ОбщегоНазначения` and
-> other BСП modules have many parameters and overloads; do not guess the order or set of arguments.
+> **БСП function signatures are available through `get_signature_help`.** Functions from `ОбщегоНазначения` and
+> other БСП modules have many parameters and overloads; do not guess the order or set of arguments.
 > At the call site, `get_signature_help(uri, line, character)` shows the parameters and overloads
-> of the invoked method right in place - without opening the BСП module definition. Use it when calling
+> of the invoked method right in place - without opening the БСП module definition. Use it when calling
 > any function from the catalog below if you are unsure about the signature.
 
 ---
 
 ## Rule 1: The `ОбщегоНазначения` module is the main "Swiss army knife"
 
-Before writing your own implementation, check whether BСП already has a ready-made function.
+Before writing your own implementation, check whether БСП already has a ready-made function.
 
 | Function | When to use |
 |---------|---|
@@ -29,7 +29,7 @@ Before writing your own implementation, check whether BСП already has a ready-
 | `СообщитьПользователю()` | Message bound to a field (instead of `Сообщить()`) |
 | `МенеджерОбъектаПоСсылке()` | Instead of `Выполнить("Справочники." + Имя)` |
 | `ПодсистемаСуществует()` | Conditional invocation of modules |
-| `ОбщийМодуль()` | Dynamic invocation of a BСП module |
+| `ОбщийМодуль()` | Dynamic invocation of a БСП module |
 | `ЭтоСсылка()` | Parameter validation |
 | `СсылкаСуществует()` | Check before accessing |
 
@@ -87,26 +87,26 @@ The directive `&НаКлиентеНаСервереБезКонтекста` me
 
 ---
 
-## Rule 4: BСП function search strategy
+## Rule 4: БСП function search strategy
 
 ### Algorithm: LSP -> grep -> AI
 
 1. **LSP** (if available): `navigate_symbol("ЗначенияРеквизитовОбъекта")`
 2. **Text search**: `grep -r "Функция.*КурсВалюты" src/CommonModules/`
-3. **AI assistant**: "Is there a BСП function for getting the exchange rate on a date?"
+3. **AI assistant**: "Is there a БСП function for getting the exchange rate on a date?"
 
-### When to write your own vs use BСП
+### When to write your own vs use БСП
 
 | Situation | Decision |
 |---|---|
-| BСП has a suitable function | **Use BСП** |
-| BСП has a similar function, but with extra functionality | **Use BСП** - the extra does not hurt |
-| The needed function does not exist in BСП | Write your own in BСП style |
-| Configuration without BСП | Write your own |
+| БСП has a suitable function | **Use БСП** |
+| БСП has a similar function, but with extra functionality | **Use БСП** - the extra does not hurt |
+| The needed function does not exist in БСП | Write your own in БСП style |
+| Configuration without БСП | Write your own |
 
 ---
 
-## Rule 5: Working with the registration log through BСП
+## Rule 5: Working with the registration log through БСП
 
 See `error-handling`, rule 7.
 
@@ -131,7 +131,7 @@ Direct file handling does not account for: access rights, temporary files, cross
 
 ---
 
-## Rule 7: Typical BСП patterns
+## Rule 7: Typical БСП patterns
 
 ### Fill check (`ОбработкаПроверкиЗаполнения`)
 
@@ -174,9 +174,9 @@ Direct file handling does not account for: access rights, temporary files, cross
 
 ---
 
-## Rule 8: Do not duplicate BСП functionality
+## Rule 8: Do not duplicate БСП functionality
 
-| What people often write themselves | What exists in BСП |
+| What people often write themselves | What exists in БСП |
 |---|---|
 | Get an attribute by reference | `ОбщегоНазначения.ЗначениеРеквизитаОбъекта()` |
 | String substitution | `СтроковыеФункцииКлиентСервер.ПодставитьПараметрыВСтроку()` |
@@ -277,7 +277,7 @@ In an object `ПередУдалением` handler, always call `Безопас
 
 ## Rule 12: Access group profiles (`ПрофилиГруппДоступа`)
 
-When developing subsystems with role-based access, use the BСП profile mechanism instead of assigning roles directly.
+When developing subsystems with role-based access, use the БСП profile mechanism instead of assigning roles directly.
 
 ```bsl
 // Пример описания профиля в ОписаниеПрофилейГруппДоступа()
@@ -297,7 +297,7 @@ When developing subsystems with role-based access, use the BСП profile mechani
 
 ## Rule 13: External processing objects and extensions (`СведенияОВнешнейОбработке`)
 
-Registering an external processing object in a BСП-based configuration requires the `СведенияОВнешнейОбработке()` function in the main module of the processing object.
+Registering an external processing object in a БСП-based configuration requires the `СведенияОВнешнейОбработке()` function in the main module of the processing object.
 
 ```bsl
 // В модуле обработки
@@ -331,7 +331,7 @@ Registering an external processing object in a BСП-based configuration require
 
 ## Searching for analogs through Buddy
 
-If `search_ssl_functions` did not return a result, use `ask_ai_assistant` (VALIDATE_BSL template from `buddy-prompting`): pass a code fragment and get recommendations for replacing it with BСП methods. Also use `SEARCH_DOCS` for documentation on a specific BСП method.
+If `search_ssl_functions` did not return a result, use `ask_ai_assistant` (VALIDATE_BSL template from `buddy-prompting`): pass a code fragment and get recommendations for replacing it with БСП methods. Also use `SEARCH_DOCS` for documentation on a specific БСП method.
 
 ---
 depends_on: []

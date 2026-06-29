@@ -5,7 +5,7 @@ alwaysApply: true
 ---
 # Error Handling and Transactions
 
-> **Trigger:** when writing BSL code containing transactions (`НачатьТранзакцию`), a `Try/Catch` block, or managed locks. When triggered, apply the `error-handling` skill (`framework/skills/bsl-practices/error-handling/SKILL.md`).
+> **Trigger:** when writing BSL code containing transactions (`НачатьТранзакцию`), the `Попытка/Исключение` block, or managed locks. When triggered, apply the `error-handling` skill (`framework/skills/bsl-practices/error-handling/SKILL.md`).
 
 **GUARD:** an unclosed transaction is a critical error; acceptance is blocked.
 

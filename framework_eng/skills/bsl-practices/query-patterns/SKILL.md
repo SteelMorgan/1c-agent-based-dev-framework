@@ -143,8 +143,8 @@ Substituting values into the text: vulnerability, inability to cache the DBMS pl
 ### Trap — filter without ЕСТЬNULL
 
 ```bsl
-// ПЛОХО: ГДЕ ОстаткиТоваров.КоличествоОстаток > 0
-// → NULL > 0 = ЛОЖЬ → строки без остатков пропадут (LEFT JOIN превращается в INNER)
+// BAD: WHERE ОстаткиТоваров.КоличествоОстаток > 0
+// → NULL > 0 = FALSE → rows without stock will disappear (LEFT JOIN turns into INNER)
 ```
 
 ---
@@ -173,7 +173,7 @@ ITS standard: “Using virtual tables”.
 ### Wrong — filtering through WHERE
 
 ```bsl
-// ПЛОХО: СУБД вычислит остатки по ВСЕЙ номенклатуре на ВСЕХ складах, потом отфильтрует
+// BAD: the DBMS will compute stock balances for ALL items on ALL warehouses, then filter
 "ИЗ РегистрНакопления.ТоварыНаСкладах.Остатки КАК Остатки
 |ГДЕ Остатки.Номенклатура В (&СписокНоменклатуры)"
 ```
@@ -219,7 +219,7 @@ Passing an array of data into a temporary table through `Запрос.Устан
 
 ---
 
-## Rule 7: Result processing — Выборка vs Выгрузка
+## Rule 7: Result processing — Selection vs Export
 
 | Method | When to use |
 |--------|-------------------|
@@ -228,13 +228,13 @@ Passing an array of data into a temporary table through `Запрос.Устан
 | `Выгрузить()` → ТаблицаЗначений | Random access, search, passing to another procedure, data < 10,000 rows |
 
 ```bsl
-// Выборка — данные загружаются порциями
+// Выборка — data is loaded in chunks
 Выборка = Запрос.Выполнить().Выбрать();
 Пока Выборка.Следующий() Цикл
     // обработка
 КонецЦикла;
 
-// Выгрузка — всё в память
+// Выгрузка — everything in memory
 ТаблицаРезультат = Запрос.Выполнить().Выгрузить();
 НайденнаяСтрока = ТаблицаРезультат.Найти(ИскомаяНоменклатура, "Номенклатура");
 ```
@@ -243,7 +243,7 @@ Passing an array of data into a temporary table through `Запрос.Устан
 
 ## Rule 8: Indexing — help the optimizer
 
-Index: fields in WHERE conditions, fields in join conditions (ОН/ON), ordering fields.
+Index: fields in WHERE conditions, fields in join conditions (ОН/ON), sorting fields.
 
 ### Temporary tables — index join fields
 
@@ -272,13 +272,13 @@ Index: fields in WHERE conditions, fields in join conditions (ОН/ON), ordering
 |       ПО втЗаказы.Номенклатура = Остатки.Номенклатура";
 ```
 
-In Configurator/EDT: Attribute -> Properties -> «Index».
+In Configurator/EDT: Attribute -> Properties -> "Index".
 
 ---
 
-## Rule 9: Only the needed fields (not ВЫБРАТЬ *)
+## Rule 9: Only the fields you need (not SELECT *)
 
-Extra fields mean extra traffic, no covering index, and brittleness when adding attributes.
+Excess fields: extra traffic, no covering index, fragility when attributes are added.
 
 ```bsl
 // Correct — explicit field list
@@ -291,7 +291,7 @@ Extra fields mean extra traffic, no covering index, and brittleness when adding 
 
 ---
 
-## Rule 10: ПЕРВЫЕ N to limit the result
+## Rule 10: TOP N to limit results
 
 A query without a limit can return millions of rows and exhaust memory.
 
@@ -303,16 +303,16 @@ A query without a limit can return millions of rows and exhaust memory.
 |УПОРЯДОЧИТЬ ПО Товары.Наименование"
 ```
 
-For displaying lists, use dynamic lists — they implement pagination automatically.
+For displaying lists, use dynamic lists - they implement pagination automatically.
 
 ---
 
-## Rule 11: Do not mask duplicates with РАЗЛИЧНЫЕ
+## Rule 11: Do not mask duplicates with DISTINCT
 
-`РАЗЛИЧНЫЕ` requires sorting/hashing all rows. If duplicates come from an extra JOIN, fix the query.
+`РАЗЛИЧНЫЕ` requires sorting/hashing all rows. If duplicates appear because of an unnecessary JOIN, fix the query.
 
 ```bsl
-// Correct — subquery instead of JOIN + РАЗЛИЧНЫЕ
+// Correct — subquery instead of JOIN + DISTINCT
 "ВЫБРАТЬ Контрагенты.Ссылка, Контрагенты.Наименование
 |ИЗ Справочник.Контрагенты КАК Контрагенты
 |ГДЕ Контрагенты.Ссылка В
@@ -325,12 +325,12 @@ For displaying lists, use dynamic lists — they implement pagination automatica
 
 ## Rule 12: ВЫРАЗИТЬ for composite types
 
-If a field has a composite type (e.g. “Регистратор”), the DBMS performs a LEFT JOIN to **all** tables of the composite type. `ВЫРАЗИТЬ(Поле КАК Тип)` limits the JOIN to a single table.
+If a field has a composite type (for example, `Регистратор`), the DBMS does a LEFT JOIN to **all** tables in the composite type. `ВЫРАЗИТЬ(Поле КАК Тип)` limits the JOIN to one table.
 
 ITS standard: “Using the ВЫРАЗИТЬ construct in queries”.
 
 ```bsl
-// Correct — JOIN with only one table
+// Correct — JOIN only with one table
 "ВЫБРАТЬ
 |   Движения.Период,
 |   ВЫРАЗИТЬ(Движения.Регистратор КАК Документ.РеализацияТоваровУслуг).Контрагент КАК Контрагент,
@@ -342,16 +342,16 @@ ITS standard: “Using the ВЫРАЗИТЬ construct in queries”.
 ### Trap — accessing a composite type without ВЫРАЗИТЬ
 
 ```bsl
-// ПЛОХО: Движения.Регистратор.Контрагент без ВЫРАЗИТЬ
-// Если Регистратор может быть 20 видами документов — 20 LEFT JOIN!
+// BAD: Движения.Регистратор.Контрагент without ВЫРАЗИТЬ
+// If Регистратор can be 20 document types, that is 20 LEFT JOINs!
 ```
 
 ---
 
 ## Rule 13: ON vs WHERE in LEFT JOIN
 
-- The condition in `ПО` filters the right table **BEFORE** the join — left rows without a match remain with NULL
-- The condition in `ГДЕ` filters **AFTER** — rows with NULL are dropped, turning LEFT JOIN into INNER JOIN
+- Condition in `ПО` filters the right table **before** the join - left rows without a match remain with NULL
+- Condition in `ГДЕ` filters **after** - rows with NULL are discarded, turning LEFT JOIN into INNER JOIN
 
 ```bsl
 // Correct — filter the right table in the virtual table parameters / in ON
@@ -368,8 +368,8 @@ ITS standard: “Using the ВЫРАЗИТЬ construct in queries”.
 ### Trap — filtering the right table in WHERE
 
 ```bsl
-// ПЛОХО: ГДЕ Цены.ВидЦены = &ВидЦены
-// → строки без цены (NULL) отфильтруются — LEFT JOIN стал INNER JOIN
+// BAD: WHERE Цены.ВидЦены = &ВидЦены
+// → rows without a price (NULL) will be filtered out - LEFT JOIN became INNER JOIN
 ```
 
 ---

@@ -30,7 +30,7 @@ form-element-mapping — маппинг Title→Name для Vanessa-сценар
 |---------|----------|-----------|
 | Understand form structure | `form-info` | [references/info.md](references/info.md) |
 | Get a JSON draft of a new form by example | `form-decompile` | draft, not lossless |
-| Add a field / attribute / command | `form-edit` | [references/edit.md](references/edit.md) |
+| Add a field / requisite / command | `form-edit` | [references/edit.md](references/edit.md) |
 | Validate Form.xml after changes | `form-validate` | [references/validate.md](references/validate.md) |
 | Writing Vanessa steps (Title→Name) | `form-element-mapping` | [references/element-mapping.md](references/element-mapping.md) |
 | EPF / ERF validation | `epf-validate` | [references/validate.md](references/validate.md) (EPF section) |

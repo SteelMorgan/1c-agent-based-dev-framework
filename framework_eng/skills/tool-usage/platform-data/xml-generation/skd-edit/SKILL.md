@@ -59,7 +59,7 @@ xml-gen skd edit Schema.xml add-field "Цена: decimal(15,2) ;; Количес
 ```bash
 xml-gen skd edit Schema.xml clear-conditionalAppearance "*"
 ```
-Removes all CA rules in the specified variant. The value is always `*`. Idempotent.
+Removes all conditional appearance rules in the specified variant. The value is always `*`. Idempotent.
 
 ## Invariants and contract
 

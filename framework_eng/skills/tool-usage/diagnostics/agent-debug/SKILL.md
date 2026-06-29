@@ -1,6 +1,6 @@
 ---
 name: agent-debug
-description: "Trace BSL when event logs/screenshots do not explain failure"
+description: "Trace BSL when the event log/screenshots do not explain the failure"
 alwaysApply: false
 ---
 
@@ -11,7 +11,7 @@ alwaysApply: false
 | Trigger | Action |
 |---------|----------|
 | Standard diagnostics do not explain the behavior | Insert debug points |
-| Hypothesis about the cause of the error needs confirmation/refutation | Log key values |
+| A hypothesis about the cause of the error needs confirmation or refutation | Log key values |
 | It is unclear which code branch is executing | Place markers on branches |
 
 **DO NOT** use if the answer can be obtained by reading the code, event log, or a screenshot.

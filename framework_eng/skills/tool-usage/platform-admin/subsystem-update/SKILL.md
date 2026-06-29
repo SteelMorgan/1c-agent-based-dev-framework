@@ -1,6 +1,6 @@
 ---
 name: subsystem-update
-description: "Run and verify BSP subsystem updates"
+description: "BSP subsystem updates: run, verify, event log"
 ---
 
 # Updating the БСП Subsystem

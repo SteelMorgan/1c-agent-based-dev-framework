@@ -1,12 +1,12 @@
 ---
 name: quick-fix
-description: "Use quick-fix for small safe changes"
+description: "For small safe changes, use quick-fix"
 alwaysApply: false
 ---
 
 # quick-fix → skill
 
-> This file is a fallback redirect. The current body of the quick-fix skill (steps, guard, escalation)
+> This file is a fallback redirect. The current quick-fix skill body (steps, guard, escalation)
 > lives in `framework/skills/agent-process/quick-fix/SKILL.md`.
 
 Use the **Skill tool** (`quick-fix`) or read directly:

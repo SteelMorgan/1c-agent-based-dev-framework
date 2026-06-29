@@ -49,7 +49,7 @@ Operations: `add-content` / `remove-content` / `add-child` / `remove-child` / `s
 
 - `add-content` — `"Catalog.Товары"` or `["Catalog.Товары","Document.Заказ"]`
 - `add-child` — if the file `<Parent>/Subsystems/<childName>.xml` does not exist, stub XML is created.
-- `set-property` — `"IncludeInCommandInterface=true"`, `"Synonym=Торговля"`, `"Picture=CommonPicture.ТорговляИСклад"`
+- `set-property` — `"IncludeInCommandInterface=true"`, `"Synonym=Trade"`, `"Picture=CommonPicture.ТорговляИСклад"`
 
 ### subsystem validate
 
