@@ -1,20 +1,55 @@
 ---
 name: ssl-patterns
-description: "Check ready БСП mechanisms before custom logic"
+description: "Before writing logic on БСП, check the ready-made mechanisms; use versioned БСП 3.1.11 references for exact modules, signatures, stable/service/deprecated API, override hooks, plug-in commands, printing, files, access, data exchange, background jobs, and other subsystems"
 uses_capabilities:
   - get_signature_help
 alwaysApply: false
+metadata:
+  bsp_reference_version: "БСП 3.1.11"
+  borrowed_from: "https://github.com/brake71/1c-ssl-skills"
+  borrowed_commit: "85783eececb3a658ea15fc793b095ac370b5339c"
+  borrowed_at: "2026-06-30"
+  borrowed_table: "references/bsp-borrowings.md"
 ---
 
-# Patterns for Working with БСП (Standard Subsystems Library)
+# Working Patterns with БСП (Standard Subsystems Library)
 
-БСП code is battle-tested on millions of installations, updated centrally, and familiar to other developers. Duplicating БСП is an antipattern.
+БСП code has been tested on millions of installations, is updated centrally, and is familiar to other developers. Duplicating БСП is an antipattern.
 
-> **БСП function signatures are available through `get_signature_help`.** Functions from `ОбщегоНазначения` and
+> **Use `get_signature_help` for БСП function signatures.** Functions from `ОбщегоНазначения` and
 > other БСП modules have many parameters and overloads; do not guess the order or set of arguments.
 > At the call site, `get_signature_help(uri, line, character)` shows the parameters and overloads
-> of the invoked method right in place - without opening the БСП module definition. Use it when calling
+> of the called method right where it is used - without opening the БСП module definition. Use it when calling
 > any function from the catalog below if you are unsure about the signature.
+
+## Versioned БСП 3.1.11 map
+
+This skill contains a borrowed reference layer for БСП 3.1.11:
+
+- `references/bsp-3.1.11/*.md` - scenario guides for БСП subsystems: module, method, signature, API region, example, nuances, and anti-patterns.
+- `scripts/bsp_api.py` - local search for a method/module in the `src/cf` configuration export with detection of the `#Область` region.
+- `references/bsp-borrowings.md` - borrowing table: upstream version, relation to our skills, and the value of the additional knowledge.
+
+If the task concerns a specific БСП subsystem, first open the corresponding reference from the table below. If the reference and the current configuration differ, the source configuration and verification through `get_signature_help` / `scripts/bsp_api.py` take priority.
+
+| Task / subsystem | Reference |
+|---|---|
+| Module suffixes, stable/service/deprecated, `*Переопределяемый` hooks, subsystem map | `references/bsp-3.1.11/fundamentals.md` |
+| `ОбщегоНазначения*`, strings, dates, attributes by reference, XML/JSON, secure storage | `references/bsp-3.1.11/base-common.md` |
+| Long-running operations, background and scheduled jobs | `references/bsp-3.1.11/longs-and-jobs.md` |
+| Users, RLS, access group profiles, external users | `references/bsp-3.1.11/users-access.md` |
+| Plug-in commands, additional reports and processing objects | `references/bsp-3.1.11/commands-external.md` |
+| Printing, print manager, report variants, СКД | `references/bsp-3.1.11/print-reports.md` |
+| Properties, edit lock, change lock dates | `references/bsp-3.1.11/forms-validation.md` |
+| Files, volumes, object versions, exporting objects to files | `references/bsp-3.1.11/files-and-versions.md` |
+| Data exchange, exchange plans, synchronization, SaaS areas | `references/bsp-3.1.11/data-exchange.md` |
+| Mail, SMS, message templates, discussions, interactions | `references/bsp-3.1.11/comms.md` |
+| Contact information, addresses, address classifier | `references/bsp-3.1.11/contact-info.md` |
+| Currencies, exchange rates, banks, work schedules and calendars | `references/bsp-3.1.11/currencies-banks.md` |
+| Number/code prefixes and IB prefix | `references/bsp-3.1.11/prefixes.md` |
+| IB version update and update handlers | `references/bsp-3.1.11/update.md` |
+| Electronic signature, MCD, cryptography, DSS | `references/bsp-3.1.11/esign-mcd.md` |
+| Administration, backups, monitoring, personal data, duplicates, classifiers, external components | see the remaining `references/bsp-3.1.11/*.md` |
 
 ---
 
@@ -23,7 +58,7 @@ alwaysApply: false
 Before writing your own implementation, check whether БСП already has a ready-made function.
 
 | Function | When to use |
-|---------|---|
+|---------|-------------------|
 | `ЗначениеРеквизитаОбъекта()` | Instead of `Ссылка.Реквизит` (avoid dot notation) |
 | `ЗначенияРеквизитовОбъекта()` | Several attributes in one call |
 | `СообщитьПользователю()` | Message bound to a field (instead of `Сообщить()`) |
@@ -52,7 +87,7 @@ Before writing your own implementation, check whether БСП already has a ready
 The module contains optimized functions that correctly handle edge cases.
 
 | Function | When to use |
-|---------|---|
+|---------|-------------------|
 | `ПодставитьПараметрыВСтроку()` | Equivalent of `СтрШаблон()`, with additional checks |
 | `СтрокаСЧисломПредметов()` | Declension: "5 documents", "1 document" |
 | `ЕстьНедопустимыеСимволы()` | Input validation |
@@ -73,7 +108,7 @@ The module contains optimized functions that correctly handle edge cases.
 The directive `&НаКлиентеНаСервереБезКонтекста` means it is available on both the client and the server.
 
 | Function | Description |
-|---------|---|
+|---------|----------|
 | `ДополнитьМассив()` | Merge two arrays |
 | `ДополнитьСтруктуру()` | Merge two structures |
 | `СвойствоСтруктуры()` | Safe property read (default value if missing) |
@@ -98,7 +133,7 @@ The directive `&НаКлиентеНаСервереБезКонтекста` me
 ### When to write your own vs use БСП
 
 | Situation | Decision |
-|---|---|
+|----------|---------|
 | БСП has a suitable function | **Use БСП** |
 | БСП has a similar function, but with extra functionality | **Use БСП** - the extra does not hurt |
 | The needed function does not exist in БСП | Write your own in БСП style |
@@ -177,7 +212,7 @@ Direct file handling does not account for: access rights, temporary files, cross
 ## Rule 8: Do not duplicate БСП functionality
 
 | What people often write themselves | What exists in БСП |
-|---|---|
+|----------------------|----------------|
 | Get an attribute by reference | `ОбщегоНазначения.ЗначениеРеквизитаОбъекта()` |
 | String substitution | `СтроковыеФункцииКлиентСервер.ПодставитьПараметрыВСтроку()` |
 | Word declension | `СтроковыеФункцииКлиентСервер.СтрокаСЧисломПредметов()` |
