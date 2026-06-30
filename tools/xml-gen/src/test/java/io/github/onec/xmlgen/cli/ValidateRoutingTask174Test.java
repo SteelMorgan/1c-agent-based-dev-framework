@@ -147,10 +147,18 @@ class ValidateRoutingTask174Test {
         Path ci = write("CommandInterface.xml",
                 "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
                         + "<CommandInterface xmlns=\"http://v8.1c.ru/8.3/xcf/extrnprops\" version=\"2.20\"/>\n");
+        Path clientInterface = write("ClientApplicationInterface.xml",
+                "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
+                        + "<ClientApplicationInterface xmlns=\"http://v8.1c.ru/8.2/managed-application/core\"/>\n");
+        Path cmiSection = write("section.xml",
+                "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
+                        + "<section xmlns=\"http://v8.1c.ru/8.2/managed-application/cmi\"/>\n");
 
         assertThat(Commands.detectTypeByRoot(reader.parse(extension))).isEqualTo("extension");
         assertThat(Commands.detectTypeByRoot(reader.parse(meta))).isEqualTo("meta");
         assertThat(Commands.detectTypeByRoot(reader.parse(ci))).isEqualTo("interface");
+        assertThat(Commands.detectTypeByRoot(reader.parse(clientInterface))).isEqualTo("client-interface");
+        assertThat(Commands.detectTypeByRoot(reader.parse(cmiSection))).isEqualTo("platform-xsd");
     }
 
     @Test

@@ -1,4 +1,5 @@
 ---
+name: codex-subagent-orchestration
 description: Техническое правило запуска сабагентов multi_agent_v2, fork_turns, model/reasoning args, handoff context и recovery при недоступном runtime.
 alwaysApply: false
 ---
@@ -108,6 +109,28 @@ trace.
 Если используется handoff-template orchestrator'а, блок `spawn_settings` — это локальная запись выбранных runtime
 параметров и rationale. Сам объект `spawn_settings` не является параметром `agents.spawn_agent`.
 
+## Self-check в handoff сабагента
+
+Каждый handoff сабагенту обязан содержать явную инструкцию по самоконтролю выполнения. Это защита от зависаний на
+упавших командах, недостигнутом pre-run gate, cleanup после failure и ложного ожидания "ещё немного".
+
+Минимальная формулировка в `message`:
+
+- не ждать бесконечно команду, процесс, GUI, build, тест или внешний сервис;
+- если команда завершилась ошибкой или pre-run gate не пройден — классифицировать результат (`test_error`,
+  `implementation_error`, `environment_error`, `blocked_pre_run` и т.п.), выполнить обязательный cleanup и вернуть отчёт;
+- после каждого существенного шага перепроверять: "есть ли уже достаточный результат или blocker для возврата
+  orchestrator'у?";
+- не начинать новый обходной путь после failure без явной проверки, что он остаётся в scope;
+- при отсутствии прогресса до собственного time budget — остановиться с partial result, а не продолжать висеть.
+
+Для задач с командами, которые могут зависнуть, handoff должен задавать конкретный time budget и ожидаемые признаки
+прогресса: какие процессы допустимы, какие файлы/логи должны появиться, какой report или статус считается завершением,
+какой cleanup обязателен при failure.
+
+Если сабагент создал результат и выполнил cleanup, он должен сразу вернуть `FINAL_ANSWER` с классификацией результата.
+Дополнительные "проверю ещё" шаги после достаточного результата запрещены, если они не были частью handoff'а.
+
 ## Model и reasoning
 
 Перед запуском orchestrator выбирает `model` и `reasoning_effort` по task/risk profile и передаёт их аргументами
@@ -131,6 +154,36 @@ Capability floor для blocking review и acceptance-bound gates задаётс
 Если в `agents.spawn_agent` указан `agent_type`, профиль агента может иметь role-locked настройки модели и reasoning.
 Orchestrator обязан учитывать возможный override: переданные `model` / `reasoning_effort` не гарантируют effective
 settings, если профиль их переопределяет. Если override нарушает capability floor, запиши deviation/blocker.
+
+## Health-check запущенных сабагентов
+
+Orchestrator обязан контролировать запущенных сабагентов по шкале **5 → 10 → 15 → 15... минут**:
+
+- первый health-check через 5 минут после запуска сабагента;
+- второй — через 10 минут после предыдущего check;
+- третий — через 15 минут после предыдущего check;
+- далее — каждые 15 минут, пока сабагент не завершён.
+
+Health-check не является пассивным ожиданием `wait_agent`. На каждом check orchestrator проверяет внешние признаки
+движения:
+
+- жив ли сабагент и есть ли queued/final message;
+- какие процессы он запустил и соответствуют ли они handoff'у;
+- появились ли ожидаемые артефакты: context, report, build/test logs, temp files, cleanup markers;
+- растут ли логи или процесс завис без вывода;
+- не завершилась ли фактическая работа уже по файлам/логам, даже если сабагент не прислал `FINAL_ANSWER`;
+- не оставлены ли временные объекты, locks, deny flags, GUI/session processes или другие cleanup obligations;
+- не ушёл ли сабагент в обходной путь вне scope.
+
+Если по артефактам видно, что работа уже завершена, но сабагент не прислал отчёт, orchestrator обязан прервать
+сабагента, самостоятельно зафиксировать результат по source-of-truth артефактам и продолжить routing.
+
+Если два consecutive health-check не показывают прогресса, процесс делает не то, что указано в handoff, или time budget
+превышен примерно в 1.5 раза, orchestrator обязан прервать сабагента и перезапустить более узкую задачу с фактами,
+полученными из файлов/логов. Третий "подождём ещё" запрещён.
+
+При запуске сабагента orchestrator должен в handoff указать time budget, expected progress artifacts и cleanup obligations;
+при anomaly — записать в orchestration trace `HEALTHCHECK_ANOMALY`, `INTERRUPT`, `RESTART` или `SCOPE_CORRECTION`.
 
 ## Если multi-agent tools недоступны
 
@@ -183,4 +236,3 @@ Orchestrator фиксирует в orchestration trace / `.context/orchestrator-
 - rationale выбора модели/reasoning;
 - факт `fork_turns: "none"`;
 - blockers/deviations, включая недоступный runtime или нарушение capability floor.
-

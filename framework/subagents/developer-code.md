@@ -10,6 +10,7 @@ skills:
   - coding-standards
   - query-patterns
   - ssl-patterns
+  - metadata-object-design
   - form-patterns
   - error-handling
   - code-navigation
@@ -100,6 +101,7 @@ depends_on:
   - framework/skills/bsl-practices/coding-standards/SKILL.md
   - framework/skills/bsl-practices/query-patterns/SKILL.md
   - framework/skills/bsl-practices/ssl-patterns/SKILL.md
+  - framework/skills/bsl-practices/metadata-object-design/SKILL.md
   - framework/skills/bsl-practices/form-patterns/SKILL.md
   - framework/skills/bsl-practices/error-handling/SKILL.md
   - framework/skills/tool-usage/code-analysis/code-navigation/SKILL.md

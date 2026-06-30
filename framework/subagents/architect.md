@@ -8,6 +8,7 @@ readonly: true
 skills:
   - platform-data-core
   - ssl-patterns
+  - metadata-object-design
   - code-navigation
   - tech-log-analysis
   - technical-design-standard
@@ -91,6 +92,7 @@ skills:
 depends_on:
   - framework/skills/tool-usage/platform-data/platform-data-core/SKILL.md
   - framework/skills/bsl-practices/ssl-patterns/SKILL.md
+  - framework/skills/bsl-practices/metadata-object-design/SKILL.md
   - framework/skills/tool-usage/code-analysis/code-navigation/SKILL.md
   - framework/skills/tool-usage/diagnostics/tech-log-analysis/SKILL.md
   - framework/skills/spec-writing/technical-design-standard/SKILL.md

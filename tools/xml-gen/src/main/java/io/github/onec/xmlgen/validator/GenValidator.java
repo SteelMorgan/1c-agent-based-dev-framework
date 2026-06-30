@@ -38,7 +38,9 @@ public class GenValidator {
             "epf", java.util.List.of(
                     new RootExpectation("MetaDataObject", "http://v8.1c.ru/8.3/MDClasses"),
                     new RootExpectation("ExternalDataProcessor", "http://v8.1c.ru/8.3/MDClasses"),
-                    new RootExpectation("ExternalReport", "http://v8.1c.ru/8.3/MDClasses"))
+                    new RootExpectation("ExternalReport", "http://v8.1c.ru/8.3/MDClasses")),
+            "client-interface", java.util.List.of(new RootExpectation(
+                    "ClientApplicationInterface", PlatformXsdFacts.NS_MANAGED_APPLICATION_CORE))
     );
 
     private final MetadataTypeValidator metadataValidator;

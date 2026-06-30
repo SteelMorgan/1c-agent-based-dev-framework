@@ -1,7 +1,7 @@
 # Сводный маппинг внешних навыков → наш фреймворк
 
 > **Статус документа:** 🟢 живой (living document). Обновляется при каждой сверке с upstream и при каждом заимствовании.
-> **Последнее обновление:** `2026-06-29` (rev.8 — сверка SH `3d36c202` → `3a7f1c17`: берём web-test multi-select/headerless/modal-row, CFE-borrow инварианты, dangling form bindings; db/ibcmd-дельту не берём)
+> **Последнее обновление:** `2026-06-30` (rev.11 — добавлены OneScript-навыки Yellow Hammer, см. §3.8)
 > **Ответственный:** orchestrator / архитектор фреймворка
 >
 > **Назначение:** единая таблица отслеживания того, какие навыки из внешних источников мы заимствовали, какие планируем взять, какие отвергли. Используется для:
@@ -20,6 +20,9 @@
 | **CO** | `comol/cursor_rules_1c` | — | — (не отслеживается активно, см. sources-analysis.md §1) | 2026-02-12 | — |
 | **AE** | `AndreevED/1c-ai-feature-dev-workflow` | — | — (концепция фаз уже взята, см. §2) | 2026-02-12 | — |
 | **RM** | `rmartynenko/workflow-dev-1c-claude-code` | — | — (BSL standards взяты как база, см. §3) | 2026-02-12 | — |
+| **YH** | `yellow-hammer/md-sparrow`, `yellow-hammer/namespace-forest` | https://github.com/yellow-hammer/md-sparrow, https://github.com/yellow-hammer/namespace-forest | см. [`yellow-hammer-borrowings.md`](../xml-gen/yellow-hammer-borrowings.md) | 2026-06-30 | `git clone` + source inspection + `xsd_coverage_delta.py` |
+| **YH-DR** | `yellow-hammer/dev-rules` | https://github.com/yellow-hammer/dev-rules | `fa48a57` | 2026-06-30 | `git clone` + docs/source inspection + redundancy check against local skills |
+| **YH-OS** | `yellow-hammer/skills-onescript` | https://github.com/yellow-hammer/skills-onescript | `53ac561` | 2026-06-30 | `git clone` + direct skill import into `framework/skills/onescript` |
 
 ### Команды для обновления снапшота
 
@@ -35,6 +38,16 @@ gh api repos/IngvarConsulting/unica/contents/plugins/unica/skills --jq '.[].name
 # Список последних коммитов для отлова новых направлений
 gh api repos/Nikolay-Shirokov/cc-1c-skills/commits?per_page=30 --jq '.[] | .commit.message' | head -50
 gh api repos/IngvarConsulting/unica/commits?per_page=30 --jq '.[] | .commit.message' | head -50
+
+# Yellow Hammer: детальная методология и таблица решений
+# см. docs/xml-gen/yellow-hammer-borrowings.md
+
+# Yellow Hammer dev-rules: knowledge-only соглашения
+# см. docs/specs-and-analisys/yellow-hammer-dev-rules-analysis.md
+
+# Yellow Hammer OneScript skills
+git -C /tmp/yellow-hammer-skills-onescript pull --ff-only
+find /tmp/yellow-hammer-skills-onescript/skills -maxdepth 2 -name SKILL.md | sort
 ```
 
 ---
@@ -149,6 +162,51 @@ gh api repos/IngvarConsulting/unica/commits?per_page=30 --jq '.[] | .commit.mess
 | `cfe-borrow` | Расширенный strip-набор data bindings (`Title/Footer/Header/MultipleValue*`), picture bindings, сохранение `Module.bsl`, idempotent re-borrow, формат-версия расширения, сбор зависимостей из `<Field>Объект.*</Field>`, перенос `<Type>` у `DefinedType`. | ✅ **Adopt / P0** в `tools/xml-gen`: инварианты в `ExtensionEditor`/`ExtensionValidator`, регрессы в `ExtensionEditorTest`. Не переносить PS/Python-скрипты, только поведение. |
 | `form-validate` | Dangling binding validation: форма должна ловить привязки к отсутствующим реквизитам, включая не только обычный `DataPath`, но и связанные binding-теги. | ✅ **Adopt / P0** в `tools/xml-gen` `FormValidator`: расширить `FORM-102` на data-binding теги и добавить регрессы. |
 | `db-*`, `epf-*` через `ibcmd` | Частичная загрузка/выгрузка, `-AllExtensions`, проброс `--user/--password`, platform resolver fixes. | ❌ **Skipped**. Не добавляем в `xml-gen` и не заводим как отдельные навыки; рабочий контур остаётся `v8-runner`. |
+
+### 3.6. Yellow Hammer (`md-sparrow` / `namespace-forest`) → `xml-gen`
+
+Детальная таблица заимствований, отказов и методология повторного анализа вынесены в
+[`docs/xml-gen/yellow-hammer-borrowings.md`](../xml-gen/yellow-hammer-borrowings.md).
+
+| Источник | Что сверяли | Решение | Статус | Детали |
+|----------|-------------|---------|--------|--------|
+| YH `namespace-forest` | XSD-факты платформы, namespace coverage, global elements, required attrs/elements | ✅ Adopted as audit input; не runtime dependency | Закрыто 2026-06-30 | См. [`yellow-hammer-borrowings.md`](../xml-gen/yellow-hammer-borrowings.md#borrowing-table) |
+| YH `namespace-forest` | `ClientApplicationInterface` как `XSD + corpus + missing` gap | ✅ Adopted в `xml-gen` | `client-interface` validator + autodetect | См. [`Current Transfer Result`](../xml-gen/yellow-hammer-borrowings.md#current-transfer-result) |
+| YH `namespace-forest` | XSD-only gaps без текущего corpus-hit | ✅ Adopted as platform hints | `platform-xsd`, `PlatformXsdFacts` | См. [`Borrowing Methodology`](../xml-gen/yellow-hammer-borrowings.md#borrowing-methodology) |
+| YH `md-sparrow` | Golden template scaffolding | ❌ Rejected | Не переносим | Причины в [`Borrowing Table`](../xml-gen/yellow-hammer-borrowings.md#borrowing-table) |
+
+Правило сопровождения: при каждом следующем анализе Yellow Hammer обновлять сначала
+[`yellow-hammer-borrowings.md`](../xml-gen/yellow-hammer-borrowings.md), а в этой основной таблице менять только
+сводный статус, дату сверки и ссылку на новую ревизию/отчет.
+
+### 3.7. Yellow Hammer `dev-rules` → knowledge skills
+
+Детальный анализ вынесен в
+[`yellow-hammer-dev-rules-analysis.md`](yellow-hammer-dev-rules-analysis.md).
+
+| Источник | Что сверяли | Решение | Статус | Детали |
+|----------|-------------|---------|--------|--------|
+| YH-DR `docs/metadata/*.md` | Чек-листы создания/review объектов метаданных: справочники, документы, регистры, отчеты, роли, подсистемы, регламентные задания | ✅ Adopted delta | P0 transferred | `metadata-object-design` + trigger rule; дополняет XML-спеки прикладными 1С-инвариантами |
+| YH-DR `docs/forms.md` | Platform properties и UX управляемых форм | ✅ Partial adopted | P0 transferred | Расширены `form-visual-requirements` и `form-patterns` |
+| YH-DR `docs/request.md` | Style/safety query-review правила | ✅ Adopted delta | P0 transferred | Расширен `query-patterns`; performance-основа уже покрыта |
+| YH-DR `docs/integrations/**` | REST naming/unit policy, RabbitMQ naming, БИТ.Адаптер | 👁 Watching / partial | P1/P2 | REST policy можно добавить в `integration-patterns`; RabbitMQ переносить при реальной messaging-задаче |
+| YH-DR generic principles / Git / IDE / Kafka overview / website docs | Общие инженерные знания и инфраструктура сайта | ❌ Skipped | — | Избыточно: модель знает без инструкций или уже покрыто локальными правилами |
+
+Правило сопровождения: при изменениях `yellow-hammer/dev-rules` смотреть только `docs/**/*.md`; переносить не страницы целиком, а дельту относительно модели и наших текущих skills/rules.
+
+### 3.8. Yellow Hammer `skills-onescript` → `framework/skills/onescript`
+
+Upstream `yellow-hammer/skills-onescript` перенесен как отдельная группа навыков
+[`framework/skills/onescript`](../../framework/skills/onescript).
+
+| Источник | Что сверяли | Решение | Статус | Детали |
+|----------|-------------|---------|--------|--------|
+| YH-OS `skills/onescript` | Базовые правила OneScript: `.os`, `packagedef`, `opm`, `#Использовать`, структура модуля, отличия от платформы 1С | ✅ Adopted as-is | Transferred 2026-06-30 | `framework/skills/onescript/onescript` |
+| YH-OS `skills/autumn` | Autumn/ОСень: DI, желуди, дубы, завязи, конфигурация и reference | ✅ Adopted as-is | Transferred 2026-06-30 | `framework/skills/onescript/autumn` |
+| YH-OS `skills/autumn-cli` | Консольные приложения на Autumn CLI: команды, подкоманды, аргументы, опции | ✅ Adopted as-is | Transferred 2026-06-30 | `framework/skills/onescript/autumn-cli` |
+| YH-OS `skills/winow` | Веб-приложения на Winow: контроллеры, маршруты, запрос/ответ, ограничения | ✅ Adopted as-is | Transferred 2026-06-30 | `framework/skills/onescript/winow` |
+
+Методология: это компактные upstream skills, уже оформленные как `SKILL.md`, поэтому перенос выполнен прямым импортом в отдельную группу без переписывания. При следующей сверке сравнивать upstream `skills/*/SKILL.md` и `reference.md`; переносить только изменения, относящиеся к OneScript/Autumn/Winow, не npm/site metadata.
 
 ---
 
@@ -336,6 +394,9 @@ gh api repos/IngvarConsulting/unica/commits?per_page=30 --jq '.[] | .commit.mess
 
 | Дата | Версия | Что изменилось |
 |------|--------|----------------|
+| 2026-06-30 | **rev.11** | Добавлен upstream-источник **YH-OS** (`yellow-hammer/skills-onescript`) и новая секция §3.8. Навыки `onescript`, `autumn`, `autumn-cli`, `winow` перенесены as-is в `framework/skills/onescript` вместе с `reference.md`. Методология повторной сверки: сравнивать `skills/*/SKILL.md` и `reference.md`, игнорировать site/npm metadata. |
+| 2026-06-30 | **rev.10** | Добавлен анализ **YH-DR** (`yellow-hammer/dev-rules`) как knowledge-only источника. P0 перенесен: `metadata-object-design`, расширения `form-patterns`, `form-visual-requirements`, `query-patterns`; generic principles/Git/IDE/Kafka/site docs отвергнуты как избыточные. Детали: [`yellow-hammer-dev-rules-analysis.md`](yellow-hammer-dev-rules-analysis.md). |
+| 2026-06-30 | **rev.9** | Добавлен upstream-источник **YH** (`yellow-hammer/md-sparrow`, `yellow-hammer/namespace-forest`) и новая секция §3.6 со ссылкой на основную детальную таблицу решений [`docs/xml-gen/yellow-hammer-borrowings.md`](../xml-gen/yellow-hammer-borrowings.md). Зафиксировано: `namespace-forest` используется как audit input, `ClientApplicationInterface` и XSD-only gaps перенесены в `xml-gen`, golden scaffolding из `md-sparrow` отвергнут. |
 | 2026-06-22 | **rev.7** | Сверка SH upstream `6e14f25` → `3d36c202` (`w-2026-06-21`, 432 commits, skills `66 → 71`). Зафиксированы решения: **(1)** `support-state` / `support-edit` / `support-guard` переносим в `xml-gen` как единый Java control layer и общий guard для CLI + hooks; **(2)** `form-decompile` не становится основным workflow, берём только read-only projection / draft scaffold; **(3)** расширения form compile/edit переносим выборочно, без массовых `Chart/Gantt/Planner` settings и `ConditionalAppearance`; **(4)** SKD сначала закрывает correctness-долг (`availableValue`, multi-value, `--batch/--outfile`, sentinel), затем получает экспериментальный decompile; **(5)** modular `web-test` runner переносим как развитие `browser-ui/web-test-1c`; **(6)** `db-dump-dt` / `db-load-dt`, `1cv8.exe` resolve, Yandex Code Assistant — ❌ skipped. |
 | 2026-05-21 | rev.1 | Документ создан. Базовый снапшот: SH @ `6e14f25`, UN @ `db254e4`. Все заимствования из ранее проанализированной xml-gen-группы перенесены сюда из [shirokov-to-xmlgen-mapping-2026-03-09.md](shirokov-to-xmlgen-mapping-2026-03-09.md) (сводно). Добавлены 19 уникальных навыков Unica и не-XML навыки Широкова (db-*, cfe-tools, template/help, web, БСП-обвязка, interface, img-grid, web-test). |
 | 2026-05-21 | **rev.2** | Детальный разбор каждого спорного навыка отдельными сабагентами + решения пользователя. Изменения: **(1)** вся db-* группа Широкова → ❌ Skipped (покрыто `v8-runner`); **(2)** CFE-навыки уточнены — 3 из 5 — дубли (init/validate/diff), берём только `--borrow-main-attribute` и `patch-method` как расширение CLI; **(3)** MXL — переход на полную переработку под канон Широкова (`docs/mxl-dsl-spec.md`); **(4)** SKD — Unica оказалась устаревшим фасадом, берём только у Широкова, разделяем на 4 skill; **(5)** `code-review` — **не создаём новый skill**, дополняем reviewer 5 категориями; **(6)** `db-auth-check` → reference внутри v8-runner, не отдельный skill; **(7)** `platform-help` → ❌ Skipped, 3 stop rules в `buddy-prompting`; **(8)** `security-auth-crypto` → 📋 Planned P1 (по решению пользователя), путь `bsl-practices/security/`; **(9)** `autonomous-server` → 👁 Watching как отдельный roadmap-трек (open-source `v8-runner-rust` + кастомное расширение БСП с TCP-сервером); **(10)** `log-analysis` → не оверлей, а `scenarios.md` reference; **(11)** `web-test` recording — добавляем references с приоритетом реализации через Vanessa; **(12)** концептуальные C1/C2 (stop rules) → понижены до 👁 Watching после критической самооценки. **Источники rev.2:** 11 отдельных отчётов сабагентов (autonomous-server, code-diagnostics, code-review, db-auth-check, db-performance, log-analysis, platform-help, security-auth-crypto, CFE, MXL, SKD compare). |

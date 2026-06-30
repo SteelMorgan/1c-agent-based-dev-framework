@@ -11,6 +11,7 @@ skills:
   - coding-standards
   - query-patterns
   - ssl-patterns
+  - metadata-object-design
   - form-patterns
   - error-handling
   - spec-standard
@@ -258,6 +259,7 @@ depends_on:
   - framework/skills/bsl-practices/form-patterns/SKILL.md
   - framework/skills/bsl-practices/query-patterns/SKILL.md
   - framework/skills/bsl-practices/ssl-patterns/SKILL.md
+  - framework/skills/bsl-practices/metadata-object-design/SKILL.md
   - framework/skills/spec-writing/spec-standard/SKILL.md
   - framework/skills/spec-writing/technical-design-standard/SKILL.md
   - framework/skills/bsl-practices/test-writing/SKILL.md
