@@ -1591,6 +1591,12 @@
       "en_hash": "sha256:8ab34b99a7755bf7afbcdc007d05b71373dc4c0ca1fbd84d9ec2d867b3d7d0fa",
       "synced_at": "2026-06-30T10:41:19Z",
       "status": "synced"
+    },
+    "framework/skills/tool-usage/platform-admin/onec-server-maintenance-hooks/SKILL.md": {
+      "ru_hash": "sha256:5c7d65d4b4f3839f329722f1a31d002892a2fb091c6640d3755c5421914aa369",
+      "en_hash": "sha256:2eb070f3f92c142388c6392c9e890cac5390bda679c1c23f6cb18454f9c7fe53",
+      "synced_at": "2026-06-30T11:04:23Z",
+      "status": "synced"
     }
   }
 }
