@@ -95,6 +95,10 @@ public class MetadataTypeRegistry {
                 cats("DefinedType"),
                 children());
 
+        reg("Subsystem", "Subsystems", "Subsystem",
+                cats(),
+                children("Subsystem"));
+
         reg("CommonModule", "CommonModules", "CommonModule",
                 cats(),
                 children());

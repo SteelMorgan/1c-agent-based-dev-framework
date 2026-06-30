@@ -119,6 +119,84 @@ class MetaSubsystemSkdMxlCliContractTest {
         assertThat(Files.readString(catalog, StandardCharsets.UTF_8)).isEqualTo(before);
     }
 
+    @Test
+    @DisplayName("integr-XG67 meta remove supports top-level subsystem")
+    void metaRemoveTopLevelSubsystem_supportedByRegistry() throws Exception {
+        writeMetaRemoveFixture();
+
+        ProcessResult result = runMain("meta", "remove", tempDir.toString(), "Subsystem.Providers", "--dry-run");
+
+        assertThat(result.exitCode()).as(result.combinedOutput()).isEqualTo(0);
+        assertThat(result.combinedOutput())
+                .doesNotContain("Unknown type 'Subsystem'")
+                .contains("Removed <Subsystem>Providers</Subsystem> from ChildObjects")
+                .contains("Would delete file: Subsystems/Providers.xml");
+    }
+
+    @Test
+    @DisplayName("integr-XG67 meta remove detects subsystem Content xr:Item references")
+    void metaRemoveCommonModule_detectsSubsystemContentReference() throws Exception {
+        writeMetaRemoveFixture();
+
+        ProcessResult result = runMain("meta", "remove", tempDir.toString(), "CommonModule.Provider", "--dry-run");
+
+        assertThat(result.exitCode()).as(result.combinedOutput()).isEqualTo(0);
+        assertThat(result.combinedOutput())
+                .contains("Removed from subsystem 'Providers'")
+                .doesNotContain("Not referenced in any subsystem");
+    }
+
+    private void writeMetaRemoveFixture() throws Exception {
+        Files.writeString(tempDir.resolve("Configuration.xml"), """
+                <?xml version="1.0" encoding="UTF-8"?>
+                <MetaDataObject xmlns="http://v8.1c.ru/8.3/MDClasses" version="2.20">
+                    <Configuration uuid="11111111-1111-1111-1111-111111111111">
+                        <Properties><Name>AuditCfg</Name></Properties>
+                        <ChildObjects>
+                            <Subsystem>Providers</Subsystem>
+                            <CommonModule>Provider</CommonModule>
+                        </ChildObjects>
+                    </Configuration>
+                </MetaDataObject>
+                """, StandardCharsets.UTF_8);
+
+        Path commonModule = tempDir.resolve("CommonModules/Provider.xml");
+        Files.createDirectories(commonModule.getParent());
+        Files.writeString(commonModule, """
+                <?xml version="1.0" encoding="UTF-8"?>
+                <MetaDataObject xmlns="http://v8.1c.ru/8.3/MDClasses" version="2.20">
+                    <CommonModule uuid="22222222-2222-2222-2222-222222222222">
+                        <Properties>
+                            <Name>Provider</Name>
+                            <Server>true</Server>
+                            <Client>false</Client>
+                            <ExternalConnection>false</ExternalConnection>
+                        </Properties>
+                    </CommonModule>
+                </MetaDataObject>
+                """, StandardCharsets.UTF_8);
+
+        Path subsystem = tempDir.resolve("Subsystems/Providers.xml");
+        Files.createDirectories(subsystem.getParent());
+        Files.writeString(subsystem, """
+                <?xml version="1.0" encoding="UTF-8"?>
+                <MetaDataObject xmlns="http://v8.1c.ru/8.3/MDClasses" xmlns:xr="http://v8.1c.ru/8.3/xcf/readable" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" version="2.20">
+                    <Subsystem uuid="33333333-3333-3333-3333-333333333333">
+                        <Properties>
+                            <Name>Providers</Name>
+                            <IncludeHelpInContents>true</IncludeHelpInContents>
+                            <IncludeInCommandInterface>false</IncludeInCommandInterface>
+                            <UseOneCommand>false</UseOneCommand>
+                            <Content>
+                                <xr:Item xsi:type="xr:MDObjectRef">CommonModule.Provider</xr:Item>
+                            </Content>
+                        </Properties>
+                        <ChildObjects/>
+                    </Subsystem>
+                </MetaDataObject>
+                """, StandardCharsets.UTF_8);
+    }
+
     private ProcessResult runMain(String... args) throws Exception {
         List<String> command = new ArrayList<>();
         command.add(Path.of(System.getProperty("java.home"), "bin", "java").toString());
