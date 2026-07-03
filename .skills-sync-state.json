@@ -747,9 +747,9 @@
       "status": "synced"
     },
     "framework/skills/tool-usage/v8-runner/SKILL.md": {
-      "ru_hash": "sha256:28f4dbc45eb8973bd8e460437cf7b7a9ba28d2280af34709b530a5723b1bb05f",
-      "en_hash": "sha256:db354b6565fb87da5222f85fac9c1feae91cd70038244ec18c8c839773882e96",
-      "synced_at": "2026-07-03T13:22:04Z",
+      "ru_hash": "sha256:425002b8ffd334c44109fe4aec20797487681c0fd72d8f00f9ca07e7e475fe46",
+      "en_hash": "sha256:d7e2fcce14a32742fcfaf480b5e4da4a7cb731852031fdc55f780b6af78b8370",
+      "synced_at": "2026-07-03T14:40:36Z",
       "status": "synced"
     },
     "framework/skills/tool-usage/v8-runner/references/bootstrap.md": {
@@ -765,9 +765,9 @@
       "status": "synced"
     },
     "framework/skills/tool-usage/v8-runner/references/config-and-backends.md": {
-      "ru_hash": "sha256:8faa81130d30a01cd7f98b247afed6717c9114f24cd984ef5d3851841483db1f",
-      "en_hash": "sha256:5407e3d184c708d64c6de5103abfc56b326d8d2b8095b4d4271007a7d7d39032",
-      "synced_at": "2026-06-29T17:24:23Z",
+      "ru_hash": "sha256:481a3f08efbcdf783a0d598cf4036a4a37da43edaf59c13b2bb52046d3b8fc0a",
+      "en_hash": "sha256:e67ef5f75d4049e18b0ebab5805ff8064fce7d825fac546d11b4c74b9f1975af",
+      "synced_at": "2026-07-03T14:41:01Z",
       "status": "synced"
     },
     "framework/skills/tool-usage/v8-runner/references/file-and-artifact-workflows.md": {
@@ -783,9 +783,9 @@
       "status": "synced"
     },
     "framework/skills/tool-usage/v8-runner/references/testing.md": {
-      "ru_hash": "sha256:228cf177f7a3e9b4912dab407c5237936a6185c4aff4c0c1685b3e50b077712e",
-      "en_hash": "sha256:064a3405a42c4cf6eaf6d9e03a292624e0fcc9ee5be0e2ac2322d3dcceaf024c",
-      "synced_at": "2026-07-03T13:22:16Z",
+      "ru_hash": "sha256:8deef26ac39b7c763822c0cb3e049521003b54ab700f75b1f886c104c6ae08de",
+      "en_hash": "sha256:1ca4040bf0cae6863c73b1cb4d2a069ce73e033a5c5ceeab46166ac3fa7437c6",
+      "synced_at": "2026-07-03T14:40:38Z",
       "status": "synced"
     },
     "framework/skills/tool-usage/v8-runner/references/troubleshooting.md": {

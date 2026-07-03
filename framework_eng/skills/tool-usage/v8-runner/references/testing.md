@@ -90,13 +90,16 @@ Before starting, check the config:
 1. `tools.va.epf_path` points to an existing `vanessa-automation.epf`.
 2. `tests.va.params_path` points to the VAParams JSON template.
 3. `tests.va.profile` exists in `tests.va.profiles`.
-4. The VAParams contains a TestClient profile in `ДанныеКлиентовТестирования`; its `Имя` is the future `profileName` for `connect_test_client`.
+4. The `infobase.connection` of the active config for `launch mcp va` points to the test-manager infobase. For research/UI workflow, prefer a separate empty file-based infobase; if there is none, the environment setup should create/initialize it before launching.
+5. The VAParams contains a TestClient profile in `ДанныеКлиентовТестирования`; its `Имя` is the future `profileName` for `connect_test_client`, and `ПутьКИнфобазе` is the application under test infobase.
 
 ### Exact VA manager → TestClient chain
 
 1. Make sure the session-manager responds to `session_list`. If the manager is not running, start it using the `v8-session-manager` skill.
 
 2. Start the VA test-manager via `v8-runner launch mcp va` in detached mode if the client must remain alive after the shell command returns:
+
+   In this run, the runner opens the manager infobase from `infobase.connection`. This can be an empty infobase: it is needed only to start VA processing and publish MCP tools. The test infobases are launched later via the TestClient profiles from `VAParams`.
 
 ```bash
 uid=$(cat /proc/sys/kernel/random/uuid)
@@ -119,7 +122,9 @@ echo $!
 
 Readiness criterion: `kind=vanessa_test_client`, `state=active`, `disconnected_secs_ago=null`, `inflight=0`, and VA tools have appeared (`connect_test_client`, `get_form_analysis`). Having the tool name only in cached `tools/list` does not count as readiness. Normal session and VA tool appearance after startup takes 10-90 seconds; poll `session_list` every 5-10 seconds and use 120 seconds as the diagnostic limit.
 
-4. Connect the application under test. The VA manager starts it according to the profile from VAParams; the agent must not separately launch `/TESTCLIENT` for this VA path. `connect_test_client` takes the required `profileName` argument:
+4. Before connecting the application under test, check the port of the selected TestClient profile. Take `ПортЗапускаТестКлиента` and, if set, `ДиапазонПортовTestclient` from `ДанныеКлиентовТестирования`. The port must be free on `ИмяКомпьютера`; if it is occupied by an old test-client from this workflow, close it cleanly; if it is occupied by another process, choose another profile/port. Do not call `connect_test_client` if the launch is guaranteed to fail because the port is occupied.
+
+5. Connect the application under test. The VA manager launches it according to the profile from VAParams; the agent must not separately launch `/TESTCLIENT` for this VA path. `connect_test_client` takes the required `profileName` argument. The profile determines which test infobase to open: see `ДанныеКлиентовТестирования[*].ПутьКИнфобазе`.
 
 ```json
 {"name":"connect_test_client","arguments":{"profileName":"<test-client-profile-name>"}}
@@ -127,7 +132,7 @@ Readiness criterion: `kind=vanessa_test_client`, `state=active`, `disconnected_s
 
 If there are multiple live sessions, pass the `session_id` of the VA manager session in every MCP call. A successful launch must yield the real test-client PID in the VA profile/log, not `0`. After that, VA client MCP methods are available: form analysis, command interface and form element control, data reading, screenshots, and VA action execution.
 
-5. After the investigation, close the test client. `close_test_client` can be called with the same `profileName`; without it, the tool closes the currently connected profile:
+6. After the investigation, close the test client. `close_test_client` can be called with the same `profileName`; without it, the tool closes the currently connected profile:
 
 ```json
 {"name":"close_test_client","arguments":{"profileName":"<test-client-profile-name>"}}

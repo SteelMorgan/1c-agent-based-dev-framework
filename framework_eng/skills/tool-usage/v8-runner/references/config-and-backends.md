@@ -93,6 +93,35 @@ Field meaning:
 
 Use `v8project.local.yaml` for machine-local paths and secrets: for example, when `epf_path`, `params_path`, the TestClient user/password, or the local infobase path differ on the agent machine. Do not store real secrets in the shared `v8project.yaml`; instead, move them into a local VAParams template and reference it via `tests.va.params_path` in `v8project.local.yaml`.
 
+### VA Test Manager Base
+
+For `launch mcp va`, the `infobase.connection` string from the active v8-runner config is the **test manager** database, not necessarily the database of the application under test. The recommended mode for exploratory VA MCP and UI/UX checks is a separate empty file-based infobase for the test manager.
+
+The test manager does not need the application data of the tested configuration. It only needs a 1C environment in which the Vanessa Automation external processing will open and VA MCP tools will be registered. An empty manager database reduces memory and resource usage, does not keep unnecessary data, and allows a single manager process to launch different TestClient databases through VAParams profiles.
+
+If such a manager database does not exist, the setup workflow must create/initialize it before `v8-runner launch mcp va` (for example, a file-based infobase in the local `workPath`). Do not substitute the tested infobase with this step: test-client databases are described separately in `ДанныеКлиентовТестирования`.
+
+Example separation:
+
+```yaml
+# v8project.local.yaml or a separate config for the VA manager workflow
+infobase:
+  connection: 'File=build/va-manager-empty-ib'
+
+tools:
+  va:
+    epf_path: '${FRAMEWORK_REPOS}/vanessa-automation/dist/vanessa-automation/vanessa-automation-single.epf'
+
+tests:
+  va:
+    params_path: 'tools/runtime/vanessa/va-params.local.json'
+    profile: 'ui-research'
+    profiles:
+      ui-research:
+        feature_path: 'vanessa-tests/features'
+```
+
+In this example, `File=build/va-manager-empty-ib` is the database that hosts `/TESTMANAGER` and the VA EPF. The tested databases are set not here, but in `VAParams.ДанныеКлиентовТестирования[*].ПутьКИнфобазе`.
 ### TestClient Profile Inside VAParams
 
 For `launch mcp va` and UI/UX checks through VA MCP, the test-client profile is not set by a separate `v8project.yaml` field, but by the `ДанныеКлиентовТестирования` table in the VAParams JSON template. It is this row name that is then passed to the MCP call `connect_test_client {"profileName":"<profile-name>"}`.
@@ -107,10 +136,19 @@ Minimal structure:
   "ОпределятьРеальныйПортНаКоторомЗапустилсяКлиентТестирования": "Истина",
   "ДанныеКлиентовТестирования": [
     {
-      "Имя": "<stable-profile-name>",
-      "Синоним": "<stable-profile-name>",
-      "ПутьКИнфобазе": "<same-infobase-connection-as-tested-app>",
-      "ПортЗапускаТестКлиента": <fixed-port>,
+      "Имя": "client-sales",
+      "Синоним": "client-sales",
+      "ПутьКИнфобазе": "Srvr=\"server\";Ref=\"sales\";",
+      "ПортЗапускаТестКлиента": 1538,
+      "ДопПараметры": "/N<user> /P<password> /DisableStartupDialogs /DisableUnsafeActionProtection",
+      "ТипКлиента": "Тонкий",
+      "ИмяКомпьютера": "localhost"
+    },
+    {
+      "Имя": "client-accounting",
+      "Синоним": "client-accounting",
+      "ПутьКИнфобазе": "Srvr=\"server\";Ref=\"accounting\";",
+      "ПортЗапускаТестКлиента": 1539,
       "ДопПараметры": "/N<user> /P<password> /DisableStartupDialogs /DisableUnsafeActionProtection",
       "ТипКлиента": "Тонкий",
       "ИмяКомпьютера": "localhost"
@@ -123,10 +161,22 @@ Why these fields are defined this way:
 
 - `Имя` is the stable profile key that the agent passes to `connect_test_client`; the name must be independent of the specific task.
 - `Синоним` is the human-readable alias; if a separate alias is not needed, keep it equal to `Имя` to avoid ambiguity.
-- `ПутьКИнфобазе` is the connection string of the application under test. The VA manager is started separately and must know which infobase to open as `/TESTCLIENT`.
-- `ПортЗапускаТестКлиента` and `ДиапазонПортовTestclient` pin the port so the agent can reliably connect to the expected client and not depend on old open TestClient processes. Before launch, close old test-clients or choose a free reserved port.
-- `ДопПараметры` is everything that should not stop startup on dialogs: user/password or another authentication method, `/DisableStartupDialogs`, `/DisableUnsafeActionProtection`, and `/UC <code>` if needed. If the string contains secrets, the template must be local.
-- `ТипКлиента` is the client type that VA should launch. For automation, a thin client is usually chosen unless the project requires a thick or ordinary client.
-- `ИмяКомпьютера` is the machine where VA searches for / launches the TestClient. For a local manager + test-client, this is `localhost`.
-- Enable `ИспользоватьКомпонентуVanessaExt` and `ИспользоватьВнешнююКомпонентуДляСкриншотов` when the VA profile must work with OS windows and the real test-client PID.
-- Keep `ОпределятьРеальныйПортНаКоторомЗапустилсяКлиентТестирования` enabled: VA must verify the actual process/port, not treat a launch as successful based on the profile alone.
+- `ПутьКИнфобазе` — the connection string of the application under test. It may and usually should differ from `infobase.connection` of the manager database; the VA manager is started separately and must know which infobase to open as `/TESTCLIENT`.
+- `ПортЗапускаТестКлиента` and `ДиапазонПортовTestclient` — pin the port so the agent can reliably connect to the expected client and not depend on old open TestClient processes. Before launch, close old test-clients or choose a free reserved port.
+- `ДопПараметры` — anything that should not stop startup on dialogs: user/password or another authentication method, `/DisableStartupDialogs`, `/DisableUnsafeActionProtection`, and `/UC <code>` if needed. If the string contains secrets, the template must be local.
+- `ТипКлиента` — the client type that VA should launch. For automation, a thin client is usually chosen if the project does not require a thick or ordinary client.
+- `ИмяКомпьютера` — the machine where VA looks for/launches the TestClient. For a local manager + test-client, this is `localhost`.
+- `ИспользоватьКомпонентуVanessaExt` and `ИспользоватьВнешнююКомпонентуДляСкриншотов` enable when the VA profile must work with OS windows and the real test-client PID.
+- `ОпределятьРеальныйПортНаКоторомЗапустилсяКлиентТестирования` keep enabled: VA should verify the actual process/port, not treat a launch as successful based on a single profile.
+
+### Preflight for TestClient ports
+
+Before `connect_test_client`, the agent must verify that the ports from the selected `ДанныеКлиентовТестирования` profiles are free on the `ИмяКомпьютера` machine. If a fixed `ПортЗапускаТестКлиента` is used, check exactly that one. If the profile uses a range, check at least the target port of the profile and the availability of a free port in `ДиапазонПортовTestclient`.
+
+If the port is occupied, do not start VA/TestClient blindly. First determine the owner of the port:
+
+- it is an old test-client from this same workflow — close it via `close_test_client`, the standard session-manager/VA tool, or a saved PID;
+- it is someone else's process — choose another reserved port/profile and update the local VAParams template;
+- the owner is unclear — stop with diagnostics, do not kill the process just by port number.
+
+Expected `v8-runner` behavior: fail-fast preflight before launching `launch mcp va` / `test va`. Runner already reads `tests.va.params_path` and builds runtime `VAParams`, so it can parse `ДанныеКлиентовТестирования`, check `ПортЗапускаТестКлиента` / `ДиапазонПортовTestclient` for the active scenario, and exit with a clear error like `VA TestClient port is busy: profile=<name>, port=<port>, pid=<pid>`. This is better than starting a 1C process that is guaranteed not to be able to bring up `/TESTCLIENT`.
