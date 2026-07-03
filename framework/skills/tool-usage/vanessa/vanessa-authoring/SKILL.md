@@ -13,7 +13,7 @@ uses_capabilities:
 1. Определи источник требования — спецификация или бизнес-кейс (`vanessa-scenario-policy`).
 2. Определи **под каким пользователем** выполняется сценарий (см. «Пользовательский контекст»).
 3. Найди подходящие шаги: сначала в библиотеке Vanessa, затем в сценариях проекта.
-4. **Исследуй интерфейс и заполни форму вручную**. Предпочтительный путь — MCP-инструменты Vanessa Automation через `v8-client-session-manager` (см. «MCP-исследование через Vanessa Automation»). Для UI/UX-контроля формы применяй `va-visual-check`: VA MCP screenshot route, Linux/Xvfb рецепт и browser fallback с фиксацией причины. В любом варианте зафиксируй точные имена и заголовки элементов, поля, кнопки, закладки **до** ссылок на них в шагах; не угадывай идентификаторы (заголовок Title vs имя name — см. `vanessa-scenario-policy`).
+4. **Исследуй интерфейс и заполни форму вручную**. Предпочтительный путь — MCP-инструменты Vanessa Automation через `v8-session-manager` (см. «MCP-исследование через Vanessa Automation»). Для UI/UX-контроля формы применяй `va-visual-check`: VA MCP screenshot route, Linux/Xvfb рецепт и browser fallback с фиксацией причины. В любом варианте зафиксируй точные имена и заголовки элементов, поля, кнопки, закладки **до** ссылок на них в шагах; не угадывай идентификаторы (заголовок Title vs имя name — см. `vanessa-scenario-policy`).
 5. Напиши один smoke-сценарий: открыть → одно действие → одно наблюдаемое следствие.
 6. Если шага нет — пометь `# unknown_step_candidate`, не изобретай BSL-шаг.
 7. Передай сценарий на прогон через `v8-runner` (`v8-runner test va`).
@@ -24,7 +24,7 @@ uses_capabilities:
 
 Этот раздел фиксирует универсальный workflow, проверенный на Vanessa Automation `1.2.043.28`. Для другой версии сначала сверяй поведение с официальной инструкцией VA и live-схемами инструментов.
 
-Официальный источник Vanessa Automation: <https://github.com/Pr-Mex/vanessa-automation>. Инструкции для AI/MCP находятся в `docs/AI/`. Обновления VA бери из официального репозитория/релизов, а не правками vendor-кода в проекте. Для WS-запуска используются наш форк `v8-runner` <https://github.com/SteelMorgan/v8-runner-rust> и `v8-client-session-manager` <https://github.com/SteelMorgan/v8-client-session-manager>.
+Официальный источник Vanessa Automation: <https://github.com/Pr-Mex/vanessa-automation>. Инструкции для AI/MCP находятся в `docs/AI/`. Обновления VA бери из официального репозитория/релизов, а не правками vendor-кода в проекте. Для WS-запуска используются наш форк `v8-runner` <https://github.com/SteelMorgan/v8-runner-rust> и `v8-session-manager` <https://github.com/1c-neurofish/v8-session-manager>.
 
 ### Проверка версии и готовности
 

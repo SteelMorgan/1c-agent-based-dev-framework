@@ -41,7 +41,7 @@ provides_capabilities:
 
 Канонический путь к бинарнику — `tools/external/v8-runner/v8-runner` (в проекте это работает через `tools/`-симлинк на фреймворк). Установщик фреймворка тянет Latest-релиз из [`alkoleft/v8-runner-rust`](https://github.com/alkoleft/v8-runner-rust) (upstream) при каждом запуске; ручная переустановка — `python tools/install.py --install-external-tools`. Если бинарник по этому пути отсутствует и в `PATH` тоже нет — попроси путь у пользователя или используй wrapper-скрипт из проекта.
 
-> **WS-транспорт: используется форк SteelMorgan.** Для WS-сопряжения с менеджером сессий используется форк [`SteelMorgan/v8-runner-rust`](https://github.com/SteelMorgan/v8-runner-rust) вместо upstream `alkoleft/v8-runner-rust`, т.к. PR-ы с WS-поддержкой в upstream не принимаются. Установщик фреймворка ориентирован на релизы этого форка. Аналогично `onec-client-mcp-devkit` (расширения `mcp_client`, `test_client` и др.) берётся из форка [`SteelMorgan/onec-client-mcp-devkit`](https://github.com/SteelMorgan/onec-client-mcp-devkit).
+> **WS-транспорт: используется форк SteelMorgan.** Для WS-сопряжения с менеджером сессий используется форк [`SteelMorgan/v8-runner-rust`](https://github.com/SteelMorgan/v8-runner-rust) вместо upstream `alkoleft/v8-runner-rust`, т.к. PR-ы с WS-поддержкой в upstream не принимаются. Установщик фреймворка ориентирован на релизы этого форка. Аналогично `wt-mcp-adapter` (расширения `mcp_client`, `test_client` и др.) берётся из форка [`SteelMorgan/wt-mcp-adapter`](https://github.com/SteelMorgan/wt-mcp-adapter).
 
 `v8project.yaml` — имя конфига проекта по умолчанию. Соседний `v8project.local.yaml` загружается автоматически для машинно-локальных путей, учётных данных, инструментов, тестов и MCP-настроек. Не передавай `--config v8project.yaml`, если пользователь явно не просит нестандартную форму команды или активный путь к конфигу отличается от дефолтного; никогда не передавай `v8project.local.yaml` через `--config`.
 
@@ -109,12 +109,12 @@ v8-runner init
 - Существующие артефакты `.cf` или `.cfe` нужно применить к ИБ: используй `v8-runner load ...`.
 - Нужно экспортировать релизные артефакты или опубликовать внешние артефакты: используй `v8-runner make ...` или алиас `artifacts`.
 - Нужна UI-сессия 1С: используй `v8-runner launch designer`, `launch thin`, `launch thick` или `launch ordinary`.
-- Нужно запустить onec-client-mcp-devkit внутри 1С без авторинга VA: используй `v8-runner launch mcp ...`.
-- Сопрячь запущенный 1С-клиент с работающим [v8-client-session-manager](https://github.com/SteelMorgan/v8-client-session-manager) по WebSocket: см. отдельный раздел «WS-параметры сопряжения» ниже. WS-флаги (`--mcp-transport`, `--manager-url`, `--client-uid`, `--corr-id`, `--mcp-log-level`, `--mcp-ws-timeout-ms`) доступны на `launch ...` и `test ...` командах одинаково. Тонкий момент clap-структуры: на `test` флаги ставятся **до** подкоманды `yaxunit/va` (например `v8-runner test --mcp-transport=ws yaxunit module <NAME>`), а не после.
+- Нужно запустить wt-mcp-adapter внутри 1С без авторинга VA: используй `v8-runner launch mcp ...`.
+- Сопрячь запущенный 1С-клиент с работающим [v8-session-manager](https://github.com/1c-neurofish/v8-session-manager) по WebSocket: см. отдельный раздел «WS-параметры сопряжения» ниже. WS-флаги (`--mcp-transport`, `--manager-url`, `--client-uid`, `--corr-id`, `--mcp-log-level`, `--mcp-ws-timeout-ms`) доступны на `launch ...` и `test ...` командах одинаково. Тонкий момент clap-структуры: на `test` флаги ставятся **до** подкоманды `yaxunit/va` (например `v8-runner test --mcp-transport=ws yaxunit module <NAME>`), а не после.
 
 ## WS-параметры сопряжения с session-manager
 
-WS-сопряжение с [v8-client-session-manager](https://github.com/SteelMorgan/v8-client-session-manager) — режим, в котором клиентский MCP-сервер 1С подключается к менеджеру по WebSocket вместо локального HTTP MCP. Управляется одним и тем же набором CLI-флагов (`--mcp-transport`, `--manager-url`, `--client-uid`, `--corr-id`, `--mcp-log-level`, `--mcp-ws-timeout-ms`) или `tools.client_mcp.*` в `v8project.yaml`. Канон по транспорту/автоопределению, дефолтам и override каждого флага, формату `/C` и internal `kind` mapping — `references/project-workflows.md` (раздел «WS-режим к session-manager»); clap-нюансы и диагностика WS на test-командах — `references/testing.md`.
+WS-сопряжение с [v8-session-manager](https://github.com/1c-neurofish/v8-session-manager) — режим, в котором клиентский MCP-сервер 1С подключается к менеджеру по WebSocket вместо локального HTTP MCP. Управляется одним и тем же набором CLI-флагов (`--mcp-transport`, `--manager-url`, `--client-uid`, `--corr-id`, `--mcp-log-level`, `--mcp-ws-timeout-ms`) или `tools.wt_mcp_adapter.*` в `v8project.yaml`. Канон по транспорту/автоопределению, дефолтам и override каждого флага, формату `/C` и internal `kind` mapping — `references/project-workflows.md` (раздел «WS-режим к session-manager»); clap-нюансы и диагностика WS на test-командах — `references/testing.md`.
 
 ### Применимые точки входа
 
@@ -133,7 +133,7 @@ WS-сопряжение с [v8-client-session-manager](https://github.com/SteelM
 |---|---|---|
 | `launch designer` | Открыть Конфигуратор. | Не запускает клиентские MCP-tools и не применяет enterprise additional keys. |
 | `launch thin`, `launch thick`, `launch ordinary` | Открыть обычный UI-клиент 1С. | При WS-сопряжении регистрирует базовый клиентский MCP-набор без `kind`; сам по себе не даёт VA-tools. |
-| `launch mcp` | Запустить onec-client-mcp-devkit внутри 1С без Vanessa. | `kind=v8_runner_client` для WS; локальный HTTP MCP при `--mcp-transport=mcp` или fallback из `auto`. |
+| `launch mcp` | Запустить wt-mcp-adapter внутри 1С без Vanessa. | `kind=v8_runner_client` для WS; локальный HTTP MCP при `--mcp-transport=mcp` или fallback из `auto`. |
 | `launch mcp va` | Запустить менеджер тестирования Vanessa для исследования, авторинга и клиентских MCP-tools VA. | `kind=vanessa_test_client`; runner добавляет `/TESTMANAGER`, `/DisableUnsafeActionProtection`, `/Execute <vanessa-automation.epf>`, runtime `VAParams`, отключает автозапуск/автозакрытие сценариев и не использует `StartFeaturePlayer`. |
 | `test yaxunit ...` | Выполнить YAxUnit тесты. | `kind=yaxunit_runner` в WS-режиме; это тестовый runner, а не интерактивная UI-сессия. |
 | `test va` | Выполнить Vanessa feature-сценарии. | `kind=vanessa_test_client`, но payload — `StartFeaturePlayer;VAParams=...`; это прогон сценариев, не режим исследования менеджера. |
@@ -142,7 +142,7 @@ WS-сопряжение с [v8-client-session-manager](https://github.com/SteelM
 
 ### Vanessa Automation MCP через session-manager
 
-Для workflow Vanessa Research/Scenario через наш `v8-client-session-manager` запускается не простой тонкий клиент, а сеанс менеджера тестирования с открытой обработкой Vanessa Automation:
+Для workflow Vanessa Research/Scenario через наш `v8-session-manager` запускается не простой тонкий клиент, а сеанс менеджера тестирования с открытой обработкой Vanessa Automation:
 
 ```bash
 v8-runner launch mcp va \

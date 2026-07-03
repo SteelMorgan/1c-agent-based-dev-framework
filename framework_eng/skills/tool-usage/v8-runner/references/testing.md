@@ -20,7 +20,7 @@ v8-runner test yaxunit --mcp-transport=ws all                 # ❌
 
 The `test yaxunit ...` / `test yaxunit module ...` / `test va` subcommands do not declare their own `McpClientWsArgs`, so `--help` at their level does not show WS options. To see them, run `v8-runner test --help`.
 
-CLI alternative — `tools.client_mcp.*` in `v8project.yaml` (priority: CLI flag → yaml → internal defaults); the full yaml example and the defaults/override table are in `project-workflows.md`.
+CLI alternative — `tools.wt_mcp_adapter.*` in `v8project.yaml` (priority: CLI flag → yaml → internal defaults); the full yaml example and the defaults/override table are in `project-workflows.md`.
 
 `kind` mapping: `test yaxunit ...` → `yaxunit_runner`, `test va ...` → `vanessa_test_client`. Fixed by the entry point, not overridable from the CLI.
 
@@ -75,7 +75,7 @@ When setting `tests.va.profiles.<name>.filter_tags` or `ignore_tags`, as well as
 
 ## Debugging VA and Writing Scenarios
 
-Use `launch mcp va` when the goal is interactive debugging of Vanessa Automation, scenario writing, or controlling the VA feature player through onec-client-mcp-devkit:
+Use `launch mcp va` when the goal is interactive debugging of Vanessa Automation, scenario writing, or controlling the VA feature player through wt-mcp-adapter:
 
 ```bash
 v8-runner launch mcp va

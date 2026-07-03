@@ -154,7 +154,7 @@ v8-runner launch thick
 v8-runner launch ordinary
 ```
 
-Запустить onec-client-mcp-devkit внутри 1С без VA:
+Запустить wt-mcp-adapter внутри 1С без VA:
 
 ```bash
 v8-runner launch mcp
@@ -162,7 +162,7 @@ v8-runner launch mcp --mode thin --mcp-port <PORT>
 v8-runner launch mcp --mcp-config <FILE>
 ```
 
-Флаги WS-режима (когда v8-client-session-manager доступен):
+Флаги WS-режима (когда v8-session-manager доступен):
 
 ```bash
 v8-runner launch mcp --mcp-transport=ws --manager-url ws://127.0.0.1:4000/sessions

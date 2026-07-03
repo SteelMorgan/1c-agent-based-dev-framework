@@ -13,7 +13,7 @@ uses_capabilities:
 1. Determine the source of the requirement - specification or business case (`vanessa-scenario-policy`).
 2. Determine **under which user** the scenario is executed (see "User Context").
 3. Find suitable steps: first in the Vanessa library, then in the project scenarios.
-4. **Inspect the interface and fill out the form manually**. The preferred path is the Vanessa Automation MCP tools through `v8-client-session-manager` (see "MCP Investigation through Vanessa Automation"). For UI/UX form checks, use `va-visual-check`: VA MCP screenshot route, Linux/Xvfb recipe, and browser fallback with reason logging. In any case, record the exact names and captions of elements, fields, buttons, and tabs **before** referencing them in steps; do not guess identifiers (Title vs name - see `vanessa-scenario-policy`).
+4. **Inspect the interface and fill out the form manually**. The preferred path is the Vanessa Automation MCP tools through `v8-session-manager` (see "MCP Investigation through Vanessa Automation"). For UI/UX form checks, use `va-visual-check`: VA MCP screenshot route, Linux/Xvfb recipe, and browser fallback with reason logging. In any case, record the exact names and captions of elements, fields, buttons, and tabs **before** referencing them in steps; do not guess identifiers (Title vs name - see `vanessa-scenario-policy`).
 5. Write one smoke scenario: open → one action → one observable outcome.
 6. If a step does not exist - mark `# unknown_step_candidate`, do not invent a BSL step.
 7. Pass the scenario for execution through `v8-runner` (`v8-runner test va`).
@@ -24,7 +24,7 @@ uses_capabilities:
 
 This section captures the universal workflow validated on Vanessa Automation `1.2.043.28`. For another version, first verify the behavior against the official VA instructions and live tool schemas.
 
-Official Vanessa Automation source: <https://github.com/Pr-Mex/vanessa-automation>. AI/MCP instructions are in `docs/AI/`. Take VA updates from the official repository/releases, not by modifying vendor code in the project. For WS launch, we use our fork `v8-runner` <https://github.com/SteelMorgan/v8-runner-rust> and `v8-client-session-manager` <https://github.com/SteelMorgan/v8-client-session-manager>.
+Official Vanessa Automation source: <https://github.com/Pr-Mex/vanessa-automation>. AI/MCP instructions are in `docs/AI/`. Take VA updates from the official repository/releases, not by modifying vendor code in the project. For WS launch, we use our fork `v8-runner` <https://github.com/SteelMorgan/v8-runner-rust> and `v8-session-manager` <https://github.com/1c-neurofish/v8-session-manager>.
 
 ### Version and readiness check
 

@@ -42,7 +42,7 @@ v8-runner build --full-rebuild
 
 `build` is the general scenario. For EDT projects it can export EDT sources into Designer files before applying them through the configured backend. For Designer projects it applies Designer sources directly through the configured backend.
 
-If `tools.client_mcp.extension` is configured, `build` also prepares this tool extension after the project's source-set stage, including for narrow builds with `--source-set`. Source-based tool extensions use their own change-detection state and are skipped if nothing changed; use `build --full-rebuild` to force an update. Do not add the tool extension as a project source-set and do not select it through `--source-set`.
+If `tools.wt_mcp_adapter.extension` is configured, `build` also prepares this tool extension after the project's source-set stage, including for narrow builds with `--source-set`. Source-based tool extensions use their own change-detection state and are skipped if nothing changed; use `build --full-rebuild` to force an update. Do not add the tool extension as a project source-set and do not select it through `--source-set`.
 
 ### Monitoring the Build Result
 
@@ -126,7 +126,7 @@ v8-runner launch thick
 v8-runner launch ordinary
 ```
 
-Launch onec-client-mcp-devkit through the supported `launch mcp` surface, rather than assembling `/C"runMcp..."` manually:
+Launch wt-mcp-adapter through the supported `launch mcp` surface, rather than assembling `/C"runMcp..."` manually:
 
 ```bash
 v8-runner launch mcp
@@ -138,29 +138,29 @@ For a direct ordinary launch, the typed launch flags include `--c`, `--execute`,
 
 For `launch mcp`, use `--mcp-config` and `--mcp-port`; do not pass `/C` through `--c`.
 
-`launch mcp` and `launch mcp va` do not install or update `tools.client_mcp.extension`; run `v8-runner build` first if this extension may be missing or outdated.
+`launch mcp` and `launch mcp va` do not install or update `tools.wt_mcp_adapter.extension`; run `v8-runner build` first if this extension may be missing or outdated.
 
 Read `testing.md` for `launch mcp va`; it is part of the workflow for debugging and authoring Vanessa Automation scenarios.
 
 ## WS mode for session-manager
 
-> SteelMorgan forks used for WS transport (`v8-runner-rust`, `onec-client-mcp-devkit`) are canonical in `SKILL.md`, section "Command Form".
+> SteelMorgan forks used for WS transport (`v8-runner-rust`, `wt-mcp-adapter`) are canonical in `SKILL.md`, section "Command Form".
 
-When [`v8-client-session-manager`](https://github.com/SteelMorgan/v8-client-session-manager) is running alongside the project, the 1С client can connect to it over WebSocket instead of the local HTTP MCP server (`runMcp` mode). v8-runner makes the choice automatically. Applicable entry points, VA MCP and UI MCP workflow are in `SKILL.md` (section "WS parameters for coupling with session-manager"); this section is canonical for transport mechanics, `/C` and `kind`.
+When [`v8-session-manager`](https://github.com/1c-neurofish/v8-session-manager) is running alongside the project, the 1С client can connect to it over WebSocket instead of the local HTTP MCP server (`runMcp` mode). v8-runner makes the choice automatically. Applicable entry points, VA MCP and UI MCP workflow are in `SKILL.md` (section "WS parameters for coupling with session-manager"); this section is canonical for transport mechanics, `/C` and `kind`.
 
 ### Transport and autodetection
 
-`tools.client_mcp.transport`:
+`tools.wt_mcp_adapter.transport`:
 
 - `auto` (default) — a short TCP probe (200 ms) to the host:port from `manager_url`. Listener detected → WS, otherwise → `mcp`.
 - `ws` — strict WS; if the manager is unavailable, launch fails with `session-manager unreachable at <url>`.
 - `mcp` — local HTTP MCP mode without a probe.
 
-Override via `--mcp-transport={ws|mcp|auto}`. CLI takes precedence over config. The same parameters are configured via `tools.client_mcp.*` in `v8project.yaml` / `v8project.local.yaml`:
+Override via `--mcp-transport={ws|mcp|auto}`. CLI takes precedence over config. The same parameters are configured via `tools.wt_mcp_adapter.*` in `v8project.yaml` / `v8project.local.yaml`:
 
 ```yaml
 tools:
-  client_mcp:
+  wt_mcp_adapter:
     transport: auto         # mcp | ws | auto
     manager_url: ws://127.0.0.1:4000/sessions
     log_level: info
@@ -177,12 +177,12 @@ Sources of values:
 
 | Key | Default | Override |
 |------|--------------|----------|
-| `manager_url` | `tools.client_mcp.manager_url` or `ws://127.0.0.1:4000/sessions` | `--manager-url <URL>` |
+| `manager_url` | `tools.wt_mcp_adapter.manager_url` or `ws://127.0.0.1:4000/sessions` | `--manager-url <URL>` |
 | `client_uid` | a new UUID v4 for each launch | `--client-uid <UUID>` |
 | `kind` | internal mapping (see table below) | (none - `kind` is not overridden from the CLI) |
 | `corr_id` | `vr-<first 8 characters of client_uid>` | `--corr-id <STR>` |
-| `mcp_log_level` | `tools.client_mcp.log_level` or `info` | `--mcp-log-level={off\|error\|warn\|info\|debug\|trace}` |
-| `mcp_ws_timeout_ms` | `tools.client_mcp.ws_timeout_ms` or `1000` | `--mcp-ws-timeout-ms <N>` |
+| `mcp_log_level` | `tools.wt_mcp_adapter.log_level` or `info` | `--mcp-log-level={off\|error\|warn\|info\|debug\|trace}` |
+| `mcp_ws_timeout_ms` | `tools.wt_mcp_adapter.ws_timeout_ms` or `1000` | `--mcp-ws-timeout-ms <N>` |
 
 For `launch mcp` / `launch mcp va`, this fragment is the entire `/C`. For `launch thin/thick/ordinary`, the same WS fragment is used, but **without** `kind=<KIND>`, and it is appended via `;` to the existing `/C` if one is already set:
 
@@ -225,4 +225,4 @@ An external orchestrator (CI, AI agent) uses `client_uid` to find the session in
 
 ### The manager is not started from v8-runner
 
-v8-runner only connects to a running manager. Starting the manager is a separate step (`cargo run --release` in the `v8-client-session-manager` repo, or the `systemd/v8-session-manager.service` unit, or Docker Compose). If the manager is not needed, `--mcp-transport=mcp` forces the local HTTP MCP flow.
+v8-runner only connects to a running manager. Starting the manager is a separate step (`cargo run --release` in the `v8-session-manager` repo, or the `systemd/v8-session-manager.service` unit, or Docker Compose). If the manager is not needed, `--mcp-transport=mcp` forces the local HTTP MCP flow.

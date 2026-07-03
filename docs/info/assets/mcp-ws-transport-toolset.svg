@@ -1,0 +1,89 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1060 706" font-family="'Segoe UI',system-ui,sans-serif">
+  <defs>
+    <marker id="arr" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto">
+      <path d="M0,0 L8,3 L0,6 Z" fill="#334155"/>
+    </marker>
+    <style>
+      .box{stroke:#334155;stroke-width:1.5;rx:8;}
+      .t{fill:#0f172a;font-size:13px;}
+      .tb{fill:#0f172a;font-size:14px;font-weight:600;}
+      .ts{fill:#475569;font-size:11px;}
+      .lbl{fill:#334155;font-size:11px;}
+      .edge{stroke:#334155;stroke-width:1.6;fill:none;}
+    </style>
+  </defs>
+
+  <rect x="0" y="0" width="1060" height="706" fill="#ffffff"/>
+  <text x="530" y="26" text-anchor="middle" fill="#0f172a" font-size="18" font-weight="700">Набор WS-транспорта: единая MCP-витрина для контекстов 1С</text>
+
+  <!-- AI agent -->
+  <rect class="box" x="390" y="44" width="280" height="50" rx="8" fill="#dbeafe"/>
+  <text class="tb" x="530" y="66" text-anchor="middle">AI-агент / IDE</text>
+  <text class="ts" x="530" y="84" text-anchor="middle">MCP-клиент</text>
+
+  <!-- agent -> v8sm -->
+  <line class="edge" x1="530" y1="94" x2="530" y2="150" marker-end="url(#arr)"/>
+  <text class="lbl" x="540" y="118" >MCP HTTP  :4001/mcp — ЕДИНАЯ ВИТРИНА</text>
+  <text class="lbl" x="540" y="132" fill="#64748b">tools/list · call · tools/list_changed</text>
+
+  <!-- v8sm -->
+  <rect class="box" x="230" y="152" width="600" height="92" rx="8" fill="#dcfce7"/>
+  <text class="tb" x="530" y="176" text-anchor="middle">v8-session-manager  (v8sm)</text>
+  <text class="t"  x="530" y="198" text-anchor="middle">агрегирует tools всех сессий → один tools/list</text>
+  <text class="ts" x="530" y="220" text-anchor="middle">SessionRegistry · Router(session_id, tool_name) · дедуп (tool_name, schema_hash)</text>
+  <text class="ts" x="530" y="235" text-anchor="middle">per-session FIFO · round-robin · встроенный tool: session_list</text>
+
+  <!-- v8sm -> clients (WS) -->
+  <line class="edge" x1="360" y1="244" x2="285" y2="330" marker-end="url(#arr)"/>
+  <line class="edge" x1="700" y1="244" x2="775" y2="330" marker-end="url(#arr)"/>
+  <text class="lbl" x="530" y="286" text-anchor="middle">WS  :4000/sessions</text>
+  <text class="lbl" x="530" y="300" text-anchor="middle" fill="#64748b">session.register · tools/publish</text>
+
+  <!-- Client A -->
+  <rect class="box" x="66" y="332" width="430" height="252" rx="8" fill="#f8fafc"/>
+  <text class="tb" x="281" y="354" text-anchor="middle">Клиент 1С · сессия A</text>
+  <text class="ts" x="281" y="370" text-anchor="middle">kind = vanessa_test_client</text>
+  <rect class="box" x="82" y="380" width="398" height="40" rx="6" fill="#ffedd5"/>
+  <text class="t" x="281" y="399" text-anchor="middle">web-transport-addin — класс session</text>
+  <text class="ts" x="281" y="413" text-anchor="middle">WS-туннель (duplex, auto-reconnect, ping/pong)</text>
+  <rect class="box" x="82" y="428" width="398" height="94" rx="6" fill="#ede9fe"/>
+  <text class="t" x="281" y="446" text-anchor="middle">wt-mcp-adapter</text>
+  <rect class="box" x="94" y="456" width="182" height="54" rx="6" fill="#ffffff"/>
+  <text class="t" x="185" y="476" text-anchor="middle">Мсп_РеестрКлиент</text>
+  <text class="ts" x="185" y="493" text-anchor="middle">client tools</text>
+  <rect class="box" x="286" y="456" width="182" height="54" rx="6" fill="#ffffff"/>
+  <text class="t" x="377" y="476" text-anchor="middle">Мсп_РеестрСервер</text>
+  <text class="ts" x="377" y="493" text-anchor="middle">server tools</text>
+  <rect class="box" x="82" y="530" width="398" height="42" rx="6" fill="#e2e8f0"/>
+  <text class="t" x="281" y="556" text-anchor="middle">прикладное расширение (VA) · 1c-mcp-tools</text>
+  <!-- inner flow arrow A -->
+  <line class="edge" x1="76" y1="551" x2="76" y2="401" marker-end="url(#arr)"/>
+
+  <!-- Client B -->
+  <rect class="box" x="564" y="332" width="430" height="252" rx="8" fill="#f8fafc"/>
+  <text class="tb" x="779" y="354" text-anchor="middle">Клиент 1С · сессия B</text>
+  <text class="ts" x="779" y="370" text-anchor="middle">kind = yaxunit_runner</text>
+  <rect class="box" x="580" y="380" width="398" height="40" rx="6" fill="#ffedd5"/>
+  <text class="t" x="779" y="399" text-anchor="middle">web-transport-addin — класс session</text>
+  <text class="ts" x="779" y="413" text-anchor="middle">WS-туннель (duplex, auto-reconnect, ping/pong)</text>
+  <rect class="box" x="580" y="428" width="398" height="94" rx="6" fill="#ede9fe"/>
+  <text class="t" x="779" y="446" text-anchor="middle">wt-mcp-adapter</text>
+  <rect class="box" x="592" y="456" width="182" height="54" rx="6" fill="#ffffff"/>
+  <text class="t" x="683" y="476" text-anchor="middle">Мсп_РеестрКлиент</text>
+  <text class="ts" x="683" y="493" text-anchor="middle">client tools</text>
+  <rect class="box" x="784" y="456" width="182" height="54" rx="6" fill="#ffffff"/>
+  <text class="t" x="875" y="476" text-anchor="middle">Мсп_РеестрСервер</text>
+  <text class="ts" x="875" y="493" text-anchor="middle">server tools</text>
+  <rect class="box" x="580" y="530" width="398" height="42" rx="6" fill="#e2e8f0"/>
+  <text class="t" x="779" y="556" text-anchor="middle">прикладное расширение (VA) · 1c-mcp-tools</text>
+  <line class="edge" x1="574" y1="551" x2="574" y2="401" marker-end="url(#arr)"/>
+
+  <!-- runner -->
+  <rect class="box" x="230" y="628" width="600" height="54" rx="8" fill="#fef9c3"/>
+  <text class="tb" x="530" y="650" text-anchor="middle">v8-runner-rust — пускач</text>
+  <text class="ts" x="530" y="668" text-anchor="middle">launch mcp[ va] · test yaxunit|va  →  инжектит  mcpMode=ws; manager_url=…; kind=…; client_uid=…</text>
+
+  <!-- runner -> clients -->
+  <line class="edge" x1="330" y1="628" x2="281" y2="586" marker-end="url(#arr)"/>
+  <line class="edge" x1="730" y1="628" x2="779" y2="586" marker-end="url(#arr)"/>
+</svg>
