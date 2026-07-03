@@ -41,6 +41,9 @@ tools/external/
 # Local rules (not shared)
 .claude/rules/CLAUDE.md
 
+# Local task artifacts
+tasks/TASK-AUDIT-framework-knowledge/
+
 # Personal: infostart-kb (non-public tool, do not share)
 framework/skills/other/infostart-kb/
 framework_eng/skills/other/infostart-kb/
