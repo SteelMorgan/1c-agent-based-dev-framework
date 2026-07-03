@@ -28,7 +28,7 @@
 #
 # Редактирование: вручную либо через `python tools/capability-registry.py`.
 # Не дублировать одну и ту же capability на разные сервера: для конкурирующих реализаций
-# (например `execute_query` через 1c-mcp vs через расширение в v8-session-manager) выбирается
+# (например `execute_query` через несколько подключённых клиентов v8-session-manager) выбирается
 # один основной источник, остальные документируются как fallback в SKILL.md.
 
 capabilities:
@@ -191,46 +191,44 @@ capabilities:
       Для одного направления/глубины > 1 — get_call_graph; для сырых ссылок — search_ssl_functions.
 
   # ───────────────────────────────────────────────────────
-  # 1c-mcp — метаданные, запросы, навигационные ссылки.
-  # Эти tools полностью серверные (чтение метаданных, запросы к БД, парсинг ссылок),
-  # клиентский контекст им не нужен → реализация через стационарный MCP-сервер 1c-mcp,
-  # БЕЗ зависимости от подключённого 1С-клиента. Расширение `mcp_tools` дублирует ту же
-  # функциональность через session-manager, но в registry оно НЕ зарегистрировано —
-  # витрина session-manager оставляется только для tools, которым нужен клиентский контекст.
+  # mcp_tools — метаданные, запросы, навигационные ссылки.
+  # Старый стационарный MCP proxy удалён. Эти tools публикуются через wt_mcp_adapter
+  # в v8-client-session-manager / v8-session-manager; для доступности нужен подключённый
+  # 1С-клиент или серверный spoke расширения.
   # ───────────────────────────────────────────────────────
   list_metadata_objects:
     kind: mcp
-    server: 1c-mcp
+    server: v8-session-manager
     tool: list_metadata_objects
     skill: framework/skills/tool-usage/platform-data/platform-data-core
 
   get_metadata_structure:
     kind: mcp
-    server: 1c-mcp
+    server: v8-session-manager
     tool: get_metadata_structure
     skill: framework/skills/tool-usage/platform-data/platform-data-core
 
   validate_query:
     kind: mcp
-    server: 1c-mcp
+    server: v8-session-manager
     tool: validate_query
     skill: framework/skills/tool-usage/platform-data/platform-data-core
 
   execute_query:
     kind: mcp
-    server: 1c-mcp
+    server: v8-session-manager
     tool: execute_query
     skill: framework/skills/tool-usage/platform-data/platform-data-core
 
   parse_nav_link:
     kind: mcp
-    server: 1c-mcp
+    server: v8-session-manager
     tool: parse_nav_link
     skill: framework/skills/tool-usage/platform-data/platform-data-core
 
   get_nav_link:
     kind: mcp
-    server: 1c-mcp
+    server: v8-session-manager
     tool: get_nav_link
     skill: framework/skills/tool-usage/platform-data/platform-data-core
 

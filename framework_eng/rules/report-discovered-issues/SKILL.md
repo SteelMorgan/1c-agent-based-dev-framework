@@ -4,64 +4,60 @@ description: "Report out-of-scope defects after the task"
 alwaysApply: true
 ---
 
-# Reporting Discovered Issues
+# Report on Discovered Issues
 
-> The agent often sees more than is needed for the current task. A silently ignored finding remains an unfixed risk, so it must be explicitly brought to the user's attention.
+> The agent often sees more than is needed for the current task. A silently ignored finding remains an unresolved risk, so it must be explicitly reported to the user.
 
 ## Principle
 
-While solving one task, the agent may find regressions, bugs in adjacent modules, technical debt, anti-patterns, mismatches between code and specification, performance issues, or security issues. These findings do not need to be fixed within the current task without the user's permission, but they cannot be hidden.
+While solving a task, the agent may find regressions, errors in adjacent modules, technical debt, antipatterns, discrepancies between code and the specification, performance issues, or security issues. Fixing them inside the current task without the user's permission is not allowed, but hiding them is not allowed either.
 
 ## MUST
 
 | Requirement | Description |
 |-----------|----------|
-| Record findings | As problems are discovered, record them in the working context, task notes, or the final report section |
-| Do not expand scope silently | Do not fix found issues within the current task without the user's explicit permission |
-| Report after completion | In the final answer or report, list the found issues that are outside the completed scope |
-| Provide specifics | For each finding, specify the location, nature, risk, severity, and approximate fix size |
-| Suggest a path | Propose a next action: separate task, quick-fix, defer, document, or investigate further |
+| Record findings | As issues are discovered, record the problem in the working context, task notes, or the final report section |
+| Do not expand scope silently | Do not fix discovered issues within the current task without explicit user permission |
+| Report after completion | In the final response or report, list the discovered issues that are outside the completed scope |
+| Be specific | For each finding, include the location, essence, risk, severity, and an estimated fix size |
+| Suggest a path | Suggest a next action: separate task, quick-fix, postpone, document, or investigate further |
+
+## What to Report: Verdict
+
+| Finding / behavior | Verdict |
+|--------------------|---------|
+| Bugs leading to loss of data, money, security, or availability | report |
+| Regressions and deviations from the source of truth | report |
+| Data integrity issues | report |
+| Crashes or exceptions possible in a real workflow | report |
+| Errors in tests or infrastructure that mask the real result | report |
+| Purely stylistic nits with no impact on maintainability | do not report |
+| Typos in comments | do not report |
+| Abstract refactoring wishes without a concrete risk | do not report |
+| Turning the current task into cleanup of everything found | prohibited |
+| Putting the report off until later | prohibited |
+| Merging different problems into one vague phrase | prohibited |
+| Dramatising or downplaying (the description must be verifiable) | prohibited |
 
 ## Report Format
 
 ```markdown
-## Found Along the Way
+## Found by path
 
-### 1. [Short Title]
+### 1. [Short title]
 - **Where:** `path/to/file:line`
 - **What:** specific description of the problem
-- **Why it is a problem:** consequences or risk
+- **Why it's a problem:** consequences or risk
 - **Severity:** critical / medium / low
-- **Effort:** simple fix / separate task / large effort
+- **Effort:** simple fix / separate task / large work
 - **Suggestion:** what to do next
 ```
 
-## What Must Be Reported
-
-- Bugs that can lead to data loss, money loss, security issues, or availability issues.
-- Regressions and mismatches with the source of truth.
-- Data integrity issues.
-- Crashes or exceptions possible in a real workflow.
-- Errors in tests or infrastructure that mask the real result.
-
-## What May Be Omitted
-
-- Purely stylistic nits with no maintenance impact.
-- Typos in comments.
-- Abstract refactoring wishes without a concrete risk.
-
-## What NOT to Do
-
-- Do not turn the current task into a cleanup of everything found.
-- Do not postpone the report "for later."
-- Do not merge different problems into one vague statement.
-- Do not dramatize or downplay: the description must be verifiable.
-
 ## Related Rules
 
-- `agent-context-protocol` - where to record working context and found issues.
-- `quick-fix` / `full-cycle` - how to turn findings into further work.
-- `source-of-truth` - how to check mismatches between artifacts.
+- `agent-context-protocol` — where to record working context and discovered issues.
+- `quick-fix` / `full-cycle` — how to turn findings into follow-up work.
+- `source-of-truth` — how to check discrepancies between artifacts.
 
 ---
 depends_on:

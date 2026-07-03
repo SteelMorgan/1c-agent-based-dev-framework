@@ -78,16 +78,26 @@ You are [роль] specializing in [домен] for 1C:Enterprise (BSL).
 
 ## 2. Роли и модели фреймворка
 
-### Таблица маппинга ролей → модели
+### Таблица маппинга ролей → модели (единый источник)
 
-| Роль | model | readonly | Обоснование |
-|------|-------|----------|-------------|
-| explorer | haiku | true | Детерминированная работа, инструменты дают точные результаты |
-| analyst | sonnet | true | Анализ требований, создание спецификаций |
-| tester | sonnet | false | Написание и запуск тестов |
-| architect | sonnet | true | Технические решения, trade-offs |
-| developer | sonnet | false | Реализация кода, TDD |
-| reviewer | opus | true | Критическая роль — оценка артефактов, tier ≥ автор |
+Это **канонический реестр** маппинга роль → tier модели для всех 10 сабагентов фреймворка.
+Другие файлы (в т.ч. `framework/subagents/README.md`, `framework/subagents/orchestrator.md` §2)
+ссылаются на эту таблицу, а не дублируют собственный список — расхождение с ней считается
+ошибкой синхронизации. Tier — провайдеро-независимая шкала (Economy < Mid < High < Premium);
+конкретный алиас/модель под каждый tier определяется `tools/model-defaults.json` для выбранной IDE.
+
+| Роль | Tier | readonly | Обоснование |
+|------|------|----------|-------------|
+| explorer | Economy | true | Детерминированная работа, инструменты дают точные результаты |
+| analyst | High/Premium | true | Анализ требований, создание спецификаций |
+| architect | High/Premium | true | Технические решения, trade-offs |
+| scenario-author | Mid | false | Конвертация intent-сценариев в `.feature` по формализованным требованиям |
+| developer-tests | Mid/High | false | Написание unit-тестов по спецификации (Red phase TDD) |
+| scenario-coder | Mid | false | Реализация исполняемых шагов Vanessa поверх контрактов дизайна |
+| developer-code | Mid/High | false | Реализация кода, TDD (Green phase) |
+| tester | Mid/High | false | Написание и запуск тестов, диагностика причин падений |
+| debugger | Premium | false | Расследование багов в рантайме — высокая цена ошибочного вердикта |
+| reviewer | Premium (scope: spec/arch/JSON) / High (scope: code/tests/bdd/bdd-steps) | true | Критическая роль — оценка артефактов, tier ≥ автор |
 
 ### Правило ревьюера
 

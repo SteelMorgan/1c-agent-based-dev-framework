@@ -42,7 +42,7 @@ v8-runner build --full-rebuild
 
 `build` — общий сценарий. Для EDT-проектов он может экспортировать EDT-исходники в Designer-файлы перед применением через настроенный backend. Для Designer-проектов он применяет Designer-исходники напрямую через настроенный backend.
 
-Если настроен `tools.client_mcp.extension`, `build` также готовит это tool-расширение после стадии source-set'ов проекта, в том числе для узких сборок с `--source-set`. Tool-расширения на основе исходников используют собственное состояние change-detection и пропускаются, если ничего не изменилось; используй `build --full-rebuild`, чтобы принудительно обновить. Не добавляй tool-расширение как source-set проекта и не выбирай его через `--source-set`.
+Если настроен `tools.wt_mcp_adapter.extension`, `build` также готовит это tool-расширение после стадии source-set'ов проекта, в том числе для узких сборок с `--source-set`. Tool-расширения на основе исходников используют собственное состояние change-detection и пропускаются, если ничего не изменилось; используй `build --full-rebuild`, чтобы принудительно обновить. Не добавляй tool-расширение как source-set проекта и не выбирай его через `--source-set`.
 
 ### Контроль результата build
 
@@ -126,7 +126,7 @@ v8-runner launch thick
 v8-runner launch ordinary
 ```
 
-Запускай onec-client-mcp-devkit через поддерживаемую поверхность `launch mcp`, а не собирай вручную `/C"runMcp..."`:
+Запускай wt-mcp-adapter через поддерживаемую поверхность `launch mcp`, а не собирай вручную `/C"runMcp..."`:
 
 ```bash
 v8-runner launch mcp
@@ -138,27 +138,34 @@ v8-runner launch mcp --mcp-config <FILE>
 
 Для `launch mcp` используй `--mcp-config` и `--mcp-port`; не передавай `/C` через `--c`.
 
-`launch mcp` и `launch mcp va` не устанавливают и не обновляют `tools.client_mcp.extension`; запусти сначала `v8-runner build`, если это расширение может отсутствовать или быть устаревшим.
+`launch mcp` и `launch mcp va` не устанавливают и не обновляют `tools.wt_mcp_adapter.extension`; запусти сначала `v8-runner build`, если это расширение может отсутствовать или быть устаревшим.
 
 Про `launch mcp va` читай `testing.md`; это часть workflow отладки и написания сценариев Vanessa Automation.
 
 ## WS-режим к session-manager
 
-> **Используемые форки SteelMorgan.** WS-транспорт реализован в форках, т.к. PR-ы в upstream не принимаются:
-> - v8-runner: upstream [`alkoleft/v8-runner-rust`](https://github.com/alkoleft/v8-runner-rust) → используемый форк [`SteelMorgan/v8-runner-rust`](https://github.com/SteelMorgan/v8-runner-rust)
-> - onec-client-mcp-devkit: используемый форк [`SteelMorgan/onec-client-mcp-devkit`](https://github.com/SteelMorgan/onec-client-mcp-devkit)
+> Форки SteelMorgan, используемые для WS-транспорта (`v8-runner-rust`, `wt-mcp-adapter`) — канон в `SKILL.md`, раздел «Форма команды».
 
-Когда рядом с проектом запущен [`v8-client-session-manager`](https://github.com/SteelMorgan/v8-client-session-manager), 1С-клиент может подключаться к нему по WebSocket вместо локального HTTP MCP-сервера (`runMcp`-режим). v8-runner делает выбор автоматически.
+Когда рядом с проектом запущен [`v8-session-manager`](https://github.com/1c-neurofish/v8-session-manager), 1С-клиент может подключаться к нему по WebSocket вместо локального HTTP MCP-сервера (`runMcp`-режим). v8-runner делает выбор автоматически. Применимые точки входа, VA MCP и UI MCP workflow — в `SKILL.md` (раздел «WS-параметры сопряжения с session-manager»); эта секция — канон по механике транспорта, `/C` и `kind`.
 
 ### Транспорт и автоопределение
 
-`tools.client_mcp.transport`:
+`tools.wt_mcp_adapter.transport`:
 
 - `auto` (по умолчанию) — короткий TCP-probe (200 ms) на хост:порт из `manager_url`. Слышим listener → WS, нет → `mcp`.
 - `ws` — строго WS, при недоступности менеджера запуск падает с `session-manager unreachable at <url>`.
 - `mcp` — локальный HTTP MCP-режим без probe.
 
-Override через `--mcp-transport={ws|mcp|auto}`. CLI приоритет конфига.
+Override через `--mcp-transport={ws|mcp|auto}`. CLI приоритет конфига. Те же параметры настраиваются через `tools.wt_mcp_adapter.*` в `v8project.yaml` / `v8project.local.yaml`:
+
+```yaml
+tools:
+  wt_mcp_adapter:
+    transport: auto         # mcp | ws | auto
+    manager_url: ws://127.0.0.1:4000/sessions
+    log_level: info
+    ws_timeout_ms: 1000
+```
 
 ### Что v8-runner подставляет в `/C` в WS-ветке
 
@@ -170,17 +177,26 @@ Override через `--mcp-transport={ws|mcp|auto}`. CLI приоритет ко
 
 | Ключ | По умолчанию | Override |
 |------|--------------|----------|
-| `manager_url` | `tools.client_mcp.manager_url` или `ws://127.0.0.1:4000/sessions` | `--manager-url <URL>` |
+| `manager_url` | `tools.wt_mcp_adapter.manager_url` или `ws://127.0.0.1:4000/sessions` | `--manager-url <URL>` |
 | `client_uid` | новый UUID v4 на каждый запуск | `--client-uid <UUID>` |
 | `kind` | внутренний mapping (см. таблицу ниже) | (нет — kind не переопределяется из CLI) |
 | `corr_id` | `vr-<первые 8 символов client_uid>` | `--corr-id <STR>` |
-| `mcp_log_level` | `tools.client_mcp.log_level` или `info` | `--mcp-log-level={off\|error\|warn\|info\|debug\|trace}` |
-| `mcp_ws_timeout_ms` | `tools.client_mcp.ws_timeout_ms` или `1000` | `--mcp-ws-timeout-ms <N>` |
+| `mcp_log_level` | `tools.wt_mcp_adapter.log_level` или `info` | `--mcp-log-level={off\|error\|warn\|info\|debug\|trace}` |
+| `mcp_ws_timeout_ms` | `tools.wt_mcp_adapter.ws_timeout_ms` или `1000` | `--mcp-ws-timeout-ms <N>` |
+
+Для `launch mcp` / `launch mcp va` этот фрагмент — весь `/C`. Для `launch thin/thick/ordinary` используется тот же WS-фрагмент, но **без** `kind=<KIND>`, и он дописывается через `;` к существующему `/C`, если он уже задан:
+
+```text
+/C"mcpMode=ws;manager_url=<URL>;client_uid=<UUID>;corr_id=<CORR>;mcp_log_level=<LVL>;mcp_ws_timeout_ms=<MS>"
+```
+
+**Важно:** не добавляй `kind` вручную для `launch thin/thick/ordinary` — такой клиент публикует только базовые инструменты `client_mcp`, не Vanessa Automation MCP.
 
 ### Internal `kind` mapping
 
 | Команда v8-runner | `kind` |
 |---|---|
+| `launch thin/thick/ordinary` | не передаётся; клиентская сторона объявляет дефолтный kind |
 | `launch mcp` | `v8_runner_client` |
 | `launch mcp va` | `vanessa_test_client` |
 | `test yaxunit ...` | `yaxunit_runner` |
@@ -209,4 +225,4 @@ MCP-ветка:
 
 ### Менеджер не запускается из v8-runner
 
-v8-runner только подключается к запущенному менеджеру. Подъём менеджера — отдельный шаг (`cargo run --release` в репо `v8-client-session-manager`, либо systemd-юнит `systemd/v8-session-manager.service`, либо Docker-compose). Если менеджер не нужен — `--mcp-transport=mcp` форсирует локальный HTTP MCP flow.
+v8-runner только подключается к запущенному менеджеру. Подъём менеджера — отдельный шаг (`cargo run --release` в репо `v8-session-manager`, либо systemd-юнит `systemd/v8-session-manager.service`, либо Docker-compose). Если менеджер не нужен — `--mcp-transport=mcp` форсирует локальный HTTP MCP flow.

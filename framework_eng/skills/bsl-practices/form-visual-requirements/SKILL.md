@@ -1,6 +1,6 @@
 ---
 name: form-visual-requirements
-description: "For visual checks of 1C forms: layout, labels, UX"
+description: "When visually checking 1C forms: layout, labels, UX"
 alwaysApply: false
 ---
 
@@ -8,47 +8,61 @@ alwaysApply: false
 
 Use this checklist to review 1C forms.
 
-Before evaluating the image, check that the PNG is not empty and not single-color/black. How to capture a form screenshot, how to work in Xvfb, and when browser fallback is allowed — see the dedicated skill `va-visual-check`.
+Before evaluating the image, check that the PNG is not empty and not monochrome/black. For how to capture a form screenshot, how to work in Xvfb, and when browser fallback is allowed, see the specialized skill `va-visual-check`.
 
 ## 1. Layout and Alignment
 
 - [ ] **Alignment**: elements are aligned to the grid, without a stair-step effect.
-- [ ] **Grouping**: logically related fields are grouped together (frame, page).
-- [ ] **Empty spaces**: there are no large empty areas (>150px) unless intended.
+- [ ] **Grouping**: logically related fields are combined into groups (frame, page).
+- [ ] **Whitespace**: there are no large empty areas (>150px) unless that is intentional.
 - [ ] **Field widths**:
-  - `Code`, `Number`, `Date` — narrow.
-  - `Description`, `Comment`, `Address` — wide (stretched).
-  - Columns of tabular sections — "Auto width" or an explicit width to fill the space.
+  - `Код`, `Номер`, `Дата` — narrow.
+  - `Описание`, `Комментарий`, `Адрес` — wide (stretched).
+  - Table part columns — "Auto width" or an explicit width to fill the space.
 
 ## 2. Elements and Labels
 
 - [ ] **Labels**: all fields have labels (or `TitleLocation=None` is explicitly specified).
-- [ ] **Truncation**: labels and values must not be truncated with an ellipsis ("…") when there is space available.
-- [ ] **Checkbox labels**: the checkbox label should be clear (for example, "Active", not just a checkbox).
-- [ ] **Command bar**: the "More" menu must not hide primary actions.
+- [ ] **Truncation**: labels and values should not be truncated with an ellipsis ("…") when there is room.
+- [ ] **Checkbox labels**: a checkbox label should be clear (for example, "Active", not just a checkbox).
+- [ ] **Command bar**: the "More" menu should not hide primary actions.
 
 ## 3. Usability
 
 - [ ] **Tab order**: focus moves left to right and top to bottom.
 - [ ] **Key fields**: important identifiers (Name, Code, Date) are in the upper-left corner.
-- [ ] **Tabular sections**: reasonable height (at least 5-10 visible rows).
+- [ ] **Table parts**: reasonable height (minimum 5-10 visible rows).
 - [ ] **Horizontal scrolling**: strictly forbidden for the main form area (vertical is allowed).
+- [ ] **Width by meaning**: short codes, numbers, dates, and flags are not stretched; long comments and addresses are multiline.
+- [ ] **Primary action**: the form has no more than one primary command by default, unless the scenario requires several equivalent actions.
+- [ ] **Dialogs**: the question explains the consequences; the confirm button names the action (`Удалить строки`, `Провести`, `Записать`), not just `Yes`.
+- [ ] **Links and buttons**: hyperlinks open a form/section/help; data actions are performed with buttons.
+- [ ] **Checkboxes**: checkbox labels describe the enabled behavior without negations.
 
-## 4. Specifics by Object Type
+## 4. Specifics by object type
 
-### Справочники
-- Code/Name are usually at the top.
+### Catalogs
+- Code/Description are usually at the top.
 - The parent field (for hierarchies) should be prominent.
 
-### Документы
+### Documents
 - Date/Number are at the top.
 - Status/Organization/Warehouse are in the header.
-- Tabular sections are in the form body.
+- Tabular sections are in the body of the form.
 - Totals/Comment/Author are at the bottom.
+- The tabular section should have a clear title; if the title shows the number of rows, check `ПутьКДаннымЗаголовка`.
 
-### Обработки
+### Data processors
 - Settings/parameters are at the top or on a separate tab.
 - Action buttons are in the command bar or at the bottom right.
+
+## 5. Platform Properties
+
+- [ ] Commands that modify persisted data have `ИзменяетСохраняемыеДанные`.
+- [ ] Required attributes use `ПроверкаЗаполнения` if the requirement does not depend on a complex business condition.
+- [ ] The list form contains `ГруппаПользовательскихНастроек` if user filters should be visible.
+- [ ] In a standard form, new attributes are placed programmatically: on a service tab or in a service group, if the specification does not define an exact location.
+- [ ] Element visibility/accessibility looks consistent; in the form module, this should match the centralized update procedure.
 
 ---
 depends_on: []

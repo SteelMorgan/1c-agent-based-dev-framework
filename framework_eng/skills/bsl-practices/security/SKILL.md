@@ -46,7 +46,7 @@ If the boundary is not named, the skill is applied incorrectly: go back to the d
 
 ### 1. Secrets and `БезопасноеХранилище` → [`references/secrets.md`](references/secrets.md)
 
-- `БезопасноеХранилище.УстановитьДанные(Владелец, Данные[, Ключ])` and `ПрочитатьДанные(Владелец[, Ключ])`.
+- `ОбщегоНазначения.ЗаписатьДанныеВБезопасноеХранилище(Владелец, Данные, Ключ = "Пароль")` and `ПрочитатьДанныеИзБезопасногоХранилища(Владелец, Ключи = "Пароль", ...)`; storage is the information register `БезопасноеХранилищеДанных`, direct access to it is forbidden.
 - The owner is usually a reference to an account directory; never a string constant.
 - All calls are on the server, under `УстановитьПривилегированныйРежим(Истина)` in a targeted way (not for the whole module).
 - Secret lifecycle: source → write → read → rotation → revocation.
@@ -87,7 +87,7 @@ These rules are **strict**. A violation means a blocking review comment and code
    - Correct: the container is in the OS store under the 1C server account, accessed through `МенеджерКриптографии`.
 
 3. **`УстановитьПривилегированныйРежим(Истина)` around work with `БезопасноеХранилище` is mandatory and targeted**
-   - Without `УстановитьПривилегированныйРежим`, `БезопасноеХранилище.ПрочитатьДанные` will fail on permissions for an ordinary user.
+   - Without `УстановитьПривилегированныйРежим`, `ОбщегоНазначения.ПрочитатьДанныеИзБезопасногоХранилища` will fail on permissions for an ordinary user.
    - `УстановитьПривилегированныйРежим(Ложь)` must be set immediately after reading, in the same `Попытка/Исключение` block.
    - Forbidden: wrapping the entire exported procedure in privileged mode "just in case".
 
@@ -151,7 +151,7 @@ These rules are **strict**. A violation means a blocking review comment and code
 
     УстановитьПривилегированныйРежим(Истина);
     Попытка
-        ДанныеСекрета = БезопасноеХранилище.ПрочитатьДанные(УчётнаяЗапись, "access_token");
+        ДанныеСекрета = ОбщегоНазначения.ПрочитатьДанныеИзБезопасногоХранилища(УчётнаяЗапись, "access_token");
     Исключение
         УстановитьПривилегированныйРежим(Ложь);
         ВызватьИсключение;

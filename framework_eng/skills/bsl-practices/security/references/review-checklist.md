@@ -2,7 +2,7 @@
 
 Stack-neutral checklist. The `reviewer` agent must follow it **without exception** if the pull request touches:
 
-- secrets (`БезопасноеХранилище`, passwords, tokens, API keys),
+- secrets (register `БезопасноеХранилищеДанных` through `ОбщегоНазначения.*ДанныеВБезопасноеХранилище*`, passwords, tokens, API keys),
 - cryptography (`МенеджерКриптографии`, `СертификатКриптографии`, digital signatures),
 - authentication (OpenID/OAuth/basic/client certificate),
 - rights, RLS, privileged mode,
@@ -15,7 +15,7 @@ If at least one item is violated, this is a blocking review comment.
 ## Secrets
 
 - [ ] No secret (password, token, API key, refresh token, container password) is committed in code, configuration, template, constant, or catalog attribute.
-- [ ] Secrets are stored in `БезопасноеХранилище` with an owner link (not a string constant).
+- [ ] Secrets are stored via `ОбщегоНазначения.ЗаписатьДанныеВБезопасноеХранилище`/`ПрочитатьДанныеИзБезопасногоХранилища` with an owner link (not a string constant).
 - [ ] Secret read/write operations are performed only on the server.
 - [ ] `УстановитьПривилегированныйРежим(Истина)` is placed **surgically** around secret handling, not for the entire function.
 - [ ] `УстановитьПривилегированныйРежим(Ложь)` is paired, inside `Попытка/Исключение`, within the same scope.
@@ -37,7 +37,7 @@ If at least one item is violated, this is a blocking review comment.
 ## Authentication and External APIs
 
 - [ ] The `Authorization` header is assembled on the server and is not returned to the client.
-- [ ] The OAuth refresh token is overwritten in `БезопасноеХранилище` on every access-token refresh.
+- [ ] The OAuth refresh token is overwritten via `ОбщегоНазначения.ЗаписатьДанныеВБезопасноеХранилище` on every access-token refresh.
 - [ ] Error semantics are implemented: `missing credentials`, `expired token`, `invalid certificate`, `provider unavailable`, `denied rights`, `tenant mismatch` — each error has its own handling path.
 - [ ] `401`/`403` from an external API do not become a "generic operation error" and do not enter an infinite retry loop.
 - [ ] The client TLS certificate is connected via `СертификатКлиентаФайл`/`СертификатКлиентаWindows`/`СертификатКлиентаOpenSSL`, with the key path on the server.

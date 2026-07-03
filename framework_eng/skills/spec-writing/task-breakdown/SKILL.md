@@ -33,12 +33,16 @@ The breakdown is prepared as a **separate JSON file** (next to the specification
 
 Format requirements:
 - use **template + example**;
-- **do not use JSON Schema**;
+- the format is fixed by a strict **JSON Schema** (`references/task-breakdown.schema.json`) - validation is mandatory (see §2a);
 - keep the same fields:
   - `task_id`
   - `task_type`
+  - `title`
+  - `description`
   - `depends_on`
   - `spec_refs`
+  - `deliverables`
+  - `done_criteria` - an array of 1-3 verifiable task completion criteria
 
 The specification itself must include:
 - a link to this JSON file, and/or
@@ -57,7 +61,8 @@ The specification itself must include:
       "description": "What must be done",
       "depends_on": [],
       "spec_refs": ["Requirements.MUST-1"],
-      "deliverables": ["List of expected artifacts"]
+      "deliverables": ["List of expected artifacts"],
+      "done_criteria": ["Verifiable task completion criterion"]
     }
   ]
 }
@@ -66,6 +71,18 @@ The specification itself must include:
 ### Allowed `task_type` values
 
 `analysis` | `design` | `implementation` | `test`
+
+---
+
+## §2a Validation by JSON Schema
+
+The Task Breakdown format is fixed by the strict `references/task-breakdown.schema.json` schema (draft-07, `additionalProperties: false` at the task level). Validation of JSON against this schema is **mandatory**: Architect performs it before handing over the decomposition, and the orchestrator performs it on acceptance.
+
+```bash
+python3 -c "import json,jsonschema; jsonschema.validate(json.load(open('task-breakdown.json')), json.load(open('references/task-breakdown.schema.json'))); print('OK')"
+```
+
+If `jsonschema` is unavailable, validate by any available means (an online draft-07 validator or a manual check against the schema). It is forbidden to submit or accept invalid JSON.
 
 ---
 
@@ -84,7 +101,8 @@ The specification itself must include:
       "description": "Map MUST items from the specification to implementation tasks",
       "depends_on": [],
       "spec_refs": ["Requirements.MUST-1", "Requirements.MUST-2"],
-      "deliverables": ["MUST coverage matrix", "List of gaps"]
+      "deliverables": ["MUST coverage matrix", "List of gaps"],
+      "done_criteria": ["Each MUST is matched to at least one implementation task", "Coverage gaps are listed explicitly or the list is empty"]
     },
     {
       "task_id": "T2",
@@ -93,7 +111,8 @@ The specification itself must include:
       "description": "Perform the implementation according to Technical Design",
       "depends_on": ["T1"],
       "spec_refs": ["Technical Design.Modules", "Requirements.MUST-3"],
-      "deliverables": ["Code changes", "Local checks"]
+      "deliverables": ["Code changes", "Local checks"],
+      "done_criteria": ["The code matches the module structure of the Technical Design", "Local syntax checks pass without errors"]
     },
     {
       "task_id": "T3",
@@ -102,7 +121,8 @@ The specification itself must include:
       "description": "Verify that MUST items are covered by tests from the Test Plan",
       "depends_on": ["T2"],
       "spec_refs": ["Test Plan (TDD)"],
-      "deliverables": ["Test results", "List of deviations"]
+      "deliverables": ["Test results", "List of deviations"],
+      "done_criteria": ["All MUST requirements have a passing test", "Deviations are recorded or the list is empty"]
     }
   ]
 }
@@ -127,8 +147,10 @@ The specification itself must include:
 - [ ] `task_type` matches the real work stage.
 - [ ] `depends_on` defines an executable linear order without cycles.
 - [ ] `spec_refs` are present and linked to the specification.
+- [ ] Each task has `done_criteria` (1-3 verifiable and specific criteria).
 - [ ] All MUST requirements have implementation/verification tasks.
 - [ ] Assumptions are explicitly recorded and do not conflict with Scope.
+- [ ] The JSON validates against `references/task-breakdown.schema.json` (§2a).
 - [ ] The specification includes a link/summary to the separate JSON.
 
 ### Typical mistakes (Linear)
@@ -157,7 +179,8 @@ The specification itself must include:
       "description": "Compare the object set with the Technical Design section",
       "depends_on": [],
       "spec_refs": ["Technical Design.Metadata Objects", "Requirements.MUST-1"],
-      "deliverables": ["List of verified objects", "List of discrepancies"]
+      "deliverables": ["List of verified objects", "List of discrepancies"],
+      "done_criteria": ["The object set matches the Technical Design section", "All discrepancies are recorded or the list is empty"]
     },
     {
       "task_id": "T2",
@@ -166,7 +189,8 @@ The specification itself must include:
       "description": "Implement movements and balance checks",
       "depends_on": ["T1"],
       "spec_refs": ["Requirements.MUST-2", "Requirements.MUST-3"],
-      "deliverables": ["Object module code", "Tests for MUST requirements"]
+      "deliverables": ["Object module code", "Tests for MUST requirements"],
+      "done_criteria": ["The posting creates movements across all registers from the design", "The balance check is covered by a passing test"]
     }
   ]
 }
@@ -175,7 +199,7 @@ The specification itself must include:
 ### Process (architecture + JSON → review → BLOCK loop)
 
 1. The Architect forms the work structure based on the specification.
-2. The agent prepares a separate Task Breakdown JSON (template + example, without JSON Schema).
+2. The agent prepares a separate Task Breakdown JSON (template + example) and validates it against the JSON Schema (§2a).
 3. The Reviewer performs a cross-review of the JSON against the specification and dependencies.
 4. If the verdict is **BLOCK**:
    - return for rework;
@@ -190,8 +214,10 @@ The specification itself must include:
 - [ ] `task_type` reflects the actual stage (analysis/design/implementation/test, etc.).
 - [ ] `depends_on` does not contain cyclic dependencies.
 - [ ] `spec_refs` are present for every task and point to specific sections/requirements of the spec.
+- [ ] Each task has `done_criteria` (1-3 verifiable and specific criteria).
 - [ ] All critical MUST requirements of the specification are covered.
 - [ ] The task order is executable considering the dependencies.
+- [ ] The JSON validates against `references/task-breakdown.schema.json` (§2a).
 - [ ] The specification includes a link/summary to the separate JSON.
 
 ### Typical mistakes (Subagent)

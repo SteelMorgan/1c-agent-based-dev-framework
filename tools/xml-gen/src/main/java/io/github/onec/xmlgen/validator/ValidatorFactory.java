@@ -18,6 +18,8 @@ public class ValidatorFactory {
         validators.add(new EpfValidator());
         validators.add(new FormValidator());
         validators.add(new XcfBodyValidator());
+        validators.add(new ClientApplicationInterfaceValidator());
+        validators.add(new PlatformXsdHintValidator());
         // Phase 4: validators.add(new SkdValidator());
         // Phase 5: validators.add(new MxlValidator());
         // Phase 6: validators.add(new EpfValidator());

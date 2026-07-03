@@ -203,17 +203,10 @@ const result = await addNarration('recordings/demo.mp4', { voice: 'ru-RU-Svetlan
 
 ### Интеграция с регресс-тестами
 
-В `webtest.config.mjs` можно включить запись для всего сьюта:
-
-```js
-export default {
-  url: '...',
-  record: true,   // запись каждого теста
-  screenshot: 'on-failure',
-};
-```
-
-Или для отдельных тестов через `export const tags = ['recording']` + severity mapping.
+Чтобы включить запись для всего регресс-сьюта, задай `record: true` в `webtest.config.mjs`
+(по умолчанию `record: false`). Полная схема конфига и `severity`-маппинг — [regress.md](regress.md)
+§ webtest.config.mjs. Для отдельных тестов помечай их `export const tags = ['recording']` —
+в дефолтном `severity` они попадают в `minor` (см. regress.md § Тяжесть тестов).
 
 ## Устранение неполадок (Playwright-путь)
 

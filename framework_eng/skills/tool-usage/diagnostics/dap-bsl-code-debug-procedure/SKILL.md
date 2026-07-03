@@ -53,7 +53,7 @@ After the scenario starts, the agent does not determine a stop from the client "
 Use this when the code being debugged runs in a form, command, UI handler, or other client context.
 
 1. Start Vanessa/test client in the standard project way.
-2. Through `v8-client-session-manager` / `v8-session-manager`, get the list of active sessions and identify the test agent session: `infobase_name`, `ib_session_number`, `session_id`, user, test client flag.
+2. Through `v8-session-manager`, get the list of active sessions and identify the test agent session: `infobase_name`, `ib_session_number`, `session_id`, user, test client flag.
 3. In the debugger `get_targets`, select the target corresponding to this session. If the match is not obvious, verify the start time, user, and infobase session number.
 4. Set a breakpoint in the client module.
 5. Start the Vanessa scenario or the specific step that calls the required handler.
@@ -65,7 +65,7 @@ Use this when the code being debugged runs in a form, command, UI handler, or ot
 Use this when it is easier to trigger the scenario by clicking around than by writing or running Vanessa.
 
 1. Start the 1С test client.
-2. Connect it to `v8-client-session-manager` / `v8-session-manager`.
+2. Connect it to `v8-session-manager`.
 3. Find its session through `session_list` and match it with the debugger target.
 4. Set a breakpoint.
 5. Through the manager's UI tools, open the form, press the command, fill in the field, or perform another action that calls the required client code.

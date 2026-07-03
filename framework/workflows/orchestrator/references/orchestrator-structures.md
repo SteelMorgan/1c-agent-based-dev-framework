@@ -99,10 +99,19 @@ Phase 2 OK + User Approval
  Review    Review
  (bdd)     (tests)
     │         │
+    ▼         │
+ Phase 3c     │
+ (Scenario    │
+  -Coder)     │
+    │         │
+    ▼         │
+ Review       │
+ (bdd-steps)  │
+    │         │
     └────┬────┘
-         │  (ждём обоих)
+         │  (ждём 3b И 3c)
          ▼
-      Phase 3c
+      Phase 3d
    (Developer-Code)
          │
          ▼

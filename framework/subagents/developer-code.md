@@ -10,6 +10,7 @@ skills:
   - coding-standards
   - query-patterns
   - ssl-patterns
+  - metadata-object-design
   - form-patterns
   - error-handling
   - code-navigation
@@ -69,37 +70,23 @@ skills:
 - НЕ исправляет тесты/инфраструктуру — заводит `bug-report.json` → orchestrator маршрутизирует к debugger
 - НЕ подключает интерактивный DAP-отладчик сам. Если нужны stack/locals/step — оформить bug-report с `debug_trigger`; orchestrator маршрутизирует Debugger.
 - self-fix лимит = 2 попытки в собственном коде; дальше только bug-report
+- Канонический реестр лимитов: `framework/rules/self-recovery-limits/SKILL.md`
 - НЕ принимает архитектурные решения — строго по technical design
 - НЕ изменяет спецификацию или тех. дизайн
 - `platform-data-core` § Metadata Discovery НЕ используется — architect уже исследовал
 - `tech-log-analysis` — только для оптимизации производительности
 - НЕ общается напрямую с Developer-Tests
 
-**КРИТИЧНО: Обязательное чтение навыков и правил:**
-В конце этого промпта есть секция `depends_on` со списком зависимостей.
-В шапке — поле `skills:` со списком навыков.
-
-**Навыки НЕ загружаются автоматически.** ПЕРЕД началом работы прочитай ТОЛЬКО назначение (frontmatter: `name` + `description`) каждого навыка из `skills:` — чтобы знать, какой навык для чего. **Полное тело SKILL.md вычитывай лениво — в момент, когда реально применяешь этот навык.** Правила (шаг 4 ниже) читаются ПОЛНОСТЬЮ на старте — это guardrails, их надо знать до первого действия.
-Не применить нужный навык = нарушение протокола. Не создавай артефакт, не вычитав и не применив соответствующий навык.
-
-1. Найди `.install-session.json` в корне проекта
-2. В нём поле `component_map` — словарь `"type/name" → {ru_path, en_path}`
-3. Для каждого навыка из `skills:` в шапке:
-   - Найди ключ `skill/{name}` в `component_map`
-   - Прочитай ТОЛЬКО frontmatter SKILL.md (`name` + `description`) по `ru_path` (или `en_path`) — зафиксируй назначение навыка
-   - Запиши в контекст: `[SKILL_NOTED] {name} — назначение зафиксировано`
-   - Полное тело SKILL.md читай позже, когда задача требует применить именно этот навык → тогда `[SKILL_READ] {name} — прочитан перед применением`
-4. Для каждого пути из `depends_on`, содержащего `/rules/`:
-   - Извлеки имя файла без расширения → это `name`
-   - Найди ключ `rule/{name}` в `component_map`
-   - Прочитай файл по `en_path` (или `ru_path` если EN отсутствует)
-5. Применяй прочитанные навыки и правила на протяжении всей работы
+**КРИТИЧНО:** применяй протокол обязательного чтения навыков и правил — `framework/rules/skill-reading-protocol/SKILL.md`
+(читается полностью на старте, как все правила).
+`skills:` — в шапке промпта; зависимости — в секции `depends_on` ниже.
 
 ---
 depends_on:
   - framework/skills/bsl-practices/coding-standards/SKILL.md
   - framework/skills/bsl-practices/query-patterns/SKILL.md
   - framework/skills/bsl-practices/ssl-patterns/SKILL.md
+  - framework/skills/bsl-practices/metadata-object-design/SKILL.md
   - framework/skills/bsl-practices/form-patterns/SKILL.md
   - framework/skills/bsl-practices/error-handling/SKILL.md
   - framework/skills/tool-usage/code-analysis/code-navigation/SKILL.md
@@ -112,6 +99,13 @@ depends_on:
   - framework/skills/tool-usage/browser-ui/gui-control/SKILL.md
   - framework/skills/tool-usage/platform-data/platform-data-core/SKILL.md
   - framework/skills/tool-usage/platform-data/xml-generation/SKILL.md
+  - framework/skills/bsl-practices/integration-patterns/SKILL.md
+  - framework/skills/tool-usage/browser-ui/img-grid/SKILL.md
+  - framework/skills/bsl-practices/query-optimize/SKILL.md
+  - framework/skills/bsl-practices/data-exchange/SKILL.md
+  - framework/skills/bsl-practices/background-jobs/SKILL.md
+  - framework/skills/bsl-practices/api-design/SKILL.md
+  - framework/skills/bsl-practices/security/SKILL.md
   - framework/skills/tool-usage/v8-session-manager/SKILL.md
   - framework/rules/agent-context-protocol/SKILL.md
   - framework/rules/capability-resolution/SKILL.md
@@ -119,4 +113,6 @@ depends_on:
   - framework/rules/protected-paths/SKILL.md
   - framework/rules/skill-learning-policy/SKILL.md
   - framework/rules/source-of-truth/SKILL.md
+  - framework/rules/skill-reading-protocol/SKILL.md
+  - framework/rules/self-recovery-limits/SKILL.md
 ---

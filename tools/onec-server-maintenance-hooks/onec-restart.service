@@ -1,0 +1,27 @@
+[Unit]
+Description=1C container restart webhook
+After=network-online.target docker.service
+Wants=network-online.target
+Requires=docker.service
+
+[Service]
+Type=simple
+User=sandbox
+ExecStart=/usr/bin/python3 /opt/onec-restart/restart_svc.py
+Restart=on-failure
+RestartSec=3s
+
+Environment=LISTEN_ADDR=0.0.0.0
+Environment=LISTEN_PORT=8765
+Environment=TOKEN_FILE=/etc/onec-restart/token
+Environment=ALLOWED_CONTAINERS=onec-server,onec-web
+
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+ReadOnlyPaths=/etc/onec-restart
+ReadWritePaths=
+
+[Install]
+WantedBy=multi-user.target

@@ -99,26 +99,11 @@ skills:
 - При очевидном баге в реализации → СТОП с классификацией `implementation_error`; НЕ правит BSL-код. `bug-report.json` нужен только если требуется runtime-расследование Debugger.
 - НЕ подключает интерактивный DAP-отладчик сам; для runtime-расследования передаёт Debugger полный `debug_trigger`.
 - НЕ запускает независимое ревью — это orchestrator
+- Канонический реестр лимитов: `framework/rules/self-recovery-limits/SKILL.md`
 
-**КРИТИЧНО: Обязательное чтение навыков и правил:**
-В конце этого промпта есть секция `depends_on` со списком зависимостей.
-В шапке — поле `skills:` со списком навыков.
-
-**Навыки НЕ загружаются автоматически.** ПЕРЕД началом работы прочитай ТОЛЬКО назначение (frontmatter: `name` + `description`) каждого навыка из `skills:` — чтобы знать, какой навык для чего. **Полное тело SKILL.md вычитывай лениво — в момент, когда реально применяешь этот навык.** Правила (шаг 4 ниже) читаются ПОЛНОСТЬЮ на старте — это guardrails, их надо знать до первого действия.
-Не применить нужный навык = нарушение протокола. Не создавай артефакт, не вычитав и не применив соответствующий навык.
-
-1. Найди `.install-session.json` в корне проекта
-2. В нём поле `component_map` — словарь `"type/name" → {ru_path, en_path}`
-3. Для каждого навыка из `skills:` в шапке:
-   - Найди ключ `skill/{name}` в `component_map`
-   - Прочитай ТОЛЬКО frontmatter SKILL.md (`name` + `description`) по `ru_path` (или `en_path`) — зафиксируй назначение навыка
-   - Запиши в контекст: `[SKILL_NOTED] {name} — назначение зафиксировано`
-   - Полное тело SKILL.md читай позже, когда задача требует применить именно этот навык → тогда `[SKILL_READ] {name} — прочитан перед применением`
-4. Для каждого пути из `depends_on`, содержащего `/rules/`:
-   - Извлеки имя файла без расширения → это `name`
-   - Найди ключ `rule/{name}` в `component_map`
-   - Прочитай файл по `en_path` (или `ru_path` если EN отсутствует)
-5. Применяй прочитанные навыки и правила на протяжении всей работы
+**КРИТИЧНО:** применяй протокол обязательного чтения навыков и правил — `framework/rules/skill-reading-protocol/SKILL.md`
+(читается полностью на старте, как все правила).
+`skills:` — в шапке промпта; зависимости — в секции `depends_on` ниже.
 
 ---
 depends_on:
@@ -138,6 +123,7 @@ depends_on:
   - framework/skills/bsl-practices/form-visual-requirements/SKILL.md
   - framework/skills/tool-usage/platform-data/platform-data-core/SKILL.md
   - framework/skills/tool-usage/diagnostics/bug-reporting/SKILL.md
+  - framework/skills/tool-usage/platform-data/xml-generation/SKILL.md
   - framework/skills/tool-usage/v8-session-manager/SKILL.md
   - framework/rules/agent-context-protocol/SKILL.md
   - framework/rules/capability-resolution/SKILL.md
@@ -150,4 +136,6 @@ depends_on:
   - framework/rules/vanessa-run-loop/SKILL.md
   - framework/rules/vanessa-diagnostics-policy/SKILL.md
   - framework/rules/vanessa-security-warning/SKILL.md
+  - framework/rules/skill-reading-protocol/SKILL.md
+  - framework/rules/self-recovery-limits/SKILL.md
 ---

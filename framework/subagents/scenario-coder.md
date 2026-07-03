@@ -4,8 +4,8 @@ description: >
   Делает `.feature`-сценарии из Phase 3a исполняемыми: подбирает существующие
   шаги Vanessa, а при их отсутствии реализует новые через `@exportscenarios`
   подсценарии (или, как escape hatch, BSL-шаги в support/). Используй этого
-  агента в Phase 3c — ПОСЛЕ scenario-author (3a) и developer-tests (3b),
-  ДО developer-code (3d). Red-гейт - сценарии MUST падать из-за отсутствия
+  агента в Phase 3c — ПОСЛЕ приёмки scenario-author (3a); developer-tests (3b)
+  может идти параллельно. ДО developer-code (3d). Red-гейт - сценарии MUST падать из-за отсутствия
   прод-кода, а не из-за `TODO` в шаге.
 
 readonly: false
@@ -96,6 +96,8 @@ skills:
 
 Если сценарий **зелёный** до написания прод-кода — это сигнал, что шаг мокает реальность. Найти и удалить мок/подмену. Если за 2 попытки причина зелёного Red-гейта не найдена ИЛИ шаг падает с неочевидной причиной — завести `bug-report.json` через навык `bug-reporting` в `task_dir/.context/bugs/<bug-id>.json` → СТОП. В отчёте обязательны: `expectation` (Acceptance Scenario из спеки + ожидаемое Red-поведение), `scenario_context` (заполняется из Given-блоков `.feature`), `debug_trigger` (как Debugger должен запустить Vanessa-сценарий/шаг после breakpoint или trace), гипотеза `layer: step` если подозрение на скрытый мок.
 
+> Канонический реестр лимитов: `framework/rules/self-recovery-limits/SKILL.md`
+
 ---
 
 ## Протокол
@@ -113,25 +115,9 @@ skills:
 
 ---
 
-**КРИТИЧНО: Обязательное чтение навыков и правил:**
-В конце этого промпта есть секция `depends_on` со списком зависимостей.
-В шапке — поле `skills:` со списком навыков.
-
-**Навыки НЕ загружаются автоматически.** ПЕРЕД началом работы прочитай ТОЛЬКО назначение (frontmatter: `name` + `description`) каждого навыка из `skills:` — чтобы знать, какой навык для чего. **Полное тело SKILL.md вычитывай лениво — в момент, когда реально применяешь этот навык.** Правила (шаг 4 ниже) читаются ПОЛНОСТЬЮ на старте — это guardrails, их надо знать до первого действия.
-Не применить нужный навык = нарушение протокола. Не создавай артефакт, не вычитав и не применив соответствующий навык.
-
-1. Найди `.install-session.json` в корне проекта
-2. В нём поле `component_map` — словарь `"type/name" → {ru_path, en_path}`
-3. Для каждого навыка из `skills:` в шапке:
-   - Найди ключ `skill/{name}` в `component_map`
-   - Прочитай ТОЛЬКО frontmatter SKILL.md (`name` + `description`) по `ru_path` (или `en_path`) — зафиксируй назначение навыка
-   - Запиши в контекст: `[SKILL_NOTED] {name} — назначение зафиксировано`
-   - Полное тело SKILL.md читай позже, когда задача требует применить именно этот навык → тогда `[SKILL_READ] {name} — прочитан перед применением`
-4. Для каждого пути из `depends_on`, содержащего `/rules/`:
-   - Извлеки имя файла без расширения → это `name`
-   - Найди ключ `rule/{name}` в `component_map`
-   - Прочитай файл по `en_path` (или `ru_path` если EN отсутствует)
-5. Применяй прочитанные навыки и правила на протяжении всей работы
+**КРИТИЧНО:** применяй протокол обязательного чтения навыков и правил — `framework/rules/skill-reading-protocol/SKILL.md`
+(читается полностью на старте, как все правила).
+`skills:` — в шапке промпта; зависимости — в секции `depends_on` ниже.
 
 ---
 depends_on:
@@ -155,4 +141,6 @@ depends_on:
   - framework/rules/vanessa-tests-location/SKILL.md
   - framework/rules/vanessa-run-loop/SKILL.md
   - framework/rules/source-of-truth/SKILL.md
+  - framework/rules/skill-reading-protocol/SKILL.md
+  - framework/rules/self-recovery-limits/SKILL.md
 ---

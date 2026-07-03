@@ -9,7 +9,7 @@
 1. [LSP BSL Bridge](https://github.com/SteelMorgan/mcp-bsl-lsp-bridge) — современные модели сами могут «нагрепать» всё что угодно, но работа через LSP Bridge экономит токены и позволяет надёжно строить графы вызовов (агенты на таких операциях иногда лажают).
 
 ## Доступ «внутрь 1С» для агента
-1. MCP Server 1C: [RooLee10/1c-mcp-tools](https://github.com/RooLee10/1c-mcp-tools) — выполнение запросов, получение метаданных и др. <<КОД 1С>>
+1. MCP Server 1C: [SteelMorgan/1c-mcp-tools](https://github.com/SteelMorgan/1c-mcp-tools) — выполнение запросов, получение метаданных и др. Самостоятельный проект: основной код заимствован у [Владимира Харина](https://github.com/vladimir-kharin/1c_mcp) и его форка [Вадима Ли (RooLee10)](https://github.com/RooLee10/1c-mcp-tools), затем существенно переработан под работу с `wt-mcp-adapter` (логика и архитектура изменены). <<КОД 1С>>
 2. **Расширения 1С с собственным MCP-сервером** — теперь это отдельный слой архитектуры: расширение 1С реализует tools и подключается к менеджеру сессий по WebSocket (см. ниже). Агент видит эти tools на единой MCP-витрине менеджера, а не как отдельный сервер на порт.
 3. MCP BSL Debugger: [liga-1c-command/1c-debug-mcp](https://github.com/liga-1c-command/1c-debug-mcp) — интерактивная отладка BSL через debug server 1С: targets, breakpoints, variables, step/continue. Установка и smoke-тест: [docs/info/mcp-bsl-debugger.md](./mcp-bsl-debugger.md).
 
@@ -30,6 +30,12 @@
 - Soft-reconnect клиента по `client_uid`: переподключение → та же сессия → та же очередь.
 - FIFO-порядок вызовов в одну сессию, round-robin между равнозначными.
 - Возможность параллельно держать в реестре несколько ИБ — записи различаются по `infobase_name` и `ib_session_number`.
+
+Полная схема набора (пять форков: пускач `v8-runner-rust`, транспортная ВК
+`web-transport-addin`, адаптер `wt-mcp-adapter`, набор tools `1c-mcp-tools`, менеджер `v8sm`),
+как прикладное расширение регистрирует клиентские и серверные tools и как они попадают
+на витрину — в отдельном разборе с диаграммой:
+[docs/info/mcp-ws-transport-toolset.md](./mcp-ws-transport-toolset.md).
 
 Подробности — навыки [`framework/skills/tool-usage/v8-session-manager/`](../../framework/skills/tool-usage/v8-session-manager/) и [`framework/skills/tool-usage/v8-runner/`](../../framework/skills/tool-usage/v8-runner/).
 
@@ -54,7 +60,7 @@
 | platform-context | [alkoleft/mcp-bsl-platform-context](https://github.com/alkoleft/mcp-bsl-platform-context) | search-before-write |
 | copilot-proxy | [SteelMorgan/spring-mcp-1c-copilot](https://github.com/SteelMorgan/spring-mcp-1c-copilot) | search-before-write |
 | log-checker | [SteelMorgan/1c-log-checker](https://github.com/SteelMorgan/1c-log-checker) | log-analysis |
-| metadata-tools | [RooLee10/1c-mcp-tools](https://github.com/RooLee10/1c-mcp-tools) | platform-data-core |
+| metadata-tools | [SteelMorgan/1c-mcp-tools](https://github.com/SteelMorgan/1c-mcp-tools) | platform-data-core |
 | batch-ops | [vladimir-kharin/1c-batch](https://github.com/vladimir-kharin/1c-batch) | — |
 | lsp-bridge | [SteelMorgan/mcp-bsl-lsp-bridge](https://github.com/SteelMorgan/mcp-bsl-lsp-bridge) | code-navigation |
 | 1c-debug-mcp | [liga-1c-command/1c-debug-mcp](https://github.com/liga-1c-command/1c-debug-mcp) | debug_bsl_code |
@@ -72,6 +78,7 @@
 
 Связанная информация:
 - [docs/info/skills.md](./skills.md)
+- [docs/info/mcp-ws-transport-toolset.md](./mcp-ws-transport-toolset.md)
 - [docs/info/mcp-bsl-debugger.md](./mcp-bsl-debugger.md)
 - [docs/info/ru-en-mirror.md](./ru-en-mirror.md)
 - [framework/capabilities/registry.yaml](../../framework/capabilities/registry.yaml)

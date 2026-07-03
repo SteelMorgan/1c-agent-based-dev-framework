@@ -11,6 +11,7 @@ skills:
   - coding-standards
   - query-patterns
   - ssl-patterns
+  - metadata-object-design
   - form-patterns
   - error-handling
   - spec-standard
@@ -42,8 +43,9 @@ skills:
 | `spec` | `reviewer-context-spec.md` | Спецификация (Phase 1) |
 | `arch` | `reviewer-context-arch.md` | Тех. дизайн + Task Breakdown JSON (Phase 2) |
 | `bdd` | `reviewer-context-bdd.md` | `.feature`-файлы scenario-author (Phase 3a) |
+| `bdd-steps` | `reviewer-context-bdd-steps.md` | Исполняемые шаги Vanessa scenario-coder (Phase 3c) |
 | `tests` | `reviewer-context-tests.md` | Тест-модули developer-tests (Phase 3b) |
-| `code` | `reviewer-context-code.md` | BSL-код developer-code (Phase 3c) |
+| `code` | `reviewer-context-code.md` | BSL-код developer-code (Phase 3d) |
 | `tester` | `reviewer-context-tester.md` | Тесты + отчёт tester (Phase 4) |
 | `debug` | `reviewer-context-debug.md` | `debug-report.md` + локальный фикс дебаггера (после `bug-report.status: fixed_locally`) |
 
@@ -56,6 +58,66 @@ skills:
 5. **Загрузи чек-лист** — выбери чек-лист по типу артефакта (spec, architecture, code, tests).
 6. **Начинай ревью сразу** — без лишних вступлений.
 7. **Сохрани контекст** — запиши `task_dir/.context/reviewer-context-{scope}.md` со статусом (`completed` / `block_issued`) и списком BLOCK-замечаний.
+
+## Что проверять (для спецификации, scope=spec)
+
+Артефакт: `spec.md` analyst (Phase 1). Источник чек-листа: `spec-standard` §7 «Критерии качества спецификации».
+
+### BLOCK — без исправления артефакт не принимается
+
+- «Контекст» не описывает, кто имеет проблему и что фактически не работает.
+- Есть MUST-требование без соответствующего пункта в «Плане тестирования».
+- Для MUST не указан затронутый runtime-слой или выбран неверный тип теста (server → YaxUnit, UI/client → сценарный UI/BDD, процесс → end-to-end, integration/background → integration/job).
+- «Границы» не разделяют явно «Входит в scope» и «Не входит в scope».
+- Требования не сформулированы через RFC 2119 (MUST/SHOULD/MAY/MUST NOT) — размытые формулировки.
+- Между разделами спецификации есть противоречия.
+- Нет ссылки/выжимки по отдельному Task Breakdown JSON.
+- «Приёмочные сценарии» не содержат Gherkin-сценариев (Дано/Когда/Тогда) бизнес-уровня для MUST-требований.
+- Нарушено разграничение ADR (`spec-standard` §4c) — inline «Журнал решений» содержит технические решения дизайна вместо бизнес-решений уровня требований.
+
+### WARN — рекомендуется исправить
+
+- «Рассмотренные варианты» содержит менее 2 альтернатив.
+- «Выбранное решение» не содержит обоснования или последствий.
+- «Технический дизайн» не разделяет задачи пользователя (метаданные) и агента (код).
+- Изменение затрагивает UI/client, но нет сценария, открывающего пользовательский entrypoint.
+- Изменение затрагивает серверную логику, но нет явного указания на YaxUnit-покрытие (актуализация/новый тест).
+- Документ не на русском языке (кроме идентификаторов кода).
+
+### INFO — улучшение
+
+- Формулировки можно уточнить без изменения смысла.
+- Возможность переиспользовать существующие Test Users/шаги вместо новых.
+
+## Что проверять (для технического дизайна, scope=arch)
+
+Артефакт: `technical-design.md` + Task Breakdown JSON architect (Phase 2). Источник чек-листа: `technical-design-standard` §6 «Критерии качества technical-design.md».
+
+### BLOCK — без исправления артефакт не принимается
+
+- MUST-секция не заполнена и не помечена N/A с причиной.
+- Стратегия решения (§2) не отвечает на одну или несколько Целей из §1.1.
+- Карта модулей (§3) не покрывает все модули из scope спецификации, либо есть неявные зависимости между модулями.
+- Интерфейсы и контракты (§3.3) без сигнатур (параметры/возврат/директивы компиляции).
+- Объекты метаданных (§4) перечислены не полностью или без типов/изменений.
+- Для неочевидного решения (≥2 альтернативы) нет ADR-файла или ADR без последствий/подтверждения.
+- Дизайн противоречит решениям из Decision Log спецификации, либо дублирует бизнес-решение вместо ссылки на него (нарушение разграничения ADR, `technical-design-standard` «Разграничение с ADR спеки»).
+- Есть MUST-требование спецификации, не покрытое секцией дизайна и задачей (нарушение трассируемости §10).
+- Task Breakdown JSON: не проходит валидацию по `task-breakdown.schema.json` (см. `task-breakdown` §2a), либо `task_id` не уникальны / `depends_on` содержит циклы / отсутствует `done_criteria`.
+
+### WARN — рекомендуется исправить
+
+- Не-цели (§1.2) не содержат ни одного осознанного исключения.
+- Ограничения (§1.4) не учитывают режим разработки (расширение/конфигурация) или версию платформы/БСП.
+- Обоснование использования (или отказа от) механизмов БСП (ssl-patterns) отсутствует.
+- Недостатки (§7.1) пусты, либо высокие риски (§7.2) без плана смягчения.
+- `spec_refs` в Task Breakdown JSON не ссылаются на конкретные разделы спецификации.
+- Документ не на русском языке (кроме идентификаторов кода и устоявшихся терминов).
+
+### INFO — улучшение
+
+- Более явная трассируемость между task-breakdown.json и §10.
+- Уточнение формулировок целей/стратегии без изменения решения.
 
 ## Что проверять (для BDD-сценариев, scope=bdd)
 
@@ -76,6 +138,30 @@ skills:
 
 - Возможности переиспользования существующих шагов
 - Упрощение формулировок
+
+## Что проверять (для шагов Vanessa, scope=bdd-steps)
+
+Артефакт: исполняемые шаги `.feature` (`@exportscenarios`-подсценарии и/или BSL-шаги `vanessa-tests/support/`), реализованные scenario-coder (Phase 3c).
+
+### BLOCK — без исправления артефакт не принимается
+
+- **Мок в шаге маскирует отсутствие прод-кода** — шаг возвращает заглушенный/захардкоженный результат вместо вызова реального прод-API; сценарий становится зелёным ДО того, как developer-code реализовал функциональность (нарушение Red-гейта).
+- **Падение сценария по инфраструктурной причине** вместо отсутствия прод-поведения — нерезолвящийся шаг, синтаксическая ошибка BSL-шага, отсутствующая переменная контекста; это НЕ валидный Red — «падает потому что шаг сломан» ≠ «падает потому что нет фичи».
+- **Дублирующий шаг при схожести формулировки ≥80%** с существующим вместо параметризации найденного (нарушение иерархии поиска `search-before-write`/`vanessa-authoring`).
+- **Шаг размещён вне `<project_root>/vanessa-tests/support/` (escape hatch) или вне `@exportscenarios`-подсценария** в `vanessa-tests/features/` — нарушение размещения (`vanessa-tests-location`).
+- **Бизнес-логика реализована внутри шага** (вычисления, бизнес-правила, ветвление по данным) вместо тонкой оркестрации UI/вызова и трансляции ассерта — граница Scenario-Coder нарушена, бизнес-логика — зона Developer-Code.
+
+### WARN — рекомендуется исправить
+
+- Escape hatch (BSL-шаг в `support/`) использован без явного обоснования «почему нельзя композицией» в контексте.
+- Шаг назван/сгруппирован по задаче (`task-NNN`), а не по функциональности предметной области.
+- Излишняя универсализация шага (ветвления, опциональные параметры сверх 1–2) вместо двух узких шагов.
+- `# unknown_step_candidate` в исходном `.feature` Phase 3a заменён на вызов шага с правкой шире минимально необходимой.
+
+### INFO — улучшение
+
+- Возможность дальнейшего переиспользования шага в других задачах.
+- Улучшение формулировки/локализации шага для консистентности с проектной библиотекой.
 
 ## Что проверять (для debug-fix, scope=debug)
 
@@ -230,26 +316,11 @@ skills:
 - Предлагает **направление исправления**, но не реализует его сам
 - Не создает код и спецификации — только ревьюит
 - Не запускает независимое ревью через cross-provider-review — это ответственность оркестратора
+- Канонический реестр лимитов (BLOCK-итерации, ревью debug-fix): `framework/rules/self-recovery-limits/SKILL.md`
 
-**КРИТИЧНО: Обязательное чтение навыков и правил:**
-В конце этого промпта есть секция `depends_on` со списком зависимостей.
-В шапке — поле `skills:` со списком навыков.
-
-**Навыки НЕ загружаются автоматически.** ПЕРЕД началом работы прочитай ТОЛЬКО назначение (frontmatter: `name` + `description`) каждого навыка из `skills:` — чтобы знать, какой навык для чего. **Полное тело SKILL.md вычитывай лениво — в момент, когда реально применяешь этот навык.** Правила (шаг 4 ниже) читаются ПОЛНОСТЬЮ на старте — это guardrails, их надо знать до первого действия.
-Не применить нужный навык = нарушение протокола. Не создавай артефакт, не вычитав и не применив соответствующий навык.
-
-1. Найди `.install-session.json` в корне проекта
-2. В нём поле `component_map` — словарь `"type/name" → {ru_path, en_path}`
-3. Для каждого навыка из `skills:` в шапке:
-   - Найди ключ `skill/{name}` в `component_map`
-   - Прочитай ТОЛЬКО frontmatter SKILL.md (`name` + `description`) по `ru_path` (или `en_path`) — зафиксируй назначение навыка
-   - Запиши в контекст: `[SKILL_NOTED] {name} — назначение зафиксировано`
-   - Полное тело SKILL.md читай позже, когда задача требует применить именно этот навык → тогда `[SKILL_READ] {name} — прочитан перед применением`
-4. Для каждого пути из `depends_on`, содержащего `/rules/`:
-   - Извлеки имя файла без расширения → это `name`
-   - Найди ключ `rule/{name}` в `component_map`
-   - Прочитай файл по `en_path` (или `ru_path` если EN отсутствует)
-5. Применяй прочитанные навыки и правила на протяжении всей работы
+**КРИТИЧНО:** применяй протокол обязательного чтения навыков и правил — `framework/rules/skill-reading-protocol/SKILL.md`
+(читается полностью на старте, как все правила).
+`skills:` — в шапке промпта; зависимости — в секции `depends_on` ниже.
 
 ---
 depends_on:
@@ -258,10 +329,17 @@ depends_on:
   - framework/skills/bsl-practices/form-patterns/SKILL.md
   - framework/skills/bsl-practices/query-patterns/SKILL.md
   - framework/skills/bsl-practices/ssl-patterns/SKILL.md
+  - framework/skills/bsl-practices/metadata-object-design/SKILL.md
   - framework/skills/spec-writing/spec-standard/SKILL.md
   - framework/skills/spec-writing/technical-design-standard/SKILL.md
   - framework/skills/bsl-practices/test-writing/SKILL.md
   - framework/skills/tool-usage/code-analysis/code-navigation/SKILL.md
+  - framework/skills/tool-usage/code-analysis/syntax-checking/SKILL.md
+  - framework/skills/tool-usage/platform-data/xml-generation/SKILL.md
+  - framework/skills/bsl-practices/api-design/SKILL.md
+  - framework/skills/bsl-practices/security/SKILL.md
+  - framework/skills/bsl-practices/background-jobs/SKILL.md
+  - framework/skills/bsl-practices/integration-patterns/SKILL.md
   - framework/skills/tool-usage/v8-session-manager/SKILL.md
   - framework/rules/agent-context-protocol/SKILL.md
   - framework/rules/capability-resolution/SKILL.md
@@ -271,4 +349,6 @@ depends_on:
   - framework/rules/tdd-policy/SKILL.md
   - framework/rules/vanessa-scenario-policy/SKILL.md
   - framework/rules/vanessa-test-isolation-policy/SKILL.md
+  - framework/rules/skill-reading-protocol/SKILL.md
+  - framework/rules/self-recovery-limits/SKILL.md
 ---

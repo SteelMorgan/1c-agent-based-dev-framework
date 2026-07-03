@@ -37,29 +37,17 @@ description: "Обновления подсистем БСП: запуск, ко
 
 ### Шаг 2. Заблокировать базу
 
-Обработчики с `МонопольныйРежим = Истина` требуют отсутствия других сеансов.
+Обработчики с `МонопольныйРежим = Истина` требуют отсутствия других сеансов. Точный синтаксис команд `rac` — в навыке `rac-use` (§ Блокировка входа в базу, § Просмотр сеансов базы, § Принудительное завершение сеанса). Ниже — порядок и параметры, специфичные для обновления ИБ.
 
-```bash
-# Данные подключения: <project_root>/configs/yaxunit-runner.yml → app.connection
-# cluster_uuid и infobase_uuid: <project_root>/configs/cluster_map.yaml
+Данные подключения: `<project_root>/configs/yaxunit-runner.yml → app.connection`. `cluster_uuid` и `infobase_uuid`: `<project_root>/configs/cluster_map.yaml`. Адрес агента RAC — трейлинг-аргумент `<ras_host>:<ras_port>`.
 
-# Заблокировать новые сеансы и регламентные задания
-rac infobase update \
-  --cluster=<cluster_uuid> \
-  --infobase=<infobase_uuid> \
-  --infobase-user=<user> --infobase-pwd=<pwd> \
-  --sessions-deny=on \
-  --scheduled-jobs-deny=on \
-  --denied-message="Обновление ИБ" \
-  --permission-code=UpdateIB \
-  <ras_host>:<ras_port>
+**Порядок (не менять):**
 
-# Завершить все оставшиеся сеансы
-rac session list --cluster=<cluster_uuid> --infobase=<infobase_uuid> <ras_host>:<ras_port>
-
-# Для каждого сеанса:
-rac session terminate --cluster=<cluster_uuid> --session=<session_uuid> <ras_host>:<ras_port>
-```
+1. Заблокировать новые сеансы **и** регламентные задания одной командой `rac infobase update` с флагами:
+   `--sessions-deny=on --scheduled-jobs-deny=on --denied-message="Обновление ИБ" --permission-code=UpdateIB`.
+   Значение `--permission-code=UpdateIB` **должно совпадать** с `/UC` из Шага 3.
+2. Получить список оставшихся сеансов (`rac session list`) и завершить каждый
+   (`rac session terminate --session=<session_uuid>`) — иначе монопольный режим не установится.
 
 ### Шаг 3. Запустить обновление
 
@@ -78,17 +66,7 @@ rac session terminate --cluster=<cluster_uuid> --session=<session_uuid> <ras_hos
 
 ### Шаг 4. Снять блокировку
 
-```bash
-rac infobase update \
-  --cluster=<cluster_uuid> \
-  --infobase=<infobase_uuid> \
-  --infobase-user=<user> --infobase-pwd=<pwd> \
-  --sessions-deny=off \
-  --scheduled-jobs-deny=off \
-  --denied-message="" \
-  --permission-code="" \
-  <ras_host>:<ras_port>
-```
+`rac infobase update` с обратными флагами: `--sessions-deny=off --scheduled-jobs-deny=off --denied-message="" --permission-code=""` (синтаксис — `rac-use` § Блокировка входа в базу и § Управление регламентными заданиями).
 
 ### Шаг 5. Проверить результат
 

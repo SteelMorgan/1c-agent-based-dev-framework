@@ -37,9 +37,9 @@ The Phase 1 approval gate is needed because the specification fixes business dec
 
 Input: approved spec + `explorer-context.md`. Architect → `technical-design.md` + `task-breakdown.json`. Review + **STOP: wait for user OK**.
 
-### Phase 3: SEQUENTIALLY (3a → 3b → 3c → 3d)
+### Phase 3: 3a ∥ 3b → 3c → 3d
 
-Phases 3a-3d run strictly sequentially. Each next one starts only after review of the previous one (and cross-provider-review in advisory mode).
+Phases 3a and 3b run in PARALLEL: they share the same input (spec + `technical-design.md` + `task-breakdown.json`) and do not read each other's artifacts. Each goes through its own review (and advisory cross-provider-review) independently. 3c starts after 3a is accepted (requires `.feature`), 3d starts after BOTH 3b AND 3c are accepted.
 
 - **3a (Scenario-Author → Mid):** before writing new UI/form scenarios, researches the form through the Vanessa MCP workflow (`vanessa-authoring`: run VA manager -> `connect_test_client` -> VA-tools -> `close_test_client`) and records exact commands/elements/required fields in their context. Then spec intent scenarios -> `.feature` Vanessa with `# unknown_step_candidate` markers for steps that were not found. Review (scope=bdd).
 - **3b (Developer-Tests → Mid/High):** MUST scenarios from the Test Plan that relate to server logic/server context → YaxUnit unit/integration tests (Red). If a server method was changed and a test already exists, update and rerun it; if there is no test, create one. Review (scope=tests).

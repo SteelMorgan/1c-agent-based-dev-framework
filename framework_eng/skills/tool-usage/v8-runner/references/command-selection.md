@@ -154,7 +154,7 @@ v8-runner launch thick
 v8-runner launch ordinary
 ```
 
-Start `onec-client-mcp-devkit` inside 1C without VA:
+Start `wt-mcp-adapter` inside 1C without VA:
 
 ```bash
 v8-runner launch mcp
@@ -162,7 +162,7 @@ v8-runner launch mcp --mode thin --mcp-port <PORT>
 v8-runner launch mcp --mcp-config <FILE>
 ```
 
-WS mode flags (when `v8-client-session-manager` is available):
+WS mode flags (when `v8-session-manager` is available):
 
 ```bash
 v8-runner launch mcp --mcp-transport=ws --manager-url ws://127.0.0.1:4000/sessions

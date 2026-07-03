@@ -86,7 +86,8 @@ public class Commands {
     // erf is normalised to epf before the check.
     private static final Set<String> KNOWN_VALIDATE_TYPES = new HashSet<>(Arrays.asList(
         "form", "role", "skd", "mxl", "epf", "erf",
-        "meta", "config", "extension", "subsystem", "interface", "template", "xcf-body"
+        "meta", "config", "extension", "subsystem", "interface", "template", "xcf-body",
+        "client-interface", "platform-xsd"
     ));
 
     //++agent TASK-174 [05.06.2026 00:00:00]
@@ -2592,7 +2593,7 @@ public class Commands {
 
         if (options.files().isEmpty()) {
             throw new IllegalArgumentException(
-                    "Usage: validate [--type <form|role|skd|mxl|epf>] [--output <text|json>] [--src-root <path>] <file> [files...]");
+                    "Usage: validate [--type <form|role|skd|mxl|epf|client-interface|platform-xsd>] [--output <text|json>] [--src-root <path>] <file> [files...]");
         }
         if (options.srcRoot() != null && !Files.isDirectory(options.srcRoot())) {
             throw new IllegalArgumentException("--src-root does not exist or is not a directory: "
@@ -2669,7 +2670,7 @@ public class Commands {
                         throw new IllegalArgumentException(
                                 "Unknown --type value: \"" + rawType + "\". Expected one of: "
                                         + "form, role, skd, mxl, epf, erf, meta, config, extension, "
-                                        + "subsystem, interface, template");
+                                        + "subsystem, interface, template, xcf-body, client-interface, platform-xsd");
                     }
                 }
                 case "--format" -> {
@@ -2734,7 +2735,9 @@ public class Commands {
             case "ExternalDataProcessor": return "epf";
             case "ExternalReport": return "epf";
             case "CommandInterface": return "interface";
+            case "ClientApplicationInterface": return "client-interface";
             case "Subsystem": return "subsystem";
+            case "section": return "platform-xsd";
             case "MetaDataObject": return detectMetaDataObjectType(doc.getRoot());
             case "ExtPicture":
             case "ExchangePlanContent":
@@ -2977,7 +2980,8 @@ public class Commands {
                 || "skd".equals(type) || "mxl".equals(type)
                 || "meta".equals(type) || "config".equals(type) || "extension".equals(type)
                 || "subsystem".equals(type) || "interface".equals(type) || "template".equals(type)
-                || "xcf-body".equals(type);
+                || "xcf-body".equals(type) || "client-interface".equals(type)
+                || "platform-xsd".equals(type);
     }
 
     /**

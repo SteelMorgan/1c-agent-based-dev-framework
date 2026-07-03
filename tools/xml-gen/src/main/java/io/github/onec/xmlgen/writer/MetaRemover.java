@@ -402,8 +402,10 @@ public class MetaRemover {
 
                 String content = readFileContent(xmlFile);
 
-                // Match whole line: \n\t\t\t\t<v8:Item>Type.Name</v8:Item>
-                String linePattern = "\\r?\\n[ \\t]*<v8:Item>" + Pattern.quote(targetRef) + "</v8:Item>";
+                // Content items in real Designer dumps use xr:Item with xsi:type; older xml-gen
+                // output used v8:Item. Keep both forms removable through one whole-line matcher.
+                String linePattern = "\\r?\\n[ \\t]*<([A-Za-z_][\\w.-]*:)?Item\\b[^>]*>"
+                        + Pattern.quote(targetRef) + "</([A-Za-z_][\\w.-]*:)?Item>";
                 java.util.regex.Matcher matcher = Pattern.compile(linePattern).matcher(content);
 
                 if (matcher.find()) {

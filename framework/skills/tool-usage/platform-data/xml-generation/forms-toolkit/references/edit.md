@@ -49,26 +49,28 @@ xmlgen form edit "<FormPath>" --json "<JsonPath>"
 }
 ```
 
-### Типы элементов (`kind`)
+### Типы элементов (`kind`) — канон соответствия элемент ↔ XML-тег
 
-Можно указывать либо короткий DSL-алиас (`input`), либо прямое XML-имя тега (`InputField`).
+Можно указывать либо короткий DSL-алиас (`input`), либо прямое XML-имя тега (`InputField`). Колонка «form-info» — сокращение того же элемента в выводе `form-info` (см. [info.md](info.md)).
 
-| kind | XML-тег | Companions |
-|------|---------|------------|
-| `input` | InputField | ContextMenu, ExtendedTooltip |
-| `check` | CheckBoxField | ContextMenu, ExtendedTooltip |
-| `label` | LabelDecoration | ContextMenu, ExtendedTooltip |
-| `labelField` | LabelField | ContextMenu, ExtendedTooltip |
-| `picField` | PictureField | ContextMenu, ExtendedTooltip |
-| `calendar` | CalendarField | ContextMenu, ExtendedTooltip |
-| `picture` | PictureDecoration | ContextMenu, ExtendedTooltip |
-| `table` | Table | ContextMenu, AutoCommandBar, SearchStringAddition, ViewStatusAddition, SearchControlAddition |
-| `button` | Button | ExtendedTooltip |
-| `group` | UsualGroup | ExtendedTooltip |
-| `pages` | Pages | ExtendedTooltip |
-| `page` | Page | ExtendedTooltip |
-| `cmdBar` | CommandBar | — |
-| `popup` | Popup | — |
+| kind | XML-тег | form-info | Companions |
+|------|---------|-----------|------------|
+| `input` | InputField | `[Input]` | ContextMenu, ExtendedTooltip |
+| `check` | CheckBoxField | `[Check]` | ContextMenu, ExtendedTooltip |
+| `label` | LabelDecoration | `[Label]` | ContextMenu, ExtendedTooltip |
+| `labelField` | LabelField | `[LabelField]` | ContextMenu, ExtendedTooltip |
+| `picField` | PictureField | `[PicField]` | ContextMenu, ExtendedTooltip |
+| `calendar` | CalendarField | `[Calendar]` | ContextMenu, ExtendedTooltip |
+| `picture` | PictureDecoration | `[Picture]` | ContextMenu, ExtendedTooltip |
+| `table` | Table | `[Table]` | ContextMenu, AutoCommandBar, SearchStringAddition, ViewStatusAddition, SearchControlAddition |
+| `button` | Button | `[Button]` | ExtendedTooltip |
+| `group` | UsualGroup | `[Group]`, `[Group:V\|H\|AH\|AV]` | ExtendedTooltip |
+| `pages` | Pages | `[Pages]` | ExtendedTooltip |
+| `page` | Page | `[Page]` | ExtendedTooltip |
+| `cmdBar` | CommandBar | `[CmdBar]` | — |
+| `popup` | Popup | `[Popup]` | — |
+
+`ButtonGroup` отображается в `form-info` как `[BtnGroup]`; отдельного `kind` в `form-edit` у него нет.
 
 Группы и таблицы поддерживают `children` для вложенных элементов.
 

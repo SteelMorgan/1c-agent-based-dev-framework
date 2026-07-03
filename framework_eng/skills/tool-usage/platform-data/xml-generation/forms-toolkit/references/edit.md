@@ -1,10 +1,10 @@
 # form-edit — Form Editing
 
-Adds elements, attributes, commands, and events to an existing `Form.xml`. Implementation: Java CLI `xmlgen form edit` (replacement for the Python script). Automatically:
+Adds elements, attributes, commands, and events to an existing `Form.xml`. Implementation: Java-CLI `xmlgen form edit` (replacement for the Python script). Automatically:
 
 - allocates IDs from three independent pools (elements / attributes / commands),
 - generates companion elements (ContextMenu, ExtendedTooltip, AutoCommandBar, etc.) based on the element type,
-- detects extension mode when `<BaseForm>` is present and sets the ID floor to 1,000,000,
+- recognizes extension mode when `<BaseForm>` is present and sets the ID floor to 1 000 000,
 - appends empty BSL handler stubs to `Ext/Form/Module.bsl` with the correct compilation directive (`&НаКлиенте`/`&НаСервере`) and parameter signature.
 
 ## Usage
@@ -15,10 +15,10 @@ Adds elements, attributes, commands, and events to an existing `Form.xml`. Imple
 
 ## Parameters
 
-| Parameter | Required | Description                      |
+| Parameter | Required | Description |
 |-----------|:--------:|----------------------------------|
 | FormPath  | yes      | Path to the existing Form.xml    |
-| JsonPath  | yes      | Path to the JSON specification of additions |
+| JsonPath  | yes      | Path to the JSON with the add specification |
 
 ## Command
 
@@ -26,7 +26,7 @@ Adds elements, attributes, commands, and events to an existing `Form.xml`. Imple
 xmlgen form edit "<FormPath>" --json "<JsonPath>"
 ```
 
-## JSON format
+## JSON Format
 
 ```json
 {
@@ -49,26 +49,28 @@ xmlgen form edit "<FormPath>" --json "<JsonPath>"
 }
 ```
 
-### Element types (`kind`)
+### Element Types (`kind`) — canonical element ↔ XML tag mapping
 
-You can specify either the short DSL alias (`input`) or the direct XML tag name (`InputField`).
+You can specify either the short DSL alias (`input`) or the direct XML tag name (`InputField`). The "form-info" column is an abbreviated form of the same element in the `form-info` output (see [info.md](info.md)).
 
-| kind | XML tag | Companions |
-|------|---------|------------|
-| `input` | InputField | ContextMenu, ExtendedTooltip |
-| `check` | CheckBoxField | ContextMenu, ExtendedTooltip |
-| `label` | LabelDecoration | ContextMenu, ExtendedTooltip |
-| `labelField` | LabelField | ContextMenu, ExtendedTooltip |
-| `picField` | PictureField | ContextMenu, ExtendedTooltip |
-| `calendar` | CalendarField | ContextMenu, ExtendedTooltip |
-| `picture` | PictureDecoration | ContextMenu, ExtendedTooltip |
-| `table` | Table | ContextMenu, AutoCommandBar, SearchStringAddition, ViewStatusAddition, SearchControlAddition |
-| `button` | Button | ExtendedTooltip |
-| `group` | UsualGroup | ExtendedTooltip |
-| `pages` | Pages | ExtendedTooltip |
-| `page` | Page | ExtendedTooltip |
-| `cmdBar` | CommandBar | — |
-| `popup` | Popup | — |
+| kind | XML tag | form-info | Companions |
+|------|---------|-----------|------------|
+| `input` | InputField | `[Input]` | ContextMenu, ExtendedTooltip |
+| `check` | CheckBoxField | `[Check]` | ContextMenu, ExtendedTooltip |
+| `label` | LabelDecoration | `[Label]` | ContextMenu, ExtendedTooltip |
+| `labelField` | LabelField | `[LabelField]` | ContextMenu, ExtendedTooltip |
+| `picField` | PictureField | `[PicField]` | ContextMenu, ExtendedTooltip |
+| `calendar` | CalendarField | `[Calendar]` | ContextMenu, ExtendedTooltip |
+| `picture` | PictureDecoration | `[Picture]` | ContextMenu, ExtendedTooltip |
+| `table` | Table | `[Table]` | ContextMenu, AutoCommandBar, SearchStringAddition, ViewStatusAddition, SearchControlAddition |
+| `button` | Button | `[Button]` | ExtendedTooltip |
+| `group` | UsualGroup | `[Group]`, `[Group:V\|H\|AH\|AV]` | ExtendedTooltip |
+| `pages` | Pages | `[Pages]` | ExtendedTooltip |
+| `page` | Page | `[Page]` | ExtendedTooltip |
+| `cmdBar` | CommandBar | `[CmdBar]` | — |
+| `popup` | Popup | `[Popup]` | — |
+
+`ButtonGroup` is shown in `form-info` as `[BtnGroup]`; it does not have a separate `kind` in `form-edit`.
 
 Groups and tables support `children` for nested elements.
 
@@ -76,14 +78,14 @@ Groups and tables support `children` for nested elements.
 
 | Key | Default | Description |
 |------|-------------|----------|
-| `into` | root ChildItems | Name of the group/table/page where the item will be inserted |
+| `into` | root ChildItems | Name of the group/table/page into which to insert |
 | `after` | at the end | Name of the element after which to insert |
 
 ### Attributes — type system
 
 `string`, `string(100)`, `decimal(15,2)`, `decimal(15,2,nonneg)`, `boolean`, `date`, `dateTime`, `time`, `CatalogRef.X`, `DocumentObject.X`, `ValueTable` (+ `columns:[]`), `ValueTree`, `DynamicList`, `TypeA | TypeB` (composite).
 
-Russian synonyms: `string(100)`, `decimal(15,2)`, `date`, `boolean`, `CatalogRef.X` — are recognized and converted into canonical English names.
+Russian synonyms: `строка(100)`, `число(15,2)`, `дата`, `булево`, `справочникСсылка.X` — are recognized and converted to canonical English names.
 
 Attribute flags:
 - `"main": true` — marks the attribute as primary (`<MainAttribute>true</MainAttribute>`).
@@ -96,7 +98,7 @@ For a new element:
 ```json
 { "kind": "input", "name": "Поле", "on": [{ "event": "OnChange" }] }
 ```
-If no explicit `handler` is provided, the name is generated as `<name>OnChange`. An empty BSL procedure stub is automatically appended to `Ext/Form/Module.bsl` if it is not already there.
+If no explicit `handler` is provided, the name is generated as `<name>ПриИзменении`. An empty BSL procedure stub is automatically appended to `Ext/Form/Module.bsl` if it is not already there.
 
 For extensions (`<BaseForm>` is present in the form), `callType` is available:
 ```json
@@ -113,7 +115,7 @@ For extensions (`<BaseForm>` is present in the form), `callType` is available:
 }
 ```
 
-Explicit handler override via `handlers`:
+Explicit override of the handler via `handlers`:
 ```json
 { "kind": "input", "name": "Поле",
   "on": [{ "event": "OnChange" }],
@@ -121,7 +123,7 @@ Explicit handler override via `handlers`:
 }
 ```
 
-### Buttons with command binding
+### Buttons bound to a command
 
 ```json
 { "kind": "button", "name": "БтнВыполнить", "command": "Выполнить" }

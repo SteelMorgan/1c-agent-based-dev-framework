@@ -29,7 +29,7 @@ Based on the Infostart article "API Base": `https://infostart.ru/1c/articles/268
 
 ## Export method classification (5 БСП categories)
 
-Every export method must belong to exactly one of the 5 categories. The category is determined by the #Область of the module containing the method.
+Every export method must belong to exactly one of the 5 categories. For categories 1, 2, 4, and 5, the category is determined by the module `#Область` containing the method. The exception is category 3: it is determined by the fact that the method is located in an overridable module (`*Переопределяемый`), not in a separate region - inside such a module, methods are in the ordinary `#Область ПрограммныйИнтерфейс`.
 
 ### 1. `#Область ПрограммныйИнтерфейс`
 
@@ -79,18 +79,18 @@ Contract for calls **from other modules within the same library** (not for exter
 #КонецОбласти
 ```
 
-### 3. `#Область ПереопределяемыйИнтерфейс`
+### 3. Overridable modules (`*Переопределяемый`)
 
-Extension point: the library **calls** a consumer method (through overridable modules).
+Extension point: the library **calls** a consumer method through a module with the `Переопределяемый` suffix (for example, `РаботаСФайламиПереопределяемый`). There is no `ПереопределяемыйИнтерфейс` region - "overridability" is a property of the module itself (its role in the БСП architecture), not a region inside it; methods in such modules are in the ordinary `#Область ПрограммныйИнтерфейс`.
 
-- You cannot add **new required** procedures or parameters.
+- You cannot add **new required parameters** to existing procedures.
 - You cannot change parameter types.
 - You cannot remove parameters that existing implementations may receive.
-- New **optional** procedures and parameters are allowed if old implementations continue to work.
+- New procedures and **optional** parameters are allowed if old implementations continue to work (an empty implementation of the new extension point preserves the previous behavior).
 
 ```bsl
 // Module: РаботаСФайламиПереопределяемый
-#Область ПереопределяемыйИнтерфейс
+#Область ПрограммныйИнтерфейс
 
 // Defines attached file storage settings.
 //
@@ -227,7 +227,7 @@ Determine which category the method belongs to, and choose from the table below:
 | Method removal | `ПрограммныйИнтерфейс` | Deprecated wrapper required |
 | Behavior change | `ПрограммныйИнтерфейс` | Considered a breaking change |
 | Any change | `СлужебныеПроцедурыИФункции` | Free (within the subsystem) |
-| New required parameter | `ПереопределяемыйИнтерфейс` | Prohibited |
+| New required parameter | Overridable modules (`*Переопределяемый`) | Prohibited |
 
 ### Step 3. Check through `syntax-checking`
 
@@ -238,7 +238,7 @@ After changing the signature:
 
 ### Step 4. Document the contract
 
-Every method from `ПрограммныйИнтерфейс` and `ПереопределяемыйИнтерфейс` must have:
+Every method from `#Область ПрограммныйИнтерфейс` - including methods of overridable modules (`*Переопределяемый`) - must have:
 - Purpose description.
 - Parameters with types and descriptions (including optional parameters and default values).
 - Return value (for functions).
@@ -276,9 +276,9 @@ Every method from `ПрограммныйИнтерфейс` and `Переопр
 **Steps:**
 1. Determine the procedures that will be called by the library.
 2. Make all parameters either structures (easy to extend) or document the types precisely.
-3. Do NOT add required procedures after release - only optional ones.
+3. Do NOT add required parameters to extension point procedures after release - only optional ones.
 4. Document the contract: what the library passes in, what it expects in return.
-5. Place it in `#Область ПереопределяемыйИнтерфейс`.
+5. Place it in a separate overridable module (`ИмяПодсистемыПереопределяемый`), in its ordinary `#Область ПрограммныйИнтерфейс` - not in a special region.
 
 ### Scenario 4: Detecting a violation during review
 
@@ -299,7 +299,7 @@ Every method from `ПрограммныйИнтерфейс` and `Переопр
 | Calling `СлужебныеПроцедурыИФункции` from another subsystem | Fragile integration, break during refactoring | Check #Область before calling |
 | Adding a required parameter without a deprecated wrapper | Breaks all calls in CI | Always create an adapter in `УстаревшиеПроцедурыИФункции` |
 | API expansion in a build-only release | Versioning violation, confusion for consumers | Build is for bug fixes only |
-| A method in `ПереопределяемыйИнтерфейс` with a new required parameter | Errors in all existing implementations | Only optional parameters are allowed in overridable interfaces |
+| A method in an overridable module (`*Переопределяемый`) with a new required parameter | Errors in all existing implementations | Only optional parameters are allowed in overridable modules |
 | Changing the meaning of a parameter without documenting it | Silent behavioral break | Document it in the changelog, consider a version bump |
 | Suppressing BSL LS warnings without a reason | Hidden breaking changes | Always document the reason for suppression |
 | Direct access to another subsystem's data tables | Tight coupling, architectural debt | Use only the documented API |

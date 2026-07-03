@@ -14,16 +14,21 @@ sync-skill.py — синхронизатор RU→EN для framework/ → frame
 """
 
 import argparse
+import difflib
+import fcntl
 import hashlib
 import json
 import os
+import random
 import re
 import signal
 import subprocess
 import sys
 import tempfile
 import textwrap
+import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from contextlib import contextmanager
 from pathlib import Path
 
 # ─── Пути ─────────────────────────────────────────────────────────────────────
@@ -40,8 +45,72 @@ TRANSLATABLE_EXTS = {".md", ".mdc"}
 
 CODEX_PROFILE = "cx_gpt-5-codex-mini"
 CODEX_DONE_MARKER = "OK"
-CODEX_TIMEOUT = 180       # максимальное время ожидания в секундах (3 мин)
-DEFAULT_WORKERS = 8       # параллельных переводов по умолчанию
+CODEX_TIMEOUT = int(os.environ.get("SYNC_SKILL_CODEX_TIMEOUT", "420"))
+DEFAULT_WORKERS = int(os.environ.get("SYNC_SKILL_WORKERS", "3"))  # параллельных переводов в одном процессе
+
+# ─── Глобальный ограничитель codex-процессов ──────────────────────────────────
+# Несколько экземпляров sync-skill.py (агенты, pre-commit, ручной запуск) могут
+# работать одновременно. Без общего лимита каждый спавнит своих codex-воркеров
+# (node, 300-800 MB каждый) — контейнер с лимитом 8 GB падает по OOM.
+# Семафор на файловых блокировках ограничивает СУММАРНОЕ число codex-процессов
+# на весь контейнер, сколько бы экземпляров скрипта ни запустили.
+GLOBAL_CODEX_SLOTS = int(os.environ.get("SYNC_SKILL_GLOBAL_SLOTS", "4"))
+SLOT_DIR = Path(tempfile.gettempdir()) / "sync-skill-codex-slots"
+SLOT_WAIT_TIMEOUT = int(os.environ.get("SYNC_SKILL_SLOT_TIMEOUT", "3600"))
+MIN_AVAILABLE_MB = int(os.environ.get("SYNC_SKILL_MIN_AVAILABLE_MB", "2000"))
+
+
+def _mem_available_mb() -> int:
+    try:
+        with open("/proc/meminfo", encoding="ascii") as fh:
+            for line in fh:
+                if line.startswith("MemAvailable:"):
+                    return int(line.split()[1]) // 1024
+    except OSError:
+        pass
+    return MIN_AVAILABLE_MB  # не смогли прочитать — не блокируем
+
+
+@contextmanager
+def _global_codex_slot():
+    """Занять один из GLOBAL_CODEX_SLOTS общеконтейнерных слотов (flock).
+
+    Ждёт свободный слот и достаточную свободную память; по истечении
+    SLOT_WAIT_TIMEOUT — ошибка вместо тихого зависания.
+    """
+    SLOT_DIR.mkdir(parents=True, exist_ok=True)
+    deadline = time.monotonic() + SLOT_WAIT_TIMEOUT
+    warned = False
+    while time.monotonic() < deadline:
+        if _mem_available_mb() < MIN_AVAILABLE_MB:
+            if not warned:
+                print(f"    ⏳ мало свободной памяти (<{MIN_AVAILABLE_MB} MB) — жду", flush=True)
+                warned = True
+            time.sleep(5)
+            continue
+        for i in range(GLOBAL_CODEX_SLOTS):
+            fh = open(SLOT_DIR / f"slot-{i}.lock", "w")
+            try:
+                fcntl.flock(fh, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            except OSError:
+                fh.close()
+                continue
+            try:
+                yield
+                return
+            finally:
+                fcntl.flock(fh, fcntl.LOCK_UN)
+                fh.close()
+        if not warned:
+            print(f"    ⏳ все {GLOBAL_CODEX_SLOTS} codex-слота заняты — жду очередь", flush=True)
+            warned = True
+        time.sleep(2 + random.uniform(0, 2))
+    raise RuntimeError(f"Не дождался свободного codex-слота за {SLOT_WAIT_TIMEOUT}s")
+DIFF_CONTEXT_LINES = 3
+DIFF_MAX_CHANGED_LINES = 240
+DIFF_MAX_CHUNKS = 12
+CHUNK_TRANSLATE_MIN_FILE_CHARS = 12000
+CHUNK_TRANSLATE_MAX_CHARS = 3500
 
 
 def is_codex_custom_mode() -> bool:
@@ -80,6 +149,67 @@ def make_translate_prompt(ru_rel: str, en_rel: str) -> str:
 
         When the file has been written successfully, write the single word "OK" (nothing else)
         as your final response — this signals that the task is complete.
+    """)
+
+
+def make_translate_diff_prompt(ru_rel: str, chunks: list[dict]) -> str:
+    """Промпт для Codex — переводит только изменённые RU-блоки."""
+    payload = json.dumps(chunks, ensure_ascii=False, indent=2)
+    return textwrap.dedent(f"""\
+        Translate only the changed Russian markdown blocks from `{ru_rel}` into English.
+
+        Input is a JSON array. For each item:
+        - `old_ru` is the previous Russian block.
+        - `new_ru` is the updated Russian block.
+        - `old_en` is the current English translation of `old_ru` from the mirror file.
+
+        Return ONLY a JSON array with objects:
+        [
+          {{"id": <same id>, "new_en": "<English translation of new_ru>"}}
+        ]
+
+        Translation rules:
+        1. Translate Russian prose to English.
+        2. Do NOT translate 1C-specific terms and identifiers: БСП, 1С, 1С:Предприятие,
+           EDT, YaxUnit, BSL, MDClasses, OneScript, module names, metadata names,
+           PascalCase/camelCase identifiers, file paths, URLs.
+        3. Keep code blocks and inline code identifiers unchanged.
+        4. Preserve markdown structure, table pipes, list markers, heading levels,
+           blank-line intent, and frontmatter/backmatter keys.
+        5. `new_en` must contain only the replacement block text, not explanations.
+
+        JSON input:
+        {payload}
+    """)
+
+
+def make_translate_chunk_prompt(ru_rel: str, chunk_no: int, total: int, chunk: str) -> str:
+    """Промпт для Codex — переводит один markdown-фрагмент."""
+    payload = json.dumps({
+        "id": chunk_no,
+        "total": total,
+        "markdown": chunk,
+    }, ensure_ascii=False, indent=2)
+    return textwrap.dedent(f"""\
+        Translate this Russian markdown fragment from `{ru_rel}` to English.
+        Fragment {chunk_no} of {total}.
+
+        Return ONLY JSON:
+        {{"id": {chunk_no}, "markdown": "<translated markdown fragment>"}}
+
+        Translation rules:
+        1. Translate Russian prose to English.
+        2. Do NOT translate 1C-specific terms and identifiers: БСП, 1С, 1С:Предприятие,
+           EDT, YaxUnit, BSL, MDClasses, OneScript, module names, metadata names,
+           PascalCase/camelCase identifiers, file paths, URLs.
+        3. Keep code blocks completely unchanged.
+        4. Preserve markdown structure exactly: table pipes, list markers, heading
+           levels, blank lines, and frontmatter/backmatter keys.
+        5. Do not summarize, omit, merge, or reorder lines. Translate the fragment
+           at the same level of detail.
+
+        JSON input:
+        {payload}
     """)
 
 
@@ -136,6 +266,170 @@ def copy_file(ru_path: Path, en_path: Path) -> bool:
         return False
 
 
+def _git_head_text(path: Path) -> str | None:
+    """Вернуть содержимое файла из HEAD или None, если Git/baseline недоступны."""
+    try:
+        rel = relative(path)
+    except ValueError:
+        return None
+
+    cmd = [
+        "git",
+        f"--git-dir={REPO_ROOT / '.git'}",
+        f"--work-tree={REPO_ROOT}",
+        "show",
+        f"HEAD:{rel}",
+    ]
+    try:
+        proc = subprocess.run(
+            cmd,
+            cwd=str(REPO_ROOT),
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            check=False,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+        )
+    except OSError:
+        return None
+
+    if proc.returncode != 0:
+        return None
+    return proc.stdout
+
+
+def _decode_json_response(text: str):
+    """Достать JSON из ответа модели, включая случай ```json ... ```."""
+    stripped = text.strip()
+    if stripped.startswith("```"):
+        stripped = re.sub(r"^```(?:json)?\s*", "", stripped)
+        stripped = re.sub(r"\s*```$", "", stripped)
+    return json.loads(stripped)
+
+
+def _build_diff_chunks(old_ru: str, new_ru: str, old_en: str) -> list[dict] | None:
+    """Построить line-based chunks для частичного перевода.
+
+    Предположение diff-режима: EN-зеркало сохраняет построчную структуру markdown.
+    Если это не так или изменение слишком крупное, возвращаем None и делаем полный
+    перевод.
+    """
+    old_ru_lines = old_ru.splitlines(keepends=True)
+    new_ru_lines = new_ru.splitlines(keepends=True)
+    old_en_lines = old_en.splitlines(keepends=True)
+
+    if len(old_en_lines) != len(old_ru_lines):
+        return None
+
+    matcher = difflib.SequenceMatcher(a=old_ru_lines, b=new_ru_lines, autojunk=False)
+    groups = matcher.get_grouped_opcodes(DIFF_CONTEXT_LINES)
+    chunks = []
+    changed_lines = 0
+
+    for group in groups:
+        non_equal = [op for op in group if op[0] != "equal"]
+        if not non_equal:
+            continue
+
+        old_start = min(i1 for _tag, i1, _i2, _j1, _j2 in non_equal)
+        old_end = max(i2 for _tag, _i1, i2, _j1, _j2 in non_equal)
+        new_start = min(j1 for _tag, _i1, _i2, j1, _j2 in non_equal)
+        new_end = max(j2 for _tag, _i1, _i2, _j1, j2 in non_equal)
+        changed_lines += max(old_end - old_start, new_end - new_start)
+
+        chunks.append({
+            "id": len(chunks) + 1,
+            "old_start": old_start,
+            "old_end": old_end,
+            "new_start": new_start,
+            "new_end": new_end,
+            "old_ru": "".join(old_ru_lines[old_start:old_end]),
+            "new_ru": "".join(new_ru_lines[new_start:new_end]),
+            "old_en": "".join(old_en_lines[old_start:old_end]),
+        })
+
+    if not chunks:
+        return []
+    if len(chunks) > DIFF_MAX_CHUNKS or changed_lines > DIFF_MAX_CHANGED_LINES:
+        return None
+    return chunks
+
+
+def _apply_translated_chunks(old_en: str, chunks: list[dict], translations: list[dict]) -> str:
+    by_id = {item["id"]: item["new_en"] for item in translations}
+    en_lines = old_en.splitlines(keepends=True)
+
+    for chunk in sorted(chunks, key=lambda item: item["old_start"], reverse=True):
+        if chunk["id"] not in by_id:
+            raise ValueError(f"missing translated chunk id={chunk['id']}")
+        replacement = by_id[chunk["id"]]
+        replacement_lines = replacement.splitlines(keepends=True)
+        if replacement and not replacement.endswith(("\n", "\r")):
+            replacement_lines[-1] += "\n"
+        en_lines[chunk["old_start"]:chunk["old_end"]] = replacement_lines
+
+    return "".join(en_lines)
+
+
+def _split_markdown_for_translation(text: str, max_chars: int = CHUNK_TRANSLATE_MAX_CHARS) -> list[str]:
+    """Разбить markdown на переводимые фрагменты, не разрывая fenced code blocks."""
+    lines = text.splitlines(keepends=True)
+    chunks: list[str] = []
+    current: list[str] = []
+    current_len = 0
+    in_fence = False
+
+    def flush() -> None:
+        nonlocal current, current_len
+        if current:
+            chunks.append("".join(current))
+            current = []
+            current_len = 0
+
+    for line in lines:
+        stripped = line.lstrip()
+        starts_heading = stripped.startswith("#") and not in_fence
+        starts_fence = stripped.startswith("```") or stripped.startswith("~~~")
+
+        if starts_heading and current_len >= max_chars // 2:
+            flush()
+        elif not in_fence and current_len >= max_chars and not line.strip():
+            current.append(line)
+            flush()
+            continue
+        elif not in_fence and current_len + len(line) > max_chars and current:
+            flush()
+
+        current.append(line)
+        current_len += len(line)
+
+        if starts_fence:
+            in_fence = not in_fence
+
+    flush()
+    return chunks
+
+
+def _strip_wrapping_fence(text: str) -> str:
+    stripped = text.strip()
+    if stripped.startswith("```"):
+        stripped = re.sub(r"^```(?:markdown|md)?\s*", "", stripped)
+        stripped = re.sub(r"\s*```$", "", stripped)
+        return stripped + ("\n" if text.endswith("\n") else "")
+    return text
+
+
+def _verify_chunk_translation(source: str, translated: str) -> tuple[bool, str]:
+    source_headings = _count_headings(source)
+    translated_headings = _count_headings(translated)
+    if source_headings != translated_headings:
+        return False, f"heading count differs (RU={source_headings}, EN={translated_headings})"
+    if len(source.strip()) > 1000 and len(translated.strip()) < len(source.strip()) * MIN_EN_RU_LEN_RATIO:
+        return False, "translated chunk is suspiciously shorter than source"
+    return True, ""
+
+
 # ─── Перевод через Codex CLI ──────────────────────────────────────────────────
 
 BACKMATTER_SPLIT_RE = re.compile(r"\n---\s*\n((?:depends_on|requires|metadata|category|version)\s*:.*)\n---\s*$", re.DOTALL)
@@ -170,7 +464,13 @@ def _count_headings(text: str) -> int:
     return len(HEADING_RE.findall(text))
 
 
-def _verify_translation(ru_path: Path, en_path: Path, old_en_text: "str | None") -> "tuple[bool, str]":
+def _verify_translation(
+    ru_path: Path,
+    en_path: Path,
+    old_en_text: "str | None",
+    *,
+    allow_unchanged: bool = False,
+) -> "tuple[bool, str]":
     """Проверяет, что перевод реально выполнен, а не отрапортован вхолостую.
 
     Codex может вернуть маркер DONE, фактически не перезаписав EN-файл
@@ -181,7 +481,7 @@ def _verify_translation(ru_path: Path, en_path: Path, old_en_text: "str | None")
     en_text = en_path.read_text(encoding="utf-8")
 
     # 1. No-op: EN байт-в-байт совпал с тем, что было до перевода.
-    if old_en_text is not None and en_text == old_en_text:
+    if old_en_text is not None and en_text == old_en_text and not allow_unchanged:
         return False, "EN-файл не изменился после перевода (Codex вернул DONE, перевод не выполнен)"
 
     ru_body, _ = _extract_backmatter(ru_text)
@@ -243,25 +543,26 @@ def run_codex_prompt(prompt: str) -> str:
                 f' - < "{prompt_file.name}"'
             )
 
-        proc = subprocess.Popen(
-            cmd,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            cwd=str(REPO_ROOT),
-            text=False,
-            start_new_session=True,
-            shell=True,
-        )
+        with _global_codex_slot():
+            proc = subprocess.Popen(
+                cmd,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                cwd=str(REPO_ROOT),
+                text=False,
+                start_new_session=True,
+                shell=True,
+            )
 
-        try:
-            stdout, stderr = proc.communicate(timeout=CODEX_TIMEOUT)
-        except subprocess.TimeoutExpired:
             try:
-                os.killpg(os.getpgid(proc.pid), signal.SIGKILL)
-            except (ProcessLookupError, OSError):
-                proc.kill()
-            proc.wait()
-            raise RuntimeError(f"Codex timed out after {CODEX_TIMEOUT}s")
+                stdout, stderr = proc.communicate(timeout=CODEX_TIMEOUT)
+            except subprocess.TimeoutExpired:
+                try:
+                    os.killpg(os.getpgid(proc.pid), signal.SIGKILL)
+                except (ProcessLookupError, OSError):
+                    proc.kill()
+                proc.wait()
+                raise RuntimeError(f"Codex timed out after {CODEX_TIMEOUT}s")
 
         if proc.returncode != 0:
             err = stderr.decode("utf-8", errors="replace").strip()
@@ -277,6 +578,98 @@ def run_codex_prompt(prompt: str) -> str:
     finally:
         Path(prompt_file.name).unlink(missing_ok=True)
         Path(result_file.name).unlink(missing_ok=True)
+
+
+def translate_file_by_diff(ru_path: Path, en_path: Path, old_en_text: str) -> bool:
+    """Перевести только изменённые RU-блоки и вставить их в EN-файл.
+
+    Возвращает False, если diff-режим неприменим или не прошёл проверку. В этом
+    случае вызывающий код должен выполнить полный перевод.
+    """
+    ru_rel = relative(ru_path)
+    old_ru_text = _git_head_text(ru_path)
+    if old_ru_text is None:
+        return False
+
+    new_ru_text = ru_path.read_text(encoding="utf-8")
+    chunks = _build_diff_chunks(old_ru_text, new_ru_text, old_en_text)
+    if chunks is None:
+        print(" diff-skip(large/unaligned); fallback full ...", end="", flush=True)
+        return False
+    if not chunks:
+        print(" diff-noop OK")
+        return True
+
+    prompt = make_translate_diff_prompt(ru_rel, [
+        {
+            "id": chunk["id"],
+            "old_ru": chunk["old_ru"],
+            "new_ru": chunk["new_ru"],
+            "old_en": chunk["old_en"],
+        }
+        for chunk in chunks
+    ])
+
+    try:
+        result = run_codex_prompt(prompt)
+        translations = _decode_json_response(result)
+        if not isinstance(translations, list):
+            raise ValueError("JSON response is not an array")
+        new_en_text = _apply_translated_chunks(old_en_text, chunks, translations)
+    except (json.JSONDecodeError, KeyError, TypeError, ValueError, RuntimeError, OSError) as e:
+        print(f" diff-fail({e}); fallback full ...", end="", flush=True)
+        return False
+
+    en_path.write_text(new_en_text, encoding="utf-8")
+    verified, reason = _verify_translation(ru_path, en_path, old_en_text)
+    if not verified:
+        print(f" diff-verify-fail({reason}); fallback full ...", end="", flush=True)
+        en_path.write_text(old_en_text, encoding="utf-8")
+        return False
+
+    print(f" diff OK ({len(chunks)} chunk(s))")
+    return True
+
+
+def translate_file_by_chunks(ru_path: Path, en_path: Path) -> bool:
+    """Первичный перевод большого markdown-файла небольшими фрагментами."""
+    ru_rel = relative(ru_path)
+    ru_text = ru_path.read_text(encoding="utf-8")
+    chunks = _split_markdown_for_translation(ru_text)
+    if len(chunks) <= 1 and len(ru_text) < CHUNK_TRANSLATE_MIN_FILE_CHARS:
+        return False
+
+    translated_chunks: list[str] = []
+    total = len(chunks)
+    print(f" chunked({total})", end="", flush=True)
+
+    for idx, chunk in enumerate(chunks, start=1):
+        prompt = make_translate_chunk_prompt(ru_rel, idx, total, chunk)
+        try:
+            payload = _decode_json_response(run_codex_prompt(prompt))
+            if payload.get("id") != idx:
+                raise ValueError(f"unexpected chunk id: {payload.get('id')!r}")
+            translated = payload["markdown"]
+            if not isinstance(translated, str):
+                raise ValueError("translated markdown is not a string")
+            translated = _strip_wrapping_fence(translated)
+            ok, reason = _verify_chunk_translation(chunk, translated)
+            if not ok:
+                raise ValueError(reason)
+        except (json.JSONDecodeError, KeyError, TypeError, ValueError, RuntimeError, OSError) as e:
+            print(f" chunk-{idx}-fail({e})", end="", flush=True)
+            return False
+        translated_chunks.append(translated)
+        print(f" {idx}/{total}", end="", flush=True)
+
+    en_path.write_text("".join(translated_chunks), encoding="utf-8")
+    verified, reason = _verify_translation(ru_path, en_path, None, allow_unchanged=True)
+    if not verified:
+        print(f" chunk-verify-fail({reason})", end="", flush=True)
+        return False
+
+    print(" OK")
+    return True
 
 
 def translate_file(ru_path: Path, en_path: Path) -> bool:
@@ -302,6 +695,24 @@ def translate_file(ru_path: Path, en_path: Path) -> bool:
     en_path.parent.mkdir(parents=True, exist_ok=True)
 
     print(f"  → Translating {ru_rel} ...", end="", flush=True)
+
+    if old_en_text is not None and _git_head_text(ru_path) is None:
+        verified, reason = _verify_translation(
+            ru_path,
+            en_path,
+            old_en_text,
+            allow_unchanged=True,
+        )
+        if verified:
+            print(" existing OK")
+            return True
+        print(f" existing-invalid({reason}); ", end="", flush=True)
+
+    if old_en_text is not None and translate_file_by_diff(ru_path, en_path, old_en_text):
+        return True
+
+    if translate_file_by_chunks(ru_path, en_path):
+        return True
 
     try:
         result = run_codex_prompt(prompt)
@@ -334,7 +745,12 @@ def translate_file(ru_path: Path, en_path: Path) -> bool:
         en_path.write_text(en_text, encoding="utf-8")
 
     # ── Верификация: перевод действительно выполнен, а не отрапортован вхолостую ──
-    verified, reason = _verify_translation(ru_path, en_path, old_en_text)
+    verified, reason = _verify_translation(
+        ru_path,
+        en_path,
+        old_en_text,
+        allow_unchanged=(old_en_text is not None and _git_head_text(ru_path) is None),
+    )
     if not verified:
         print(" FAIL")
         print(f"    ✗ Verification failed: {reason}")

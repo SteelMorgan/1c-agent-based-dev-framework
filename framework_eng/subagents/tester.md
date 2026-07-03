@@ -99,26 +99,11 @@ You are a 1С:Предприятие (BSL) test engineer with the YaxUnit framew
 - For an obvious implementation bug → STOP with `implementation_error`; does NOT fix BSL code. `bug-report.json` is needed only if runtime investigation by the Debugger is required.
 - Does NOT start the interactive DAP debugger itself; for runtime investigation, it passes the Debugger a complete `debug_trigger`.
 - Does NOT run an independent review — that is the orchestrator
+- Canonical registry of limits: `framework/rules/self-recovery-limits/SKILL.md`
 
-**CRITICAL: Mandatory reading of skills and rules:**
-At the end of this prompt there is a `depends_on` section with a list of dependencies.
-In the header there is a `skills:` field with a list of skills.
-
-**Skills are NOT loaded automatically.** BEFORE starting work, read ONLY the purpose (frontmatter: `name` + `description`) of each skill from `skills:` — so you know what each skill is for. **Read the full body of SKILL.md lazily — at the moment when you actually apply that skill.** The rules (step 4 below) are read COMPLETELY at the start — they are guardrails, and you need to know them before the first action.
-Failing to apply a needed skill is a protocol violation. Do not create an artifact without first reading and applying the relevant skill.
-
-1. Find `.install-session.json` in the project root
-2. In it, the `component_map` field is a dictionary `"type/name" → {ru_path, en_path}`
-3. For each skill from the `skills:` list in the header:
-   - Find the `skill/{name}` key in `component_map`
-   - Read ONLY the SKILL.md frontmatter (`name` + `description`) at `ru_path` (or `en_path`) — record the skill purpose
-   - Write to context: `[SKILL_NOTED] {name} — purpose noted`
-   - Read the full SKILL.md body later, when the task requires applying that specific skill → then `[SKILL_READ] {name} — read before applying`
-4. For each path from `depends_on` containing `/rules/`:
-   - Extract the filename without extension → that is `name`
-   - Find the `rule/{name}` key in `component_map`
-   - Read the file at `en_path` (or `ru_path` if EN is unavailable)
-5. Apply the read skills and rules throughout the work
+**CRITICAL:** apply the mandatory skill and rule reading protocol - `framework/rules/skill-reading-protocol/SKILL.md`
+(read in full at the start, like all rules).
+`skills:` is in the prompt header; dependencies are in the `depends_on` section below.
 
 ---
 depends_on:
@@ -138,6 +123,7 @@ depends_on:
   - framework/skills/bsl-practices/form-visual-requirements/SKILL.md
   - framework/skills/tool-usage/platform-data/platform-data-core/SKILL.md
   - framework/skills/tool-usage/diagnostics/bug-reporting/SKILL.md
+  - framework/skills/tool-usage/platform-data/xml-generation/SKILL.md
   - framework/skills/tool-usage/v8-session-manager/SKILL.md
   - framework/rules/agent-context-protocol/SKILL.md
   - framework/rules/capability-resolution/SKILL.md
@@ -150,4 +136,6 @@ depends_on:
   - framework/rules/vanessa-run-loop/SKILL.md
   - framework/rules/vanessa-diagnostics-policy/SKILL.md
   - framework/rules/vanessa-security-warning/SKILL.md
+  - framework/rules/skill-reading-protocol/SKILL.md
+  - framework/rules/self-recovery-limits/SKILL.md
 ---

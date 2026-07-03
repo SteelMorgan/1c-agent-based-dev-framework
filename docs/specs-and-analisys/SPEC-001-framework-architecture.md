@@ -95,7 +95,7 @@ MVP считается достигнутым когда:
   2. `copilot-proxy` — [SteelMorgan/spring-mcp-1c-copilot](https://github.com/SteelMorgan/spring-mcp-1c-copilot)
   3. `test-runner` — [alkoleft/mcp-onec-test-runner](https://github.com/alkoleft/mcp-onec-test-runner)
   4. `log-checker` — [SteelMorgan/1c-log-checker](https://github.com/SteelMorgan/1c-log-checker)
-  5. `metadata-tools` — [RooLee10/1c-mcp-tools](https://github.com/RooLee10/1c-mcp-tools)
+  5. `metadata-tools` — [SteelMorgan/1c-mcp-tools](https://github.com/SteelMorgan/1c-mcp-tools)
   6. `batch-ops` — [vladimir-kharin/1c-batch](https://github.com/vladimir-kharin/1c-batch)
   7. `lsp-bridge` — mcp-bsl-lsp-bridge
 - 6 навыков по использованию инструментов + capability registry
