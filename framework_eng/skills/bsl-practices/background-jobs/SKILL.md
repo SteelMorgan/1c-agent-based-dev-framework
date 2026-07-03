@@ -8,33 +8,37 @@ skills:
 
 # Background and Scheduled Jobs
 
-**Key principle:** A background job can be interrupted, restarted, or run again at any moment. The job code **must** tolerate this without data loss or duplicated work.
+**Key principle:** A background job can be interrupted, restarted, or started again at any moment. The job code **must** withstand this without data loss or duplicate work.
 
 ---
 
-## When to Use
+## When to apply
 
 | Trigger | Action |
 |---------|----------|
 | A scheduled or background job is being designed | Define the contract: parameters, user, transaction, idempotency, locking, timeout |
-| The job hangs, does not finish, duplicates work | Diagnose via the Registration Log: find the first failure, check active background jobs and stale locks |
+| A job hangs, does not finish, duplicates work | Diagnose via the Event Log: find the first failure, check active background jobs and stale locks |
 | There is an error in the job and retry logic is needed | Separate retryable and permanent errors, implement backoff |
 | The job processes a large volume of data | Apply checkpointing and batch processing with intermediate commits |
-| Parallel execution of multiple instances is possible | Implement a mutex through `БлокировкаДанных` or a flag constant |
+| Parallel execution of multiple instances is possible | Implement a mutex via `БлокировкаДанных` or a flag constant |
 
 ---
 
-## Scenario 1: Designing an Idempotent Job
+> All transaction examples below are the canonical `error-handling` pattern (Rule 2: `НачатьТранзакцию()` before `Попытка`, `ЗафиксироватьТранзакцию()` as the last operation, `ОтменитьТранзакцию()` first in `Исключение`, log after rollback) with task-specific context inside it; the pattern itself is not restated here.
 
-**Context:** A scheduled job needs to be created so that it can be safely restarted and does not duplicate work.
+> All transaction examples below are the canonical `error-handling` pattern (Rule 2: `НачатьТранзакцию()` before `Попытка`, `ЗафиксироватьТранзакцию()` as the last operation, `ОтменитьТранзакцию()` first in `Исключение`, log after rollback) with the job-specific context inside it; the pattern itself is not restated here.
+
+## Scenario 1: Designing an idempotent job
+
+**Context:** You need to create a scheduled job that can be safely restarted and does not duplicate work.
 
 **Steps:**
 
 1. Define the idempotent key: what uniquely identifies a unit of work (document, period, parameter hash).
 2. Store the processing status in the information base (catalog, information register, object attribute).
-3. Read the status **inside the transaction** with locking before starting the work.
+3. Read the status **inside a transaction** with locking before starting work.
 4. Update the status to "In progress" with a start timestamp - protection against parallel acquisition.
-5. On completion, set "Processed".
+5. Upon completion, set it to "Processed".
 
 ```bsl
 // Канонический паттерн идемпотентного захвата задачи
@@ -106,14 +110,14 @@ skills:
 
 ---
 
-## Scenario 2: Protection Against Parallel Execution (mutex)
+## Scenario 2: Protection against parallel execution (mutex)
 
-**Context:** A scheduled job must not run in two instances at the same time.
+**Context:** The scheduled job must not run in two instances at the same time.
 
 **Steps:**
 
-1. At the start of the job, set an exclusive lock on a special key (a constant or a register entry).
-2. If the lock is not obtained, finish with a warning in the Registration Log (not an error).
+1. At the start of the job, set an exclusive lock on a special key (a constant or an information register entry).
+2. If the lock is not obtained, finish with a warning in the Event Log (not an error).
 3. Release the lock automatically when the transaction ends.
 
 ```bsl
@@ -143,13 +147,11 @@ skills:
         ВыполнитьОсновнуюЛогику();
 
         ЗафиксироватьТранзакцию();
-
-    Исключение
+        // canonical Exception block (see scenario 1 / error-handling, Rule 2),
+        // event name in the registration log: "РегламентноеЗадание.ИмяЗадания"
         ОтменитьТранзакцию();
-        ЗаписьЖурналаРегистрации(
-            НСтр("ru = 'РегламентноеЗадание.ИмяЗадания'"),
-            УровеньЖурналаРегистрации.Ошибка,,,
-            ПодробноеПредставлениеОшибки(ИнформацияОбОшибке()));
+        ЗаписьЖурналаРегистрации(...);
+        ЗаписьЖурналаРегистрации(...);
         ВызватьИсключение;
     КонецПопытки;
 
@@ -158,14 +160,14 @@ skills:
 
 ---
 
-## Scenario 3: Checkpointing When Processing a Large Volume
+## Scenario 3: Checkpointing during large-volume processing
 
-**Context:** The job processes thousands of objects. It needs to persist progress so that a restart does not begin from scratch.
+**Context:** The job processes thousands of objects. Progress must be saved so that after a restart it does not begin from zero.
 
 **Key rules:**
 - A batch = one transaction. Do not open a transaction for the entire volume.
 - Save the checkpoint in the same transaction as the batch's useful work.
-- On restart, read the checkpoint and continue from it.
+- On restart, read the checkpoint and start from it.
 
 ```bsl
 Процедура ОбработатьОбъектыСCheckpoint(РазмерБатча = 100) Экспорт
@@ -189,12 +191,10 @@ skills:
 
             ЗафиксироватьТранзакцию();
 
-        Исключение
+            // canonical Exception block (see scenario 1 / error-handling, Rule 2),
+            // event name in the registration log: "ФоновоеЗадание.ПакетнаяОбработка"
             ОтменитьТранзакцию();
-            ЗаписьЖурналаРегистрации(
-                НСтр("ru = 'ФоновоеЗадание.ПакетнаяОбработка'"),
-                УровеньЖурналаРегистрации.Ошибка,,,
-                ПодробноеПредставлениеОшибки(ИнформацияОбОшибке()));
+            ЗаписьЖурналаРегистрации(...);
             ВызватьИсключение;
         КонецПопытки;
 
@@ -209,16 +209,16 @@ skills:
 
 ---
 
-## Scenario 4: Retry Policy - retryable vs permanent errors
+## Scenario 4: Retry policy — retryable vs permanent errors
 
-**Context:** The job calls an external service or works with resources that may be temporarily unavailable.
+**Context:** The task calls an external service or works with resources that may be temporarily unavailable.
 
 **Error classification:**
 
 | Type | Examples | Action |
 |-----|---------|----------|
-| Retryable (temporary) | Network timeout, service unavailable (503), lock acquisition | Retry with backoff, write `Warning` |
-| Permanent | Invalid data, business rule violation, 404/400 | Do not retry, write `Error`, move the task to the `Rejected` status |
+| Retryable (temporary) | Network timeout, service unavailable (503), lock contention | Retry with backoff, record `Warning` |
+| Permanent | Invalid data, business rule violated, 404/400 | Do not retry, record `Error`, move the task to status `Rejected` |
 
 ```bsl
 Функция ВыполнитьСRetry(ПараметрыЗадачи) Экспорт
@@ -279,44 +279,44 @@ skills:
 
 ---
 
-## Scenario 5: Running and Diagnostics via v8-runner
+## Scenario 5: Run and diagnostics via v8-runner
 
-**Manual job run** (for debugging and testing):
+**Run the job manually** (for debugging and testing):
 
 ```bash
-# Run a specific scheduled job through v8-runner
+# Запустить конкретное регламентное задание через v8-runner
 v8 run --ib <путь_к_ИБ> --execute "РегламентныеЗаданияСервер.ВыполнитьЗадание(<ИмяЗадания>)"
 ```
 
-**Diagnose hanging jobs via the Registration Log** (event-log-analysis):
+**Diagnose stuck jobs via the event log** (event-log-analysis):
 
 ```bash
-# View background job errors for the last 2 hours
+# Посмотреть ошибки фоновых заданий за последние 2 часа
 v8 run --ib <путь_к_ИБ> --event-log --filter "ФоновоеЗадание" --level Error --hours 2
 ```
 
-**Check active background jobs in the Registration Log:**
+**Checking active background jobs in the event log:**
 
-Look for events named `background job`. A hanging job = a `Start` event without a matching `Finish` and without `Error` - this is a stale-lock candidate.
+Search for events named `Фоновое задание`. A stuck job is an event “Start” without a matching “Finish” and without “Error” - this is a candidate for a stale lock.
 
 ---
 
-## Job Design Rules
+## Job design rules
 
-### Forbidden Patterns
+### Forbidden patterns
 
 | Anti-pattern | Consequence |
 |-------------|-------------|
-| HTTP/external call inside a transaction | A 30-second timeout = a 30-second lock on the entire information base |
-| One transaction for the entire volume | Restart = rollback of all work |
-| No idempotency | Data duplication on rerun |
-| Silent error swallowing | Data is lost, and there is no trace in the Registration Log |
+| HTTP/external call inside a transaction | 30 sec timeout = 30 sec blocking for the entire database |
+| One transaction for the whole volume | Restart = rollback of all work |
+| Lack of idempotency | Duplicate data on rerun |
+| Silent error swallowing | Data is lost, there are no traces in the event log |
 | Infinite retry without a limit | The job will block the queue forever |
 | Stale lock without TTL | The job does not start after a crash, the lock is not released |
 
-### Required Registration Log Entry Structure
+### Required event log entry structure
 
-Each job must write to the Registration Log at start and completion:
+Each job must write to the event log at start and finish:
 
 ```bsl
 // Старт задания
@@ -338,20 +338,22 @@ Each job must write to the Registration Log at start and completion:
 
 ## Checklist (review checklist)
 
-- [ ] The job can be safely restarted without duplicated work (idempotent).
-- [ ] Long-running work is split into batches with intermediate checkpoints and transaction commits.
+- [ ] The task can be safely restarted without duplicating work (idempotent).
+- [ ] Long-running work is split into batches with intermediate checkpoint and transaction commits.
 - [ ] The lock protects against parallel execution; the lock has a TTL (protection against hanging).
-- [ ] The Registration Log contains: start, finish, job parameters, result (how many processed/errors), duration.
-- [ ] Logs do not contain secrets (passwords, tokens, personal data).
+- [ ] ЖР contains: start, finish, task parameters, result (how many processed/errors), duration.
+- [ ] There are no secrets in the logs (passwords, tokens, personal data).
 - [ ] Errors are divided into retryable (retry) and permanent (do not retry).
 - [ ] External calls (HTTP, COM, WS) are performed **outside** the transaction.
-- [ ] The transaction is minimal in time: data preparation is outside the transaction, only the write is inside.
+- [ ] The transaction is minimal in time: data preparation is outside the transaction, only writing is inside.
+
+---
 
 ## Related Resources
 
 - [error-handling](../error-handling/SKILL.md) — transactions, `БлокировкаДанных`, the canonical `НачатьТранзакцию/ЗафиксироватьТранзакцию/ОтменитьТранзакцию` pattern
-- [v8-runner references/testing](../../tool-usage/v8-runner/references/testing.md) — manual job execution and result verification
-- [vanessa-diagnostics](../../tool-usage/vanessa/vanessa-diagnostics/SKILL.md) — diagnostics via logs and the Registration Log
+- [v8-runner references/testing](../../tool-usage/v8-runner/references/testing.md) — running tasks manually and checking results
+- [vanessa-diagnostics](../../tool-usage/vanessa/vanessa-diagnostics/SKILL.md) — diagnostics from logs and ЖР
 
 ---
 depends_on:

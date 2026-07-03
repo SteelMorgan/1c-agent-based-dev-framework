@@ -114,7 +114,7 @@ v8-runner init
 
 ## WS Coupling Parameters with session-manager
 
-WS coupling with [v8-client-session-manager](https://github.com/SteelMorgan/v8-client-session-manager) is a mode in which the 1C client MCP server connects to the manager over WebSocket instead of local HTTP MCP. It is controlled by the same set of CLI flags or by `tools.client_mcp.*` in `v8project.yaml`.
+WS coupling with [v8-client-session-manager](https://github.com/SteelMorgan/v8-client-session-manager) is a mode in which the 1C client MCP server connects to the manager over WebSocket instead of local HTTP MCP. It is controlled by the same set of CLI flags (`--mcp-transport`, `--manager-url`, `--client-uid`, `--corr-id`, `--mcp-log-level`, `--mcp-ws-timeout-ms`) or by `tools.client_mcp.*` in `v8project.yaml`. The canon for transport/auto-detection, defaults and per-flag overrides, `/C` format, and internal `kind` mapping is in `references/project-workflows.md` (section "WS mode with session-manager"); clap nuances and WS diagnostics on test commands are in `references/testing.md`.
 
 ### Applicable Entry Points
 
@@ -127,38 +127,6 @@ The same flag set works for:
 
 Example (test): `v8-runner test --mcp-transport=ws --mcp-log-level=debug yaxunit module mcp_МспПровайдер_Тесты`. If you place WS flags after `yaxunit` or `module <NAME>`, clap responds with `error: unexpected argument`, because those subcommands do not declare their own `McpClientWsArgs`.
 
-### CLI Flags
-
-- `--mcp-transport={mcp|ws|auto}` — `auto` (default) performs a TCP probe of `manager_url` for about 200 ms; `ws` is strict WS, and fails if unavailable; `mcp` is the local HTTP MCP mode without probing.
-- `--manager-url <URL>` — overrides `tools.client_mcp.manager_url` (default `ws://127.0.0.1:4000/sessions`).
-- `--client-uid <UUID>` — overrides the auto-generated v4 UUID.
-- `--corr-id <STR>` — overrides `vr-<first 8 characters of client_uid>`.
-- `--mcp-log-level={off|error|warn|info|debug|trace}` — logging level inside the client.
-- `--mcp-ws-timeout-ms <N>` — WS handshake timeout (default 1000 ms; relevant for `auto` fallback).
-
-Alternative: all of this can be set in `tools.client_mcp.*` in `v8project.yaml` / `v8project.local.yaml` — priority order: CLI → yaml → internal defaults.
-
-```yaml
-tools:
-  client_mcp:
-    transport: auto         # mcp | ws | auto
-    manager_url: ws://127.0.0.1:4000/sessions
-    log_level: info
-    ws_timeout_ms: 1000
-```
-
-For specialized entry points, `kind` is fixed by the entry point and cannot be overridden from the CLI. For ordinary UI clients (`launch thin/thick/ordinary`), `kind` is not passed in `/C`: the `client_mcp` extension declares its own client kind when `session.register` runs.
-
-### Internal `kind` Mapping
-
-| Command | `kind` |
-|---|---|
-| `launch thin/thick/ordinary` | not passed; the client side declares the default kind |
-| `launch mcp` | `v8_runner_client` |
-| `launch mcp va` | `vanessa_test_client` |
-| `test yaxunit ...` | `yaxunit_runner` |
-| `test va ...` | `vanessa_test_client` |
-
 ### Client and Test Launch Modes
 
 | Mode | Purpose | MCP/VA behavior |
@@ -170,21 +138,7 @@ For specialized entry points, `kind` is fixed by the entry point and cannot be o
 | `test yaxunit ...` | Run YAxUnit tests. | `kind=yaxunit_runner` in WS mode; this is a test runner, not an interactive UI session. |
 | `test va` | Run Vanessa feature scenarios. | `kind=vanessa_test_client`, but the payload is `StartFeaturePlayer;VAParams=...`; this is scenario execution, not the manager research mode. |
 
-### What v8-runner injects into `/C` in the WS branch
-
-```text
-/C"mcpMode=ws;manager_url=<URL>;client_uid=<UUID>;kind=<KIND>;corr_id=<CORR>;mcp_log_level=<LVL>;mcp_ws_timeout_ms=<MS>"
-```
-
-For `launch mcp` / `launch mcp va`, this is the entire `/C`. For `launch thin/thick/ordinary`, the same WS fragment is used, but **without** `kind=<KIND>`, and it is appended via `;` to an existing `/C` if one is already set. For test commands, the WS fragment is appended via `;` to an existing `RunUnitTests=…` / Vanessa player (if `transport=ws` is selected through the yaml config).
-
-Ordinary thin client in WS mode:
-
-```text
-/C"mcpMode=ws;manager_url=<URL>;client_uid=<UUID>;corr_id=<CORR>;mcp_log_level=<LVL>;mcp_ws_timeout_ms=<MS>"
-```
-
-Important: do not add `kind` in ordinary `launch thin/thick/ordinary`. Such a client registers the base `client_mcp` tools, but it does not publish Vanessa Automation MCP tools on its own.
+The `/C` format in the WS branch (full payload, `launch mcp`/`mcp va` vs `launch thin/thick/ordinary` difference, appending for test commands) is canonical in `references/project-workflows.md`, section "What v8-runner injects into `/C` in the WS branch".
 
 ### Vanessa Automation MCP through session-manager
 
@@ -284,19 +238,7 @@ Do not do this:
 - Do not rely on `test_client_start` as the only way to start `/TESTCLIENT` if it starts the client without `/N` and `/P`: such a process may stay at the infobase login screen, and the connection will return `No suitable test client found`.
 - Do not treat `tools/list` as proof of readiness: proxied tools may come only from the session-manager cache. Readiness is confirmed by a live session in `session_list` and a successful simple call (`infobase_info`).
 
-### Resolved: WS Sessions in `test yaxunit` (DRIVE 2026-05-11)
-
-Symptom: yaxunit_runner is NOT registered in the manager's `session_list`, although v8-runner correctly injects the WS payload into `/C` (`RunUnitTests=...;mcpMode=ws;...;kind=yaxunit_runner;...`).
-
-The root cause is a race condition in BSL `client_mcp` (`ManagedApplicationModule.bsl`): the idle handler `Мсп_ОтложенныйСтарт_Тик` was set with a **1 second** interval, and YAXUNIT with `closeAfterTests: true` closed the application about 1 second after startup (tests finish in about 200 ms), so the idle handler did not get a chance to tick.
-
-Fix: reduce the idle-handler interval from `1` to `0.1`:
-```bsl
-// exts/client_mcp/Ext/ManagedApplicationModule.bsl
-ПодключитьОбработчикОжидания("Мсп_ОтложенныйСтарт_Тик", 0.1, Истина);
-```
-
-After the fix, yaxunit-Enterprise registers as `kind=yaxunit_runner` in the manager's `session_list` (confirmation in v8-runner stdout: `[MCP INFO ...] WS session registered: uid=... kind=yaxunit_runner ... tools=24`).
+> If `yaxunit_runner` is not registered in `session_list` even though the WS payload is injected into `/C`, this is a known idle-handler race incident (DRIVE 2026-05-11) and its fix (changing the `Мсп_ОтложенныйСтарт_Тик` interval from `1` to `0.1` in `ManagedApplicationModule.bsl`): the canon is in `references/testing.md` (section "Diagnostics of WS coupling in the test phase").
 
 ## Headless Launch of External Processing (.epf) with a Server Method Call
 

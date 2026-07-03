@@ -85,7 +85,7 @@ xml-gen validate --type skd <Template.xml> [--detailed] [--max-errors 20]
 
 Составной тип — массив в объектной форме: `"type": ["CatalogRef.А", "CatalogRef.Б"]`. Квалификаторы применяются к каждому элементу.
 
-**Роли:** `@dimension`, `@account`, `@balance`, `@period`.
+**Роли:** `@dimension`, `@account`, `@balance`, `@period` (объектная форма — `"role": "@dimension"`). Канон полного каталога ролей, сложных балансовых/периодических/счётных ролей и их kv-параметров (`balanceGroupName`, `balanceType`, `parentDimension`, `accountTypeExpression`, `periodNumber`, `periodType`, `@required`, `@autoOrder`, `@ignoreNullValues`) — [skd-edit → fields.md § set-field-role](../../skd-edit/references/fields.md#set-field-role).
 
 **Ограничения:** shorthand-флаги `#noField`, `#noFilter`, `#noGroup`, `#noOrder`; объектная форма: `"restrict": ["noField", "noFilter"]`.
 
@@ -124,6 +124,8 @@ Shorthand: `"Имя [Заголовок]: тип = значение @флаги"
 | `@always` | `use=Always`. |
 
 Объектная форма: `title`, `hidden`, `valueListAllowed`, `availableAsField`, `denyIncompleteValues`, `use: "Always"`, `availableValues[]`.
+
+> Таблица выше — **DSL-эффект** флагов (какие XML-атрибуты эмитируются при генерации). Канон флагов на уровне редактирования готового отчёта, `availableValue=`, кавычек и edge-cases — [skd-edit → parameters.md](../../skd-edit/references/parameters.md). NB: производные параметры `@autoDates` в DSL — `НачалоПериода`/`КонецПериода`, при CLI-редактировании — `ДатаНачала`/`ДатаОкончания`.
 
 Значение по умолчанию может быть списком: `"value": ["Справочник.X.A", "Справочник.X.B"]`. В XML это несколько `<value>` подряд; `valueListAllowed=true` выставляется автоматически. Для ссылочных значений используется `dcscor:DesignTimeValue`.
 

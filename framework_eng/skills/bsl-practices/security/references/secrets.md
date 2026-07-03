@@ -1,34 +1,33 @@
-# Secrets and `БезопасноеХранилище`
+# Secrets and safe storage
 
 Reference for working with secrets in 1C: where to store them, how to read them, how to rotate them, and how to mask them in logs. Used by the `bsl-practices/security` skill.
 
 ---
 
-## What is `БезопасноеХранилище`
+## What is safe storage
 
-Platform API for storing sensitive data (passwords, tokens, API keys, refresh tokens) **separately from configuration data**:
+Storing sensitive data (passwords, tokens, API keys, refresh tokens) **separately from configuration data** - the information register `БезопасноеХранилищеДанных`. This is **not a common module**: direct access to the register is forbidden, and work with it goes only through wrappers of the common module `ОбщегоНазначения` (writes - in privileged mode inside these wrappers):
 
-- Physically - separate tables in the cluster, not accessible through query language queries.
-- Access - only through privileged mode, by owner.
-- Secrets are backed up via a separate cluster export - account for that during migration.
-
-Available starting with platform 8.3.9. On older versions, use BSP `Сохраняемые данные` as a fallback (not recommended for new code).
+- Physically - separate register entries, isolated from application data.
+- Access from outside the wrappers - only through privileged mode, by owner.
+- Secrets are backed up together with the database - account for that during migration/data transfer.
 
 ---
 
 ## API
 
 ```bsl
-БезопасноеХранилище.УстановитьДанные(Владелец, Данные, Ключ = Неопределено)
-БезопасноеХранилище.ПрочитатьДанные(Владелец, Ключ = Неопределено)
-БезопасноеХранилище.УдалитьДанные(Владелец, Ключ = Неопределено)
+ОбщегоНазначения.ЗаписатьДанныеВБезопасноеХранилище(Владелец, Данные, Ключ = "Пароль")
+ОбщегоНазначения.ПрочитатьДанныеИзБезопасногоХранилища(Владелец, Ключи = "Пароль", ОбщиеДанные = Неопределено)
+ОбщегоНазначения.ПрочитатьДанныеВладельцевИзБезопасногоХранилища(Владельцы, Ключи = "Пароль", ОбщиеДанные = Неопределено)
+ОбщегоНазначения.УдалитьДанныеИзБезопасногоХранилища(Владелец, Ключи = Неопределено)
 ```
 
-- **Owner** - metadata object reference (usually a catalog item for accounts). Never a string constant: when the object is deleted, the secret is automatically cleaned up.
-- **Data** - any serializable value (string, structure, map). For one owner, you can store several secrets under different keys.
-- **Key** - a string that separates secrets for the same owner (`"access_token"`, `"refresh_token"`, `"client_secret"`).
+- **Owner** - a metadata object reference (usually a catalog item for accounts) or a unique string (up to 128 characters). A reference is preferred: when the owner object is deleted, the secret must be cleaned up manually in `ПередУдалением`; there is no automatic cascading cleanup.
+- **Data** - any serializable value (string, structure, map) for `Ключ`, or the structure as a whole if `Ключ = Неопределено`.
+- **Keys/Key** - a string that separates secrets for the same owner (`"access_token"`, `"refresh_token"`, `"client_secret"`); for reading it can be a comma-separated list (`"Логин,Пароль"`) - then a structure is returned, and with a single key - the value itself.
 
-All three methods are **server-side** and require **privileged mode** for a regular user.
+All methods are **server-side** and require **privileged mode** for a regular user; the wrappers themselves do not enable privileged mode - the calling code must do that.
 
 ---
 
@@ -38,7 +37,7 @@ For each type of external service, create a separate accounts catalog, for examp
 
 - `Справочник.УчётныеЗаписиВнешнихСервисов` - common catalog of connections.
 - Attributes: `URLСервиса`, `Логин` (open), `ИдентификаторКлиента` (open), `ТипАутентификации` (enumeration).
-- Secrets: everything stored only in `БезопасноеХранилище` under these keys:
+- Secrets: everything stored only in the `БезопасноеХранилищеДанных` register (via `ОбщегоНазначения.*ДанныеВБезопасноеХранилище*`) under keys:
   - `password`
   - `client_secret`
   - `access_token`
@@ -58,7 +57,7 @@ Never create a `Пароль` or `Токен` attribute in the catalog - that is
 
     УстановитьПривилегированныйРежим(Истина);
     Попытка
-        БезопасноеХранилище.УстановитьДанные(СсылкаУчётнойЗаписи, ПарольПользователя, "password");
+        ОбщегоНазначения.ЗаписатьДанныеВБезопасноеХранилище(СсылкаУчётнойЗаписи, ПарольПользователя, "password");
     Исключение
         УстановитьПривилегированныйРежим(Ложь);
         ВызватьИсключение;
@@ -70,9 +69,9 @@ Never create a `Пароль` or `Токен` attribute in the catalog - that is
 
 Notes:
 
-- The `ПарольПользователя` parameter comes from the client at configuration time. Immediately after `УстановитьДанные`, clear the variable (`ПарольПользователя = ""`).
+- The `ПарольПользователя` parameter comes from the client at configuration time. Immediately after `ЗаписатьДанныеВБезопасноеХранилище`, clear the variable (`ПарольПользователя = ""`).
 - Never log the password at any step.
-- Never call `УстановитьДанные` from client context - `БезопасноеХранилище` is available only on the server.
+- Never call `ЗаписатьДанныеВБезопасноеХранилище` from client context - the `БезопасноеХранилищеДанных` register is available only on the server.
 
 ---
 
@@ -84,7 +83,7 @@ Notes:
 
     УстановитьПривилегированныйРежим(Истина);
     Попытка
-        Пароль = БезопасноеХранилище.ПрочитатьДанные(СсылкаУчётнойЗаписи, "password");
+        Пароль = ОбщегоНазначения.ПрочитатьДанныеИзБезопасногоХранилища(СсылкаУчётнойЗаписи, "password");
     Исключение
         УстановитьПривилегированныйРежим(Ложь);
         ВызватьИсключение;
@@ -98,7 +97,7 @@ Notes:
 
 Notes:
 
-- Privileged mode is mandatory; otherwise, for a regular user `ПрочитатьДанные` will fail with a permissions error.
+- Privileged mode is mandatory; otherwise, for a regular user `ПрочитатьДанныеИзБезопасногоХранилища` will fail with a permissions error.
 - `УстановитьПривилегированныйРежим(Ложь)` must be set **in the same scope** and handled through `Попытка/Исключение`, otherwise an exception will let the mode leak beyond the call.
 - Never return the password to the client. Return the result of the business operation performed on the server with that password.
 
@@ -109,11 +108,11 @@ Notes:
 | Stage | Who does it | Where | What is critical |
 |------|------------|-----|--------------|
 | Source | Integration administrator | Account setup form | Masked input field, without `ОтправляемоеЗначение` in the form |
-| Write | Server | `БезопасноеХранилище.УстановитьДанные` | Privileged mode, clearing the variable afterward |
-| Read | Server | `БезопасноеХранилище.ПрочитатьДанные` | Privileged mode, targeted use, no leakage to the client |
+| Write | Server | `ОбщегоНазначения.ЗаписатьДанныеВБезопасноеХранилище` | Privileged mode, clearing the variable afterward |
+| Read | Server | `ОбщегоНазначения.ПрочитатьДанныеИзБезопасногоХранилища` | Privileged mode, targeted use, no leakage to the client |
 | Use | Server | `HTTPСоединение`, `МенеджерКриптографии` | Header is assembled on the server and not returned to the client |
 | Rotation | Scheduled job / admin manually | See below | Atomic replacement, without a window with an empty secret |
-| Revocation | Delete the account | `БезопасноеХранилище.УдалитьДанные` | Automatic when the owner is deleted, but better explicitly |
+| Revocation | Delete the account (in `ПередУдалением`) | `ОбщегоНазначения.УдалитьДанныеИзБезопасногоХранилища` | Explicit call - there is no cascading cleanup when the owner is deleted |
 
 ---
 
@@ -127,8 +126,8 @@ Scenarios:
 
 Recommendations:
 
-- The new value is written **over** the old one (`УстановитьДанные` with the same key). There should be no window with an empty secret.
-- For OAuth refresh - the operation `received new access + new refresh → УстановитьДанные both keys` in one `Попытка/Исключение`; if the refresh write failed, there is no need to roll back the old access, but mark the desynchronization in the log.
+- The new value is written **over** the old one (`ЗаписатьДанныеВБезопасноеХранилище` with the same key). There should be no window with an empty secret.
+- For OAuth refresh - the operation `received new access + new refresh → ЗаписатьДанныеВБезопасноеХранилище both keys` in one `Попытка/Исключение`; if the refresh write failed, there is no need to roll back the old access, but mark the desynchronization in the log.
 - Rotation entry in the registration log: owner, key (`access_token`), `success/fail`, **without the value**.
 
 ---
@@ -179,7 +178,7 @@ Masking utility template:
 &НаСервереБезКонтекста
 Функция ПолучитьПароль(УчётнаяЗапись) Экспорт // вызывается с клиента
     УстановитьПривилегированныйРежим(Истина);
-    Возврат БезопасноеХранилище.ПрочитатьДанные(УчётнаяЗапись, "password");
+    Возврат ОбщегоНазначения.ПрочитатьДанныеИзБезопасногоХранилища(УчётнаяЗапись, "password");
 КонецФункции
 
 // ПЛОХО: пароль в журнале регистрации.

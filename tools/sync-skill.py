@@ -15,16 +15,20 @@ sync-skill.py — синхронизатор RU→EN для framework/ → frame
 
 import argparse
 import difflib
+import fcntl
 import hashlib
 import json
 import os
+import random
 import re
 import signal
 import subprocess
 import sys
 import tempfile
 import textwrap
+import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from contextlib import contextmanager
 from pathlib import Path
 
 # ─── Пути ─────────────────────────────────────────────────────────────────────
@@ -42,7 +46,66 @@ TRANSLATABLE_EXTS = {".md", ".mdc"}
 CODEX_PROFILE = "cx_gpt-5-codex-mini"
 CODEX_DONE_MARKER = "OK"
 CODEX_TIMEOUT = int(os.environ.get("SYNC_SKILL_CODEX_TIMEOUT", "420"))
-DEFAULT_WORKERS = 8       # параллельных переводов по умолчанию
+DEFAULT_WORKERS = int(os.environ.get("SYNC_SKILL_WORKERS", "3"))  # параллельных переводов в одном процессе
+
+# ─── Глобальный ограничитель codex-процессов ──────────────────────────────────
+# Несколько экземпляров sync-skill.py (агенты, pre-commit, ручной запуск) могут
+# работать одновременно. Без общего лимита каждый спавнит своих codex-воркеров
+# (node, 300-800 MB каждый) — контейнер с лимитом 8 GB падает по OOM.
+# Семафор на файловых блокировках ограничивает СУММАРНОЕ число codex-процессов
+# на весь контейнер, сколько бы экземпляров скрипта ни запустили.
+GLOBAL_CODEX_SLOTS = int(os.environ.get("SYNC_SKILL_GLOBAL_SLOTS", "4"))
+SLOT_DIR = Path(tempfile.gettempdir()) / "sync-skill-codex-slots"
+SLOT_WAIT_TIMEOUT = int(os.environ.get("SYNC_SKILL_SLOT_TIMEOUT", "3600"))
+MIN_AVAILABLE_MB = int(os.environ.get("SYNC_SKILL_MIN_AVAILABLE_MB", "2000"))
+
+
+def _mem_available_mb() -> int:
+    try:
+        with open("/proc/meminfo", encoding="ascii") as fh:
+            for line in fh:
+                if line.startswith("MemAvailable:"):
+                    return int(line.split()[1]) // 1024
+    except OSError:
+        pass
+    return MIN_AVAILABLE_MB  # не смогли прочитать — не блокируем
+
+
+@contextmanager
+def _global_codex_slot():
+    """Занять один из GLOBAL_CODEX_SLOTS общеконтейнерных слотов (flock).
+
+    Ждёт свободный слот и достаточную свободную память; по истечении
+    SLOT_WAIT_TIMEOUT — ошибка вместо тихого зависания.
+    """
+    SLOT_DIR.mkdir(parents=True, exist_ok=True)
+    deadline = time.monotonic() + SLOT_WAIT_TIMEOUT
+    warned = False
+    while time.monotonic() < deadline:
+        if _mem_available_mb() < MIN_AVAILABLE_MB:
+            if not warned:
+                print(f"    ⏳ мало свободной памяти (<{MIN_AVAILABLE_MB} MB) — жду", flush=True)
+                warned = True
+            time.sleep(5)
+            continue
+        for i in range(GLOBAL_CODEX_SLOTS):
+            fh = open(SLOT_DIR / f"slot-{i}.lock", "w")
+            try:
+                fcntl.flock(fh, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            except OSError:
+                fh.close()
+                continue
+            try:
+                yield
+                return
+            finally:
+                fcntl.flock(fh, fcntl.LOCK_UN)
+                fh.close()
+        if not warned:
+            print(f"    ⏳ все {GLOBAL_CODEX_SLOTS} codex-слота заняты — жду очередь", flush=True)
+            warned = True
+        time.sleep(2 + random.uniform(0, 2))
+    raise RuntimeError(f"Не дождался свободного codex-слота за {SLOT_WAIT_TIMEOUT}s")
 DIFF_CONTEXT_LINES = 3
 DIFF_MAX_CHANGED_LINES = 240
 DIFF_MAX_CHUNKS = 12
@@ -480,25 +543,26 @@ def run_codex_prompt(prompt: str) -> str:
                 f' - < "{prompt_file.name}"'
             )
 
-        proc = subprocess.Popen(
-            cmd,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            cwd=str(REPO_ROOT),
-            text=False,
-            start_new_session=True,
-            shell=True,
-        )
+        with _global_codex_slot():
+            proc = subprocess.Popen(
+                cmd,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                cwd=str(REPO_ROOT),
+                text=False,
+                start_new_session=True,
+                shell=True,
+            )
 
-        try:
-            stdout, stderr = proc.communicate(timeout=CODEX_TIMEOUT)
-        except subprocess.TimeoutExpired:
             try:
-                os.killpg(os.getpgid(proc.pid), signal.SIGKILL)
-            except (ProcessLookupError, OSError):
-                proc.kill()
-            proc.wait()
-            raise RuntimeError(f"Codex timed out after {CODEX_TIMEOUT}s")
+                stdout, stderr = proc.communicate(timeout=CODEX_TIMEOUT)
+            except subprocess.TimeoutExpired:
+                try:
+                    os.killpg(os.getpgid(proc.pid), signal.SIGKILL)
+                except (ProcessLookupError, OSError):
+                    proc.kill()
+                proc.wait()
+                raise RuntimeError(f"Codex timed out after {CODEX_TIMEOUT}s")
 
         if proc.returncode != 0:
             err = stderr.decode("utf-8", errors="replace").strip()

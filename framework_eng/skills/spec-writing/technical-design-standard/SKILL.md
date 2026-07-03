@@ -1,32 +1,32 @@
 ---
 name: technical-design-standard
-description: "For technical-design.md in 1C with MUST/SHOULD/MAY"
+description: "For technical-design.md with MUST/SHOULD/MAY for 1C"
 ---
 
 # Technical Design Standard (Technical Design)
 
-Technical design (`technical-design.md`) is a bridge between the specification (WHAT) and task decomposition (HOW). It records architectural decisions, modular structure, contracts, and cross-cutting concepts. It extends the high-level Technical Design section from the specification.
+Technical design (`technical-design.md`) is a bridge between the specification (WHAT) and task decomposition (HOW). It records architectural decisions, module structure, contracts, and end-to-end concepts. It extends the high-level Technical Design section from the specification.
 
-Foundation: Google Design Docs, arc42, MADR 4.0, Stripe RFC (Drawbacks), C4 Model.
+Basis: Google Design Docs, arc42, MADR 4.0, Stripe RFC (Drawbacks), C4 Model.
 
 ---
 
 ## 2. Document Language
 
-The technical design MUST be written in **Russian** - section headings, descriptions, justifications, tables. Exception - code and metadata identifiers (module names, attributes, variables, BSL signatures), as well as established terms (ADR, RFC 2119, C4, MUST/SHOULD/MAY).
+Technical design MUST be written in **Russian** — section headings, descriptions, rationales, tables. The exception is code and metadata identifiers (module names, attributes, variables, BSL signatures), as well as established terms (ADR, RFC 2119, C4, MUST/SHOULD/MAY).
 
 ---
 
 ## 3. When Technical Design Is Needed
 
-| Task Type | TD Required | Justification |
-|------------|-------------|---------------|
+| Task type | TD needed | Rationale |
+|------------|----------|-------------|
 | New functionality (medium/complex) | MUST | Fixes the architecture before development starts |
-| Enhancing a standard configuration with structural changes | MUST | The approach choice must be justified (extension vs configuration) |
+| Enhancement of a standard configuration with structural changes | MUST | The approach choice must be justified (extension vs configuration) |
 | Integration with an external system | MUST | Contracts and data flow are critical |
 | Simple bug fix | MAY | Only if the bug requires architectural changes |
-| Refactoring with changes to modular structure | SHOULD | Visibility into change boundaries is needed |
-| External processing (EPF) with a form | SHOULD | Metadata and UI structure require design. MUST if the EPF includes background operations, access rights, or data exchange |
+| Refactoring with changes to the module structure | SHOULD | Transparency about change boundaries is needed |
+| External processing (EPF) with a form | SHOULD | Metadata structure and UI require design. MUST if the EPF includes background operations, access rights, or data exchange |
 
 ---
 
@@ -35,34 +35,34 @@ The technical design MUST be written in **Russian** - section headings, descript
 ### Title and Metadata
 
 ```markdown
-# Technical Design: [Short Name]
+# Технический дизайн: [Краткое название]
 
-| Field | Value |
+| Поле | Значение |
 |------|----------|
-| Specification | [SPEC-NNN](link to spec.md) |
-| Date | YYYY-MM-DD |
-| Status | Draft / Review / Approved |
-| Explorer | [explorer-context.md](link) |
-| Decomposition | [task-breakdown.json](link) |
-| ADR Directory | [task_dir/adr/](link) |
+| Спецификация | [SPEC-NNN](ссылка на spec.md) |
+| Дата | YYYY-MM-DD |
+| Статус | Черновик / Ревью / Утверждён |
+| Explorer | [explorer-context.md](ссылка) |
+| Декомпозиция | [task-breakdown.json](ссылка) |
+| Каталог ADR | [task_dir/adr/](ссылка) |
 ```
 
-### Sections and Mandatory Rules
+### Sections and mandatory rules
 
-| § | Section | Requirement | Condition |
-|---|--------|-------------|----------|
+| § | Section | Mandatory | Condition |
+|---|--------|---------------|---------|
 | 1 | Overview | **MUST** | Always |
 | 2 | Solution Strategy | **MUST** | Always |
 | 3 | Structural Blocks | **MUST** | Always |
 | 4 | Data and Metadata | **MUST** | Always |
 | 5 | Cross-Cutting Concepts | **SHOULD** | MUST if the task affects >2 modules or changes cross-cutting behavior |
-| 6 | Key Decisions | **MUST** | Always (at least 1 decision) |
+| 6 | Key Decisions | **MUST** | Always (minimum 1 decision) |
 | 7 | Risks and Drawbacks | **MUST** | Always |
 | 8 | Assumptions and Open Questions | **SHOULD** | MUST if there are uncertainties blocking part of the design |
 | 9 | Migration and Rollback | **Conditional MUST** | MUST if existing metadata objects are changed or data migration is required |
 | 10 | Traceability | **MUST** | Always |
 
-**Rule:** if a section is not applicable to the task - specify `N/A` with a brief reason. Do not remove the section.
+**Rule:** if a section does not apply to the task, mark it as `N/A` with a brief reason. Do not remove the section.
 
 ---
 
@@ -72,34 +72,34 @@ The technical design MUST be written in **Russian** - section headings, descript
 
 #### 1.1 Goals
 
-What must be achieved by the technical solution. Wording through RFC 2119 (MUST/SHOULD/MAY) is not needed - they are already in the specification. Here - the technical goals of the design.
+What the technical solution should achieve. Formulations using RFC 2119 (MUST/SHOULD/MAY) are not needed - they are already in the specification. Here, these are the technical goals of the design.
 
 #### 1.2 Non-goals
 
-**What the design explicitly does NOT solve.** The most valuable section for preventing scope creep. Each non-goal is an intentional exclusion.
+**What the design explicitly does NOT solve.** The most valuable section for preventing scope creep. Each non-goal is a deliberate exclusion.
 
 #### 1.3 Background
 
-The current state of the system (TOGAF Baseline). Which modules/objects exist, how they work now. Link to `explorer-context.md` as the source of truth - do not duplicate it, only expand where needed for the design.
+The current state of the system (TOGAF Baseline). Which modules/objects exist, how they work now. Link to `explorer-context.md` as the primary source - do not duplicate it, only expand where needed for the design.
 
 #### 1.4 Constraints
 
-Constraints that affect the architecture:
-- Development mode: extension vs modification of the main configuration
-- Version of the 1C platform and minimum version of БСП
+Constraints affecting the architecture:
+- Development mode: extension vs changing the main configuration
+- 1C platform version and minimum БСП version
 - xml-gen limitations (Designer format, not EDT; SKD 85%)
-- Organizational constraints (timelines, server access, licenses)
+- Organizational constraints (deadlines, server access, licenses)
 
 ---
 
 ### § 2. Solution Strategy
 
-High-level description of the chosen approach (2-3 paragraphs):
-- Which key technological/architectural decisions were made
-- Which patterns were chosen and why
+High-level description of the chosen approach (2–3 paragraphs):
+- What key technological/architectural decisions were made
+- What patterns were chosen and why
 - How the approach addresses the Goals from §1.1
 
-This is a **strategy**, not details. Details are in §3 and §4.
+This is the **strategy**, not the details. The details are in §3 and §4.
 
 ---
 
@@ -107,22 +107,22 @@ This is a **strategy**, not details. Details are in §3 and §4.
 
 #### 3.1 System Context (C4 Level 1)
 
-The system in the context of external systems and users. For integration tasks - a mandatory diagram (text or ASCII).
+The system in the context of external systems and users. For integration tasks, an обязательная diagram (text or ASCII) is required.
 
-For tasks within a single configuration - MAY be a brief description of the affected subsystems.
+For tasks within a single configuration, MAY be a brief description of the affected subsystems.
 
-#### 3.2 Module Map (C4 Level 2-3)
+#### 3.2 Module Map (C4 Level 2–3)
 
 Affected and new modules, their relationships:
 
 ```markdown
-| Module | Type | New/Existing | Responsibility |
-|--------|-----|--------------|-----------------|
+| Модуль | Тип | Новый/Существующий | Ответственность |
+|--------|-----|--------------------|-----------------|
 | ОМ.РаботаСКонтрагентами | Общий модуль | Существующий (модификация) | Валидация, получение данных |
 | МодульОбъекта.Контрагенты | Модуль объекта | Существующий (модификация) | Обработчики записи |
 ```
 
-For complex tasks - a text call diagram between modules.
+For complex tasks, a textual call diagram between modules.
 
 #### 3.3 Interfaces and Contracts
 
@@ -149,16 +149,16 @@ Signatures of key procedures/functions with contracts:
 Table of all affected metadata objects:
 
 ```markdown
-| Object | Type | New/Ex. | Changes | DSL |
-|--------|-----|--------|---------|-----|
+| Объект | Тип | Новый/Сущ. | Изменения | DSL |
+|--------|-----|-----------|-----------|-----|
 | Справочник.Контрагенты | Справочник | Сущ. | +Реквизит ИНН (Строка 12) | — |
 | РС.ИсторияИзменений | Регистр сведений | Новый | Период, Объект, Автор, Описание | — |
 | Форма.ФормаЭлемента | Управляемая форма | Новый | Поле ИНН, кнопка Проверить | [form-dsl.json](artifacts/form-dsl.json) |
 | Роль.МенеджерПродаж | Роль | Новый | Права на справочник и регистр | [role-dsl.json](artifacts/role-dsl.json) |
 ```
 
-**Rule for JSON DSL:**
-- Complex objects (forms, SKD, roles): link to the DSL file in `task_dir/artifacts/` **MUST**; inline fragment in the design **MAY** (only the key elements needed to understand the architecture)
+**JSON DSL rule:**
+- Complex objects (forms, SKD, roles): link to the DSL file in `task_dir/artifacts/` **MUST**; inline fragment in the design **MAY** (only key elements needed to understand the architecture)
 - Simple objects (catalogs, documents, registers): textual description of the structure **MUST**
 
 #### 4.2 Data Flow
@@ -172,7 +172,7 @@ How data moves through the system for key scenarios:
     → РС.ИсторияИзменений.Запись
 ```
 
-For integrations - data flow between systems with protocols and formats specified. For each integration point SHOULD specify an NFR contract: timeout, retry policy, idempotency, authentication, error mapping.
+For integrations — data flow between systems with protocols and formats specified. For each integration point SHOULD specify an NFR contract: timeout, retry policy, idempotency, authentication, error mapping.
 
 ---
 
@@ -181,16 +181,16 @@ For integrations - data flow between systems with protocols and formats specifie
 Cross-cutting solutions that permeate all modules. **SHOULD** specify a solution for each applicable aspect:
 
 | Aspect | Solution | Justification |
-|--------|---------|---------------|
-| **Error handling** | Try/Exception with WriteLogEvent | coding-standards rule 18 |
-| **Logging** | Event log via БСП (WriteLogEvent) | ssl-patterns: standard mechanism |
-| **Access rights** | Role via xml-gen, no RLS required | Data does not contain organization-based segregation |
-| **Transactions** | BeginTransaction/Try for writing to the register | coding-standards rule 18 |
-| **Client/Server** | &OnServerWithoutContext for business logic | coding-standards rule 3 |
-| **Using БСП** | CommonPurpose.NotifyUser for validation | ssl-patterns: input validation |
+|--------|---------|-------------|
+| **Error handling** | Try/Exception with ЗаписьЖурналаРегистрации | coding-standards rule 18 |
+| **Logging** | ЖР via БСП (ЗаписьЖурналаРегистрации) | ssl-patterns: standard mechanism |
+| **Access rights** | Role via xml-gen, RLS not required | Data does not contain segregation by organization |
+| **Transactions** | StartTransaction/Try for writing to the register | coding-standards rule 18 |
+| **Client/Server** | &НаСервереБезКонтекста for business logic | coding-standards rule 3 |
+| **Use of БСП** | ОбщегоНазначения.СообщитьПользователю for validation | ssl-patterns: filling check |
 | **Platform limitations** | [describe if there are workarounds] | — |
 
-If all aspects are standard and do not require special solutions - specify: "Standard patterns are used, see coding-standards and ssl-patterns. No special solutions."
+If all aspects are standard and do not require special solutions, indicate: "Standard patterns are used, see coding-standards and ssl-patterns. There are no special solutions."
 
 ---
 
@@ -199,18 +199,20 @@ If all aspects are standard and do not require special solutions - specify: "Sta
 Brief table of architectural decisions:
 
 ```markdown
-| # | Decision | Options | Choice | Justification | ADR |
+| # | Решение | Варианты | Выбор | Обоснование | ADR |
 |---|---------|---------|-------|-------------|-----|
 | 1 | Хранение истории | A) ЖР, B) Отдельный регистр | B | Нужны запросы и отчёты по истории | [ADR-001](adr/ADR-001.md) |
 | 2 | Валидация ИНН | A) Свой алгоритм, B) Внешний сервис | A | Нет зависимости от сети | — (тривиальное) |
 ```
 
-**Rule:** for each non-obvious decision (≥2 alternatives with different trade-offs) - a separate ADR file in `task_dir/adr/`.
+**Rule:** for each non-obvious decision (≥2 alternatives with different trade-offs) — a separate ADR file in `task_dir/adr/`.
 
-**ADR format** (MADR 4.0 lean):
+**Separation from spec ADRs (MUST):** the file-based `task_dir/adr/*.md` (MADR) records **only technical design decisions** (Phase 2+): architecture, modular structure, contracts. Business decisions at the requirements level (choice of alternative, scope decisions, user answers in clarification) remain in the inline "Decision Log (ADR)" of the specification (`spec-standard`). Each file ADR that follows from a spec decision MUST REFER to its number. Duplicating the same decision in both places is PROHIBITED.
+
+**ADR Format** (MADR 4.0 lean):
 
 ```markdown
-# ADR-NNN: [Decision Name]
+# ADR-NNN: [Название решения]
 
 Status: Accepted
 Date: YYYY-MM-DD
@@ -219,8 +221,8 @@ Date: YYYY-MM-DD
 [Почему возник вопрос]
 
 ## Decision Drivers
-- [Factor 1]
-- [Factor 2]
+- [Фактор 1]
+- [Фактор 2]
 
 ## Considered Options
 1. [Вариант A] — описание
@@ -243,12 +245,12 @@ Date: YYYY-MM-DD
 
 #### 7.1 Drawbacks
 
-What will get worse, harder, more expensive. If drawbacks are empty, the design has not been analyzed enough.
+What will become worse, more complex, more expensive. If drawbacks is empty — the design has not been analyzed enough.
 
 #### 7.2 Risks
 
 ```markdown
-| # | Risk | Probability | Impact | Mitigation |
+| # | Риск | Вероятность | Влияние | Mitigation |
 |---|------|-------------|---------|------------|
 | 1 | Производительность запроса при >100K записей | Средняя | High | Индекс + лимит выборки |
 ```
@@ -257,29 +259,29 @@ What will get worse, harder, more expensive. If drawbacks are empty, the design 
 
 ### § 8. Assumptions and Open Questions
 
-**Assumptions** - accepted under uncertainty. They do not block the design, but may affect implementation:
+**Assumptions** — accepted under uncertainty. They do not block the design, but may affect implementation:
 
 ```markdown
 - Предполагаем, что максимальное кол-во контрагентов < 500K
 - БСП версии 3.1+ (иначе нужен fallback для ДлительныеОперации)
 ```
 
-**Open questions** - left unanswered. They do not block the architecture, but require clarification before or during implementation.
+**Open questions** — left unanswered. They do not block the architecture, but require clarification before or during implementation.
 
 ---
 
-### § 9. Migration and Rollback (conditional)
+### § 9. Migration and Rollback (Conditional)
 
-**Condition:** the section MUST if existing metadata objects are changed or data migration is required. Otherwise - `N/A: new objects, no migration required`.
+**Condition:** section MUST if existing metadata objects are changed or data migration is required. Otherwise — `N/A: new objects, no migration required`.
 
 #### 9.1 Migration Plan
-- Update order (configuration → data → rights)
-- Fill / data conversion processing
-- Phasing (if phased rollout is used)
+- Update order (configuration → data → permissions)
+- Data population / conversion processes
+- Phasing (if phased rollout)
 
 #### 9.2 Rollback Strategy
 - Whether the changes can be rolled back
-- What happens to the data on rollback
+- What will happen to the data on rollback
 - Point of no return (if any)
 
 ---
@@ -296,7 +298,7 @@ Traceability matrix: requirement from the specification → design section → t
 | SHOULD-1: Отчёт по истории | §4.1 Metadata (SKD) | T-005 |
 ```
 
-**Rule:** each MUST from the specification MUST be covered by at least one design section and one task. SHOULD - SHOULD be covered.
+**Rule:** each MUST from the specification MUST be covered by at least one design section and one task. SHOULD — SHOULD be covered.
 
 ---
 
@@ -306,38 +308,38 @@ Reviewer checklist (scope=arch):
 
 ### Structure and Completeness
 - [ ] All MUST sections are filled in (or N/A with a reason)
-- [ ] The title contains links to spec, explorer-context, task-breakdown
+- [ ] The header contains links to spec, explorer-context, task-breakdown
 - [ ] Status is correct (Draft when created)
 
 ### Overview (§1)
-- [ ] Goals describe technical goals, do not duplicate specification requirements
-- [ ] Non-goals contain at least 1 intentional exclusion
-- [ ] Background relies on explorer-context.md, does not duplicate it
+- [ ] Goals describe technical goals, not a restatement of the specification requirements
+- [ ] Non-goals contain at least 1 deliberate exclusion
+- [ ] Background is based on explorer-context.md, not a duplicate of it
 - [ ] Constraints take into account: development mode (extension/configuration), platform/БСП version
 
 ### Solution Strategy (§2)
 - [ ] The strategy answers each Goal from §1.1
-- [ ] The description is at the approach level, not at the code level
+- [ ] The description is at the approach level, not the code level
 
 ### Structural Blocks (§3)
-- [ ] The module map covers all modules from the specification scope
-- [ ] Interfaces and contracts contain signatures with parameters, return value, compile directives
+- [ ] The module map covers all modules in the specification scope
+- [ ] Interfaces and contracts contain signatures with parameters, return value, compilation directives
 - [ ] There are no implicit dependencies between modules
 
 ### Data and Metadata (§4)
 - [ ] All metadata objects are listed with types and changes
 - [ ] Complex objects (forms, SKD, roles) have a link to the JSON DSL file
-- [ ] The data flow covers key scenarios from the test plan
+- [ ] The data flow covers the key scenarios from the test plan
 
 ### Cross-Cutting Concepts (§5)
-- [ ] Solutions for error handling, transactions, rights, client/server boundary
-- [ ] The use or refusal of БСП mechanisms is justified (ssl-patterns)
+- [ ] Solutions for error handling, transactions, permissions, client/server boundary
+- [ ] The use or rejection of БСП mechanisms (ssl-patterns) is justified
 - [ ] Platform limitations with workarounds (if any)
 
 ### Key Decisions (§6)
-- [ ] For each non-obvious decision (≥2 alternatives) there is justification
+- [ ] For each non-obvious decision (≥2 alternatives), there is justification
 - [ ] ADR files contain consequences and confirmation
-- [ ] There are no decisions that contradict the specification
+- [ ] There are no decisions that conflict with the specification
 
 ### Risks and Drawbacks (§7)
 - [ ] Drawbacks are not empty - every decision has a cost
@@ -345,41 +347,41 @@ Reviewer checklist (scope=arch):
 - [ ] Trade-offs are described honestly (pros + cons)
 
 ### Traceability (§10)
-- [ ] Each MUST from the specification is covered by a design section and a task
-- [ ] There are no requirements without a design reference
-- [ ] Task IDs match task-breakdown.json
+- [ ] Every MUST from the specification is covered by a design section and a task
+- [ ] No requirements are left without linkage to design
+- [ ] task IDs match task-breakdown.json
 
-### Task Decomposition (JSON)
+### Task decomposition (JSON)
 - [ ] All tasks have unique `task_id`
-- [ ] `depends_on` values are valid and contain no cycles
+- [ ] `depends_on` entries are valid and contain no cycles
 - [ ] `spec_refs` point to existing specification sections
 - [ ] `task_type` is correct (code/test/migration/docs/analysis/architecture)
-- [ ] `done_criteria` are verifiable and concrete
-- [ ] JSON is stored in a separate file, and the design contains a link
+- [ ] `done_criteria` are testable and specific
+- [ ] JSON is stored in a separate file, with a link in the design
 
-### Consistency with the Framework
+### Framework consistency
 - [ ] The document is written in Russian (except for code identifiers and established terms)
 - [ ] Compatibility with the existing configuration (coding-standards)
 - [ ] The design is implementable within the specification scope
-- [ ] The design does not contradict decisions from the specification Decision Log
+- [ ] The design does not conflict with decisions from the specification Decision Log
 
 ---
 
-## 7. Typical Mistakes
+## 7. Typical mistakes
 
 | Mistake | Consequence |
 |--------|------------|
-| Non-goals empty | Scope creep |
-| Drawbacks empty | Reviewer cannot assess trade-offs |
-| JSON DSL fully inline | Document balloons, overview is lost → DSL in artifacts/ |
-| Duplication of the specification | Violation of single source of truth |
-| Traceability missing | Requirement coverage cannot be verified |
-| All sections filled out for a simple task | Formal overhead → use N/A |
-| Constraints not specified | Incompatible approach (EDT vs Designer, БСП version) |
+| Non-goals are empty | Scope creep |
+| Drawbacks are empty | Reviewer cannot assess trade-offs |
+| JSON DSL is fully inline | The document becomes bloated, overview is lost → DSL in artifacts/ |
+| Specification duplication | Violation of single source of truth |
+| Traceability is absent | It is impossible to verify requirement coverage |
+| All sections are filled in for a simple task | Formal overhead → use N/A |
+| Constraints are not specified | Incompatible approach (EDT vs Designer, БСП version) |
 
 ---
 
-## 8. Related Skills
+## 8. Related skills
 
 Inputs: `spec-standard`. Outputs: `task-breakdown-*`. Criteria: `coding-standards`, `ssl-patterns`. Metadata generation: `xml-generation`.
 

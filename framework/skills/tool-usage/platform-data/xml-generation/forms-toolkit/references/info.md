@@ -80,29 +80,11 @@ Elements:
      └─ [Page] Печать (2 items)
 ```
 
-**Сокращения типов элементов:**
+**Сокращения типов элементов:** соответствие сокращение ↔ XML-тег ↔ DSL-`kind` — канон в [edit.md § Типы элементов](edit.md) (колонка «form-info»). Специфика вывода `form-info`:
 
-| Сокращение | Элемент |
-|---|---|
-| `[Group:V]` | UsualGroup Vertical |
-| `[Group:H]` | UsualGroup Horizontal |
-| `[Group:AH]` | UsualGroup AlwaysHorizontal |
-| `[Group:AV]` | UsualGroup AlwaysVertical |
-| `[Group]` | UsualGroup (ориентация по умолчанию) |
-| `[Input]` | InputField |
-| `[Check]` | CheckBoxField |
-| `[Label]` | LabelDecoration |
-| `[LabelField]` | LabelField |
-| `[Picture]` | PictureDecoration |
-| `[PicField]` | PictureField |
-| `[Calendar]` | CalendarField |
-| `[Table]` | Table |
-| `[Button]` | Button |
-| `[CmdBar]` | CommandBar |
-| `[Pages]` | Pages |
-| `[Page]` | Page (показывает кол-во элементов вместо раскрытия) |
-| `[Popup]` | Popup |
-| `[BtnGroup]` | ButtonGroup |
+- `[Group:V|H|AH|AV]` — ориентация UsualGroup (Vertical / Horizontal / AlwaysHorizontal / AlwaysVertical); `[Group]` без суффикса — ориентация по умолчанию.
+- `[Page]` показывает количество элементов вместо раскрытия.
+- `[BtnGroup]` — ButtonGroup (отдельного `kind` в form-edit нет).
 
 **Флаги** (только при отклонении от умолчания):
 - `[visible:false]` — элемент скрыт (Visible=false)

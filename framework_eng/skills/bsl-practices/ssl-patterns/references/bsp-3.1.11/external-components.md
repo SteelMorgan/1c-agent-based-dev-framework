@@ -1,27 +1,19 @@
 # External Components and OData Interface
 
-Subsystem **ВнешниеКомпоненты** is for connecting/installing external components
-based on Native API and COM on the client and server (scanners, cash registers,
-data collection terminals, etc.). Subsystem **ИнтерфейсOData** is the standard
-REST interface of the 1С platform; from application code it uses a single hook for
-overriding dependent tables.
+The **ВнешниеКомпоненты** subsystem is for connecting/installing external components of the Native API and COM technology on the client and server (scanners, cash registers, data collection terminals, etc.). The **ИнтерфейсOData** subsystem is the standard REST interface of the 1С platform; from application code, it uses a single override hook for dependent tables.
 
-Direct calls to arbitrary COM objects (`Новый COMОбъект(...)`) are a **platform**
-mechanism; БСП does not wrap them. This skill covers only the COM scenario that
-the `ВнешниеКомпоненты` subsystem itself uses for backward compatibility with
-1C 7.7 components (`ПодключитьКомпонентуИзРеестраWindows`).
+A direct call to arbitrary COM objects (`Новый COMОбъект(...)`) is a **platform** mechanism, and БСП does not wrap it. This skill covers only the COM scenario that the `ВнешниеКомпоненты` subsystem itself uses for backward compatibility with 1С 7.7 components (`ПодключитьКомпонентуИзРеестраWindows`).
 
 ## Modules
 
 ВнешниеКомпоненты:
 
-- `ВнешниеКомпонентыСервер` — server-side stable API: connection, information,
-  used components, update. region `ПрограммныйИнтерфейс` (stable).
-- `ВнешниеКомпонентыКлиент` — asynchronous connection/install/load from file
+- `ВнешниеКомпонентыСервер` — server stable API: connection, information, used components, update. region `ПрограммныйИнтерфейс` (stable).
+- `ВнешниеКомпонентыКлиент` — asynchronous connection/installation/loading from file
   (with user dialogs). Client, stable.
 - `ВнешниеКомпонентыКлиентЛокализация` — search/update components from the portal.
-- `ВнешниеКомпонентыВызовСервера` — ⚠️ `ИнформацияОКомпоненте` here is in the
-  region `УстаревшиеПроцедурыИФункции` (deprecated). Use
+- `ВнешниеКомпонентыВызовСервера` — ⚠️ `ИнформацияОКомпоненте` here is in the region
+  `УстаревшиеПроцедурыИФункции` (deprecated). Use
   `ВнешниеКомпонентыСервер.ИнформацияОКомпоненте` (via `&НаСервере`).
 - `ВнешниеКомпонентыСлужебный` / `…СлужебныйКлиент` / `…СлужебныйВызовСервера` /
   `…ВМоделиСервисаСлужебный` / `…ВМоделиСервисаСлужебныйКлиент` — ⚠️ internal,
@@ -30,39 +22,42 @@ the `ВнешниеКомпоненты` subsystem itself uses for backward comp
 ИнтерфейсOData:
 
 - `ИнтерфейсODataПереопределяемый` — **the only stable hook** for application
-  code: overriding dependent OData tables. It is a hook method (БСП calls it,
+  code: overriding OData dependent tables. Method — hook (БСП calls it,
   application code implements it, it is not called directly).
 - `ИнтерфейсODataСлужебный` / `ИнтерфейсODataСлужебныйПовтИсп` — ⚠️ internal:
-  model generation from metadata, cache. There is almost no direct stable API for
-  OData from application code - only overriding and configuration through the
-  Configurator (`РольИнтерфейсаOData` role).
+  building a model from metadata, cache. There is almost no direct stable API for OData from
+  application code — only overriding and configuration through
+  Конфигуратор (role `РольИнтерфейсаOData`).
 
-> **Client/server.** Client methods are **asynchronous**, via `ОписаниеОповещения`.
-> Server methods are **synchronous** and return `Структура` with `Подключено`
-> (`Булево`) and `ПодключаемыйМодуль` (`ОбъектВнешнейКомпоненты`).
+> **Client/server: common connection contract.** Client methods are **asynchronous**,
+> the result arrives in `ОписаниеОповещения`; server methods are **synchronous**, the result is
+> the function return value. The result structure is the same in both cases: `Подключено` (`Булево`),
+> `ПодключаемыйМодуль` (`ОбъектВнешнейКомпоненты`; `ФиксированноеСоответствие` for
+> `ИдентификаторыСозданияОбъектов`), `ОписаниеОшибки` (`Строка`). Common fields of
+> `ПараметрыПодключения` for both constructors: `ИдентификаторыСозданияОбъектов`
+> (`Массив` of `Строка` — for components with multiple object creation identifiers)
+> and `Изолированно` (`Булево` / `Неопределено` — `Истина` loads into
+> a separate OS process). Below in the scenarios are only specific fields.
 
 ## Scenarios
 
 ### 1. Connect a component on the client (asynchronously)
 
-**Task:** connect a Native API/COM component on the client computer with an
-explanation for the user and result handling in a notification.
+**Task:** connect a Native API/COM component on the client computer with a user explanation and result handling in the notification.
 
 **Functions:**
 `ВнешниеКомпонентыКлиент.ПараметрыПодключения() Экспорт`
-— Function → `Структура` (`Кэшировать, ПредложитьУстановить, ПредложитьЗагрузить, ТекстПояснения, ИдентификаторыСозданияОбъектов, Изолированно, ОбновлятьАвтоматически`), region `ПрограммныйИнтерфейс` (stable). Client.
+— Function → `Структура` (general fields — see the contract above; client-side: `Кэшировать, ПредложитьУстановить, ПредложитьЗагрузить, ТекстПояснения, ОбновлятьАвтоматически`), region `ПрограммныйИнтерфейс` (stable). Client.
 `ВнешниеКомпонентыКлиент.ПодключитьКомпоненту(Оповещение, Идентификатор, Версия = Неопределено, ПараметрыПодключения = Неопределено) Экспорт`
 — Procedure (asynchronous), region `ПрограммныйИнтерфейс` (stable). Client.
 
 **Parameters:**
-- `Оповещение` (`ОписаниеОповещения`) — handler `Результат` (`Структура`:
-  `Подключено` (`Булево`), `ПодключаемыйМодуль` (`ОбъектВнешнейКомпоненты` /
-  `ФиксированноеСоответствие` when `ИдентификаторыСозданияОбъектов`), `ОписаниеОшибки`).
+- `Оповещение` (`ОписаниеОповещения`) — handler `Результат` (result structure — see the contract above).
 - `Идентификатор` (`Строка`) — identifier of the external component object.
 - `Версия` (`Строка` / `Неопределено`) — `Неопределено` = latest available.
 - `ПараметрыПодключения` (`Структура` from `ПараметрыПодключения`). `ТекстПояснения` —
-  why the component is needed; `ПредложитьУстановить` / `ПредложитьЗагрузить` —
-  БСП will show dialogs itself in thin/web client.
+  why the component is needed; `ПредложитьУстановить` / `ПредложитьЗагрузить` — БСП itself
+  shows dialogs in thin/web client.
 
 **Example:**
 ```bsl
@@ -90,30 +85,27 @@ explanation for the user and result handling in a notification.
 
 **Nuances / anti-patterns:**
 - ❌ `Результат = ВнешниеКомпонентыКлиент.ПодключитьКомпоненту(...)` — the method
-  returns `Неопределено`; the result comes through `ОписаниеОповещения`. The client
+  returns `Неопределено`; the result arrives in `ОписаниеОповещения`. The client-side
   variant is **always asynchronous**.
-- ❌ `Новый COMОбъект("InputDevice.BarcodeScanner")` outside the subsystem — will
-  not pass security checks, will not update automatically, and will not work in
-  service model. Only through `ПодключитьКомпоненту`.
+- ❌ `Новый COMОбъект("InputDevice.BarcodeScanner")` bypassing the subsystem — it will not pass
+  security checks, will not update automatically, and will not work in the service
+  model. Only through `ПодключитьКомпоненту`.
 
-### 2. Connect a component on the server (synchronously)
+### 2. Connect the component on the server (synchronously)
 
-**Task:** connect a component in server code (background jobs, scheduled
-processing) - synchronously, with an immediate result.
+**Task:** connect the component in server code (background jobs, scheduled
+processing) synchronously, with an immediate result.
 
 **Functions:**
 `ВнешниеКомпонентыСервер.ПараметрыПодключения() Экспорт`
-— Function → `Структура` (`ИдентификаторыСозданияОбъектов, Изолированно, ПолноеИмяМакета`), region `ПрограммныйИнтерфейс` (stable). Server.
+— Function → `Структура` (common fields - see the contract above; server-specific: `ПолноеИмяМакета`), region `ПрограммныйИнтерфейс` (stable). Server.
 `ВнешниеКомпонентыСервер.ПодключитьКомпоненту(Знач Идентификатор, Версия = Неопределено, ПараметрыПодключения = Неопределено) Экспорт`
-— Function → `Структура` (`Подключено, ПодключаемыйМодуль, ОписаниеОшибки`), stable. Server.
+— Function → `Структура` (result structure - see the contract above), stable. Server.
 
 **Parameters:**
 - `Идентификатор` (`Строка`), `Версия` (`Строка` / `Неопределено`).
-- `ПараметрыПодключения` (`Структура` from `ПараметрыПодключения`):
-  `ИдентификаторыСозданияОбъектов` (`Массив` of `Строка`) — for components with
-  multiple object creation identifiers; `Изолированно` (`Булево` /
-  `Неопределено`) — `Истина` loads into a separate OS process; `ПолноеИмяМакета`
-  (`Строка`) — path to the configuration common layout (`"ОбщийМакет.КомпонентаСканера"`).
+- `ПараметрыПодключения` — server-specific field `ПолноеИмяМакета` (`Строка`) —
+  path to the configuration's common layout (`"ОбщийМакет.КомпонентаСканера"`).
 
 **Example:**
 ```bsl
@@ -130,18 +122,17 @@ processing) - synchronously, with an immediate result.
 ```
 
 **Nuances / anti-patterns:**
-- ❌ Passing `ПолноеИмяМакета` through `ВнешниеКомпонентыКлиент.ПараметрыПодключения()` —
-  this field is **not** in the client constructor; it exists only in the server
+- ❌ Pass `ПолноеИмяМакета` through `ВнешниеКомпонентыКлиент.ПараметрыПодключения()` —
+  this field is **not** present in the client constructor; it exists only in the server
   `ВнешниеКомпонентыСервер.ПараметрыПодключения()`.
-- In the **service model** only connection of **shared** external components
-  approved by the service administrator is allowed.
-- `ПодключаемыйМодуль` is available until the end of the server call; it does not
-  need to be disconnected explicitly.
+- In the **service model**, only **shared** external components approved by the service administrator
+  are allowed.
+- `ПодключаемыйМодуль` is available until the end of the server call; there is no need to disconnect it explicitly.
 
-### 3. Install a component from the ITS portal
+### 3. Install the component from the ITS portal
 
-**Task:** if the component is not installed, offer the user to install it from the
-ITS portal or from a common layout.
+**Task:** if the component is not installed, offer the user to install it
+from the ITS portal or from a common layout.
 
 **Functions:**
 `ВнешниеКомпонентыКлиент.ПараметрыУстановки() Экспорт`
@@ -151,7 +142,7 @@ ITS portal or from a common layout.
 
 **Parameters:**
 - `Оповещение` (`ОписаниеОповещения`) — `Результат` (`Структура`:
-  `Установлено` (`Булево`), `ОписаниеОшибки` (`Строка`; empty if canceled by user)).
+  `Установлено` (`Булево`), `ОписаниеОшибки` (`Строка`; empty if canceled by the user)).
 - `Идентификатор` (`Строка`), `Версия` (`Строка` / `Неопределено`).
 - `ПараметрыУстановки` (`Структура` from `ПараметрыУстановки`). `ПредложитьЗагрузить` —
   suggest downloading from the ITS website; `ПредложитьУстановить` (default `Ложь`).
@@ -178,15 +169,15 @@ ITS portal or from a common layout.
 ```
 
 **Nuances / anti-patterns:**
-- ❌ Waiting for `УстановитьКомпоненту` as a return value - it is asynchronous, the
-  result comes in the notification.
-- In the thin/web client БСП shows installation/download dialogs itself -
-  controlled by the `ПредложитьУстановить` / `ПредложитьЗагрузить` flags.
+- ❌ Wait for the result of `УстановитьКомпоненту` as a return value — it is asynchronous,
+  the result is in the notification.
+- In the thin/web client, БСП itself shows the install/download dialogs —
+  is controlled by the flags `ПредложитьУстановить` / `ПредложитьЗагрузить`.
 
-### 4. Load a component file into a catalog
+### 4. Load the component file into the directory
 
-**Task:** an administrator loads a component `.zip` into the `ВнешниеКомпоненты`
-catalog from a local file.
+**Task:** the administrator uploads the `.zip` component into the directory
+`ВнешниеКомпоненты` from a local file.
 
 **Functions:**
 `ВнешниеКомпонентыКлиент.ПараметрыЗагрузки() Экспорт`
@@ -206,7 +197,7 @@ catalog from a local file.
 &НаКлиенте
 Процедура ЗагрузитьКомпонентуИзФайла(Команда)
     Параметры = ВнешниеКомпонентыКлиент.ПараметрыЗагрузки();
-    // Идентификатор/Версия optional - they will be determined from the file
+    // Идентификатор/Версия optional — will be determined from the file
 
     ВнешниеКомпонентыКлиент.ЗагрузитьКомпонентуИзФайла(
         Новый ОписаниеОповещения("ЗагрузкаЗавершение", ЭтотОбъект), Параметры);
@@ -221,14 +212,14 @@ catalog from a local file.
 ```
 
 **Nuances / anti-patterns:**
-- The method is for administrators (loading into the `ВнешниеКомпоненты` catalog);
-  for the application scenario "connect and use", `ПодключитьКомпоненту` with
-  `ПредложитьУстановить = Истина` is enough.
+- Method for administrators (uploading into the `ВнешниеКомпоненты` directory); for
+  the application scenario “connect and use”, `ПодключитьКомпоненту`
+  with `ПредложитьУстановить = Истина` is sufficient.
 
-### 5. Get component information and list of used ones
+### 5. Get component information and the list of used ones
 
 **Task:** before connecting, check whether a component with the specified
-identifier/version exists and whether it is available for editing; get the list of
+identifier/version exists and is available for editing; get the list of
 configuration components.
 
 **Functions:**
@@ -240,8 +231,8 @@ configuration components.
 **Parameters:**
 - `Идентификатор` (`Строка`), `Версия` (`Строка` / `Неопределено`).
 - `Вариант` (`Строка`): `"ДляОбновления"` — with the Internet update flag;
-  `"ДляЗагрузки"` — components used in the configuration; `"Поставляемые"` —
-  supplied components in the service model.
+  `"ДляЗагрузки"` — used in the configuration; `"Поставляемые"` — delivered
+  components in the service model.
 
 **Example:**
 ```bsl
@@ -256,69 +247,61 @@ configuration components.
 ```
 
 **Nuances / anti-patterns:**
-- ❌ `ВнешниеКомпонентыВызовСервера.ИнформацияОКомпоненте(...)` — ⚠️ deprecated
+- ❌ `ВнешниеКомпонентыВызовСервера.ИнформацияОКомпоненте(...)` — ⚠️ outdated
   (region `УстаревшиеПроцедурыИФункции`), the doc comment explicitly says:
-  "Deprecated. Use `ВнешниеКомпонентыСервер.ИнформацияОКомпоненте`."
-  In new code, use the server method via `&НаСервере`.
-- ❌ `ВнешниеКомпонентыСлужебный.ДанныеВнешнихКомпонент("ДляОбновления")` —
-  internal module. The stable equivalent is
-  `ВнешниеКомпонентыСервер.ИспользуемыеКомпоненты("ДляОбновления")`.
+  “Obsolete. `ВнешниеКомпонентыСервер.ИнформацияОКомпоненте` should be used”
+  In new code — server method via `&НаСервере`.
+- ❌ `ВнешниеКомпонентыСлужебный.ДанныеВнешнихКомпонент("ДляОбновления")` —  service module. Stable equivalent — `ВнешниеКомпонентыСервер.ИспользуемыеКомпоненты("ДляОбновления")`.
 
 ### 6. Override dependent OData tables
 
-**Task:** add your own objects to the list of tables whose rights are required to
-write the tables included in the standard OData interface (so that related ones
-are pulled in automatically when an object is exported).
+**Task:** add your own objects to the list of tables whose permissions are required to write tables included in the standard OData interface (so that when an object is exported, related ones are automatically pulled in).
 
 **Procedure (hook):**
 `ИнтерфейсODataПереопределяемый.ПриЗаполненииЗависимыхТаблицДляВыгрузкиЗагрузкиOData(Таблицы) Экспорт`
-— Procedure, region `ПрограммныйИнтерфейс`. **Override hook**: implemented in
-the identically named module of the application configuration, БСП calls it when
-building the model.
+— Procedure, region `ПрограммныйИнтерфейс`. **Override hook**: implemented in the homonymous module of the application configuration, called by БСП when building the model.
 
 **Parameters:**
-- `Таблицы` (`Массив` of `Строка`) — full names of metadata objects. The array is
-  modified inside the procedure body (your tables are added).
+- `Таблицы` (`Массив` of `Строка`) — full metadata object names. The array is modified inside the procedure (your own tables are added).
 
 **Example:**
 ```bsl
-// In the application configuration module ИнтерфейсODataПереопределяемый
+// В модуле ИнтерфейсODataПереопределяемый прикладной конфигурации
 Процедура ПриЗаполненииЗависимыхТаблицДляВыгрузкиЗагрузкиOData(Таблицы) Экспорт
-    // Tables not included in the OData export, but whose rights are required
-    // for writing the tables included in the interface
+    // Таблицы, не входящие в выгрузку OData, но права на которые нужны
+    // для записи таблиц, включённых в интерфейс
     Таблицы.Добавить("РегистрСведений.СостоянияЗаказов");
 КонецПроцедуры
 ```
 
 **Nuances / anti-patterns:**
-- ❌ Call `ПриЗаполненииЗависимыхТаблицДляВыгрузкиЗагрузкиOData` directly from
-  application code - it is a hook, БСП calls it itself. Only implement the body.
-- ❌ `ИнтерфейсODataСлужебныйПовтИсп.ОписаниеМоделиДанныхКонфигурации()` — internal
-  module; the model is rebuilt during update. The stable extension point is only
+- ❌ Call `ПриЗаполненииЗависимыхТаблицДляВыгрузкиЗагрузкиOData` directly from application
+  code — this is a hook, БСП calls it itself. Only implement the body.
+- ❌ `ИнтерфейсODataСлужебныйПовтИсп.ОписаниеМоделиДанныхКонфигурации()` — a service
+  module; the model is rebuilt on update. The stable extension point is only
   `ИнтерфейсODataПереопределяемый`.
-- Rights/roles for the standard OData interface are configured in the Configurator
-  (`РольИнтерфейсаOData` role), not through program code.
+- Permissions/roles for the standard OData interface are configured in Configurator
+  (role `РольИнтерфейсаOData`), not through program code.
 
 ## Additional
 
-Other stable methods (region `ПрограммныйИнтерфейс`), full signatures - via
+Other stable methods (region `ПрограммныйИнтерфейс`), full signatures — via
 `python scripts/bsp_api.py method <Имя> --module <Модуль> --src src/cf`:
 
 - `ВнешниеКомпонентыСервер.ОбновитьВнешниеКомпоненты(ДанныеВнешнихКомпонент, АдресРезультата = Неопределено)` —
-  component update (for scheduled update handlers).
+  updating components (for scheduled update handlers).
 - `ВнешниеКомпонентыСервер.ОписаниеПоставляемойОбщейКомпоненты()` /
   `ОбновитьОбщуюКомпоненту(ОписаниеКомпоненты)` — shared components in the service model.
-- `ВнешниеКомпонентыСервер.АвтоматическиОбновляемыеКомпоненты()` — list of
-  components flagged for automatic update.
+- `ВнешниеКомпонентыСервер.АвтоматическиОбновляемыеКомпоненты()` — a list of
+  components marked for automatic update.
 - `ВнешниеКомпонентыКлиент.ПодключитьКомпонентуИзРеестраWindows(Оповещение, Идентификатор, ИдентификаторСозданияОбъекта = Неопределено)` —
-  connect a COM component from the Windows registry (backward compatibility with 1C 7.7).
+  connecting a COM component from the Windows registry (backward compatibility with 1С 7.7).
 - `ВнешниеКомпонентыКлиент.ПараметрыПоискаДополнительнойИнформации()` — parameters
   for requesting additional component information (for `ПараметрыЗагрузки`).
 
-⚠️ Internal modules (do not use in application code - backward compatibility is
-not guaranteed): `ВнешниеКомпонентыСлужебный`, `…СлужебныйКлиент`,
+⚠️ Service modules (do not use in application code — backward compatibility is not
+guaranteed): `ВнешниеКомпонентыСлужебный`, `…СлужебныйКлиент`,
 `…СлужебныйВызовСервера`, `…ВМоделиСервисаСлужебный`, `…ВМоделиСервисаСлужебныйКлиент`,
 `ИнтерфейсODataСлужебный`, `ИнтерфейсODataСлужебныйПовтИсп`. If you need
-functionality from them, look for a stable equivalent in
-`ВнешниеКомпонентыСервер` / `ВнешниеКомпонентыКлиент` or through the hook
-`ИнтерфейсODataПереопределяемый`.
+functionality from them, look for a stable equivalent in `ВнешниеКомпонентыСервер` /
+`ВнешниеКомпонентыКлиент` or through the hook `ИнтерфейсODataПереопределяемый`.

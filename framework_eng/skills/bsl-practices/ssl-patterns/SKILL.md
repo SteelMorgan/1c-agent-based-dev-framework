@@ -1,6 +1,6 @@
 ---
 name: ssl-patterns
-description: "Before writing logic on БСП, check the ready-made mechanisms; use versioned БСП 3.1.11 references for exact modules, signatures, stable/service/deprecated API, override hooks, plug-in commands, printing, files, access, data exchange, background jobs, and other subsystems"
+description: "Before implementing logic on БСП, check the ready-made mechanisms; use versioned БСП 3.1.11 references for exact modules, signatures, stable/service/deprecated API, override hooks, connectable commands, printing, files, access, exchanges, background jobs, and other subsystems"
 uses_capabilities:
   - get_signature_help
 alwaysApply: false
@@ -12,25 +12,33 @@ metadata:
   borrowed_table: "references/bsp-borrowings.md"
 ---
 
-# Working Patterns with БСП (Standard Subsystems Library)
+# БСП patterns for working with БСП (Standard Subsystems Library)
 
-БСП code has been tested on millions of installations, is updated centrally, and is familiar to other developers. Duplicating БСП is an antipattern.
+БСП code has been tested on millions of installations, is updated centrally, and is familiar to other developers. Duplicating БСП is an anti-pattern.
 
-> **Use `get_signature_help` for БСП function signatures.** Functions from `ОбщегоНазначения` and
-> other БСП modules have many parameters and overloads; do not guess the order or set of arguments.
+> **БСП function signatures are available via `get_signature_help`.** Functions in `ОбщегоНазначения` and
+> other БСП modules have many parameters and overloads; do not guess the order or composition of the arguments.
 > At the call site, `get_signature_help(uri, line, character)` shows the parameters and overloads
-> of the called method right where it is used - without opening the БСП module definition. Use it when calling
+> of the called method in place, without opening the БСП module definition. Use it when calling
 > any function from the catalog below if you are unsure about the signature.
 
 ## Versioned БСП 3.1.11 map
 
 This skill contains a borrowed reference layer for БСП 3.1.11:
 
-- `references/bsp-3.1.11/*.md` - scenario guides for БСП subsystems: module, method, signature, API region, example, nuances, and anti-patterns.
-- `scripts/bsp_api.py` - local search for a method/module in the `src/cf` configuration export with detection of the `#Область` region.
-- `references/bsp-borrowings.md` - borrowing table: upstream version, relation to our skills, and the value of the additional knowledge.
+- `references/bsp-3.1.11/*.md` — scenario-based reference guides for БСП subsystems: module, method, signature, API region, example, nuances, and anti-patterns.
+- `scripts/bsp_api.py` — local search for a method/module in the `src/cf` configuration dump with `#Область` region detection.
+- `references/bsp-borrowings.md` — borrowing table: upstream version, relationship to our skills, and the weight of the additional knowledge.
 
-If the task concerns a specific БСП subsystem, first open the corresponding reference from the table below. If the reference and the current configuration differ, the source configuration and verification through `get_signature_help` / `scripts/bsp_api.py` take priority.
+If the task concerns a specific БСП subsystem, first open the corresponding reference from the table below. If the reference and the current configuration differ, the source of truth is the configuration sources and validation via `get_signature_help` / `scripts/bsp_api.py`.
+
+### БСП project version
+
+The reference layer corresponds to БСП 3.1.11. The БСП version in a specific project may differ.
+
+- Before using a method from the reference, determine the project's БСП version: `Описание.Версия` is filled in the procedure `ПриДобавленииПодсистемы(Описание)` of the `ОбновлениеИнформационнойБазыБСП` module (or grep through the vendored configuration sources, usually `src/xml/CommonModules/`).
+- If the version is below 3.1.11, verify the existence of the method with grep in the project's `CommonModules` before writing code.
+- For БСП generation 2.x, use the reference only as a conceptual guide (which subsystem is responsible for what); names and signatures of methods must be checked against the project sources **without fail**. Example of a real delta: `УправлениеДоступом.ВключитьПрофильПользователю` exists in 3.1.x, absent in 2.3.5.
 
 | Task / subsystem | Reference |
 |---|---|
@@ -38,335 +46,102 @@ If the task concerns a specific БСП subsystem, first open the corresponding r
 | `ОбщегоНазначения*`, strings, dates, attributes by reference, XML/JSON, secure storage | `references/bsp-3.1.11/base-common.md` |
 | Long-running operations, background and scheduled jobs | `references/bsp-3.1.11/longs-and-jobs.md` |
 | Users, RLS, access group profiles, external users | `references/bsp-3.1.11/users-access.md` |
-| Plug-in commands, additional reports and processing objects | `references/bsp-3.1.11/commands-external.md` |
+| Pluggable commands, additional reports and data processors | `references/bsp-3.1.11/commands-external.md` |
 | Printing, print manager, report variants, СКД | `references/bsp-3.1.11/print-reports.md` |
-| Properties, edit lock, change lock dates | `references/bsp-3.1.11/forms-validation.md` |
+| Properties, edit restriction, change restriction dates | `references/bsp-3.1.11/forms-validation.md` |
 | Files, volumes, object versions, exporting objects to files | `references/bsp-3.1.11/files-and-versions.md` |
 | Data exchange, exchange plans, synchronization, SaaS areas | `references/bsp-3.1.11/data-exchange.md` |
 | Mail, SMS, message templates, discussions, interactions | `references/bsp-3.1.11/comms.md` |
 | Contact information, addresses, address classifier | `references/bsp-3.1.11/contact-info.md` |
 | Currencies, exchange rates, banks, work schedules and calendars | `references/bsp-3.1.11/currencies-banks.md` |
-| Number/code prefixes and IB prefix | `references/bsp-3.1.11/prefixes.md` |
-| IB version update and update handlers | `references/bsp-3.1.11/update.md` |
-| Electronic signature, MCD, cryptography, DSS | `references/bsp-3.1.11/esign-mcd.md` |
-| Administration, backups, monitoring, personal data, duplicates, classifiers, external components | see the remaining `references/bsp-3.1.11/*.md` |
+| Number/code prefixes and ИБ prefix | `references/bsp-3.1.11/prefixes.md` |
+| ИБ version update and update handlers | `references/bsp-3.1.11/update.md` |
+| ЭП, МЧД, cryptography, DSS | `references/bsp-3.1.11/esign-mcd.md` |
+| Administration, backup, monitoring, personal data, duplicates, classifiers, external components | see the other `references/bsp-3.1.11/*.md` |
 
 ---
 
-## Rule 1: The `ОбщегоНазначения` module is the main "Swiss army knife"
-
-Before writing your own implementation, check whether БСП already has a ready-made function.
-
-| Function | When to use |
-|---------|-------------------|
-| `ЗначениеРеквизитаОбъекта()` | Instead of `Ссылка.Реквизит` (avoid dot notation) |
-| `ЗначенияРеквизитовОбъекта()` | Several attributes in one call |
-| `СообщитьПользователю()` | Message bound to a field (instead of `Сообщить()`) |
-| `МенеджерОбъектаПоСсылке()` | Instead of `Выполнить("Справочники." + Имя)` |
-| `ПодсистемаСуществует()` | Conditional invocation of modules |
-| `ОбщийМодуль()` | Dynamic invocation of a БСП module |
-| `ЭтоСсылка()` | Parameter validation |
-| `СсылкаСуществует()` | Check before accessing |
-
-```bsl
-// ПЛОХО: три обращения к БД через точку
-Наименование = КонтрагентСсылка.Наименование;
-ИНН = КонтрагентСсылка.ИНН;
-Ответственный = КонтрагентСсылка.ОсновнойМенеджер;
-
-// ПРАВИЛЬНО: одно обращение через БСП
-РеквизитыКонтрагента = ОбщегоНазначения.ЗначенияРеквизитовОбъекта(
-    КонтрагентСсылка,
-    "Наименование, ИНН, ОсновнойМенеджер");
-```
-
----
-
-## Rule 2: `СтроковыеФункцииКлиентСервер` - working with strings
-
-The module contains optimized functions that correctly handle edge cases.
-
-| Function | When to use |
-|---------|-------------------|
-| `ПодставитьПараметрыВСтроку()` | Equivalent of `СтрШаблон()`, with additional checks |
-| `СтрокаСЧисломПредметов()` | Declension: "5 documents", "1 document" |
-| `ЕстьНедопустимыеСимволы()` | Input validation |
-| `ТолькоЦифрыВСтроке()` | Validation of INN, KPP |
-| `РазложитьСтрокуВМассивПодстрок()` | Parsing by delimiter |
-
-```bsl
-// Склонение: «1 документ», «2 документа», «5 документов»
-ТекстОповещения = СтроковыеФункцииКлиентСервер.СтрокаСЧисломПредметов(
-    КоличествоДокументов,
-    НСтр("ru = 'документ, документа, документов'"));
-```
-
----
-
-## Rule 3: `ОбщегоНазначенияКлиентСервер` - utilities for both environments
-
-The directive `&НаКлиентеНаСервереБезКонтекста` means it is available on both the client and the server.
-
-| Function | Description |
-|---------|----------|
-| `ДополнитьМассив()` | Merge two arrays |
-| `ДополнитьСтруктуру()` | Merge two structures |
-| `СвойствоСтруктуры()` | Safe property read (default value if missing) |
-| `ПроверитьПараметр()` | Type validation with an informative error |
-
-```bsl
-// Безопасный доступ с значением по умолчанию
-ДатаНачала = ОбщегоНазначенияКлиентСервер.СвойствоСтруктуры(
-    ПараметрыОтчёта, "ДатаНачала", НачалоГода(ТекущаяДатаСеанса()));
-```
-
----
-
-## Rule 4: БСП function search strategy
+## Rule 1: Strategy for finding БСП functions
 
 ### Algorithm: LSP -> grep -> AI
 
 1. **LSP** (if available): `navigate_symbol("ЗначенияРеквизитовОбъекта")`
 2. **Text search**: `grep -r "Функция.*КурсВалюты" src/CommonModules/`
-3. **AI assistant**: "Is there a БСП function for getting the exchange rate on a date?"
+3. **AI assistant**: “Is there a function in БСП for getting the exchange rate for a date?”
 
 ### When to write your own vs use БСП
 
 | Situation | Decision |
 |----------|---------|
 | БСП has a suitable function | **Use БСП** |
-| БСП has a similar function, but with extra functionality | **Use БСП** - the extra does not hurt |
-| The needed function does not exist in БСП | Write your own in БСП style |
+| БСП has a similar one, but with extra functionality | **Use БСП** — the extra part does not hurt |
+| The needed function is not in БСП | Write your own in the style of БСП |
 | Configuration without БСП | Write your own |
 
----
-
-## Rule 5: Working with the registration log through БСП
-
-See `error-handling`, rule 7.
+Module suffixes (`Клиент` / `КлиентСервер` / `ПовтИсп` / `Служебный*` and combinations) — `references/bsp-3.1.11/fundamentals.md`. In practice: client-side form code — search first in `*КлиентСервер`, then in `*Клиент`; server-side — in the module without a suffix; `*ПовтИсп` — frequently requested reference data (session cache).
 
 ---
 
-## Rule 6: `РаботаСФайлами` - instead of direct `ФайловаяСистема`
+## Rule 2: Catalog of ready-made mechanisms - do not duplicate БСП
 
-Direct file handling does not account for: access rights, temporary files, cross-platform compatibility.
+Before writing your own implementation, check the catalog. Detailed signatures, examples, and anti-patterns are in the subsystem reference (see the map above).
 
-```bsl
-ИмяВременногоФайла = ПолучитьИмяВременногоФайла("xlsx");
-Попытка
-    ТабличныйДокумент.Записать(ИмяВременногоФайла, ТипФайлаТабличногоДокумента.XLSX);
-    // ... работа с файлом ...
-Исключение
-    // Обработка ошибки
-КонецПопытки;
+**`ОбщегоНазначения`** (server):
 
-// Явное удаление
-УдалитьФайлы(ИмяВременногоФайла);
-```
+| Function | When to use |
+|---------|-------------------|
+| `ЗначениеРеквизитаОбъекта()` | Instead of `Ссылка.Реквизит` (avoid dot notation) |
+| `ЗначенияРеквизитовОбъекта()` | Several attributes with one database access (`"Наименование, ИНН, ОсновнойМенеджер"`) |
+| `СообщитьПользователю()` | Message tied to a field and a `Отказ` flag (instead of `Сообщить()`) |
+| `МенеджерОбъектаПоСсылке()` | Instead of `Выполнить("Справочники." + Имя)` |
+| `ПодсистемаСуществует()` / `ОбщийМодуль()` | Conditional/dynamic module invocation |
+| `ЭтоСсылка()` / `СсылкаСуществует()` | Parameter validation / existence check before access |
 
----
+**`СтроковыеФункцииКлиентСервер`**:
 
-## Rule 7: Typical БСП patterns
+| Function | When to use |
+|---------|-------------------|
+| `ПодставитьПараметрыВСтроку()` | Analog of `СтрШаблон()`, with additional checks |
+| `СтрокаСЧисломПредметов()` | Declension: `НСтр("ru = 'документ, документа, документов'")` → «1 документ», «5 документов» |
+| `ЕстьНедопустимыеСимволы()` / `ТолькоЦифрыВСтроке()` | Input validation (ИНН, КПП) |
+| `РазложитьСтрокуВМассивПодстрок()` | Parsing by delimiter |
 
-### Fill check (`ОбработкаПроверкиЗаполнения`)
+**`ОбщегоНазначенияКлиентСервер`** (`&НаКлиентеНаСервереБезКонтекста` — both environments): `ДополнитьМассив()`, `ДополнитьСтруктуру()`, `СвойствоСтруктуры()` (safe read with default value), `ПроверитьПараметр()` (type validation), `УдалитьЗначениеИзМассива()`.
 
-```bsl
-Процедура ОбработкаПроверкиЗаполнения(Отказ, ПроверяемыеРеквизиты)
+**Subsystems instead of homegrown code:**
 
-    Если НЕ ЗначениеЗаполнено(Контрагент) Тогда
-        ОбщегоНазначения.СообщитьПользователю(
-            НСтр("ru = 'Не заполнен контрагент.'"),
-            ЭтотОбъект, "Контрагент",, Отказ);
-    КонецЕсли;
-
-    // Условное исключение реквизитов из проверки
-    Если ВидОперации = Перечисления.ВидыОпераций.Услуга Тогда
-        ОбщегоНазначенияКлиентСервер.УдалитьЗначениеИзМассива(
-            ПроверяемыеРеквизиты, "Склад");
-    КонецЕсли;
-
-КонецПроцедуры
-```
-
-### Getting data for printing
-
-```bsl
-Процедура Печать(МассивОбъектов, ПараметрыПечати, КоллекцияПечатныхФорм,
-        ОбъектыПечати, ПараметрыВывода) Экспорт
-
-    Если УправлениеПечатью.НужноПечататьМакет(КоллекцияПечатныхФорм, "Счёт") Тогда
-
-        ТабличныйДокумент = Новый ТабличныйДокумент;
-        ТабличныйДокумент.КлючПараметровПечати = "Документ.РеализацияТоваровУслуг.Счёт";
-
-        УправлениеПечатью.ВывестиТабличныйДокументВКоллекцию(
-            КоллекцияПечатныхФорм, "Счёт", НСтр("ru = 'Счёт на оплату'"),
-            ТабличныйДокумент);
-    КонецЕсли;
-
-КонецПроцедуры
-```
+| What people often write themselves | What exists in БСП | Reference |
+|----------------------|----------------|-----------|
+| Sending mail | `РаботаСПочтовымиСообщениями` | `comms.md` |
+| Exchange rate | `РаботаСКурсамиВалют.ПолучитьКурсВалюты()` | `currencies-banks.md` |
+| Long-running background operation | `ДлительныеОперации.ВыполнитьФункцию()` | `longs-and-jobs.md` |
+| Storing secrets / passwords | Information register `БезопасноеХранилищеДанных` (only through `ОбщегоНазначения.*ДанныеВБезопасноеХранилище*` wrappers) | `base-common.md` |
+| Access-right profiles | `ГруппыДоступаПользователей` / `ПрофилиГруппДоступа` | `users-access.md` |
+| Registering an external processing | `СведенияОВнешнейОбработке()` | `commands-external.md` |
+| Working with files / temporary files | `РаботаСФайлами`, `ПолучитьИмяВременногоФайла()` + explicit `УдалитьФайлы()` | `files-and-versions.md` |
+| Validation filling | `ОбработкаПроверкиЗаполнения` + `СообщитьПользователю(..., Отказ)`; conditional exclusion of an attribute — `УдалитьЗначениеИзМассива(ПроверяемыеРеквизиты, ...)` | `forms-validation.md` |
+| Printing | `УправлениеПечатью.НужноПечататьМакет()` / `ВывестиТабличныйДокументВКоллекцию()` | `print-reports.md` |
+| Registration log | see `error-handling`, rule 7 | — |
 
 ---
 
-## Rule 8: Do not duplicate БСП functionality
+## Rule 3: Mandatory subsystem nuances (MUST)
 
-| What people often write themselves | What exists in БСП |
-|----------------------|----------------|
-| Get an attribute by reference | `ОбщегоНазначения.ЗначениеРеквизитаОбъекта()` |
-| String substitution | `СтроковыеФункцииКлиентСервер.ПодставитьПараметрыВСтроку()` |
-| Word declension | `СтроковыеФункцииКлиентСервер.СтрокаСЧисломПредметов()` |
-| Sending mail | `РаботаСПочтовымиСообщениями` |
-| Exchange rate | `РаботаСКурсамиВалют.ПолучитьКурсВалюты()` |
-| Long-running background operation | `ДлительныеОперации.ВыполнитьФункцию()` |
-| Storing secrets / passwords | `БезопасноеХранилище.ПрочитатьДанные()` |
-| Access rights profiles | `ГруппыДоступаПользователей` / `ПрофилиГруппДоступа` |
-| Registering an external processing object | `СведенияОВнешнейОбработке()` |
+Full code examples are in the subsystem reference; here only the rules, violating which causes a defect.
+
+**`ДлительныеОперации`** — for any server work longer than ~3 sec; do not block the UI with a homemade wait loop. Progress — via `ДлительныеОперации.СообщитьПрогресс()`; state between steps — in task parameters, not in global variables; restart is idempotent (a repeated call with the same parameters yields the same result). Handle a background job error on the client via `СтандартныеПодсистемыКлиент.ОбработатьОшибкуФоновогоЗадания()`.
+
+**Secure storage (register `БезопасноеХранилищеДанных`)** — never store passwords/tokens/secrets in metadata attributes, constants, registration log, version control system; access to the register is only through wrappers `ОбщегоНазначения.ЗаписатьДанныеВБезопасноеХранилище`/`ПрочитатьДанныеИзБезопасногоХранилища`/`УдалитьДанныеИзБезопасногоХранилища`. In `ПередУдалением` of the owning object, always delete its records from storage — otherwise "orphaned" secrets accumulate.
+
+**`ПрофилиГруппДоступа`** — when using role-based access, use БСП profiles (`УправлениеДоступом.НовоеОписаниеПрофиляГруппДоступа()`, `ВключитьПрофильПользователю()`), not direct role assignment. The profile identifier is a fixed UUID and does not change when renamed. `ПривилегированныйРежим()` — strictly local, turn it off immediately after the operation. Rights check — `УправлениеДоступом.ЕстьПраво()`/`ЕстьРоль()` (or `ЧтениеРазрешено()`/`ИзменениеРазрешено()` for RLS checks), not `РольДоступна()` (the latter does not take RLS into account).
+
+**External processing** — registering in a БСП base requires the function `СведенияОВнешнейОбработке()` in the main module (Type, Name, Version, `БезопасныйРежим = Истина`, commands) and the entry point `ВыполнитьКоманду(Идентификатор, ...)`.
 
 ---
 
-## Rule 9: "ClientServer" modules - separation of responsibilities
+## Searching for analogues via Buddy
 
-| Module suffix | Environment | Example |
-|---|---|---|
-| (no suffix) | Server | `ОбщегоНазначения` |
-| `Клиент` | Client | `ОбщегоНазначенияКлиент` |
-| `КлиентСервер` | Both environments | `ОбщегоНазначенияКлиентСервер` |
-| `ПовтИсп` | Server, with caching | `ОбщегоНазначенияПовтИсп` |
-
-For client-side form code, search first in `*КлиентСервер`, then in `*Клиент`. For server-side code, use the main module (without suffix). `*ПовтИсп` is for frequently requested reference data.
-
----
-
-## Rule 10: Long-running operations (`ДлительныеОперации`)
-
-Use the `ДлительныеОперации` subsystem for any server-side work longer than ~3 seconds. Do not block the UI with a hand-rolled wait loop.
-
-```bsl
-// Запуск фоновой задачи
-&НаСервере
-Функция ЗапуститьОперацию(Параметры)
-    ПараметрыФона = ДлительныеОперации.ПараметрыВыполненияВФоне(УникальныйИдентификатор);
-    ПараметрыФона.НаименованиеФоновогоЗадания = НСтр("ru = 'Обработка данных'");
-    Возврат ДлительныеОперации.ВыполнитьФункцию("ОбщийМодуль.ФункцияДляФона",
-        ПараметрыФона, Параметры);
-КонецФункции
-
-// Подключение ожидания на клиенте
-&НаКлиенте
-Процедура ЗапуститьОперациюНаКлиенте()
-    Операция = ЗапуститьОперацию(ПараметрыРасчёта);
-    ПараметрыОжидания = ДлительныеОперацииКлиент.ПараметрыОжидания(ЭтотОбъект);
-    ПараметрыОжидания.ВыводитьПрогресс = Истина;
-    ДлительныеОперацииКлиент.ОжидатьЗавершение(Операция,
-        Новый ОписаниеОповещения("ОперацияЗавершена", ЭтотОбъект), ПараметрыОжидания);
-КонецПроцедуры
-
-// Обработка результата
-&НаКлиенте
-Процедура ОперацияЗавершена(Операция, ДополнительныеПараметры) Экспорт
-    Если Операция = Неопределено Тогда
-        Возврат; // Отменена пользователем
-    КонецЕсли;
-    Если Операция.Статус = "Ошибка" Тогда
-        СтандартныеПодсистемыКлиент.ОбработатьОшибкуФоновогоЗадания(Операция);
-        Возврат;
-    КонецЕсли;
-    // Получить результат
-    РезультатОперации = ПолучитьРезультатСервер(Операция.АдресРезультата);
-КонецПроцедуры
-```
-
-**Key rules:**
-- Pass progress through `ДлительныеОперации.СообщитьПрогресс()` inside the background procedure.
-- Do not store state between steps in global variables - use task parameters.
-- Implement idempotent restart: a repeated call with the same parameters should produce the same result.
-
----
-
-## Rule 11: Secure storage (`БезопасноеХранилище`)
-
-Never store passwords, tokens, or secrets in:
-- metadata object attributes
-- configuration constants
-- the registration log
-- version control system (configs, xml)
-
-```bsl
-// Запись секрета
-БезопасноеХранилище.Записать(ЭтотОбъект, Новый Структура("Пароль", ПарольПользователя));
-
-// Чтение секрета
-ДанныеХранилища = БезопасноеХранилище.ПрочитатьДанные(ЭтотОбъект);
-Если ДанныеХранилища <> Неопределено Тогда
-    Пароль = ДанныеХранилища.Пароль;
-КонецЕсли;
-
-// Удаление при удалении объекта
-БезопасноеХранилище.Удалить(ЭтотОбъект);
-```
-
-In an object `ПередУдалением` handler, always call `БезопасноеХранилище.Удалить()` - otherwise "orphaned" records accumulate in storage.
-
----
-
-## Rule 12: Access group profiles (`ПрофилиГруппДоступа`)
-
-When developing subsystems with role-based access, use the БСП profile mechanism instead of assigning roles directly.
-
-```bsl
-// Пример описания профиля в ОписаниеПрофилейГруппДоступа()
-Профиль = УправлениеДоступом.ОписаниеПрофиля();
-Профиль.Идентификатор = "ИдентификаторПрофиля_UUID";
-Профиль.Наименование   = НСтр("ru = 'Менеджер по продажам'");
-Профиль.Роли.Добавить("РольМенеджерПродаж");
-Профили.Добавить(Профиль);
-```
-
-**Key rules:**
-- The profile identifier is a fixed UUID and does not change when renamed.
-- For elevated privileges, use `ПривилегированныйРежим()` strictly locally, and turn it off immediately after the operation.
-- Check permissions through `УправлениеДоступом.ПроверитьДопустимостьДействия()`, not directly through `РольДоступна()` - the latter does not account for RLS.
-
----
-
-## Rule 13: External processing objects and extensions (`СведенияОВнешнейОбработке`)
-
-Registering an external processing object in a БСП-based configuration requires the `СведенияОВнешнейОбработке()` function in the main module of the processing object.
-
-```bsl
-// В модуле обработки
-Функция СведенияОВнешнейОбработке() Экспорт
-
-    СведенияОВнешнейОбработке = ДополнительныеОтчётыИОбработки.СведенияОВнешнейОбработке();
-    СведенияОВнешнейОбработке.Вид = ДополнительныеОтчётыИОбработкиКлиентСервер
-        .ВидОбработки().ДополнительнаяОбработка;
-    СведенияОВнешнейОбработке.Наименование = НСтр("ru = 'Моя обработка'");
-    СведенияОВнешнейОбработке.Версия       = "1.0";
-    СведенияОВнешнейОбработке.БезопасныйРежим = Истина;
-
-    // Описание команды
-    Команда = СведенияОВнешнейОбработке.Команды.Добавить();
-    Команда.Представление = НСтр("ru = 'Выполнить'");
-    Команда.Идентификатор = "Выполнить";
-    Команда.ИспользованиеКонтекста = ДополнительныеОтчётыИОбработкиКлиентСервер
-        .ИспользованиеКонтекстаКоманды().ВПроцедуреВыполнитьКоманду;
-
-    Возврат СведенияОВнешнейОбработке;
-
-КонецФункции
-
-// Точка входа для команды
-Процедура ВыполнитьКоманду(Идентификатор, ПараметрыКоманды, ОбъектыНазначения) Экспорт
-    // ... реализация ...
-КонецПроцедуры
-```
-
----
-
-## Searching for analogs through Buddy
-
-If `search_ssl_functions` did not return a result, use `ask_ai_assistant` (VALIDATE_BSL template from `buddy-prompting`): pass a code fragment and get recommendations for replacing it with БСП methods. Also use `SEARCH_DOCS` for documentation on a specific БСП method.
+If `search_ssl_functions` did not produce a result, use `ask_ai_assistant` (VALIDATE_BSL template from `buddy-prompting`): pass the code fragment and get recommendations for replacing it with БСП methods. Also use `SEARCH_DOCS` for documentation on a specific БСП method.
 
 ---
 depends_on: []

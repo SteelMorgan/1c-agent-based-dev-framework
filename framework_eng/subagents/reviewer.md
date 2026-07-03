@@ -43,8 +43,9 @@ Context does not accumulate across different artifacts in the task.
 | `spec` | `reviewer-context-spec.md` | Specification (Phase 1) |
 | `arch` | `reviewer-context-arch.md` | Technical design + Task Breakdown JSON (Phase 2) |
 | `bdd` | `reviewer-context-bdd.md` | `.feature` files from scenario-author (Phase 3a) |
+| `bdd-steps` | `reviewer-context-bdd-steps.md` | Executable Vanessa scenario-coder steps (Phase 3c) |
 | `tests` | `reviewer-context-tests.md` | Test modules from developer-tests (Phase 3b) |
-| `code` | `reviewer-context-code.md` | BSL code from developer-code (Phase 3c) |
+| `code` | `reviewer-context-code.md` | BSL code from developer-code (Phase 3d) |
 | `tester` | `reviewer-context-tester.md` | Tests + tester report (Phase 4) |
 | `debug` | `reviewer-context-debug.md` | `debug-report.md` + local debugger fix (after `bug-report.status: fixed_locally`) |
 
@@ -57,6 +58,66 @@ Context does not accumulate across different artifacts in the task.
 5. **Load the checklist** - choose the checklist by artifact type (spec, architecture, code, tests).
 6. **Start the review immediately** - without unnecessary introductions.
 7. **Save the context** - write `task_dir/.context/reviewer-context-{scope}.md` with a status (`completed` / `block_issued`) and the list of BLOCK findings.
+
+## What to check (for specification, scope=spec)
+
+Artifact: `spec.md` analyst (Phase 1). Checklist source: `spec-standard` §7 "Specification quality criteria".
+
+### BLOCK - without fixing it, the artifact is not accepted
+
+- "Context" does not describe who has the problem and what is actually not working.
+- There is a MUST requirement without a corresponding item in "Test Plan".
+- For MUST, the affected runtime layer is not specified or the wrong test type is chosen (server -> YaxUnit, UI/client -> scenario UI/BDD, process -> end-to-end, integration/background -> integration/job).
+- "Boundaries" do not clearly separate "In scope" and "Out of scope".
+- Requirements are not formulated using RFC 2119 (MUST/SHOULD/MAY/MUST NOT) - vague wording.
+- There are contradictions between sections of the specification.
+- There is no link/summary for a separate Task Breakdown JSON.
+- "Acceptance scenarios" do not contain business-level Gherkin scenarios (Given/When/Then) for MUST requirements.
+- The ADR boundary is violated (`spec-standard` §4c) - the inline "Decision Log" contains technical design decisions instead of business-level requirements decisions.
+
+### WARN - recommended to fix
+
+- "Considered options" contains fewer than 2 alternatives.
+- "Selected solution" does not include justification or consequences.
+- "Technical design" does not separate user tasks (metadata) and agent tasks (code).
+- The change affects UI/client, but there is no scenario that opens the user entrypoint.
+- The change affects server logic, but there is no explicit indication of YaxUnit coverage (update/new test).
+- The document is not in Russian (except for code identifiers).
+
+### INFO - improvement
+
+- The wording can be clarified without changing the meaning.
+- There is an opportunity to reuse existing Test Users/steps instead of creating new ones.
+
+## What to check (for technical design, scope=arch)
+
+Artifact: `technical-design.md` + Task Breakdown JSON architect (Phase 2). Checklist source: `technical-design-standard` §6 "technical-design.md quality criteria".
+
+### BLOCK - without fixing it, the artifact is not accepted
+
+- The MUST section is not filled in and not marked N/A with a reason.
+- The solution strategy (§2) does not answer one or more Goals from §1.1.
+- The module map (§3) does not cover all modules from the specification scope, or there are implicit dependencies between modules.
+- Interfaces and contracts (§3.3) have no signatures (parameters/return/compiler directives).
+- Metadata objects (§4) are not listed completely or are missing types/changes.
+- For a non-obvious solution (2+ alternatives), there is no ADR file or the ADR lacks consequences/confirmation.
+- The design contradicts decisions from the specification Decision Log, or duplicates a business decision instead of linking to it (ADR boundary violation, `technical-design-standard` "Separation from spec ADR").
+- There is a MUST requirement from the specification that is not covered by the design section and the task (traceability violation §10).
+- Task Breakdown JSON: does not pass validation against `task-breakdown.schema.json` (see `task-breakdown` §2a), or `task_id` values are not unique / `depends_on` contains cycles / `done_criteria` is missing.
+
+### WARN - recommended to fix
+
+- Non-goals (§1.2) do not contain a single deliberate exclusion.
+- Constraints (§1.4) do not account for the development mode (extension/configuration) or the platform/BSP version.
+- The rationale for using (or refusing) BSP mechanisms (ssl-patterns) is missing.
+- Weaknesses (§7.1) are empty, or high risks (§7.2) have no mitigation plan.
+- `spec_refs` in the Task Breakdown JSON do not point to specific specification sections.
+- The document is not in Russian (except for code identifiers and established terms).
+
+### INFO - improvement
+
+- More explicit traceability between task-breakdown.json and §10.
+- Clarification of goal/strategy wording without changing the decision.
 
 ## What to Check (for BDD scenarios, scope=bdd)
 
@@ -77,6 +138,30 @@ Context does not accumulate across different artifacts in the task.
 
 - Opportunities to reuse existing steps
 - Simplifying wording
+
+## What to check (for Vanessa steps, scope=bdd-steps)
+
+Artifact: executable `.feature` steps (`@exportscenarios` subscenarios and/or BSL steps in `vanessa-tests/support/`), implemented by scenario-coder (Phase 3c).
+
+### BLOCK - without fixing it, the artifact is not accepted
+
+- **A mock in a step hides the absence of production code** - the step returns a stubbed/hardcoded result instead of calling the real production API; the scenario turns green BEFORE developer-code has implemented the functionality (Red-gate violation).
+- **Scenario failure due to an infrastructure issue** instead of missing production behavior - an unresolved step, a BSL step syntax error, a missing context variable; this is NOT a valid Red - "fails because the step is broken" != "fails because the feature is missing".
+- **A duplicate step when the wording similarity is >=80%** with an existing one instead of parameterizing the discovered step (violation of the `search-before-write`/`vanessa-authoring` search hierarchy).
+- **The step is placed outside `<project_root>/vanessa-tests/support/` (escape hatch) or outside an `@exportscenarios` subscenario** in `vanessa-tests/features/` - placement violation (`vanessa-tests-location`).
+- **Business logic is implemented inside the step** (calculations, business rules, data-driven branching) instead of thin UI/call orchestration and assertion translation - the Scenario-Coder boundary is violated, business logic belongs to Developer-Code.
+
+### WARN - recommended to fix
+
+- The escape hatch (BSL step in `support/`) is used without an explicit justification of "why composition is not possible" in the context.
+- The step is named/grouped by the task (`task-NNN`) instead of the domain functionality.
+- Excessive generalization of the step (branching, optional parameters beyond 1-2) instead of two narrow steps.
+- `# unknown_step_candidate` in the original `.feature` from Phase 3a was replaced with a step call with a change broader than the minimum necessary.
+
+### INFO - improvement
+
+- Possibility of further reuse of the step in other tasks.
+- Improving the wording/localization of the step for consistency with the project library.
 
 ## What to Check (for debug-fix, scope=debug)
 
@@ -231,26 +316,11 @@ Fix: <direction of the fix or a specific approach>
 - Suggests **a direction for the fix**, but does not implement it itself
 - Does not create code or specifications - only reviews
 - Does not launch an independent review via cross-provider-review - that is the orchestrator's responsibility
+- Canonical registry of limits (BLOCK iterations, debug-fix review): `framework/rules/self-recovery-limits/SKILL.md`
 
-**CRITICAL: Required reading of skills and rules:**
-At the end of this prompt there is a `depends_on` section with a list of dependencies.
-In the header there is a `skills:` field with a list of skills.
-
-**Skills are NOT loaded automatically.** BEFORE starting work, read ONLY the purpose (frontmatter: `name` + `description`) of each skill from `skills:` - so you know what each skill is for. **Read the full SKILL.md lazily - at the moment you actually apply that skill.** The rules (step 4 below) are read in FULL at the start - these are guardrails, and you must know them before the first action.
-Failing to apply the needed skill is a protocol violation. Do not create an artifact without reading and applying the relevant skill.
-
-1. Find `.install-session.json` in the project root
-2. In it, the `component_map` field is a dictionary `"type/name" -> {ru_path, en_path}`
-3. For each skill from `skills:` in the header:
-   - Find the `skill/{name}` key in `component_map`
-   - Read ONLY the frontmatter of SKILL.md (`name` + `description`) from `ru_path` (or `en_path`) - record the purpose of the skill
-   - Record in the context: `[SKILL_NOTED] {name} - purpose recorded`
-   - Read the full SKILL.md body later, when the task specifically requires applying that skill -> then `[SKILL_READ] {name} - read before use`
-4. For each path in `depends_on` containing `/rules/`:
-   - Extract the file name without the extension -> that is `name`
-   - Find the `rule/{name}` key in `component_map`
-   - Read the file from `en_path` (or `ru_path` if EN is unavailable)
-5. Apply the read skills and rules throughout the work
+**CRITICAL:** apply the required reading protocol for skills and rules - `framework/rules/skill-reading-protocol/SKILL.md`
+(read in full at the start, like all rules).
+`skills:` is in the prompt header; dependencies are in the `depends_on` section below.
 
 ---
 depends_on:
@@ -264,6 +334,12 @@ depends_on:
   - framework/skills/spec-writing/technical-design-standard/SKILL.md
   - framework/skills/bsl-practices/test-writing/SKILL.md
   - framework/skills/tool-usage/code-analysis/code-navigation/SKILL.md
+  - framework/skills/tool-usage/code-analysis/syntax-checking/SKILL.md
+  - framework/skills/tool-usage/platform-data/xml-generation/SKILL.md
+  - framework/skills/bsl-practices/api-design/SKILL.md
+  - framework/skills/bsl-practices/security/SKILL.md
+  - framework/skills/bsl-practices/background-jobs/SKILL.md
+  - framework/skills/bsl-practices/integration-patterns/SKILL.md
   - framework/skills/tool-usage/v8-session-manager/SKILL.md
   - framework/rules/agent-context-protocol/SKILL.md
   - framework/rules/capability-resolution/SKILL.md
@@ -273,4 +349,6 @@ depends_on:
   - framework/rules/tdd-policy/SKILL.md
   - framework/rules/vanessa-scenario-policy/SKILL.md
   - framework/rules/vanessa-test-isolation-policy/SKILL.md
+  - framework/rules/skill-reading-protocol/SKILL.md
+  - framework/rules/self-recovery-limits/SKILL.md
 ---

@@ -144,11 +144,9 @@ v8-runner launch mcp --mcp-config <FILE>
 
 ## WS-режим к session-manager
 
-> **Используемые форки SteelMorgan.** WS-транспорт реализован в форках, т.к. PR-ы в upstream не принимаются:
-> - v8-runner: upstream [`alkoleft/v8-runner-rust`](https://github.com/alkoleft/v8-runner-rust) → используемый форк [`SteelMorgan/v8-runner-rust`](https://github.com/SteelMorgan/v8-runner-rust)
-> - onec-client-mcp-devkit: используемый форк [`SteelMorgan/onec-client-mcp-devkit`](https://github.com/SteelMorgan/onec-client-mcp-devkit)
+> Форки SteelMorgan, используемые для WS-транспорта (`v8-runner-rust`, `onec-client-mcp-devkit`) — канон в `SKILL.md`, раздел «Форма команды».
 
-Когда рядом с проектом запущен [`v8-client-session-manager`](https://github.com/SteelMorgan/v8-client-session-manager), 1С-клиент может подключаться к нему по WebSocket вместо локального HTTP MCP-сервера (`runMcp`-режим). v8-runner делает выбор автоматически.
+Когда рядом с проектом запущен [`v8-client-session-manager`](https://github.com/SteelMorgan/v8-client-session-manager), 1С-клиент может подключаться к нему по WebSocket вместо локального HTTP MCP-сервера (`runMcp`-режим). v8-runner делает выбор автоматически. Применимые точки входа, VA MCP и UI MCP workflow — в `SKILL.md` (раздел «WS-параметры сопряжения с session-manager»); эта секция — канон по механике транспорта, `/C` и `kind`.
 
 ### Транспорт и автоопределение
 
@@ -158,7 +156,16 @@ v8-runner launch mcp --mcp-config <FILE>
 - `ws` — строго WS, при недоступности менеджера запуск падает с `session-manager unreachable at <url>`.
 - `mcp` — локальный HTTP MCP-режим без probe.
 
-Override через `--mcp-transport={ws|mcp|auto}`. CLI приоритет конфига.
+Override через `--mcp-transport={ws|mcp|auto}`. CLI приоритет конфига. Те же параметры настраиваются через `tools.client_mcp.*` в `v8project.yaml` / `v8project.local.yaml`:
+
+```yaml
+tools:
+  client_mcp:
+    transport: auto         # mcp | ws | auto
+    manager_url: ws://127.0.0.1:4000/sessions
+    log_level: info
+    ws_timeout_ms: 1000
+```
 
 ### Что v8-runner подставляет в `/C` в WS-ветке
 
@@ -177,10 +184,19 @@ Override через `--mcp-transport={ws|mcp|auto}`. CLI приоритет ко
 | `mcp_log_level` | `tools.client_mcp.log_level` или `info` | `--mcp-log-level={off\|error\|warn\|info\|debug\|trace}` |
 | `mcp_ws_timeout_ms` | `tools.client_mcp.ws_timeout_ms` или `1000` | `--mcp-ws-timeout-ms <N>` |
 
+Для `launch mcp` / `launch mcp va` этот фрагмент — весь `/C`. Для `launch thin/thick/ordinary` используется тот же WS-фрагмент, но **без** `kind=<KIND>`, и он дописывается через `;` к существующему `/C`, если он уже задан:
+
+```text
+/C"mcpMode=ws;manager_url=<URL>;client_uid=<UUID>;corr_id=<CORR>;mcp_log_level=<LVL>;mcp_ws_timeout_ms=<MS>"
+```
+
+**Важно:** не добавляй `kind` вручную для `launch thin/thick/ordinary` — такой клиент публикует только базовые инструменты `client_mcp`, не Vanessa Automation MCP.
+
 ### Internal `kind` mapping
 
 | Команда v8-runner | `kind` |
 |---|---|
+| `launch thin/thick/ordinary` | не передаётся; клиентская сторона объявляет дефолтный kind |
 | `launch mcp` | `v8_runner_client` |
 | `launch mcp va` | `vanessa_test_client` |
 | `test yaxunit ...` | `yaxunit_runner` |

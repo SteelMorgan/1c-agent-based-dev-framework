@@ -1,29 +1,29 @@
 ---
 name: query-optimize
-description: "Optimize slow 1C queries and DCS datasets"
+description: "For optimizing slow 1C queries and DCS datasets"
 target_agents:
   - developer-code
   - architect
 alwaysApply: false
 ---
 
-# Query Optimize — query and SKD optimization
+# Query Optimize — query and DCS optimization
 
-Skill for optimizing **existing** queries and data composition schemas. For writing queries from scratch — `query-patterns`. For DBMS diagnostics (plan, locks, evidence) — `db-performance`.
+A skill for optimizing **existing** queries and data composition schemas. For writing queries from scratch, use `query-patterns`. For DBMS diagnostics (plan, locks, evidence), use `db-performance`.
 
 ---
 
 ## Relationship with other skills
 
 ```
-db-performance          ← lower evidence layer (DBMS-evidence, plan, locks)
+db-performance          ← lower evidence layer (DBMS evidence, plan, locks)
     ↓ passes query + reason
 query-optimize          ← rewriting (this skill)
     ↓ uses writing rules
 query-patterns          ← basic patterns (parameterization, NULL, loops)
 ```
 
-Without `db-performance` evidence, optimization is a guess. If the cause is unknown, start with `db-performance`.
+Without `db-performance` evidence, optimization is a guess. If the reason is unknown, start with `db-performance`.
 
 ---
 
@@ -32,13 +32,13 @@ Without `db-performance` evidence, optimization is a guess. If the cause is unkn
 ### 1. Extract the query and execution context
 
 - Find the query text: `rg "Запрос.Текст\s*=" --type-add "bsl:*.bsl" -t bsl`
-- For SKD — find the `.xml` schemas via `code-navigation`, determine the dataset
+- For DCS, find the scheme `.xml` via `code-navigation`, determine the dataset
 - Record:
-  - Module / SKD dataset
+  - Module / DCS dataset
   - Virtual table parameters (passed / not passed)
   - Temporary table chain
   - Calling loop (yes / no)
-  - Expected number of rows / actual
+  - Expected row count / actual
 
 ### 2. Check metadata
 
@@ -49,185 +49,101 @@ Before rewriting, check the metadata object structure:
 
 Tool: `code-navigation` → object structure.
 
-### 3. Determine one cause
+### 3. Determine one reason
 
 Choose from the categories (one per iteration):
 
-| Cause | Sign |
+| Reason | Sign |
 |---------|---------|
-| Broad virtual table read | balance/turnover virtual table without period or dimension parameters |
-| Query-in-loop | Query inside a `for each` / `while` loop / recursion |
-| Dot-dereference without explicit casting | `Движения.Регистратор.Контрагент` when the type is composite |
-| Excessive temporary tables | Intermediate tables with the full field set instead of the minimum |
-| Unnecessary totals | totals in a query when a flat result set is needed |
-| Filtering after join | `WHERE` conditions on fields of a large table instead of virtual table parameters |
-| Implicit row multiplication through JOIN | LEFT JOIN without aggregation duplicates rows |
-| `DISTINCT` masks the problem | `ВЫБРАТЬ РАЗЛИЧНЫЕ` hides an unnecessary JOIN instead of fixing it |
+| Broad virtual table read | `Остатки()` / `Обороты()` without period or dimension parameters |
+| Query-in-loop | Query inside `Для Каждого` / `Пока` / recursion |
+| Dot-dereference without ВЫРАЗИТЬ | `Движения.Регистратор.Контрагент` for a composite type |
+| Excess temporary tables | Intermediate tables with the full field set instead of the minimum |
+| Extra totals | `ИТОГИ` in a query when a flat result set is needed |
+| Filtering after join | `ГДЕ` conditions on fields of a large table instead of virtual table parameters |
+| Implicit row multiplication via JOIN | LEFT JOIN without aggregation duplicates rows |
+| DISTINCT masks the problem | `ВЫБРАТЬ РАЗЛИЧНЫЕ` hides an extra JOIN instead of fixing it |
 
 ### 4. Apply the optimization rule
 
-For each cause — a specific rule (see the "Rules" section below).
+For each cause, use a specific rule (see the “Rules” section below).
 
 ### 5. Check syntax and semantics
 
-- Syntax: `v8-runner` after any change
-- Semantics: do not silently remove permission filters; security rules must remain intact
+- Syntax: run `v8-runner` after any change
+- Semantics: do not silently remove `РАЗРЕШЕННЫЕ` filters; security rules must remain intact
 - For join changes: make sure the row count did not change unexpectedly
 
-### 6. Request DBMS verification if the effect is not obvious
+### 6. Request DBMS verification when the effect is not obvious
 
-If the change affects the DBMS plan (index, virtual table parameters, join type), ask the user for `EXPLAIN` / log before and after. Without measurement, record it as an "expected effect, requires verification."
-
----
-
-## Optimization Rules
-
-### Virtual tables: pass parameters inside
-
-**Problem:** The DBMS calculates all data first, then filters in `WHERE`.
-
-```bsl
-// ПЛОХО — фильтр в WHERE, СУБД читает всё
-"ИЗ РегистрНакопления.ТоварыНаСкладах.Остатки КАК Ост
-|ГДЕ Ост.Номенклатура В (&Список)"
-
-// ХОРОШО — параметры внутри виртуальной таблицы
-"ИЗ РегистрНакопления.ТоварыНаСкладах.Остатки(
-|       &ДатаОстатков,
-|       Номенклатура В (&Список) И Склад = &Склад
-|   ) КАК Ост"
-```
-
-Rule: a virtual table always receives period and dimension parameters. The only exception is when there is an explicit justification (a report across all warehouses without a filter).
-
-### Query-in-loop: one query + a map
-
-**Problem:** N iterations × (latency + query time).
-
-```bsl
-// ПЛОХО — запрос в цикле
-Для Каждого Строка Из Документ.Товары Цикл
-    Запрос.УстановитьПараметр("Ном", Строка.Номенклатура);
-    // ... выполнить запрос
-КонецЦикла;
-
-// ХОРОШО — один запрос, Соответствие для доступа
-МассивНом = Документ.Товары.ВыгрузитьКолонку("Номенклатура");
-Запрос.УстановитьПараметр("Список", МассивНом);
-// ... один запрос
-РезСоответствие = Новый Соответствие;
-Пока Выборка.Следующий() Цикл
-    РезСоответствие.Вставить(Выборка.Ссылка, Выборка);
-КонецЦикла;
-
-Для Каждого Строка Из Документ.Товары Цикл
-    Данные = РезСоответствие.Получить(Строка.Номенклатура);
-КонецЦикла;
-```
-
-### Dot-dereference: explicit casting for a composite type
-
-**Problem:** `Движения.Регистратор.Контрагент` for a composite type means the DBMS makes a LEFT JOIN to all tables of the composite type.
-
-```bsl
-// ПЛОХО — N LEFT JOIN по составному типу
-"ВЫБРАТЬ Движения.Регистратор.Контрагент ..."
-
-// ХОРОШО — один JOIN
-"ВЫБРАТЬ
-|   ВЫРАЗИТЬ(Движения.Регистратор КАК Документ.РеализацияТоваровУслуг).Контрагент КАК Контрагент
-|...
-|ГДЕ Движения.Регистратор ССЫЛКА Документ.РеализацияТоваровУслуг"
-```
-
-### Temporary tables: minimal fields and indexes
-
-```bsl
-// Только поля, нужные следующим этапам
-"ВЫБРАТЬ
-|   Реализация.Ссылка КАК Документ,
-|   Реализация.Контрагент КАК Контрагент
-|ПОМЕСТИТЬ втРеализации
-|...
-|ИНДЕКСИРОВАТЬ ПО Контрагент"  // только поле соединения
-```
-
-Rule: add indexes for fields that will be JOINed in the next query of the package. Do not add an index on every field.
-
-### Unnecessary totals: replace totals with `GROUP BY`
-
-Totals generate extra summary rows. If a flat result set is needed, use `GROUP BY`.
-
-```bsl
-// Totals are needed only for hierarchical traversal
-// For a flat selection — only GROUP BY
-"ВЫБРАТЬ Контрагент, СУММА(Сумма) КАК Итог
-|ИЗ ...
-|СГРУППИРОВАТЬ ПО Контрагент"
-```
-
-### Filter on a composite type: `IN` instead of JOIN + `DISTINCT`
-
-```bsl
-// BAD — JOIN multiplies rows, DISTINCT hides it
-"ВЫБРАТЬ РАЗЛИЧНЫЕ Контрагенты.Ссылка
-|ИЗ Справочник.Контрагенты КАК Контрагенты
-|   ВНУТРЕННЕЕ СОЕДИНЕНИЕ Документ.Реализация КАК Реал
-|   ПО Контрагенты.Ссылка = Реал.Контрагент"
-
-// GOOD — subquery
-"ВЫБРАТЬ Контрагенты.Ссылка
-|ИЗ Справочник.Контрагенты КАК Контрагенты
-|ГДЕ Контрагенты.Ссылка В
-|       (ВЫБРАТЬ РАЗЛИЧНЫЕ Реал.Контрагент
-|        ИЗ Документ.Реализация КАК Реал)"
-```
+If the change affects the DBMS plan (index, virtual table parameters, join type), ask the user for `EXPLAIN` / ТЖ before and after. Without measurement, record it as “expected effect, requires verification”.
 
 ---
 
-## SKD: optimization specifics
+## Rewriting Rules
+
+The concrete “how to write it correctly” rules are canonical in `query-patterns`. Here is the mapping from the cause (step 3) to the rule from `query-patterns`; apply the rule from there, do not duplicate query patterns in this skill.
+
+| Cause (step 3) | `query-patterns` rule |
+|---|---|
+| Broad virtual table read | Rule 5 — put period/dimension parameters inside the virtual table, not in `ГДЕ` |
+| Query-in-loop | Rule 1 — one query + `Соответствие` for access |
+| Dot-dereference without `ВЫРАЗИТЬ` | Rule 12 — `ВЫРАЗИТЬ(… КАК …)` + `ССЫЛКА` for a composite type |
+| Excessive temp tables / no join index | Rules 2, 8 — minimal fields, `ИНДЕКСИРОВАТЬ ПО` only on the join field |
+| Redundant totals | Rule 16 — `ИТОГИ` only for `Выбрать(ПоГруппировкам)`, otherwise `СГРУППИРОВАТЬ ПО` |
+| Filtering after join | Rules 5, 13 — VT parameters / `ПО` vs `ГДЕ` |
+| `РАЗЛИЧНЫЕ` masks an extra JOIN | Rule 11 — subquery `В (…)` instead of JOIN + `РАЗЛИЧНЫЕ` |
+
+**Optimization specifics (beyond the general `query-patterns` rules):**
+- A virtual table without parameters is allowed **only** with an explicit justification (for example, a report across all warehouses without a filter); otherwise always parameterize the period and dimensions.
+- Rewrite **one** cause per iteration (see Stop rules) — otherwise the contribution of each change is not measurable.
+
+---
+
+## СКД: optimization specifics
 
 ### Dataset parameters
 
-- SKD parameters passed into dataset virtual tables work the same way as query parameters: pass them inside, do not filter through a selection after the fact
-- For register period conditions — always parameterize them in the dataset query text
+- СКД parameters passed into the dataset's virtual tables work the same way as query parameters: pass them in, do not filter them later through selection
+- For period conditions in a register, always parameterize them in the dataset query text
 
 ### Resources and calculated fields
 
-- SKD calculated fields that access other datasets through links are a potential query-in-loop at the platform level
-- Dataset links with conditions and no index on the dependent side — check metadata
+- СКД calculated fields that access other datasets through relations are a potential query-in-loop at the platform level
+- Dataset relations (СВЯЗЬ) with conditions without an index on the detail side - check the metadata
 
-### SKD selections
+### Selections in СКД
 
-- Selections applied by the user through settings may not reach virtual table parameters — this is an architectural limitation; document it
-- For critical filters (period, organization) — pass them as dataset query parameters, do not rely only on SKD selections
+- Selections applied by the user through settings may not be passed into virtual table parameters - this is an architectural limitation; document it
+- For critical filters (period, organization), pass them as dataset query parameters, do not rely only on СКД selections
 
 ---
 
-## Query Review Checklist
+## Query review checklist
 
 - [ ] Virtual tables receive period and dimension parameters (not filtering in `WHERE`)
-- [ ] Temporary tables contain only fields needed by later stages
-- [ ] Join fields in temporary tables are indexed
-- [ ] There are no repeated subqueries or query-in-loop patterns
+- [ ] Temporary tables contain only the fields needed by the next stages
+- [ ] Join fields in temporary tables are indexed (`INDEX BY`)
+- [ ] There are no repeated subqueries or query-in-loop
 - [ ] JOIN does not multiply rows; totals and groupings match the business meaning
-- [ ] Date and organization filters are applied as early as possible
-- [ ] Composite types are expanded before dot-dereference
-- [ ] LEFT JOIN does not turn into INNER JOIN because of a WHERE condition
-- [ ] DISTINCT does not hide an unnecessary JOIN
-- [ ] Permission filters and other access filters are preserved
+- [ ] Filters by date and organization are applied as early as possible
+- [ ] Composite types are expanded through `CAST` before dot dereference
+- [ ] `LEFT JOIN` does not turn into `INNER JOIN` because of a condition in `WHERE`
+- [ ] `DISTINCT` does not mask an extra JOIN
+- [ ] `ALLOWED` and other rights filters are preserved
 
 ---
 
-## Stop Rules
+## Stop rules
 
-1. **Do not remove permission filters** without explicit security approval.
-2. **Do not recommend an index without** a specific predicate + write-cost assessment — that is a `db-performance` task.
-3. **Do not rewrite multiple causes in one step** — you cannot measure each contribution.
-4. **Do not replace LEFT JOIN with INNER JOIN** without checking the business requirement: do all rows need to be kept, or only matching ones.
-5. **Do not transfer an optimization based on one DBMS** to another without verification: PostgreSQL and MS SQL Server have different planner models.
+1. **Do not remove `ALLOWED`** without explicit security approval.
+2. **Do not recommend an index without** a specific predicate + write-cost assessment - that is the responsibility of `db-performance`.
+3. **Do not rewrite several causes in one step** - you cannot measure each contribution.
+4. **Do not replace LEFT JOIN with INNER JOIN** without checking the business requirement: do we need all rows or only matching ones.
+5. **Do not перенос optimization for one DBMS** to another without verification: PostgreSQL and MS SQL Server have different planner models.
 
 ---
+
 depends_on:
   - framework/skills/bsl-practices/query-patterns/SKILL.md
   - framework/skills/tool-usage/diagnostics/db-performance/SKILL.md

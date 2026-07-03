@@ -1,18 +1,18 @@
 ---
 name: form-patterns
-description: "With managed form code and server calls"
+description: "Для кода модуля управляемой формы и серверных вызовов"
 alwaysApply: false
 ---
 
-# Form Module Patterns (client-server interaction)
+# Паттерны модуля формы (клиент-серверное взаимодействие)
 
-**Key principle:** Minimize the number and size of server calls. Each `&НаСервере` call is a network round-trip plus serialization of the full form context.
+**Ключевой принцип:** Минимизируйте количество и объём серверных вызовов. Каждый вызов `&НаСервере` — это сетевой round-trip плюс сериализация всего контекста формы.
 
 ---
 
-## Rule 1: Directive hierarchy - prefer context-free calls
+## Правило 1: Иерархия директив — предпочитайте вызовы без контекста
 
-### Preference order (from best to worst)
+### Порядок предпочтения (от лучшего к худшему)
 
 ```
 1. &НаКлиентеНаСервереБезКонтекста  — чистые вычисления, обе среды
@@ -21,19 +21,19 @@ alwaysApply: false
 4. &НаКлиенте                        — интерактивная логика (диалоги, навигация)
 ```
 
-### Decision rule
+### Правило принятия решения
 
 ```
-Need to access the database?
+Нужен доступ к базе данных?
 ├── Нет → &НаКлиенте или &НаКлиентеНаСервереБезКонтекста
 └── Да →
-    Do you need access to form attributes?
+    Нужен доступ к реквизитам формы?
     ├── Нет → &НаСервереБезКонтекста (передаём только параметры)
     └── Да → &НаСервере (передаётся весь контекст)
 ```
 
 ```bsl
-// Pure calculation - both environments
+// Чистое вычисление - обе среды
 &НаКлиентеНаСервереБезКонтекста
 Функция РассчитатьСумму(Количество, Цена, СтавкаНДС)
     СуммаБезНДС = Количество * Цена;
@@ -41,7 +41,7 @@ Need to access the database?
     Возврат СуммаБезНДС + СуммаНДС;
 КонецФункции
 
-// Data from the database is needed, but form attributes are NOT needed
+// Нужны данные из базы, но реквизиты формы НЕ нужны
 &НаСервереБезКонтекста
 Функция ПолучитьДанныеНоменклатуры(НоменклатураСсылка)
     Возврат ОбщегоНазначения.ЗначенияРеквизитовОбъекта(
@@ -49,7 +49,7 @@ Need to access the database?
         "Наименование, ЕдиницаИзмерения, СтавкаНДС, Цена");
 КонецФункции
 
-// Access to form attributes is needed
+// Нужен доступ к реквизитам формы
 &НаСервере
 Процедура ПересчитатьИтогиНаСервере()
     Объект.СуммаДокумента = Объект.Товары.Итог("Сумма");
@@ -59,9 +59,9 @@ Need to access the database?
 
 ---
 
-## Rule 2: Minimize server calls - batch data
+## Правило 2: Минимизируйте серверные вызовы — группируйте данные
 
-Each server call is about 100 ms (serialization + round-trip + deserialization). Three calls = 300 ms of latency. One call returning all data = 100 ms.
+Каждый серверный вызов — это около 100 мс (сериализация + round-trip + десериализация). Три вызова = 300 мс задержки. Один вызов, возвращающий все данные = 100 мс.
 
 ```bsl
 &НаКлиенте
@@ -102,57 +102,57 @@ Each server call is about 100 ms (serialization + round-trip + deserialization).
 
 ---
 
-## Rule 3: ДанныеФормыВЗначение / ЗначениеВДанныеФормы
+## Правило 3: ДанныеФормыВЗначение / ЗначениеВДанныеФормы
 
-On the form server, object data is not a real object, but `ДанныеФормы*`. To call object module methods, conversion is required.
+На сервере формы данные объекта — это не реальный объект, а `ДанныеФормы*`. Для вызова методов модуля объекта требуется преобразование.
 
-| Scenario | Conversion needed? |
+| Сценарий | Нужно преобразование? |
 |----------|----------------------|
-| Reading form attributes | No - `Объект.Реквизит` works directly |
-| Calling object module methods | Yes |
-| Passing the object to a common module | Yes - common modules work with real objects |
+| Чтение реквизитов формы | Нет - `Объект.Реквизит` работает напрямую |
+| Вызов методов модуля объекта | Да |
+| Передача объекта в общий модуль | Да - общие модули работают с реальными объектами |
 
 ```bsl
 &НаСервере
 Процедура ЗаполнитьПоУмолчаниюНаСервере()
     ДокументОбъект = РеквизитФормыВЗначение("Объект");
     ДокументОбъект.ЗаполнитьТоварыПоУмолчанию();
-    // REQUIRED: convert back, otherwise the changes will not be reflected on the form!
+    // ОБЯЗАТЕЛЬНО: преобразовать обратно, иначе изменения не отразятся на форме!
     ЗначениеВРеквизитФормы(ДокументОбъект, "Объект");
 КонецПроцедуры
 ```
 
-### Typical mistake - forgot ЗначениеВРеквизитФормы
+### Типичная ошибка - забыли ЗначениеВРеквизитФормы
 
 ```bsl
-// BAD: changes are lost!
+// ПЛОХО: изменения теряются!
 &НаСервере
 Процедура ЗаполнитьНаСервере()
     ДокументОбъект = РеквизитФормыВЗначение("Объект");
     ДокументОбъект.ЗаполнитьТаблицу();
-    // FORGOT: ЗначениеВРеквизитФормы(ДокументОбъект, "Объект");
+    // ЗАБЫЛИ: ЗначениеВРеквизитФормы(ДокументОбъект, "Объект");
 КонецПроцедуры
 ```
 
 ---
 
-## Rule 4: Form event handlers - order and purpose
+## Правило 4: Обработчики событий формы - порядок и назначение
 
-### Event order when opening a form
-
-```
-1. ПриСозданииНаСервере     - the form is created on the server, data is loaded
-2. ПриОткрытии              - the form is displayed on the client
-```
-
-### Event order when saving
+### Порядок событий при открытии формы
 
 ```
-1. ПередЗаписьюНаКлиенте    - client: can be canceled (Отказ = Истина)
-2. ПередЗаписьюНаСервере     - server: final check
-3. ПриЗаписиНаСервере        - server: in the same transaction
-4. ПослеЗаписиНаСервере      - server: form refresh
-5. ПослеЗаписи               - client: notification
+1. ПриСозданииНаСервере     - форма создаётся на сервере, данные загружаются
+2. ПриОткрытии              - форма отображается на клиенте
+```
+
+### Порядок событий при записи
+
+```
+1. ПередЗаписью             - клиент: может быть отменена (Отказ = Истина)
+2. ПередЗаписьюНаСервере     - сервер: финальная проверка
+3. ПриЗаписиНаСервере        - сервер: в той же транзакции
+4. ПослеЗаписиНаСервере      - сервер: обновление формы
+5. ПослеЗаписи               - клиент: оповещение
 ```
 
 ```bsl
@@ -166,7 +166,7 @@ On the form server, object data is not a real object, but `ДанныеФорм�
     ОбновитьСписокВыбораДоговоров();
 КонецПроцедуры
 
-// ПередЗаписьюНаКлиенте - checks that require user confirmation
+// ПередЗаписью (клиент) - проверки, требующие подтверждения пользователя
 &НаКлиенте
 Процедура ПередЗаписью(Отказ, ПараметрыЗаписи)
     Если Объект.СуммаДокумента > 1000000 Тогда
@@ -180,7 +180,7 @@ On the form server, object data is not a real object, but `ДанныеФорм�
     КонецЕсли;
 КонецПроцедуры
 
-// ПослеЗаписи - notifications on the client
+// ПослеЗаписи - оповещения на клиенте
 &НаКлиенте
 Процедура ПослеЗаписи(ПараметрыЗаписи)
     Оповестить("Запись_РеализацияТоваровУслуг",
@@ -190,14 +190,14 @@ On the form server, object data is not a real object, but `ДанныеФорм�
 
 ---
 
-## Rule 5: Dynamic lists - configuration and optimization
+## Правило 5: Динамические списки - настройка и оптимизация
 
-A dynamic list automatically implements pagination, search, and sorting.
+Динамический список автоматически реализует постраничную загрузку, поиск и сортировку.
 
 ```bsl
 &НаСервере
 Процедура ПриСозданииНаСервере(Отказ, СтандартнаяОбработка)
-    // Filters through КомпоновкаДанных (the user can change them)
+    // Отборы через КомпоновкаДанных (пользователь может их изменить)
     ОбщегоНазначенияКлиентСервер.УстановитьЭлементОтбораДинамическогоСписка(
         СписокДокументов,
         "Организация",
@@ -208,7 +208,7 @@ A dynamic list automatically implements pagination, search, and sorting.
 КонецПроцедуры
 ```
 
-### Custom query for a dynamic list
+### Произвольный запрос для динамического списка
 
 ```bsl
 СписокДокументов.ПроизвольныйЗапрос = Истина;
@@ -229,11 +229,11 @@ A dynamic list automatically implements pagination, search, and sorting.
 |   Реализация.Дата >= &ДатаНачала}";
 ```
 
-Rules: do not load all data; use КомпоновкаДанных for filters, not WHERE; do not use УПОРЯДОЧИТЬ ПО in a custom query.
+Правила: не загружайте все данные; используйте КомпоновкаДанных для отборов, а не WHERE; не используйте УПОРЯДОЧИТЬ ПО в произвольном запросе.
 
 ---
 
-## Rule 6: Conditional formatting - programmatic setup
+## Правило 6: Условное оформление - программная настройка
 
 ```bsl
 &НаСервере
@@ -265,11 +265,11 @@ Rules: do not load all data; use КомпоновкаДанных for filters, n
 
 ---
 
-## Rule 7: Asynchronous dialogs instead of modal ones
+## Правило 7: Асинхронные диалоги вместо модальных
 
-Modal calls (`Предупреждение()`, `Вопрос()`) are **prohibited** in the web client. Use `ОписаниеОповещения`.
+Модальные вызовы (`Предупреждение()`, `Вопрос()`) **запрещены** в веб-клиенте. Используйте `ОписаниеОповещения`.
 
-ITS standard: "Restrictions on the use of modal methods".
+Стандарт ИТС: «Ограничения на использование модальных методов».
 
 ```bsl
 &НаКлиенте
@@ -296,7 +296,7 @@ ITS standard: "Restrictions on the use of modal methods".
 
 ---
 
-## Rule 8: Opening forms and handling the result
+## Правило 8: Открытие форм и обработка результата
 
 ```bsl
 &НаКлиенте
@@ -333,9 +333,9 @@ ITS standard: "Restrictions on the use of modal methods".
 
 ---
 
-## Rule 9: Visibility management - group changes
+## Правило 9: Управление видимостью - групповые изменения
 
-Put all visibility/accessibility changes into one server call to avoid UI "flickering".
+Собирайте все изменения видимости/доступности в один серверный вызов, чтобы избежать "мерцания" интерфейса.
 
 ```bsl
 &НаСервере
@@ -352,16 +352,16 @@ Put all visibility/accessibility changes into one server call to avoid UI "flick
 
 &НаКлиенте
 Процедура ВидОперацииПриИзменении(Элемент)
-    УправлениеВидимостью(); // One server call for all changes
+    УправлениеВидимостью(); // Один серверный вызов на все изменения
 КонецПроцедуры
 ```
 
 ---
 
-## Rule 10: Working with tabular sections - recalculate on the client if possible
+## Правило 10: Работа с табличными частями - пересчёт на клиенте, где возможно
 
 ```bsl
-// Quantity change - recalculate the amount on the client
+// Изменение количества - пересчёт суммы на клиенте
 &НаКлиенте
 Процедура ТоварыКоличествоПриИзменении(Элемент)
     ТекущаяСтрока = Элементы.Товары.ТекущиеДанные;
@@ -369,7 +369,7 @@ Put all visibility/accessibility changes into one server call to avoid UI "flick
         ТекущаяСтрока.Количество, ТекущаяСтрока.Цена, ТекущаяСтрока.СтавкаНДС);
 КонецПроцедуры
 
-// Item change - the server is needed to get the data
+// Изменение номенклатуры - нужен сервер, чтобы получить данные
 &НаКлиенте
 Процедура ТоварыНоменклатураПриИзменении(Элемент)
     ТекущаяСтрока = Элементы.Товары.ТекущиеДанные;
@@ -385,10 +385,10 @@ Put all visibility/accessibility changes into one server call to avoid UI "flick
 
 ---
 
-## Rule 11: Notifications between forms
+## Правило 11: Оповещения между формами
 
 ```bsl
-// Document form - after saving
+// Форма документа - после записи
 &НаКлиенте
 Процедура ПослеЗаписи(ПараметрыЗаписи)
     Оповестить("Запись_РеализацияТоваровУслуг",
@@ -396,7 +396,7 @@ Put all visibility/accessibility changes into one server call to avoid UI "flick
         ЭтотОбъект);
 КонецПроцедуры
 
-// List form - notification handling
+// Форма списка - обработка оповещения
 &НаКлиенте
 Процедура ОбработкаОповещения(ИмяСобытия, Параметр, Источник)
     Если ИмяСобытия = "Запись_РеализацияТоваровУслуг" Тогда
@@ -407,15 +407,15 @@ Put all visibility/accessibility changes into one server call to avoid UI "flick
 
 ---
 
-## Rule 12: Data types transferred between client and server
+## Правило 12: Типы данных, передаваемые между клиентом и сервером
 
-### Freely transferable types
+### Свободно передаваемые типы
 
 Примитивные (Строка, Число, Дата, Булево), Ссылки, Перечисления, Структура, Соответствие, Массив, ФиксированныеКоллекции, ХранилищеЗначения.
 
-### Types that are NOT transferable (server-side)
+### Типы, которые НЕ передаются (только на сервере)
 
-| Type | Alternative |
+| Тип | Альтернатива |
 |-----|-------------|
 | ТаблицаЗначений | ДанныеФормыКоллекция (через реквизиты формы) |
 | ДеревоЗначений | ДанныеФормыДерево (через реквизиты формы) |
@@ -424,19 +424,19 @@ Put all visibility/accessibility changes into one server call to avoid UI "flick
 
 ---
 
-## Rule 13: Platform form properties are part of behavior
+## Правило 13: Свойства платформенных элементов формы — часть поведения
 
-Some aspects of form correctness are determined not by module code, but by form and element properties. When generating XML, reviewing a form, or customizing a standard form, check these invariants.
+Некоторые аспекты корректности формы определяются не кодом модуля, а свойствами формы и её элементов. При генерации XML, ревью формы или доработке типовой формы проверяйте эти инварианты.
 
-| Area | Check |
+| Область | Проверка |
 |---------|----------|
-| Commands | A command that changes persisted data must have `ИзменяетСохраняемыеДанные`. Otherwise the form may not become modified, and with `ТолькоПросмотр` the command will remain active. |
-| Tabular sections | The tabular section page must have the header data path filled in, for example `Объект.Товары.КоличествоСтрок`, if the header should show the row count. |
-| Required fields | Use the `ПроверкаЗаполнения` property where requiredness is a property of the attribute. Manual validation in code is acceptable for conditional business rules, but it should not replace platform validation without reason. |
-| List form | Add `ГруппаПользовательскихНастроек` if the list form should show user-defined filters. |
-| Standard forms | Implement customizations of standard forms programmatically. If there are tabs, place new attributes on a separate service tab; if there are no tabs, place them in a service group without a title or highlighting, unless the specification defines an exact location. |
+| Команды | Команда, изменяющая сохраняемые данные, должна иметь `ИзменяетСохраняемыеДанные`. Иначе форма может не становиться модифицированной, а при `ТолькоПросмотр` команда останется активной. |
+| Табличные части | На странице табличной части должен быть заполнен путь к данным заголовка, например `Объект.Товары.КоличествоСтрок`, если заголовок должен показывать количество строк. |
+| Обязательные поля | Используйте свойство `ПроверкаЗаполнения` там, где обязательность — это свойство реквизита. Ручная проверка в коде допустима для условных бизнес-правил, но не должна без причины подменять платформенную проверку. |
+| Форма списка | Добавляйте `ГруппаПользовательскихНастроек`, если форма списка должна показывать пользовательские отборы. |
+| Типовые формы | Реализуйте доработки типовых форм программно. При наличии вкладок размещайте новые реквизиты на отдельной служебной вкладке; при отсутствии вкладок — в служебной группе без заголовка и выделения, если в спецификации не указано точное расположение. |
 
-To check filling in a form handler, use the standard call:
+Для проверки заполнения в обработчике формы используйте стандартный вызов:
 
 ```bsl
 Если Не ПроверитьЗаполнение() Тогда
@@ -444,9 +444,9 @@ To check filling in a form handler, use the standard call:
 КонецЕсли;
 ```
 
-## Rule 14: Visibility and availability are updated centrally
+## Правило 14: Видимость и доступность обновляются централизованно
 
-Do not scatter `Видимость`, `Доступность`, and `ТолькоПросмотр` assignments across form handlers. Collect them into one procedure and call it as the last step after initialization and data filling.
+Не разбрасывайте присвоения `Видимость`, `Доступность` и `ТолькоПросмотр` по разным обработчикам формы. Собирайте их в одну процедуру и вызывайте её последним шагом после инициализации и заполнения данных.
 
 ```bsl
 &НаКлиенте
@@ -459,7 +459,7 @@ Do not scatter `Видимость`, `Доступность`, and `Только
 КонецПроцедуры
 ```
 
-Prefer boolean algebra over `Если ... Тогда ... Иначе ...` branches when the property value is directly expressed by a condition.
+Предпочитайте булеву алгебру ветвлениям `Если ... Тогда ... Иначе ...`, когда значение свойства напрямую выражается условием.
 
 ---
 depends_on: []

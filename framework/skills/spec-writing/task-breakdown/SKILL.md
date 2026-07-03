@@ -33,12 +33,16 @@ metadata:
 
 Требования к формату:
 - использовать **template + example**;
-- **не использовать JSON Schema**;
+- формат зафиксирован строгой **JSON Schema** (`references/task-breakdown.schema.json`) — валидация обязательна (см. §2a);
 - сохранять единые поля:
   - `task_id`
   - `task_type`
+  - `title`
+  - `description`
   - `depends_on`
   - `spec_refs`
+  - `deliverables`
+  - `done_criteria` — массив из 1–3 проверяемых критериев готовности задачи
 
 В самой спецификации должна быть:
 - ссылка на этот JSON-файл, и/или
@@ -57,7 +61,8 @@ metadata:
       "description": "Что должно быть сделано",
       "depends_on": [],
       "spec_refs": ["Requirements.MUST-1"],
-      "deliverables": ["Список ожидаемых артефактов"]
+      "deliverables": ["Список ожидаемых артефактов"],
+      "done_criteria": ["Проверяемый критерий готовности задачи"]
     }
   ]
 }
@@ -66,6 +71,18 @@ metadata:
 ### Допустимые значения `task_type`
 
 `analysis` | `design` | `implementation` | `test`
+
+---
+
+## §2a Валидация по JSON Schema
+
+Формат Task Breakdown зафиксирован строгой схемой `references/task-breakdown.schema.json` (draft-07, `additionalProperties: false` на уровне задачи). Валидация JSON по этой схеме **обязательна**: Architect выполняет её перед сдачей декомпозиции, оркестратор — при приёме.
+
+```bash
+python3 -c "import json,jsonschema; jsonschema.validate(json.load(open('task-breakdown.json')), json.load(open('references/task-breakdown.schema.json'))); print('OK')"
+```
+
+Если `jsonschema` недоступен — валидировать любым доступным способом (онлайн-валидатор draft-07 или ручная сверка со схемой). Невалидный JSON сдавать/принимать запрещено.
 
 ---
 
@@ -84,7 +101,8 @@ metadata:
       "description": "Сопоставить MUST из спецификации с задачами реализации",
       "depends_on": [],
       "spec_refs": ["Requirements.MUST-1", "Requirements.MUST-2"],
-      "deliverables": ["Матрица покрытия MUST", "Список пробелов"]
+      "deliverables": ["Матрица покрытия MUST", "Список пробелов"],
+      "done_criteria": ["Каждый MUST сопоставлен минимум одной задаче реализации", "Пробелы покрытия перечислены явно или список пуст"]
     },
     {
       "task_id": "T2",
@@ -93,7 +111,8 @@ metadata:
       "description": "Выполнить реализацию в соответствии с Technical Design",
       "depends_on": ["T1"],
       "spec_refs": ["Technical Design.Modules", "Requirements.MUST-3"],
-      "deliverables": ["Изменения кода", "Локальные проверки"]
+      "deliverables": ["Изменения кода", "Локальные проверки"],
+      "done_criteria": ["Код соответствует модульной структуре Technical Design", "Локальные проверки синтаксиса пройдены без ошибок"]
     },
     {
       "task_id": "T3",
@@ -102,7 +121,8 @@ metadata:
       "description": "Проверить, что MUST покрыты тестами из Test Plan",
       "depends_on": ["T2"],
       "spec_refs": ["Test Plan (TDD)"],
-      "deliverables": ["Результаты тестов", "Список отклонений"]
+      "deliverables": ["Результаты тестов", "Список отклонений"],
+      "done_criteria": ["Все MUST-требования имеют пройденный тест", "Отклонения зафиксированы или список пуст"]
     }
   ]
 }
@@ -127,8 +147,10 @@ metadata:
 - [ ] `task_type` соответствует реальному этапу работ.
 - [ ] `depends_on` задаёт исполнимый линейный порядок без циклов.
 - [ ] `spec_refs` присутствуют и привязаны к спецификации.
+- [ ] У каждой задачи есть `done_criteria` (1–3 проверяемых и конкретных критерия).
 - [ ] Все MUST-требования имеют задачи реализации/проверки.
 - [ ] Допущения (assumptions) явно зафиксированы и не противоречат Scope.
+- [ ] JSON проходит валидацию по `references/task-breakdown.schema.json` (§2a).
 - [ ] В спецификации добавлена ссылка/выжимка по отдельному JSON.
 
 ### Типичные ошибки (Linear)
@@ -157,7 +179,8 @@ metadata:
       "description": "Сверить состав объектов с разделом Technical Design",
       "depends_on": [],
       "spec_refs": ["Technical Design.Metadata Objects", "Requirements.MUST-1"],
-      "deliverables": ["Список проверенных объектов", "Перечень расхождений"]
+      "deliverables": ["Список проверенных объектов", "Перечень расхождений"],
+      "done_criteria": ["Состав объектов совпадает с разделом Technical Design", "Все расхождения зафиксированы или список пуст"]
     },
     {
       "task_id": "T2",
@@ -166,7 +189,8 @@ metadata:
       "description": "Реализовать движения и проверки остатков",
       "depends_on": ["T1"],
       "spec_refs": ["Requirements.MUST-2", "Requirements.MUST-3"],
-      "deliverables": ["Код модуля объекта", "Тесты по MUST-требованиям"]
+      "deliverables": ["Код модуля объекта", "Тесты по MUST-требованиям"],
+      "done_criteria": ["Проведение формирует движения по всем регистрам из дизайна", "Проверка остатков покрыта проходящим тестом"]
     }
   ]
 }
@@ -175,7 +199,7 @@ metadata:
 ### Процесс (architecture + JSON → review → BLOCK loop)
 
 1. Architect формирует структуру работ на основе спецификации.
-2. Агент готовит отдельный Task Breakdown JSON (template + example, без JSON Schema).
+2. Агент готовит отдельный Task Breakdown JSON (template + example) и валидирует его по JSON Schema (§2a).
 3. Reviewer выполняет cross-review JSON относительно спецификации и зависимостей.
 4. Если вердикт **BLOCK**:
    - возврат на доработку;
@@ -190,8 +214,10 @@ metadata:
 - [ ] `task_type` отражает фактический этап (analysis/design/implementation/test и т.п.).
 - [ ] `depends_on` не содержит циклических зависимостей.
 - [ ] `spec_refs` есть у каждой задачи и ссылаются на конкретные разделы/требования спеки.
+- [ ] У каждой задачи есть `done_criteria` (1–3 проверяемых и конкретных критерия).
 - [ ] Покрыты все критичные MUST-требования спецификации.
 - [ ] Порядок задач реализуем с учётом зависимостей.
+- [ ] JSON проходит валидацию по `references/task-breakdown.schema.json` (§2a).
 - [ ] В спецификации добавлена ссылка/выжимка по отдельному JSON.
 
 ### Типичные ошибки (Subagent)

@@ -10,16 +10,11 @@ alwaysApply: true
 
 ## Purpose of Testing Layers (MUST - fundamental)
 
-> A scenario (Vanessa) test exists to verify **client behavior through the UI, imitating user actions**. That is its direct purpose. Server-side business logic is the domain of **unit tests** (YaxUnit). Do not mix the layers: a server test wrapped in Vanessa does not verify what scenario tests are meant to verify.
-
-| What we verify | Which test |
-|---------------|--------------|
-| Server-side/business logic: fill validation (`ОбработкаПроверкиЗаполнения`), posting, calculations, queries, registers, scheduled jobs | **Unit (YaxUnit)** |
-| Client/UI behavior: opening a form, `ПриСозданииНаСервере`/`ПриОткрытии`, visibility/accessibility/required state of elements, reaction to input (`ПриИзменении`), form commands, navigation, input based on | **Scenario (Vanessa) through UI** |
+> A scenario (Vanessa) test exists to verify **client behavior through the UI, imitating user actions**. The division of "what we test with which test" is canonical in `tdd-policy` (section "Purpose of layers"); here are only Vanessa specifics.
 
 - **Verified behavior goes ONLY through the UI.** The scenario opens the form and imitates the user with real UI steps (`window opened`, `in the field named ... I enter`, `I click the ... button`, `I see the element`, `element ... is available`). It is **FORBIDDEN** to replace the user action path with a server call (`ПроверитьЗаполнение()`, `ЗаписатьОбъект()`, direct call of a common module) - such a "scenario" is a unit test in Vanessa clothing and misses form-layer defects.
 - **Server-side BSL in Vanessa is allowed ONLY for data preparation/cleanup** (fixtures, setup, teardown - see the two-session split below), NOT as a replacement for the checked user scenario. Boundary: code "prepares the stage" - server-side is allowed; code "checks behavior" - only through the UI.
-- **Why this rule exists.** If a scenario calls server-side logic instead of opening the form, **all client logic remains completely untested** - it is covered by neither the scenario (it bypassed the UI) nor the unit test (this is not its layer). The following remain unverified: client handlers (`&НаКлиенте`, `ПриОткрытии`, `ПриИзменении`, command handlers), client-server form calls (`ПриСозданииНаСервере` and others), conditional formatting, visibility/accessibility/required state of elements, reaction to input and navigation, and the structure of the form itself. The result is that server-side validation is green, but the form fails at runtime (broken form structure, unhandled event, incorrect visibility - for example "Object field not found"), and this surfaces only for the user. Client logic is verified ONLY by a scenario that actually opens the form and imitates the user (`create -> window opened -> I see element ... / enter / click`).
+- **Why this rule exists.** Bypassing the UI with a server call leaves all client logic (handlers, visibility/accessibility, navigation, form structure) without coverage - it is not checked by either such a "scenario" or a unit test, and the defect surfaces only for the user at runtime.
 
 ## MUST
 
@@ -39,4 +34,5 @@ alwaysApply: true
 depends_on:
   - framework/skills/tool-usage/vanessa/vanessa-authoring/SKILL.md
   - framework/rules/vanessa-test-isolation-policy/SKILL.md
+  - framework/rules/tdd-policy/SKILL.md
 ---

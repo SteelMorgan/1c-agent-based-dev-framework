@@ -1,31 +1,33 @@
-# Users and access management of БСП
+# Users and BSP access management
 
 Subsystems **Пользователи**, **УправлениеДоступом** (and the closely related
-**ВнешниеПользователи**). Cover: current session user, role checks and "full rights", RLS read/modify checks at the record level, object permissions, access group profiles, external user (B2B portal).
+**ВнешниеПользователи**). Cover: the current session user, role checks and
+"full rights", RLS checks for reading/modifying at the record level, object
+rights, access group profiles, external user (B2B portal).
 
 ## Modules
 
 Suffix system (one root + context):
 
 - `Пользователи` — server stable API (current user, roles,
-  IB user properties, search).
+  information base user properties, search).
 - `ПользователиКлиент` — client stable API (the same "current
-  user"/"full-rights" — only for the current user).
-- `ПользователиКлиентСервер` — ⚠️ **deprecated** entirely (region
+  user"/"full-rights user" — only for the current user).
+- `ПользователиКлиентСервер` — ⚠️ **obsolete** entirely (region
   `УстаревшиеПроцедурыИФункции`): `ТекущийПользователь`, `АвторизованныйПользователь`,
-  `ТекущийВнешнийПользователь`, `ЭтоСеансВнешнегоПользователя`. Use the
-  server or client variant without the `КлиентСервер` suffix.
+  `ТекущийВнешнийПользователь`, `ЭтоСеансВнешнегоПользователя`. Use
+  the server or client variant without the `КлиентСервер` suffix.
 - `ВнешниеПользователи` — server stable API for external users.
-- `УправлениеДоступом` — server stable API (RLS, permissions, profiles, access
+- `УправлениеДоступом` — server stable API (RLS, rights, profiles, access
   groups, access value sets).
-- `УправлениеДоступомПереопределяемый` — **hooks**: БСП calls it, application code
+- `УправлениеДоступомПереопределяемый` — **hooks**: BSP calls it, application code
   implements it (copies the override module and overrides the body). Not
   called directly from application code.
 - `ПользователиПереопределяемый` — **hooks** for the Пользователи subsystem.
 
-⚠️ **Do not exist:** `УправлениеДоступомКлиент` (without `Служебный`) — for client
-code of the "Управление доступом" subsystem, there is no service stable analogue;
-`УправлениеДоступомСлужебныйКлиент` — ⚠️ service, without guarantees. Also
+⚠️ **Do not exist:** `УправлениеДоступомКлиент` (without `Служебный`) — there is no
+service stable counterpart for client code of the "Access Management"
+subsystem; `УправлениеДоступомСлужебныйКлиент` — ⚠️ service, without guarantees. Also
 `Пользователи.СсылкаТекущегоПользователя`, `ПользователиКлиент.Авторизоваться`,
 `ПользователиСлужебный.СоздатьПользователяИБ`, `УправлениеДоступом.НастройкиПрав` —
 do not exist (typical "by analogy" mistakes).
@@ -34,9 +36,7 @@ do not exist (typical "by analogy" mistakes).
 
 ### 1. Get the current session user
 
-**Task:** in server-side code, get the user reference to populate the
-“Responsible”/“Author” field, etc., while correctly working with external
-users as well.
+**Task:** in server code, get the user reference to fill the «Responsible»/«Author» etc. attribute, working correctly with external users as well.
 
 **Functions:**
 `Пользователи.АвторизованныйПользователь() Экспорт`
@@ -47,17 +47,17 @@ users as well.
 — Function, region `#Область ПрограммныйИнтерфейс` (stable). Server.
 
 **Parameters:** no parameters. `АвторизованныйПользователь` returns
-`СправочникСсылка.Пользователи` or `СправочникСсылка.ВнешниеПользователи` depending on who signed in. `ТекущийПользователь` always returns
-`СправочникСсылка.Пользователи` and **throws an exception** if an external
-user signed in.
+`СправочникСсылка.Пользователи` or `СправочникСсылка.ВнешниеПользователи` depending on who logged in. `ТекущийПользователь` always returns
+`СправочникСсылка.Пользователи` and **throws an exception** if the login was performed by
+an external user.
 
 **Example:**
 ```bsl
-// Универсально — для кода, поддерживающего внешних пользователей
+// Universal — for code that supports external users
 ТекПользователь = Пользователи.АвторизованныйПользователь();
 ДокументОбъект.Ответственный = ТекПользователь;
 
-// Код, который НЕ поддерживает внешних пользователей — можно звать ТекущийПользователь
+// Code that does NOT support external users — you can call ТекущийПользователь
 Если Не Пользователи.ЭтоСеансВнешнегоПользователя() Тогда
     Автор = Пользователи.ТекущийПользователь();
 КонецЕсли;
@@ -65,17 +65,19 @@ user signed in.
 
 **Nuances / anti-patterns:**
 - ❌ `ДокументОбъект.Ответственный = ИмяПользователя();` — the platform method
-  returns a string; when the name changes, references “move away”. Use
+  returns a string; when the name changes, references “drift away”. Use
   `АвторизованныйПользователь()` — returns a catalog reference.
-- ❌ `Пользователи.СсылкаТекущегоПользователя()` — the method **does not exist**
-  (compilation error). `ТекущийПользователь()` returns a reference itself.
-- For client code - `ПользователиКлиент.АвторизованныйПользователь()` or
-  `ПользователиКлиент.ТекущийПользователь()` (stable, current user only). ⚠️ `ПользователиКлиентСервер.ТекущийПользователь` - obsolete.
-- Cache the result at the beginning of the server call and do not call the function again.
+- ❌ `Пользователи.СсылкаТекущегоПользователя()` — the method does **not exist**
+  (compilation error). `ТекущийПользователь()` returns the reference itself.
+- For client code — `ПользователиКлиент.АвторизованныйПользователь()` or
+  `ПользователиКлиент.ТекущийПользователь()` (stable, current user only). ⚠️ `ПользователиКлиентСервер.ТекущийПользователь` — deprecated.
+- Cache the result at the beginning of the server call and do not call the function repeatedly.
 
-### 2. Check user roles and "full rights"
+### 2. Check the user's roles and "full rights"
 
-**Task:** check whether a user has a configuration role (or full rights) before opening the administrative interface or performing a privileged operation.
+**Task:** check whether the user has a configuration role (or
+full rights) before opening the administrative interface or performing
+a privileged operation.
 
 **Functions:**
 `Пользователи.РолиДоступны(ИменаРолей, Пользователь = Неопределено, УчитыватьПривилегированныйРежим = Истина) Экспорт`
@@ -91,7 +93,7 @@ user signed in.
   when `УчитыватьПривилегированныйРежим = Истина`.
 - `Пользователь` (`СправочникСсылка.Пользователи` / `ВнешниеПользователи` /
   `ПользовательИнформационнойБазы` / `Неопределено` — current) — for
-  `РолиДоступны` and the server-side `ЭтоПолноправныйПользователь`. On the client,
+  `РолиДоступны` and server-side `ЭтоПолноправныйПользователь`. On the client,
   only the current one is checked.
 - `ПроверятьПраваАдминистрированияСистемы` (Boolean) — `Истина` — check not
   only `ПолныеПрава`, but also `АдминистраторСистемы`.
@@ -110,41 +112,42 @@ user signed in.
 
 // Client: current only, without specifying a user
 Если ПользователиКлиент.ЭтоПолноправныйПользователь(Истина) Тогда
-    // open admin section
+    // open the admin section
 КонецЕсли;
 ```
 
-**Nuances / anti-patterns:**
-- ❌ `Если РольДоступна("ПолныеПрава") Тогда` — platform method, does not account for
+**Nuances / antipatterns:**
+- ❌ `Если РольДоступна("ПолныеПрава") Тогда` — platform method, does not take into account
   privileged mode and full rights. Use
   `Пользователи.ЭтоПолноправныйПользователь` or `РолиДоступны`.
-- ❌ Passing an array to `РолиДоступны` — the method expects a **string** with commas.
+- ❌ Passing an array to `РолиДоступны` — the method expects a **string** separated by commas.
 - `ЭтоПолноправныйПользователь` on the server accepts `Пользователь` (you can
   check an arbitrary one), on the client — only the current one.
 
-### 3. Check RLS access to an object (read/change)
+### 3. Check RLS access to an object (read/edit)
 
 **Task:** before executing a heavy query or writing, check at the record level
-(RLS) that the current user is allowed to read/change the object, and
-if denied, raise an exception.
+(RLS) that the current user is allowed to read/edit the object, and
+if access is denied, generate an exception.
 
 **Functions:**
 `УправлениеДоступом.ЧтениеРазрешено(ОписаниеДанных, Пользователь = Неопределено) Экспорт`
-— Function → Boolean, region `#Область ПрограммныйИнтерфейс` (stable). Server.
+— Function → Bool, region `#Область ПрограммныйИнтерфейс` (stable). Server.
 `УправлениеДоступом.ИзменениеРазрешено(ОписаниеДанных, Пользователь = Неопределено) Экспорт`
-— Function → Boolean, region `#Область ПрограммныйИнтерфейс` (stable). Server.
+— Function → Bool, region `#Область ПрограммныйИнтерфейс` (stable). Server.
 `УправлениеДоступом.ПроверитьЧтениеРазрешено(ОписаниеДанных) Экспорт`
 `УправлениеДоступом.ПроверитьИзменениеРазрешено(ОписаниеДанных) Экспорт`
-— Procedures, raise an exception if denied, region `#Область ПрограммныйИнтерфейс` (stable). Server.
+— Procedures, throw an exception when access is denied, region `#Область ПрограммныйИнтерфейс` (stable). Server.
 
 **Parameters:**
 - `ОписаниеДанных` (`СправочникСсылка` / `ДокументСсылка` / `ПланВидовХарактеристикСсылка`
-  / `ПланСчетовСсылка` / `ПланВидовРасчетаСсылка` / `БизнесПроцессСсылка` / key
-  record / record set / in-memory object) — for `ИзменениеРазрешено`, the in-memory object is checked for a new object, the DB object — for the reference.
+  / `ПланСчетовСсылка` / `ПланВидовРасчетаСсылка` / `БизнесПроцессСсылка` / record
+  key / record set / in-memory object) — for `ИзменениеРазрешено`, the in-memory
+  object is checked for a new object, the DB object — for a reference.
 - `Пользователь` (`СправочникСсылка.Пользователи` /
   `СправочникСсылка.ВнешниеПользователи` / `Неопределено` — current). In the
-  standard (non-performance) variant, when specifying a user other than the current
-  one, the method raises an exception.
+  standard (non-performance) variant, when a non-current user is specified, the
+  method throws an exception.
 
 **Example:**
 ```bsl
@@ -161,50 +164,51 @@ if denied, raise an exception.
 ```
 
 **Nuances / anti-patterns:**
-- ❌ Writing your own RLS filters via `Если РольДоступна("ЧтениеДокументов")
-  Тогда` — this does not take record-level restrictions into account and diverges from the
-  БСП security model. Delegate the check to `УправлениеДоступом`.
-- In the standard variant (`ПроизводительныйВариант()` = `Ложь`) when specifying
-  a user other than the current one, the methods raise an exception; the check
-  applies only to the DB object. Before advanced use, check
+- ❌ Write your own RLS filters with `Если РольДоступна("ЧтениеДокументов")
+  Тогда` — this does not take record-level restrictions into account and
+  diverges from the БСП security model. Delegate the check to `УправлениеДоступом`.
+- In the standard variant (`ПроизводительныйВариант()` = `Ложь`), when a user
+  other than the current one is specified, the methods throw an exception; the
+  check applies only to the DB object. Before extended use, check
   `УправлениеДоступом.ПроизводительныйВариант()`.
 - `ИзменениеРазрешено` for a reference checks the Read right at the record level and
-  Change right for the table as a whole; for a new object, only the in-memory object.
-- Do not confuse this with `ЕстьПраво` (object rights, see scenario 4) — `ЧтениеРазрешено`/
-  `ИзменениеРазрешено` are about RLS for read/change.
+  Change on the table as a whole; for a new object — only the in-memory object.
+- Do not confuse with `ЕстьПраво` (rights on the object, see scenario 4) —
+  `ЧтениеРазрешено`/`ИзменениеРазрешено` are about RLS for reading/changing.
 
-### 4. Check object permission and role in an access group profile
+### 4. Check object permission and role in the access group profile
 
-**Task:** check that the user has an configured "object permission"
-(for example, "УправлениеПравами", "Чтение", "ИзменениеПапок" for a file folder) taking
-hierarchy into account, or that they have a role in one of the access group profiles.
+**Task:** verify that the user has the configured "object permission"
+(for example, "УправлениеПравами", "Чтение", "ИзменениеПапок" for a file folder),
+with hierarchy taken into account, or that the user has a role in one of the
+access group profiles.
 
 **Functions:**
 `УправлениеДоступом.ЕстьПраво(Право, СсылкаНаОбъект, Знач Пользователь = Неопределено) Экспорт`
-— Function → Bool, region `#Область ПрограммныйИнтерфейс` (stable). Server.
+— Function → Boolean, region `#Область ПрограммныйИнтерфейс` (stable). Server.
 `УправлениеДоступом.ЕстьРоль(Знач Роль, Знач СсылкаНаОбъект = Неопределено, Знач Пользователь = Неопределено) Экспорт`
-— Function → Bool, region `#Область ПрограммныйИнтерфейс` (stable). Server.
+— Function → Boolean, region `#Область ПрограммныйИнтерфейс` (stable). Server.
 
 **Parameters:**
-- `Право` (String) — the permission name as specified in the hook
+- `Право` (String) — the permission name as defined in the hook
   `УправлениеДоступомПереопределяемый.ПриЗаполненииВозможныхПравДляНастройкиПравОбъектов`.
 - `СсылкаНаОбъект` (`СправочникСсылка` / `ПланВидовХарактеристикСсылка`) —
-  a reference to the specific object that owns the permissions (for example, a file folder), **not**
+  a reference to the specific permission owner object (for example, a file folder), **not**
   metadata.
 - `Роль` (String) — role name; `СсылкаНаОбъект` (`ЛюбаяСсылка` /
-  `ТаблицаЗначений` of access value sets / `Неопределено`) — for checking
-  the Read permission in access groups.
-- `Пользователь` — for `ЕстьПраво` you can pass any user; `ЕстьРоль`
-  checks access group profiles taking RLS into account for reading.
+  `ТаблицаЗначений` of access value sets / `Неопределено`) — for checking the
+  Read permission in access groups.
+- `Пользователь` — for `ЕстьПраво`, you can pass any user; `ЕстьРоль`
+  checks by access group profiles taking RLS on read into account.
 
 **Example:**
 ```bsl
-// Permission on a specific file folder taking hierarchy into account
+// Permission for a specific file folder with hierarchy taken into account
 Если УправлениеДоступом.ЕстьПраво("ИзменениеПапок", ПапкаФайлов) Тогда
     // ...
 КонецЕсли;
 
-// Role in an access group profile (for the current user)
+// Role in the access group profile (for the current user)
 Если УправлениеДоступом.ЕстьРоль("ДобавлениеИзменениеПапокФайлов", ПапкаФайлов) Тогда
     // ...
 КонецЕсли;
@@ -212,17 +216,18 @@ hierarchy into account, or that they have a role in one of the access group prof
 
 **Nuances / anti-patterns:**
 - ❌ `УправлениеДоступом.ЕстьПраво("Чтение", Метаданные.Справочники.Файлы)` —
-  compilation error: the second argument is an object reference, not metadata.
+  runtime error: the second argument is an object reference, not metadata
+  (BSL does not check argument types at compile time).
 - ❌ `УправлениеДоступом.НастройкиПрав(...)` — the method does **not exist**. Permissions
   are configured through the `УправлениеДоступомПереопределяемый` hook.
-- `ЕстьРоль` checks the role in access group profiles taking RLS into account for reading; to
-  check the "bare" configuration role without RLS, use
+- `ЕстьРоль` checks the role in access group profiles taking read RLS into account; to
+  check the plain configuration role without RLS, use
   `Пользователи.РолиДоступны` (see scenario 2).
 
 ### 5. Handle an external user (B2B portal)
 
-**Task:** in code intended for an external portal, distinguish an external
-user login, obtain their reference and the authorization owner object (counterparty).
+**Task:** in code intended for an external portal, distinguish the login of an external
+user, get their reference and the authentication owner object (counterparty).
 
 **Functions:**
 `ВнешниеПользователи.ИспользоватьВнешнихПользователей() Экспорт`
@@ -247,18 +252,18 @@ user login, obtain their reference and the authorization owner object (counterpa
 ```
 
 **Nuances / anti-patterns:**
-- ❌ Call `ВнешниеПользователи.ТекущийВнешнийПользователь()` without first
-  checking `ЭтоСеансВнешнегоПользователя()` — the method throws an exception if the login
-  was performed by a regular user. First check, then call.
+- ❌ Call `ВнешниеПользователи.ТекущийВнешнийПользователь()` without first checking
+  `ЭтоСеансВнешнегоПользователя()` — the method throws an exception if a regular user
+  logged in. First check, then call.
 - `Пользователи.ТекущийПользователь()` in an external user session throws
   an exception — use `АвторизованныйПользователь()` (see scenario 1) if the
   code supports both variants.
 
 ### 6. Assign an access group profile / set user rights
 
-**Task:** programmatically enable a user access group profile (for
-simplified rights configuration) or completely reassign their rights by a list
-of access groups and user groups.
+**Task:** programmatically enable an access group profile for a user (for
+simplified rights setup) or completely reassign their rights by the list of access
+groups and user groups.
 
 **Functions:**
 `УправлениеДоступом.ВключитьПрофильПользователю(Пользователь, Профиль) Экспорт`
@@ -272,37 +277,37 @@ of access groups and user groups.
 - `Пользователь` (`СправочникСсылка.Пользователи` /
   `СправочникСсылка.ВнешниеПользователи`).
 - `Профиль` (`СправочникСсылка.ПрофилиГруппДоступа` / `УникальныйИдентификатор`
-  of a supplied profile / `Строка` — name of a supplied profile) — for
+  of the supplied profile / `Строка` — name of the supplied profile) — for
   `ВключитьПрофильПользователю` creates/finds a personal access group and
   adds the user to it. `Неопределено` in `ВыключитьПрофильПользователю`
-  means disable all profiles.
-- `ГруппыДоступа` (`Массив` of `ГруппыДоступа` / `ПрофилиГруппДоступа`),
-  `ГруппыПользователей` (`Массив` of `ГруппыПользователей`) — complete
-  rights reassignment.
+  — disable all profiles.
+- `ГруппыДоступа` (`Массив` из `ГруппыДоступа` / `ПрофилиГруппДоступа`),
+  `ГруппыПользователей` (`Массив` из `ГруппыПользователей`) — full
+  reassignment of rights.
 
 **Example:**
 ```bsl
-// Enable a profile by the name of a supplied profile
+// Включить профиль по имени поставляемого профиля
 УправлениеДоступом.ВключитьПрофильПользователю(Пользователь, "ПрофильМенеджераПродаж");
 
-// Full rights setup: a set of access groups and user groups
+// Полная установка прав: набор групп доступа и групп пользователей
 МассивГрупп = Новый Массив;
 МассивГрупп.Добавить(Справочники.ГруппыДоступа.НайтиПоНаименованию("Менеджеры"));
 УправлениеДоступом.УстановитьПраваПользователя(Пользователь, МассивГрупп, Новый Массив);
 ```
 
 **Nuances / anti-patterns:**
-- ❌ Look for a non-existent `УправлениеДоступом.ДобавлениеПользователейВГруппу` —
-  there is no such method. Assigning a profile is through `ВключитьПрофильПользователю`, a full
-  reassignment is through `УстановитьПраваПользователя`.
-- `ВключитьПрофильПользователю` works in the simplified rights setup mode
-  (it creates a personal access group); for the non-simplified mode use
+- ❌ Looking for the nonexistent `УправлениеДоступом.ДобавлениеПользователейВГруппу` —
+  there is no such method. Assigning a profile is done via `ВключитьПрофильПользователю`, and a full
+  reinstallation is done via `УстановитьПраваПользователя`.
+- `ВключитьПрофильПользователю` works in simplified rights setup mode
+  (it creates a personal access group); for non-simplified mode use
   `УстановитьПраваПользователя` with access groups.
 
 ### 7. Access override hooks (implemented by application code)
 
-**Task:** extend the configuration with custom access types, object rights,
-shipped profiles - via override modules.
+**Task:** introduce custom access types, object permissions,
+shipped profiles into the configuration - through override modules.
 
 **Functions (hooks):**
 `УправлениеДоступомПереопределяемый.ПриЗаполненииВидовДоступа(ВидыДоступа) Экспорт`
@@ -310,15 +315,15 @@ shipped profiles - via override modules.
 `УправлениеДоступомПереопределяемый.ПриЗаполнениеПоставляемыхПрофилейГруппДоступа(ОписанияПрофилей, ПараметрыОбновления) Экспорт`
 `УправлениеДоступомПереопределяемый.ПриИзмененииНаборовЗначенийДоступа(Ссылка, СсылкиНаЗависимыеОбъекты) Экспорт`
 — all Procedures, region `#Область ПрограммныйИнтерфейс`. **Hooks**: БСП calls
-them at the moments of filling access types, rights, profiles, and when access value
-sets change; application code copies the override module into the
+them at the moments of filling access types, rights, profiles, and when access
+value sets change; application code copies the override module into the
 configuration and implements the body.
 
 **Example (implementation in a copy of the override):**
 ```bsl
-// In the module УправлениеДоступомПереопределяемый, copied into the configuration
+// В модуле УправлениеДоступомПереопределяемый, скопированном в конфигурацию
 Процедура ПриЗаполнениеВозможныхПравДляНастройкиПравОбъектов(ВозможныеПрава) Экспорт
-    // Add the right "ИзменениеПапок" for file folders
+    // Add the "ИзменениеПапок" right for file folders
     Право = ВозможныеПрава.Строки.Добавить();
     Право.Имя = "ИзменениеПапок";
     Право.Описание = НСтр("ru = 'Изменение папок файлов'");
@@ -326,30 +331,31 @@ configuration and implements the body.
 ```
 
 **Nuances / anti-patterns:**
-- ❌ Call hooks directly from application code (`УправлениеДоступомПереопределяемый.
-  ПриЗаполнениеВидовДоступа(...)`) - these are hooks: they are implemented by the application
-  configuration, БСП calls them itself. A direct call makes no sense.
+- ❌ Calling hooks directly from application code (`УправлениеДоступомПереопределяемый.
+  ПриЗаполнениеВидовДоступа(...)`) — these are hooks: they are implemented by the application
+  configuration, and БСП calls them itself. A direct call makes no sense.
 - Likewise `ПользователиПереопределяемый.ПриОпределенииНазначенияРолей`,
-  `ПриОпределенииНастроек` and others - hooks implemented in the customization.
+  `ПриОпределенииНастроек` and others — hooks implemented in the integration.
 
 ## Rare methods
 
-Other stable methods (region `ПрограммныйИнтерфейс`), full signatures are available
-via `python scripts/bsp_api.py method <Имя> [--module <М>] --src src/cf`:
+Other stable methods (region `ПрограммныйИнтерфейс`), full signatures are
+available via `python scripts/bsp_api.py method <Имя> [--module <М>] --src src/cf`:
 
 - `Пользователи.НайтиПоИмени(ИмяДляВхода)` /
   `НайтиПоИдентификатору(ИдентификаторПользователяИБ)` /
-  `НайтиПоСсылке(Пользователь)` — find an IB user.
+  `НайтиПоСсылке(Пользователь)` — search for the information base user.
 - `Пользователи.СвойстваПользователяИБ(ИмяИлиИдентификатор)` /
   `УстановитьСвойстваПользователяИБ(...)` / `УдалитьПользователяИБ(...)` —
-  IB user properties. ⚠️ `ПользователиСлужебный.СоздатьПользователяИБ`
-  does not exist; programmatic user creation is an integration-level task,
+  information base user properties. ⚠️ `ПользователиСлужебный.СоздатьПользователяИБ`
+  does not exist; programmatic user creation is an implementation-level task,
   via `ЗаписатьПользователяИБ(ПользовательОбъект, ПараметрыОбработки)` in the
   service module (the `ПараметрыОбработки` format is unstable).
 - `УправлениеДоступом.ОграничиватьДоступНаУровнеЗаписей()` → Boolean — whether
   RLS is enabled; `ПроизводительныйВариант()` → Boolean — the RLS variant.
 - `УправлениеДоступом.ОбновитьНаборыЗначенийДоступа(СсылкаИлиОбъект,
-  ОбновлениеИБ = Ложь)` — recalculate access value sets after an object change.
+  ОбновлениеИБ = Ложь)` — recalculation of access value sets after an object
+  change.
 - `УправлениеДоступом.ПраваДоступаКДанным(ОписаниеДанных,
   ДляВнешнихПользователей = Ложь, СоставПользователей = Неопределено)` —
   access rights composition for data.

@@ -1,29 +1,30 @@
-# Information Base Backup
+# IB Backup
 
-Subsystem **РезервноеКопированиеИБ** - common modules `РезервноеКопированиеИБКлиент`
-(stable client API - opening the form), `РезервноеКопированиеИБСервер`
-(server-side, ⚠️ entirely in service regions - reading/writing settings, status,
+Subsystem **РезервноеКопированиеИБ** — common modules `РезервноеКопированиеИБКлиент`
+(client stable API - opening the form), `РезервноеКопированиеИБСервер`
+(server-side, ⚠️ entirely in service regions - read/write settings, status,
 navigation link), `РезервноеКопированиеИБВызовСервера` (⚠️ service -
 server calls from the client), `РезервноеКопированиеИБКлиентПереопределяемый`
-(warning suppression hook). Covers opening the backup form,
+(hook for disabling warnings). Covers opening the backup form,
 programmatic work with settings, calculating the next backup date, resetting
-the flag after restoration.
+the flag after restore.
 
-The subsystem supports **file-based only** information bases; in client-server
-mode the automatic backup methods return `Ложь`, and the UI form is useless -
-use DBMS tools and the `РезервноеКопированиеНастроено = Истина` flag without
+The subsystem supports only the **file-based** IB variant; in the client-server
+variant, automatic backup methods return `Ложь`, and the UI form is useless - use
+database tools and the flag
+`РезервноеКопированиеНастроено = Истина` without
 `ВыполнятьАвтоматическоеРезервноеКопирование`. Uploading to cloud storage
 (Google Drive, Yandex.Disk) is not provided in this API version - a local file
 system directory is used (`КаталогХраненияРезервныхКопий`).
 
 ## Modules
 
-- `РезервноеКопированиеИБКлиент` - **the only stable** client-side method:
-  `ОткрытьФормуРезервногоКопирования`. The remaining exported methods of the
-  module - subsystem event handlers (`ПриНачалеРаботыСистемы`,
+- `РезервноеКопированиеИБКлиент` - the **only stable** client
+  method: `ОткрытьФормуРезервногоКопирования`. The module's other exported methods
+  - subsystem event handlers (`ПриНачалеРаботыСистемы`,
   `ПередЗавершениемРаботыСистемы`, `ПриПредложенииПользователюСоздатьРезервнуюКопию`)
-  in `СлужебныйПрограммныйИнтерфейс` - are called by BSP, not from application
-  code. Thin / Thick client.
+  in `СлужебныйПрограммныйИнтерфейс` - are called by БСП, not from application code.
+  Thin / Thick client.
 - `РезервноеКопированиеИБСервер` - ⚠️ **entirely service**: in
   `СлужебныйПрограммныйИнтерфейс` - `УстановитьНастройкиРезервногоКопирования`,
   `ТекущаяНастройкаРезервногоКопирования`,
@@ -32,26 +33,25 @@ system directory is used (`КаталогХраненияРезервныхКо�
   `СброситьПризнакРезервногоКопирования`, `УстановитьДатуПоследнегоНапоминания`,
   `УстановитьЗначениеНастройки`, `ЗавершитьРезервноеКопирование`. Backward
   compatibility is not guaranteed.
-- `РезервноеКопированиеИБВызовСервера` - ⚠️ service (server call from the
-  client): `УстановитьЗначениеНастройки`, `ДатаСледующегоАвтоматическогоКопирования`,
+- `РезервноеКопированиеИБВызовСервера` - ⚠️ service (server call from
+  the client): `УстановитьЗначениеНастройки`, `ДатаСледующегоАвтоматическогоКопирования`,
   `УстановитьДатуПоследнегоНапоминания` (in `СлужебныеПроцедурыИФункции`).
 - `РезервноеКопированиеИБКлиентПереопределяемый` - **hook**
   `ПриОпределенииНеобходимостиПоказаПредупрежденийОРезервномКопировании`.
 - `РезервноеКопированиеОбластейДанных` / `…Клиент` - service model stubs
-  (SaaS), empty in a local information base.
+  (SaaS), in the local IB they are empty.
 
-⚠️ **There are no** modules `РезервноеКопированиеИБСлужебный`,
+⚠️ The modules `РезервноеКопированиеИБСлужебный`,
 `РезервноеКопированиеИБПереопределяемый` (without `Клиент`),
-`РезервноеКопированиеИБКлиентСервер`. Service logic is built into the main
-modules, and overriding is client-side only. Before calling, check the actual
-shared modules directory.
+`РезервноеКопированиеИБКлиентСервер` do not exist. Service logic is built into the main
+modules, and overriding is client-only. Before calling, check the real directory of common modules.
 
 ## Scenarios
 
-### 1. Open the backup form with file-based variant check
+### 1. Open the backup form with file-mode validation
 
 **Task:** from an application command, open the form for creating/restoring a
-backup copy, first making sure that the information base is file-based.
+backup, first making sure that the infobase is file-based.
 
 **Function:**
 `РезервноеКопированиеИБКлиент.ОткрытьФормуРезервногоКопирования(Параметры = Неопределено) Экспорт`
@@ -59,8 +59,8 @@ backup copy, first making sure that the information base is file-based.
 client.
 
 **Parameters:**
-- `Параметры` (Structure / Undefined) - form parameters. To run when
-  shutting down: `Новый Структура("РежимРаботы", "ВыполнитьПриЗавершенииРаботы")`.
+- `Параметры` (Structure / Undefined) — form parameters. To start on
+  shutdown: `New Structure("РежимРаботы", "ВыполнитьПриЗавершенииРаботы")`.
 
 **Example:**
 ```bsl
@@ -76,29 +76,30 @@ client.
 ```
 
 **Nuances / anti-patterns:**
-- ❌ Open the form without checking `ИнформационнаяБазаФайловая()` - in the
-  client-server variant the form will open "empty".
+- ❌ Opening the form without checking `ИнформационнаяБазаФайловая()` — in the
+  client-server variant the form will open “empty” (a subsystem limitation - see the warning in the introduction).
 - `ОткрытьФормуРезервногоКопирования` is the **only** stable client entry
-  point. Do not invent `ОткрытьФормуНастроекКопирования` - the settings form
-  is opened by the subsystem UI command or navigation link (scenario 3).
+  point. Do not invent `ОткрытьФормуНастроекКопирования` — the settings form is
+  opened by a subsystem UI command or a navigation link
+  (scenario 3).
 
-### 2. Read and save backup settings
+### 2. Read and save copy settings
 
-**Task:** from a server-side handler, initialize the schedule, directory,
-retention period, and automatic backup flags; overwrite settings correctly
+**Task:** from server-side processing, initialize the schedule, directory,
+retention period, and automatic copy flags; correctly overwrite the settings
 without losing default values.
 
 **Functions:**
-`РезервноеКопированиеИБСервер.ПараметрыРезервногоКопирования() Экспорт` - Function → Structure (see `НовыеНастройкиРезервногоКопирования`).
-`РезервноеКопированиеИБСервер.УстановитьНастройкиРезервногоКопирования(Знач Настройки, Знач Пользователь = Неопределено) Экспорт` - Procedure.
-— ⚠️ **service** (`СлужебныеПроцедурыИФункции` / `СлужебныйПрограммныйИнтерфейс`);
+`РезервноеКопированиеИБСервер.ПараметрыРезервногоКопирования() Экспорт` — Function → Structure (see `НовыеНастройкиРезервногоКопирования`).
+`РезервноеКопированиеИБСервер.УстановитьНастройкиРезервногоКопирования(Знач Настройки, Знач Пользователь = Неопределено) Экспорт` — Procedure.
+— ⚠️ **internal** (`СлужебныеПроцедурыИФункции` / `СлужебныйПрограммныйИнтерфейс`);
 backward compatibility is not guaranteed. Server, External connection.
 
 **Parameters:**
-- `Настройки` (Structure, see `НовыеНастройкиРезервногоКопирования`) - full
+- `Настройки` (Structure, see `НовыеНастройкиРезервногоКопирования`) — full
   set of fields: `ВыполнятьАвтоматическоеРезервноеКопирование` (Boolean),
   `РезервноеКопированиеНастроено` (Boolean),
-  `РасписаниеКопирования` (scheduled task schedule structure),
+  `РасписаниеКопирования` (Structure of the scheduled job schedule),
   `КаталогХраненияРезервныхКопий` (String),
   `КаталогХраненияРезервныхКопийПриРучномЗапуске` (String),
   `ВариантВыполнения` (`"ПоРасписанию"` / `"ПриЗавершенииРаботы"`),
@@ -107,13 +108,13 @@ backward compatibility is not guaranteed. Server, External connection.
   `ЕдиницаИзмеренияПериода`, `ЗначениеВЕдиницахИзмерения`),
   `ДатаПоследнегоРезервногоКопирования`, `МинимальнаяДатаСледующегоАвтоматическогоРезервногоКопирования`,
   `РучнойЗапускПоследнегоРезервногоКопирования` and others.
-- `Пользователь` (UserRef / Undefined) - if specified, settings are additionally
-  saved to the `ПараметрыРезервногоКопирования` constant for transfer to a
-  background session when shutting down.
+- `Пользователь` (ПользовательСсылка / Undefined) — if specified, the settings
+  are additionally saved in the constant `ПараметрыРезервногоКопирования` for
+  transfer to the background session when shutting down.
 
 **Example:**
 ```bsl
-// Server: always read the current settings first, then change the required fields
+// Server: always read the current settings, then change the required fields
 Настройки = РезервноеКопированиеИБСервер.ПараметрыРезервногоКопирования();
 Настройки.ВыполнятьАвтоматическоеРезервноеКопирование = Истина;
 Настройки.ВариантВыполнения = "ПоРасписанию";
@@ -124,71 +125,64 @@ backward compatibility is not guaranteed. Server, External connection.
 ```
 
 **Nuances / anti-patterns:**
-- ❌ Build the settings structure "from scratch" with `Новый Структура` -
-  `УстановитьНастройкиРезервногоКопирования` expects the **full** set of
-  fields, and default values and service fields
-  (`ДатаПоследнегоРезервногоКопирования`,
-  `МинимальнаяДатаСледующегоАвтоматическогоРезервногоКопирования`, etc.) will
-  be lost. Only `ПараметрыРезервногоКопирования()` → edit fields → write.
-- ❌ Start backup programmatically through
-  `ЗавершитьРезервноеКопирование(Результат, ИмяФайлаРезервнойКопии = "")` -
-  this is the service **completion** method (processing the result after
-  execution), not the start. Backup is initiated through the form
-  (`ОткрытьФормуРезервногоКопирования` with
-  `РежимРаботы = "ВыполнитьПриЗавершенииРаботы"`) or a scheduled job.
-- Cloud backup (Google Drive, Yandex.Disk) is not provided in this API version -
-  only a local/network FS directory.
+- ❌ Building the settings structure "from scratch" with `Новый Структура` —
+  `УстановитьНастройкиРезервногоКопирования` expects a **complete** set of fields, and
+  default values and service fields will be lost (`ДатаПоследнегоРезервногоКопирования`,
+  `МинимальнаяДатаСледующегоАвтоматическогоРезервногоКопирования`, etc.). Only
+  `ПараметрыРезервногоКопирования()` → edit fields → write.
+- ❌ Programmatically starting backup through `ЗавершитьРезервноеКопирование(Результат, ИмяФайлаРезервнойКопии = "")` — this is a service **completion** method
+  (processing the result after execution), not a start method. The backup
+  is initiated through the form (`ОткрытьФормуРезервногоКопирования` with
+  `РежимРаботы = "ВыполнитьПриЗавершенииРаботы"`) or by a scheduled job.
 
-### 3. Show the status and navigation link in a card
+### 3. Show the status and navigation link in the card
 
-**Task:** get a ready localized text formulation of the current backup mode and
-a navigation link to the handler for insertion into a formatted string / email /
-notification.
+**Task:** get a ready-made localized string describing the current
+backup mode and a navigation link to the processing object for insertion into a
+formatted string / email / notification.
 
 **Functions:**
-`РезервноеКопированиеИБСервер.ТекущаяНастройкаРезервногоКопирования() Экспорт` - Function → String.
-`РезервноеКопированиеИБСервер.НавигационнаяСсылкаОбработкиРезервногоКопирования() Экспорт` - Function → String (`e1cib/app/Обработка.РезервноеКопированиеИБ`).
+`РезервноеКопированиеИБСервер.ТекущаяНастройкаРезервногоКопирования() Экспорт` — Function → String.
+`РезервноеКопированиеИБСервер.НавигационнаяСсылкаОбработкиРезервногоКопирования() Экспорт` — Function → String (`e1cib/app/Обработка.РезервноеКопированиеИБ`).
 — ⚠️ **service** (`СлужебныйПрограммныйИнтерфейс`). Server, External connection.
 
 **Parameters:** none.
 
 **Example:**
 ```bsl
-// Server
+// Сервер
 ТекстСтатуса = РезервноеКопированиеИБСервер.ТекущаяНастройкаРезервногоКопирования();
 НавигационнаяСсылка = РезервноеКопированиеИБСервер.НавигационнаяСсылкаОбработкиРезервногоКопирования();
 
-// In a formatted string / HTML field
+// В форматированной строке / поле HTML
 СтрокаHTML = "<a href='" + НавигационнаяСсылка + "'>" + ТекстСтатуса + "</a>";
 ```
 
 **Nuances / anti-patterns:**
-- `ТекущаяНастройкаРезервногоКопирования` takes the information base variant
-  into account: in the client-server variant it will return "Backup is not being
-  performed (organized by DBMS tools)"; when no settings exist - "To configure
-  backup, contact the administrator.". Do not construct such text yourself.
+- `ТекущаяНастройкаРезервногоКопирования` takes the IB variant into account: in
+  client-server mode it returns "Backup is not performed (handled by the DBMS)"; if settings are absent — "To configure backup, contact the administrator.".
+  Do not construct such text yourself.
 - `НавигационнаяСсылкаОбработкиРезервногоКопирования` returns a link to the
-  **main** handler `РезервноеКопированиеИБ` (form `РезервноеКопированиеДанных`),
+  **main** processing object `РезервноеКопированиеИБ` (form `РезервноеКопированиеДанных`),
   not to the settings form.
 
-### 4. Calculate the next backup date and change one settings field
+### 4. Calculate the next backup date and change a single settings field
 
-**Task:** in the client settings form, show the date of the next automatic
-backup and save a change to one field without rereading the whole structure
-(from a form item change handler).
+**Task:** in the client-side settings form, show the date of the next
+automatic backup and save the change of a single field without
+re-reading the entire structure (from the form item change handler).
 
 **Functions:**
-`РезервноеКопированиеИБВызовСервера.ДатаСледующегоАвтоматическогоКопирования(ОтложитьРезервноеКопирование = Ложь) Экспорт` - Function → Date.
-`РезервноеКопированиеИБВызовСервера.УстановитьЗначениеНастройки(ИмяЭлемента, ЗначениеЭлемента) Экспорт` - Procedure.
+`РезервноеКопированиеИБВызовСервера.ДатаСледующегоАвтоматическогоКопирования(ОтложитьРезервноеКопирование = Ложь) Экспорт` — Function → Date.
+`РезервноеКопированиеИБВызовСервера.УстановитьЗначениеНастройки(ИмяЭлемента, ЗначениеЭлемента) Экспорт` — Procedure.
 — ⚠️ **service** (`СлужебныеПроцедурыИФункции`). Server call from the client
-(Thin/Thick client → Server).
+(Thin/Fat client → Server).
 
 **Parameters:**
-- `ОтложитьРезервноеКопирование` (Boolean) - `Истина` shifts the minimum date
-  forward by 1 hour (for the "Postpone" button).
-- `ИмяЭлемента` (String) - name of the settings field, e.g.
-  `"КаталогХраненияРезервныхКопий"`.
-- `ЗначениеЭлемента` (Any) - new field value.
+- `ОтложитьРезервноеКопирование` (Boolean) — `Истина` shifts the minimum date
+  forward by 1 hour (for the "Отложить" button).
+- `ИмяЭлемента` (String) — the settings field name, e.g. `"КаталогХраненияРезервныхКопий"`.
+- `ЗначениеЭлемента` (Any) — the new field value.
 
 **Example:**
 ```bsl
@@ -202,7 +196,7 @@ backup and save a change to one field without rereading the whole structure
 
 &НаКлиенте
 Процедура КаталогХраненияПриОкончанииВводаТекста(Элемент, Текст, Отказ)
-    // Save one field without rereading the whole settings structure
+    // Save a single field without re-reading the entire settings structure
     РезервноеКопированиеИБВызовСервера.УстановитьЗначениеНастройки(
         "КаталогХраненияРезервныхКопий", Текст);
 КонецПроцедуры
@@ -210,18 +204,18 @@ backup and save a change to one field without rereading the whole structure
 
 **Nuances / anti-patterns:**
 - ⚠️ `УстановитьЗначениеНастройки` and `УстановитьДатуПоследнегоНапоминания`
-  are defined in **two** modules - `…ВызовСервера` (client server call) and
-  `…Сервер` (server context). From client code use `ВызовСервера`, from server
-  code use `Сервер`. Check via
+  are defined in **two** modules — `…ВызовСервера` (client server call)
+  and `…Сервер` (server context). From client code use `ВызовСервера`, from
+  server-side code use `Сервер`. Verify via
   `python scripts/bsp_api.py method УстановитьЗначениеНастройки --src src/cf`.
-- `ДатаСледующегоАвтоматическогоКопирования` is meaningful only when
-  `ВариантВыполнения = "ПоРасписанию"` and the information base is file-based.
+- `ДатаСледующегоАвтоматическогоКопирования` only makes sense when
+  `ВариантВыполнения = "ПоРасписанию"` and the file-based IB variant.
 
-### 5. Reset the backup flag after restoration
+### 5. Reset the copy flag after restoration
 
-**Task:** after restoring the information base from a backup copy, reset the
-`ПроведеноКопирование` flag so that BSP does not consider the backup current,
-and record the operation if the monitoring subsystem is present.
+**Task:** after restoring the infobase from a backup, reset the flag
+`ПроведеноКопирование` (so that БСП does not consider copying current) and,
+if the monitoring subsystem is available, record the operation.
 
 **Function:**
 `РезервноеКопированиеИБСервер.СброситьПризнакРезервногоКопирования() Экспорт`
@@ -232,69 +226,61 @@ Server, External connection.
 
 **Example:**
 ```bsl
-// Server: after restore from a backup copy
+// Сервер: после восстановления из копии
 РезервноеКопированиеИБСервер.СброситьПризнакРезервногоКопирования();
 ```
 
 **Nuances / anti-patterns:**
-- ❌ Reset the flag "just in case" in a normal session - this is a service
-  method for the restore scenario. In normal operation the flag is set by the
-  backup mechanism itself.
-- The method also writes the operation to the monitoring center if the
-  monitoring subsystem is present - no separate call is needed.
+- ❌ Resetting the flag "just in case" in a regular session — this is a service
+  method for the restoration scenario. In normal operation, the flag is set
+  by the copy mechanism itself.
+- The method also writes the operation to the monitoring center if the monitoring
+  subsystem is present — no separate call is needed.
 
-### 6. Override: disable backup setup warnings
+### 6. Override: disable backup configuration warnings
 
-**Task:** in the company, backups are made by third-party tools, and the BSP
-warnings about the need to configure backup are in the way - disable them
-through the hook.
+**Task:** in the company, backups are made by third-party tools, and the БСП banners
+about the need to configure copying get in the way — disable them via a hook.
 
 **Function (hook):**
 `РезервноеКопированиеИБКлиентПереопределяемый.ПриОпределенииНеобходимостиПоказаПредупрежденийОРезервномКопировании(ПоказыватьПредупреждение) Экспорт`
-— Procedure, region `#Область ПрограммныйИнтерфейс`. **Hook**: BSP calls it,
-application code implements it in the identically named module of the
-application configuration. Thin / Thick client.
+— Procedure, region `#Область ПрограммныйИнтерфейс`. **Hook**: БСП calls it,
+application code implements it in a module with the same name in the application configuration.
+Thin / Thick client.
 
 **Parameters:**
-- `ПоказыватьПредупреждение` (Boolean, output) - set to `Ложь` so that BSP does
-  not show warnings.
+- `ПоказыватьПредупреждение` (Boolean, output) — set to `Ложь` so that БСП
+  does not show warnings.
 
 **Example:**
 ```bsl
-// In the module РезервноеКопированиеИБКлиентПереопределяемый of the application configuration
+// В модуле РезервноеКопированиеИБКлиентПереопределяемый прикладной конфигурации
 Процедура ПриОпределениеНеобходимостиПоказаПредупрежденийОРезервномКопировании(ПоказыватьПредупреждение) Экспорт
-    // Backups are made by an external system - do not show BSP warnings
+    // Бэкапы делает внешняя система — не показываем предупреждения БСП
     ПоказыватьПредупреждение = Ложь;
 КонецПроцедуры
 ```
 
 **Nuances / anti-patterns:**
-- ❌ Call the hook like a regular method `РезервноеКопированиеИБКлиентПереопределяемый.ПриОпределениеНеобходимостиПоказаПредупреждений…(Ложь)`
-  from application code - this is **not called**, it is **implemented**. BSP
-  will call your implementation itself.
-- Do not confuse this with disabling the subsystem itself - the hook only
-  suppresses warnings, while the scheduled job and settings API continue to
-  work.
+- ❌ Calling the hook as a regular method `РезервноеКопированиеИБКлиентПереопределяемый.ПриОпределениеНеобходимостиПоказаПредупреждений…(Ложь)`
+  from application code — it is **not called**, it is **implemented**. БСП itself
+  will call your implementation.
+- Do not confuse this with disabling the subsystem itself — the hook suppresses only the warnings,
+  the scheduled job and the settings API continue to work.
 
 ## Additional
 
-Other service methods (full signatures - via
-`python scripts/bsp_api.py method <Имя> --src src/cf`):
+Other service methods (full signatures are available via
+`python scripts/bsp_api.py method <Name> --src src/cf`):
 
-- `РезервноеКопированиеИБСервер.НастройкиРезервногоКопирования(НачалоРаботы = Ложь)` - ⚠️ service, a settings read variant with a start-of-work flag.
-- `РезервноеКопированиеИБСервер.УстановитьДатуПоследнегоНапоминания(ДатаНапоминания)` - ⚠️ service; record the reminder date for the user (duplicated in `…ВызовСервера`).
-- `РезервноеКопированиеИБСервер.ЗавершитьРезервноеКопирование(Результат, ИмяФайлаРезервнойКопии = "")` / `ЗавершитьВосстановление(Результат)` - ⚠️ service handlers for the **result** of execution, not the start.
-- `РезервноеКопированиеИБСервер.ИнформацияОПользователе()` - ⚠️ service, user data for backup.
+- `РезервноеКопированиеИБСервер.НастройкиРезервногоКопирования(НачалоРаботы = Ложь)` — ⚠️ service, a settings-reading variant with a startup flag.
+- `РезервноеКопированиеИБСервер.УстановитьДатуПоследнегоНапоминания(ДатаНапоминания)` — ⚠️ service; record the reminder date for the user (duplicated in `…ВызовСервера`).
+- `РезервноеКопированиеИБСервер.ЗавершитьРезервноеКопирование(Результат, ИмяФайлаРезервнойКопии = "")` / `ЗавершитьВосстановление(Результат)` — ⚠️ service handlers for the execution **result**, not the launch.
+- `РезервноеКопированиеИБСервер.ИнформацияОПользователе()` — ⚠️ service, user data for copying.
 
-Subsystem handlers:
+Subsystem processing objects:
 
-- `Обработка.РезервноеКопированиеИБ` - main form `РезервноеКопированиеДанных` (create/restore backup). Opened via `ОткрытьФормуРезервногоКопирования`.
-- `Обработка.НастройкаРезервногоКопированияИБ` - settings form; opened by the subsystem UI command or navigation link (scenario 3), no direct exported open method exists.
+- `Обработка.РезервноеКопированиеИБ` — main form `РезервноеКопированиеДанных` (create/restore a copy). Opened through `ОткрытьФормуРезервногоКопирования`.
+- `Обработка.НастройкаРезервногоКопированияИБ` — settings form; opened by the subsystem UI command or a navigation link (scenario 3), there is no direct exported opening method.
 
-Settings storage: key `ПараметрыРезервногоКопирования` in the shared
-settings store + a duplicate constant `ПараметрыРезервногоКопирования` (type
-`ХранилищеЗначения`, compression 9) for passing parameters to a background
-session when shutting down. The `ПараметрыРезервногоКопирования` method returns
-a `Structure` (not `FixedStructure`) with a fixed set of fields - do not add
-your own fields, `УстановитьНастройкиРезервногоКопирования` will write only the
-original set.
+Settings storage: key `ПараметрыРезервногоКопирования` in the common settings storage + duplicate constant `ПараметрыРезервногоКопирования` (type `ХранилищеЗначения`, compression 9) for passing parameters to a background session when finishing work. The `ПараметрыРезервногоКопирования` method returns a `Структуру` (not `ФиксированнаяСтруктура`) with a fixed set of fields — do not add your own fields, `УстановитьНастройкиРезервногоКопирования` will write only the original set.

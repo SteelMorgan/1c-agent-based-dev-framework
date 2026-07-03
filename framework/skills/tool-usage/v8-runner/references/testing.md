@@ -4,7 +4,7 @@
 
 ## WS-сопряжение с session-manager на test yaxunit / test va
 
-> **Используемый форк:** WS-транспорт реализован в форке [`SteelMorgan/v8-runner-rust`](https://github.com/SteelMorgan/v8-runner-rust) (upstream: `alkoleft/v8-runner-rust`), т.к. PR-ы в upstream не принимаются. Расширения `mcp_client`/`test_client` входят в [`SteelMorgan/onec-client-mcp-devkit`](https://github.com/SteelMorgan/onec-client-mcp-devkit).
+> Форки SteelMorgan, используемые для WS-транспорта — канон в `SKILL.md`, раздел «Форма команды».
 
 WS-флаги для `test ...` те же, что и для `launch ...`: `--mcp-transport`, `--manager-url`, `--client-uid`, `--corr-id`, `--mcp-log-level`, `--mcp-ws-timeout-ms`. **Тонкость clap-структуры:** на test-командах флаги объявлены на уровне `TestArgs` (через `flatten(McpClientWsArgs)`), то есть **до** подкоманды `yaxunit`/`va`:
 
@@ -20,18 +20,7 @@ v8-runner test yaxunit --mcp-transport=ws all                 # ❌
 
 Подкоманды `test yaxunit ...` / `test yaxunit module ...` / `test va` свой `McpClientWsArgs` не объявляют, поэтому `--help` на их уровне WS-опции не показывает. Чтобы увидеть их — `v8-runner test --help`.
 
-Альтернатива CLI — `tools.client_mcp.*` в `v8project.yaml`:
-
-```yaml
-tools:
-  client_mcp:
-    transport: auto         # mcp | ws | auto
-    manager_url: ws://127.0.0.1:4000/sessions
-    log_level: info
-    ws_timeout_ms: 1000
-```
-
-Приоритет: CLI-флаг → yaml → внутренние дефолты.
+Альтернатива CLI — `tools.client_mcp.*` в `v8project.yaml` (приоритет CLI-флаг → yaml → внутренние дефолты); полный yaml-пример и таблица дефолтов/override — в `project-workflows.md`.
 
 Маппинг `kind`: `test yaxunit ...` → `yaxunit_runner`, `test va ...` → `vanessa_test_client`. Фиксируется точкой входа, из CLI не переопределяется.
 
@@ -46,7 +35,7 @@ tools:
 
 Resolved (DRIVE 2026-05-11): yaxunit_runner не регистрировался в `session_list` менеджера, хотя v8-runner правильно подставлял WS-payload в `/C`. ЖР-трассировка показала race condition в BSL: idle-handler `Мсп_ОтложенныйСтарт_Тик` в `client_mcp` ставился с интервалом 1 секунда, YAXUNIT с `closeAfterTests: true` закрывал приложение за ~1с (тесты ~200ms). idle-handler не успевал тикнуть. Фикс: уменьшить интервал `1` → `0.1` в `exts/client_mcp/Ext/ManagedApplicationModule.bsl` (вызов `ПодключитьОбработчикОжидания("Мсп_ОтложенныйСтарт_Тик", 0.1, Истина)`). После фикса yaxunit-Enterprise регистрирует WS-сессию (`kind=yaxunit_runner`, tools=24).
 
-Полное описание (транспорт, дефолты, `/C`-payload, JSON-output, поведение при недоступном менеджере) — в `SKILL.md` (раздел «WS-параметры сопряжения с session-manager») и в `project-workflows.md` (раздел «WS-режим к session-manager»).
+Полное описание (транспорт, дефолты, `/C`-payload, JSON-output, поведение при недоступном менеджере) — канон в `project-workflows.md` (раздел «WS-режим к session-manager»); точки входа и VA/UI-MCP workflow — в `SKILL.md`.
 
 ## YaXUnit
 

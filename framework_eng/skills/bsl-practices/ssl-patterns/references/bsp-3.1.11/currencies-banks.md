@@ -1,375 +1,368 @@
 # Currencies, banks, and work schedules
 
-Three related master-data subsystems: **Currencies** (rates,
-conversion, amount in words), **Banks** (BIK classifier), and **WorkSchedules** /
+Three related subsystems of master data: **Currencies** (exchange rates,
+conversion, amount in words), **Banks** (BIC classifier), and **WorkSchedules** /
 **CalendarSchedules** (production calendars, calculation of working dates,
-work schedule). Loading directories (banks, rates, calendars) is handled by
-the `WorkWithClassifiers` mechanism - see `classifiers.md`; here - reading and calculations.
+work schedule). Loading of reference data (banks, exchange rates, calendars) is performed
+by the `РаботаСКлассификаторами` mechanism - see `classifiers.md`; here is reading and calculations.
 
 ## Modules
 
-Currencies - module names do **not** match the subsystem (there is no `Currencies` module):
+Currencies - the module names do **not** match the subsystem (there is no `Валюты` module):
 
-- `WorkWithCurrencyRates` - server stable API: rate, conversion, amount
-  in words, adding currencies. region `ProgrammaticInterface` (stable).
-- `WorkWithCurrencyRatesClientServer` - `ConvertByRate` (without a server call,
-  using prepared rate parameters). Client + Server, stable.
-- `WorkWithCurrencyRatesClientLocalization` - `ShowCurrencyRatesLoad`
-  (interactive rate loading). Client, stable.
-- `WorkWithCurrencyRatesClient` - ⚠️ `ShowCurrencyRatesLoad` here is in the region
-  `ServiceProgrammaticInterface` (not stable) - use the variant from
-  `...ClientLocalization`.
-- `WorkWithCurrencyRatesService` / `...ServerCall` / `...Global` - ⚠️ service.
-- `WorkWithCurrencyRatesOverride` - hooks (do not call directly).
+- `РаботаСКурсамиВалют` - server stable API: exchange rate, conversion, amount
+  in words, adding currencies. region `ПрограммныйИнтерфейс` (stable).
+- `РаботаСКурсамиВалютКлиентСервер` - `ПересчитатьПоКурсу` (without a server call,
+  using ready exchange rate parameters). Client + Server, stable.
+- `РаботаСКурсамиВалютКлиентЛокализация` - `ПоказатьЗагрузкуКурсовВалют`
+  (interactive exchange rate loading). Client, stable.
+- `РаботаСКурсамиВалютКлиент` - ⚠️ `ПоказатьЗагрузкуКурсовВалют` here is in the region
+  `СлужебныйПрограммныйИнтерфейс` (not stable) - use the variant from
+  `…КлиентЛокализация`.
 
 Banks:
 
-- `WorkWithBanks` - server stable API: `BIKInfo`,
-  `ExplanationOfInvalidBank`. `GetClassifierData` - ⚠️ obsolete
-  (region `DeprecatedProceduresAndFunctions`).
-- `WorkWithBanksClient` - `ChooseFromBIKDirectory` (selection UI). Client, stable.
-- `WorkWithBanksService` / `...ServerCall` / `...Global` - ⚠️ service.
-- `WorkWithBanksOverride` - hooks.
+- `РаботаСБанками` - server stable API: `СведенияБИК`,
+  `ПояснениеНедействительногоБанка` (deprecated `ПолучитьДанныеКлассификатора` - see scenario 3).
+- `РаботаСБанкамиКлиент` - `ВыбратьИзСправочникаБИК` (selection UI). Client, stable.
 
-Work schedules and calendars:
+Schedules and calendars:
 
-- `CalendarSchedules` - main server API: date calculation, nearest working
-  dates, schedule, form filling, main calendar. Accepts both
-  `CatalogRef.ProductionCalendars` and `CatalogRef.Calendars`
-  (internally switches to `WorkSchedules`). stable.
-- `WorkSchedules` - work schedule API (`CatalogRef.Calendars`):
-  `DateBySchedule`, `NearestDatesIncludedInSchedule`, `WorkSchedulesForPeriod`.
-  ⚠️ `WorkSchedules.DateDifferenceByCalendar` - in `ServiceProgrammaticInterface`
-  (not stable); for date difference use `CalendarSchedules.DateDifferenceByCalendar`.
-- `WorkSchedulesClient` - string schedule row collection utilities (not for date calculations).
-- `CalendarSchedulesService` / `CalendarSchedulesOverride` - ⚠️ service
-  / hooks.
+- `КалендарныеГрафики` - main server API: date calculation, nearest working dates,
+  schedule, form filling, main calendar. Accepts both
+  `СправочникСсылка.ПроизводственныеКалендари` and `СправочникСсылка.Календари`
+  (internally switches to `ГрафикиРаботы`). stable.
+- `ГрафикиРаботы` - work schedule API (`СправочникСсылка.Календари`):
+  `ДатаПоГрафику`, `БлижайшиеДатыВключенныеВГрафик`, `РасписанияРаботыНаПериод`.
+  ⚠️ `ГрафикиРаботы.РазностьДатПоКалендарю` - in `СлужебныйПрограммныйИнтерфейс`
+  (not stable); for date difference, use `КалендарныеГрафики.РазностьДатПоКалендарю`.
+- `ГрафикиРаботыКлиент` - schedule row collection utilities (not for date calculations).
 
-⚠️ Typical pitfall - inventing modules `Currencies`, `Banks`, `Organizations`. The real
-names are `WorkWithCurrencyRates`, `WorkWithBanks`, `OrganizationsServer`.
+For all three subsystems, modules `*Служебный` / `*ВызовСервера` / `*Глобальный` - ⚠️
+service modules, and `*Переопределяемый` - hooks (implemented in the application configuration,
+not called directly).
+
+⚠️ A common trap is inventing modules `Валюты`, `Банки`, `Организации`. The real
+names are `РаботаСКурсамиВалют`, `РаботаСБанками`, `ОрганизацииСервер`.
 
 ## Scenarios
 
-### 1. Get a currency rate and convert an amount
+### 1. Get the currency exchange rate and recalculate the amount
 
-**Task:** read the currency rate on a date; convert an amount from one currency to
-another using the rate for that date; convert on the client using previously received rates.
+**Task:** read the exchange rate for a date; recalculate the amount from one currency into
+another at the rate for the date; recalculate on the client using previously obtained rates.
 
 **Functions:**
-`WorkWithCurrencyRates.GetCurrencyRate(Currency, RateDate) Export`
-— Function -> `Structure` (`Rate, Multiplicity, Currency, RateDate`) / `Undefined`, region `ProgrammaticInterface` (stable). Server.
-`WorkWithCurrencyRates.ConvertToCurrency(Amount, SourceCurrency, TargetCurrency, Date) Export`
-— Function -> `Number`, region `ProgrammaticInterface` (stable). Server. Obtains both rates internally.
-`WorkWithCurrencyRatesClientServer.ConvertByRate(Amount, CurrentRateParameters, NewRateParameters) Export`
-— Function -> `Number`, region `ProgrammaticInterface` (stable). Client + Server. Conversion using ready-made rate structures.
+`РаботаСКурсамиВалют.ПолучитьКурсВалюты(Валюта, ДатаКурса) Экспорт`
+— Function → `Структура` (`Курс, Кратность, Валюта, ДатаКурса`) / `Неопределено`, region `ПрограммныйИнтерфейс` (stable). Server.
+`РаботаСКурсамиВалют.ПересчитатьВВалюту(Сумма, ИсходнаяВалюта, НоваяВалюта, Дата) Экспорт`
+— Function → `Число`, region `ПрограммныйИнтерфейс` (stable). Server. Retrieves both rates internally.
+`РаботаСКурсамиВалютКлиентСервер.ПересчитатьПоКурсу(Сумма, ПараметрыТекущегоКурса, ПараметрыНовогоКурса) Экспорт`
+— Function → `Число`, region `ПрограммныйИнтерфейс` (stable). Client + Server. Recalculation using ready-made rate structures.
 
 **Parameters:**
-- `Currency` (`CatalogRef.Currencies`), `RateDate` (`Date`).
-- `Amount` (`Number`), `SourceCurrency` / `TargetCurrency` (`CatalogRef.Currencies`), `Date` (`Date`).
-- `CurrentRateParameters` / `NewRateParameters` (`Structure`) - from `GetCurrencyRate`: `Currency, Rate, Multiplicity`.
+- `Валюта` (`СправочникСсылка.Валюты`), `ДатаКурса` (`Дата`).
+- `Сумма` (`Число`), `ИсходнаяВалюта` / `НоваяВалюта` (`СправочникСсылка.Валюты`), `Дата` (`Дата`).
+- `ПараметрыТекущегоКурса` / `ПараметрыНовогоКурса` (`Структура`) — from `ПолучитьКурсВалюты`: `Валюта, Курс, Кратность`.
 
 **Example:**
 ```bsl
-// Server: get rate and convert
-Rate = WorkWithCurrencyRates.GetCurrencyRate(Object.Currency, Object.Date);
-If Rate = Undefined Then
-    CommonPurpose.NotifyUser(
-        NStr("ru = 'Currency rate for the date is not set.'"), , , "Object", Cancel);
-    Return;
-EndIf;
+// Server: get the rate and recalculate
+Курс = РаботаСКурсамиВалют.ПолучитьКурсВалюты(Объект.Валюта, Объект.Дата);
+Если Курс = Неопределено Тогда
+    ОбщегоНазначения.СообщитьПользователю(
+        НСтр("ru = 'Курс валюты на дату не задан.'"), , , "Объект", Отказ);
+    Возврат;
+КонецЕсли;
 
-AmountRUB = WorkWithCurrencyRates.ConvertToCurrency(
-    Object.Amount, Object.Currency,
-    Catalogs.Currencies.FindByCode("643"), Object.Date);
+СуммаРуб = РаботаСКурсамиВалют.ПересчитатьВВалюту(
+    Объект.Сумма, Объект.Валюта,
+    Справочники.Валюты.НайтиПоКоду("643"), Объект.Дата);
 
-// Client: conversion using already received rates (without a server call)
-NewAmount = WorkWithCurrencyRatesClientServer.ConvertByRate(Amount, SourceRate, NewRate);
+// Client: recalculation using previously obtained rates (without a server call)
+СуммаНовая = РаботаСКурсамиВалютКлиентСервер.ПересчитатьПоКурсу(Сумма, КурсИсходный, КурсНовый);
 ```
 
-**Notes / anti-patterns:**
-- ❌ Direct query to `InformationRegisters.CurrencyRates` - bypasses the wrapper, breaks
-  multiplicity and caching. Only `GetCurrencyRate`.
-- `GetCurrencyRate` returns `Undefined` if there is no rate record -
-  be sure to check before use.
-- `ConvertToCurrency` obtains both rates itself; explicit `GetCurrencyRate` is needed
+**Nuances / anti-patterns:**
+- ❌ Direct query to `РегистрыСведений.КурсыВалют` — bypasses the wrapper, breaks
+  multiplicity and caching. Only `ПолучитьКурсВалюты`.
+- `ПолучитьКурсВалюты` returns `Неопределено` if there is no rate record —
+  обязательно check before using.
+- `ПересчитатьВВалюту` retrieves both rates itself; explicit `ПолучитьКурсВалюты` is needed
   only to show the rate to the user or validate it.
-- `ConvertByRate` is convenient in client code: one server call for rates,
-  then conversions on the client without repeated calls.
+- `ПересчитатьПоКурсу` is convenient in client code: one server call for rates,
+  then recalculations on the client without repeated requests.
 
 ### 2. Amount in words and adding currencies by code
 
-**Task:** format an amount in words in the required language; during initial
-population, add currencies to the directory by the numeric OKV code.
+**Task:** generate the amount in words in the required language; during initial
+population, add currencies to the catalog by the numeric OKV code.
 
 **Functions:**
-`WorkWithCurrencyRates.FormatAmountInWords(NumberedAmount, Currency, WithoutFractionalPart = False, By LangCode = Undefined, FractionalPartInWords = False) Export`
-— Function -> `String`, region `ProgrammaticInterface` (stable). Server.
-`WorkWithCurrencyRates.AddCurrenciesByCode(By CurrencyCodes) Export`
-— Function -> `Array` of `CatalogRef.Currencies`, region `ProgrammaticInterface` (stable). Server. For initial population handlers.
-`WorkWithCurrencyRates.ConnectPrintDataSourceNumberInWords(PrintDataSources) Export`
-— Procedure, stable. Connects a data source for the print template of a number in words.
+`РаботаСКурсамиВалют.СформироватьСуммуПрописью(СуммаЧислом, Валюта, БезДробнойЧасти = Ложь, Знач КодЯзыка = Неопределено, ДробнаяЧастьПрописью = Ложь) Экспорт`
+— Function → `Строка`, region `ПрограммныйИнтерфейс` (stable). Server.
+`РаботаСКурсамиВалют.ДобавитьВалютыПоКоду(Знач КодыВалют) Экспорт`
+— Function → `Массив` из `СправочникСсылка.Валюты`, region `ПрограммныйИнтерфейс` (stable). Server. For initial population handlers.
+`РаботаСКурсамиВалют.ПодключитьИсточникДанныхПечатиЧислоПрописью(ИсточникиДанныхПечати) Экспорт`
+— Procedure, stable. Connects a data source for the print layout of numbers in words.
 
 **Parameters:**
-- `NumberedAmount` (`Number`), `Currency` (`CatalogRef.Currencies`).
-- `WithoutFractionalPart` (`Boolean`) - `True` without kopecks.
-- `LangCode` (`String`) - ISO 639-1 code (+ optional ISO 3166-1 via `_`): `"ru"`,
-  `"ru_RU"`, `"en"`, `"en_US"`. Default is the configuration language.
-- `FractionalPartInWords` (`Boolean`).
-- `CurrencyCodes` (`Array` of `String`) - numeric codes (840, 978, 643 ...).
+- `СуммаЧислом` (`Число`), `Валюта` (`СправочникСсылка.Валюты`).
+- `БезДробнойЧасти` (`Булево`) — `Истина` without kopeks.
+- `КодЯзыка` (`Строка`) — code by ISO 639-1 (+ optionally ISO 3166-1 via `_`): `"ru"`,
+  `"ru_RU"`, `"en"`, `"en_US"`. By default, the configuration language.
+- `ДробнаяЧастьПрописью` (`Булево`).
+- `КодыВалют` (`Массив` из `Строка`) — numeric codes (840, 978, 643 …).
 
 **Example:**
 ```bsl
-Text = WorkWithCurrencyRates.FormatAmountInWords(1234.56, CurrencyRUB, , "ru");
-// "One thousand two hundred thirty-four rubles 56 kopecks"
+Текст = РаботаСКурсамиВалют.СформироватьСуммуПрописью(1234.56, ВалютаRUB, , "ru");
+// "Одна тысяча двести тридцать четыре рубля 56 копеек"
 
-// Initial population of the currency directory
-Codes = New Array; Codes.Add("840"); Codes.Add("978"); Codes.Add("643");
-Refs = WorkWithCurrencyRates.AddCurrenciesByCode(Codes);
+// Initial population of the currency catalog
+Коды = Новый Массив; Коды.Добавить("840"); Коды.Добавить("978"); Коды.Добавить("643");
+Ссылки = РаботаСКурсамиВалют.ДобавитьВалютыПоКоду(Коды);
 ```
 
-**Notes / anti-patterns:**
-- ❌ Build the amount in words manually for a print form - use
-  `FormatAmountInWords` or `ConnectPrintDataSourceNumberInWords`
-  (data source for the template).
-- If the currency classifier is missing, `AddCurrenciesByCode` creates items with
-  the name `"Currency"`, and the symbolic code equals the numeric one.
+**Nuances / anti-patterns:**
+- ❌ Format the number in words manually for a print form — use
+  `СформироватьСуммуПрописью` or `ПодключитьИсточникДанныхПечатиЧислоПрописью`
+  (data source for the layout).
+- If the currency classifier is missing, `ДобавитьВалютыПоКоду` creates items with
+  the name `"Валюта"`, and the symbolic code matches the numeric one.
 
-### 3. Find a bank by BIK and explain an invalid bank
+### 3. Find a bank by BIC and explain an invalid bank
 
-**Task:** by BIK (optionally with correspondent account) get bank details;
+**Task:** by BIC (optionally with correspondent account) obtain bank details;
 explain to the user why the bank is marked invalid.
 
 **Functions:**
-`WorkWithBanks.BIKInfo(By BIK, By CorrespondentAccount = Undefined, OnlyActual = True) Export`
-— Function -> `ValueTable` (`Ref, BIK, CorrespondentAccount, Name, City, Address` ...), region `ProgrammaticInterface` (stable). Server.
-`WorkWithBanks.ExplanationOfInvalidBank(Bank) Export`
-— Function -> `FormattedString`, region `ProgrammaticInterface` (stable). Server.
+`РаботаСБанками.СведенияБИК(Знач БИК, Знач КоррСчет = Неопределено, ТолькоАктуальные = Истина) Экспорт`
+— Function → `ТаблицаЗначений` (`Ссылка, БИК, КоррСчет, Наименование, Город, Адрес` …), region `ПрограммныйИнтерфейс` (stable). Server.
+`РаботаСБанками.ПояснениеНедействительногоБанка(Банк) Экспорт`
+— Function → `ФорматированнаяСтрока`, region `ПрограммныйИнтерфейс` (stable). Server.
 
 **Parameters:**
-- `BIK` (`String`), `CorrespondentAccount` (`String` / `Undefined`).
-- `OnlyActual` (`Boolean`) - `True` (by default) only active banks.
-- `Bank` (`CatalogRef.BankClassifier`).
+- `БИК` (`Строка`), `КоррСчет` (`Строка` / `Неопределено`).
+- `ТолькоАктуальные` (`Булево`) — `Истина` (default) only active banks.
+- `Банк` (`СправочникСсылка.КлассификаторБанков`).
 
 **Example:**
 ```bsl
-Table = WorkWithBanks.BIKInfo("044525225", , False);   // including inactive ones
-If Table.Count() > 0 Then
-    BankRef = Table[0].Ref;
-    Name = Table[0].Name;
-EndIf;
+Таблица = РаботаСБанками.СведенияБИК("044525225", , Ложь);   // включая недействующие
+Если Таблица.Количество() > 0 Тогда
+    БанкСсылка = Таблица[0].Ссылка;
+    Наименование = Таблица[0].Наименование;
+КонецЕсли;
 
-// Explanation for the bank form attribute
-Explanation = WorkWithBanks.ExplanationOfInvalidBank(BankRef);
-// FormattedString with a hyperlink to the new BIK, if one was found
+// Пояснение для реквизита формы банка
+Пояснение = РаботаСБанками.ПояснениеНедействительногоБанка(БанкСсылка);
+// ФорматированнаяСтрока с гиперссылкой на новый БИК, если он нашёлся
 ```
 
-**Notes / anti-patterns:**
-- ❌ `WorkWithBanks.GetClassifierData(BIK = "", CorrespondentAccount = "", BankRecord = "")` -
-  ⚠️ obsolete (region `DeprecatedProceduresAndFunctions`): uses the output
-  parameter `BankRecord` instead of returning a value. In new code - `BIKInfo`.
-- `ExplanationOfInvalidBank` returns a `FormattedString` for
-  display in a form attribute, not a user message - for messages use
-  `CommonPurpose.NotifyUser` (`base-common.md`).
+**Nuances / anti-patterns:**
+- ❌ `РаботаСБанками.ПолучитьДанныеКлассификатора(БИК = "", КоррСчет = "", ЗаписьОБанке = "")` —
+  ⚠️ deprecated (region `УстаревшиеПроцедурыИФункции`): uses the output
+  parameter `ЗаписьОБанке` instead of returning a value. In new code use `СведенияБИК`.
+- `ПояснениеНедействительногоБанка` returns `ФорматированнаяСтрока` for
+  display in a form attribute, not a user message — for messages use
+  `ОбщегоНазначения.СообщитьПользователю` (`base-common.md`).
 
-### 4. Choose a BIK from a form
+### 4. Select BIC from a form
 
-**Task:** from the BIK input field on an object form, open the selection form with a filter and
+**Task:** from the BIC input field on an object form, open the selection form with a filter and
 get the selected bank in the notification handler.
 
 **Function:**
-`WorkWithBanksClient.ChooseFromBIKDirectory(BIK, Form, NotificationHandler = Undefined) Export`
-— Procedure, region `ProgrammaticInterface` (stable). Thin/Web client.
+`РаботаСБанкамиКлиент.ВыбратьИзСправочникаБИК(БИК, Форма, ОбработчикОповещения = Неопределено) Экспорт`
+— Procedure, region `ПрограммныйИнтерфейс` (stable). Thin/Web client.
 
 **Parameters:**
-- `BIK` (`String`) - selection filter.
-- `Form` (`ClientApplicationForm`) - source form.
-- `NotificationHandler` (`NotificationDescription`) - `Result` = `CatalogRef.BankClassifier`
-  (selected item) or `Undefined`; if absent - standard selection handler.
+- `БИК` (`Строка`) — selection filter.
+- `Форма` (`ФормаКлиентскогоПриложения`) — source form.
+- `ОбработчикОповещения` (`ОписаниеОповещения`) — `Результат` = `СправочникСсылка.КлассификаторБанков`
+  (selected item) or `Неопределено`; if absent, the standard selection handler is used.
 
 **Example:**
 ```bsl
-&AtClient
-Procedure BIKBeginChoice(Element, ChoiceData, StandardProcessing)
-    StandardProcessing = False;
-    WorkWithBanksClient.ChooseFromBIKDirectory(
-        Object.BIK, ThisObject,
-        New NotificationDescription("HandleBIKSelection", ThisObject));
-EndProcedure
+&НаКлиенте
+Процедура БИКНачалоВыбора(Элемент, ДанныеВыбора, СтандартнаяОбработка)
+    СтандартнаяОбработка = Ложь;
+    РаботаСБанкамиКлиент.ВыбратьИзСправочникаБИК(
+        Объект.БИК, ЭтотОбъект,
+        Новый ОписаниеОповещения("ОбработкаВыбораБИК", ЭтотОбъект));
+КонецПроцедуры
 
-&AtClient
-Procedure HandleBIKSelection(Result, AdditionalParameters) Export
-    If Result <> Undefined Then
-        Object.BIK = Result.BIK;                  // if Result is a reference, read attributes
-        Object.BankName = Result.Name;
-    EndIf;
-EndProcedure
+&НаКлиенте
+Процедура ОбработкаВыбораБИК(Результат, ДопПараметры) Экспорт
+    Если Результат <> Неопределено Тогда
+        Объект.БИК = Результат.БИК;                  // если Результат — ссылка, читать реквизиты
+        Объект.НаименованиеБанка = Результат.Наименование;
+    КонецЕсли;
+КонецПроцедуры
 ```
 
-**Notes / anti-patterns:**
-- ❌ Forgetting `StandardProcessing = False` - the standard directory choice will run
-  instead of the BIK form.
-- If there is only one record in the selection, the choice is made automatically (without showing the form).
+**Nuances / anti-patterns:**
+- ❌ Forgetting `СтандартнаяОбработка = Ложь` — the standard selection from the catalog
+  will run instead of the BIC form.
+- If there is only one record in the selection list, the choice is made automatically (without showing the form).
 
-### 5. Calculate a date by a production calendar / schedule
+### 5. Date calculation by production calendar / schedule
 
-**Task:** planned date `DateFrom + N working days`; a chain of related dates; how many
-working days are between two dates.
+**Task:** planned date `ДатаОт + N working days`; a chain of related dates; how many
+working days there are between two dates.
 
 **Functions:**
-`CalendarSchedules.DateByCalendar(By WorkSchedule, By DateFrom, By DaysCount, RaiseException = True) Export`
-— Function -> `Date` / `Undefined`, region `ProgrammaticInterface` (stable). Server. `WorkSchedule` - `CatalogRef.ProductionCalendars` or `CatalogRef.Calendars`.
-`CalendarSchedules.DatesByCalendar(By WorkSchedule, By DateFrom, By DaysArray, By CalculateNextDateFromPrevious = False, RaiseException = True) Export`
-— Function -> `Array` of `Date`, stable.
-`CalendarSchedules.DateDifferenceByCalendar(By WorkSchedule, By StartDate, By EndDate, RaiseException = True) Export`
-— Function -> `Number`, stable.
-`WorkSchedules.DateBySchedule(By WorkSchedule, By DateFrom, By DaysCount, RaiseException = True) Export`
-— Function -> `Date` / `Undefined`, stable. Only `CatalogRef.Calendars`.
+`КалендарныеГрафики.ДатаПоКалендарю(Знач ГрафикРаботы, Знач ДатаОт, Знач КоличествоДней, ВызыватьИсключение = Истина) Экспорт`
+— Function → `Дата` / `Неопределено`, region `ПрограммныйИнтерфейс` (stable). Server. `ГрафикРаботы` — `СправочникСсылка.ПроизводственныеКалендари` or `СправочникСсылка.Календари`.
+`КалендарныеГрафики.ДатыПоКалендарю(Знач ГрафикРаботы, Знач ДатаОт, Знач МассивДней, Знач РассчитыватьСледующуюДатуОтПредыдущей = Ложь, ВызыватьИсключение = Истина) Экспорт`
+— Function → `Массив` of `Дата`, stable.
+`КалендарныеГрафики.РазностьДатПоКалендарю(Знач ГрафикРаботы, Знач ДатаНачала, Знач ДатаОкончания, ВызыватьИсключение = Истина) Экспорт`
+— Function → `Число`, stable.
+`ГрафикиРаботы.ДатаПоГрафику(Знач ГрафикРаботы, Знач ДатаОт, Знач КоличествоДней, ВызыватьИсключение = Истина) Экспорт`
+— Function → `Дата` / `Неопределено`, stable. Only `СправочникСсылка.Календари`.
 
 **Parameters:**
-- `WorkSchedule` - calendar/schedule.
-- `DateFrom` (`Date`), `DaysCount` (`Number`).
-- `DaysArray` (`Array` of `Number`) - offsets for `DatesByCalendar`.
-- `CalculateNextDateFromPrevious` (`Boolean`) - `True` = chained shift (each next from the previous one).
-- `RaiseException` (`Boolean`) - `True` (default) throws an exception when the calendar is not filled; `False` -> `Undefined`.
+- `ГрафикРаботы` — calendar/schedule.
+- `ДатаОт` (`Дата`), `КоличествоДней` (`Число`).
+- `МассивДней` (`Массив` of `Число`) — offsets for `ДатыПоКалендарю`.
+- `РассчитыватьСледующуюДатуОтПредыдущей` (`Булево`) — `Истина` = chained shift (each next one is calculated from the previous one).
+- `ВызыватьИсключение` (`Булево`) — `Истина` (default) throws an exception when the calendar is not filled in; `Ложь` → `Неопределено`.
 
 **Example:**
 ```bsl
-Calendar = CalendarSchedules.MainProductionCalendar();
-If Calendar = Undefined Then
-    PlannedDate = CurrentSessionDate() + 5 * 86400;   // fallback: calendar days
-Else
-    PlannedDate = CalendarSchedules.DateByCalendar(Calendar, CurrentSessionDate(), 5);
-EndIf;
+Календарь = КалендарныеГрафики.ОсновнойПроизводственныйКалендарь();
+Если Календарь = Неопределено Тогда
+    ПлановаяДата = ТекущаяДатаСеанса() + 5 * 86400;   // fallback: календарные дни
+Иначе
+    ПлановаяДата = КалендарныеГрафики.ДатаПоКалендарю(Календарь, ТекущаяДатаСеанса(), 5);
+КонецЕсли;
 
-// Chain of dates: each one from the previous (approval stages)
-DaysArray = New Array; DaysArray.Add(3); DaysArray.Add(5); DaysArray.Add(7);
-DatesArray = CalendarSchedules.DatesByCalendar(Calendar, StartDate, DaysArray, True);
+// Цепочка дат: каждая от предыдущей (стадии согласования)
+МассивДней = Новый Массив; МассивДней.Добавить(3); МассивДней.Добавить(5); МассивДней.Добавить(7);
+МассивДат = КалендарныеГрафики.ДатыПоКалендарю(Календарь, ДатаСтарта, МассивДней, Истина);
 
-// How many working days between dates
-DaysLate = CalendarSchedules.DateDifferenceByCalendar(Calendar, ShipmentDate, CurrentSessionDate());
+// Сколько рабочих дней между датами
+ДнейПросрочки = КалендарныеГрафики.РазностьДатПоКалендарю(Календарь, ДатаОтгрузки, ТекущаяДатаСеанса());
 ```
 
-**Notes / anti-patterns:**
-- ❌ Calculating working days with a `While ... If DayOfWeek < 6` loop - does not account for
-  holidays, weekend shifts, or non-working periods by decrees. Only
-  `DateByCalendar` / `DateDifferenceByCalendar`.
-- `DateByCalendar` accepts both types (calendar and schedule); `DateBySchedule`
-  (module `WorkSchedules`) - only `CatalogRef.Calendars`. The result
+**Nuances / anti-patterns:**
+- ❌ Calculating working days with a `Пока ... Если ДеньНедели < 6` loop does not take into account
+  holidays, weekend shifts, and non-working periods established by decrees. Use only
+  `ДатаПоКалендарю` / `РазностьДатПоКалендарю`.
+- `ДатаПоКалендарю` accepts both types (calendar and schedule); `ДатаПоГрафику`
+  (module `ГрафикиРаботы`) accepts only `СправочникСсылка.Календари`. The result
   is the same - choose based on what you have.
-- `DateDifferenceByCalendar` always returns a positive number (the sign
+- `РазностьДатПоКалендарю` always returns a positive number (the sign
   is normalized internally).
 
-### 6. Nearest working day with non-working periods taken into account
+### 6. Nearest working day considering non-working periods
 
-**Task:** for a set of dates, find the nearest working days (forward/backward), taking into
-account special non-working periods (presidential decrees).
+**Task:** for a set of dates, find the nearest working dates (forward/backward), taking into account
+special non-working periods (presidential decrees).
 
 **Functions:**
-`CalendarSchedules.GetNearestWorkingDatesParameters(ProductionCalendar = Undefined) Export`
-— Function -> `Structure`, region `ProgrammaticInterface` (stable). Parameter constructor.
-`CalendarSchedules.NearestWorkingDates(ProductionCalendar, StartDates, GetParameters = Undefined) Export`
-— Function -> `Map` (`Key` - source `Date`, `Value` - nearest working `Date`), stable. Only `CatalogRef.ProductionCalendars`.
-`WorkSchedules.NearestDatesIncludedInSchedule(WorkSchedule, StartDates, GetParameters = Undefined) Export`
-— Function -> `Map`, stable. Only `CatalogRef.Calendars` - nearest date
-  included in the schedule.
+`КалендарныеГрафики.ПараметрыПолученияБлижайшихРабочихДат(ПроизводственныйКалендарь = Неопределено) Экспорт`
+— Function → `Структура`, region `ПрограммныйИнтерфейс` (stable). Parameter constructor.
+`КалендарныеГрафики.БлижайшиеРабочиеДаты(ПроизводственныйКалендарь, НачальныеДаты, ПараметрыПолучения = Неопределено) Экспорт`
+— Function → `Соответствие` (`Ключ` — source `Дата`, `Значение` — nearest working `Дата`), stable. Only `СправочникСсылка.ПроизводственныеКалендари`.
+`ГрафикиРаботы.БлижайшиеДатыВключенныеВГрафик(ГрафикРаботы, НачальныеДаты, ПараметрыПолучения = Неопределено) Экспорт`
+— Function → `Соответствие`, stable. Only `СправочникСсылка.Календари` — nearest date **included in the schedule**.
 
 **Parameters:**
-- `ProductionCalendar` (`CatalogRef.ProductionCalendars`).
-- `StartDates` (`Array` of `Date`).
-- `GetParameters` (`Structure` from `GetNearestWorkingDatesParameters`): `GetPreceding` (`Boolean` - backward), `TakeNonWorkingPeriodsIntoAccount` (`Boolean`), `NonWorkingPeriods`, `RaiseException`, `GetDatesIfCalendarIsNotFilled`.
+- `ПроизводственныйКалендарь` (`СправочникСсылка.ПроизводственныеКалендари`).
+- `НачальныеДаты` (`Массив` of `Дата`).
+- `ПараметрыПолучения` (`Структура` from `ПараметрыПолученияБлижайшихРабочихДат`): `ПолучатьПредшествующие` (`Булево` — backward), `УчитыватьНерабочиеПериоды` (`Булево`), `НерабочиеПериоды`, `ВызыватьИсключение`, `ПолучатьДатыЕслиКалендарьНеЗаполнен`.
 
 **Example:**
 ```bsl
-Parameters = CalendarSchedules.GetNearestWorkingDatesParameters(Calendar);
-Parameters.GetPreceding = False;        // forward
-Parameters.TakeNonWorkingPeriodsIntoAccount = True;   // take special non-working days into account
+Параметры = КалендарныеГрафики.ПараметрыПолученияБлижайшихРабочихДат(Календарь);
+Параметры.ПолучатьПредшествующие = Ложь;        // forward
+Параметры.УчитыватьНерабочиеПериоды = Истина;   // take into account special non-working days
 
-Dates = New Array; Dates.Add(DeliveryDate);
-Map = CalendarSchedules.NearestWorkingDates(Calendar, Dates, Parameters);
-NewDeliveryDate = Map[DeliveryDate];   // if the source date is working, returns it unchanged
+Даты = Новый Массив; Даты.Добавить(ДатаСдачи);
+Соотв = КалендарныеГрафики.БлижайшиеРабочиеДаты(Календарь, Даты, Параметры);
+НоваяДатаСдачи = Соотв[ДатаСдачи];   // if the source date is working, returns the same date
 ```
 
-**Notes / anti-patterns:**
-- ❌ `NearestWorkingDates(WorkSchedule, ...)` with `CatalogRef.Calendars` -
-  the method will throw an exception: it accepts **only** `ProductionCalendars`. For a
-  work schedule - `WorkSchedules.NearestDatesIncludedInSchedule`.
-- ⚠️ `CalendarSchedules.DatesOfNearestWorkingDays(Schedule, StartDates, GetPreceding = False, RaiseException = True, IgnoreScheduleUnfilled = False)`
-  - obsolete (region `DeprecatedProceduresAndFunctions`), 5 parameters instead of 3. In
-  new code - `NearestWorkingDates` / `NearestDatesIncludedInSchedule`.
+**Nuances / anti-patterns:**
+- ❌ `БлижайшиеРабочиеДаты(ГрафикРаботы, ...)` with `СправочникСсылка.Календари` —
+  the method will throw an exception: it accepts **only** `ПроизводственныеКалендари`. For
+  a work schedule — `ГрафикиРаботы.БлижайшиеДатыВключенныеВГрафик`.
+- ⚠️ `КалендарныеГрафики.ДатыБлижайшихРабочихДней(График, НачальныеДаты, ПолучатьПредшествующие = Ложь, ВызыватьИсключение = Истина, ИгнорироватьНезаполненностьГрафика = Ложь)`
+  — obsolete (`УстаревшиеПроцедурыИФункции` region), 5 parameters instead of 3. In
+  new code — `БлижайшиеРабочиеДаты` / `БлижайшиеДатыВключенныеВГрафик`.
 
-### 7. Work schedule for a period and filling a calendar in a form
+### 7. Work schedule for a period and filling the calendar in the form
 
-**Task:** get start/end work times by schedules for a period;
-fill the `ProductionCalendar` attribute in a form with region (KPP) taken into account.
+**Task:** obtain work start/end times by schedules for a period;
+fill the `ПроизводственныйКалендарь` attribute in the form taking the region into account (`КПП`).
 
 **Functions:**
-`CalendarSchedules.MainProductionCalendar() Export`
-— Function -> `CatalogRef.ProductionCalendars` / `Undefined`, stable. Server.
-`CalendarSchedules.FillProductionCalendarInForm(Form, AttributePath, KPP = Undefined) Export`
-— Procedure, stable. Server. Takes into account the functional option `UseMultipleProductionCalendars`.
-`WorkSchedules.WorkSchedulesForPeriod(Schedules, StartDate, EndDate) Export`
-— Function -> `ValueTable` (`WorkSchedule, ScheduleDate, StartTime, EndTime`), stable. Server. Requires the `WorkSchedules` subsystem to be connected.
-`CalendarSchedules.WorkSchedulesForPeriod(Schedules, StartDate, EndDate) Export`
-— Function, stable. Delegates to `WorkSchedules`; throws an exception if the subsystem is absent.
+`КалендарныеГрафики.ОсновнойПроизводственныйКалендарь() Экспорт`
+— Function → `СправочникСсылка.ПроизводственныеКалендари` / `Неопределено`, stable. Server.
+`КалендарныеГрафики.ЗаполнитьПроизводственныйКалендарьВФорме(Форма, ПутьРеквизита, КПП = Неопределено) Экспорт`
+— Procedure, stable. Server. Takes the functional option `ИспользоватьНесколькоПроизводственныхКалендарей` into account.
+`ГрафикиРаботы.РасписанияРаботыНаПериод(Графики, ДатаНачала, ДатаОкончания) Экспорт`
+— Function → `ТаблицаЗначений` (`ГрафикРаботы, ДатаГрафика, ВремяНачала, ВремяОкончания`), stable. Server. Requires the connected subsystem `ГрафикиРаботы`.
+`КалендарныеГрафики.РасписанияРаботыНаПериод(Графики, ДатаНачала, ДатаОкончания) Экспорт`
+— Function, stable. Delegates to `ГрафикиРаботы`; throws an exception if the subsystem is absent.
 
 **Parameters:**
-- `Form` (`ClientApplicationForm`), `AttributePath` (`String`, e.g. `"Object.ProductionCalendar"`).
-- `KPP` (`String`) - for the regional calendar when the multiple calendars option is enabled.
-- `Schedules` (`Array` of `CatalogRef.Calendars`), `StartDate` / `EndDate` (`Date`).
+- `Форма` (`ФормаКлиентскогоПриложения`), `ПутьРеквизита` (`Строка`, e.g. `"Объект.ПроизводственныйКалендарь"`).
+- `КПП` (`Строка`) — for a regional calendar when the multiple calendars option is enabled.
+- `Графики` (`Массив` of `СправочникСсылка.Календари`), `ДатаНачала` / `ДатаОкончания` (`Дата`).
 
 **Example:**
 ```bsl
-// Fill the attribute in a form (server, OnCreateOnServer)
-CalendarSchedules.FillProductionCalendarInForm(
-    ThisForm, "Object.ProductionCalendar", Object.KPP);
+// Fill the attribute in the form (server, ПриСозданииНаСервере)
+КалендарныеГрафики.ЗаполнитьПроизводственныйКалендарьВФорме(
+    ЭтаФорма, "Объект.ПроизводственныйКалендарь", Объект.КПП);
 
 // Warehouse work schedule for a week
-Schedules = New Array; Schedules.Add(WarehouseSchedule);
-ScheduleTable = WorkSchedules.WorkSchedulesForPeriod(
-    Schedules, StartDate, EndDate);
-// Columns: WorkSchedule, ScheduleDate, StartTime, EndTime
+Графики = Новый Массив; Графики.Добавить(ГрафикСклада);
+ТаблицаРасписаний = ГрафикиРаботы.РасписанияРаботыНаПериод(
+    Графики, ДатаНачала, ДатаОкончания);
+// Columns: ГрафикРаботы, ДатаГрафика, ВремяНачала, ВремяОкончания
 ```
 
-**Notes / anti-patterns:**
-- ❌ `ThisForm.Object.ProductionCalendar = CalendarSchedules.MainProductionCalendar()`
-  without considering KPP - when the multiple calendars option is enabled, for a separate
-  subdivision the "main" one will be assigned, not the regional one. Use
-  `FillProductionCalendarInForm` with KPP.
-- ❌ Store a reference to the calendar in a constant and treat it as the "only" one - with
-  the multiple calendars option, there may be no constant; `MainProductionCalendar`
-  returns the "first one it finds."
-- `CalendarSchedules` and `WorkSchedules` methods are server-side (Server, Thick client,
-  External connection); from a thin client - through `&AtServer`. There is no separate
-  `CalendarSchedulesClient` module.
+**Nuances / antipatterns:**
+- ❌ `ЭтаФорма.Объект.ПроизводственныйКалендарь = КалендарныеГрафики.ОсновнойПроизводственныйКалендарь()`
+  without taking `КПП` into account — when the multiple calendars option is enabled, for a separate
+  subdivision the “main” one will be substituted instead of the regional one. Use
+  `ЗаполнитьПроизводственныйКалендарьВФорме` with `КПП`.
+- ❌ Store a reference to the calendar in a constant and consider it the “only” one — when
+  the multiple calendars option is enabled, there may be no constant; `ОсновнойПроизводственныйКалендарь`
+  returns the “first one it finds”.
+- The methods `КалендарныеГрафики` and `ГрафикиРаботы` are server-side (Server, Thick client,
+  External connection); from a thin client — via `&НаСервере`. There is no separate module
+  `КалендарныеГрафикиКлиент`.
 
 ## Additional
 
-Other stable methods (region `ProgrammaticInterface`), full signatures - via
-`python scripts/bsp_api.py method <Name> --module <Module> --src src/cf`:
+Other stable methods (region `ПрограммныйИнтерфейс`), full signatures are available via
+`python scripts/bsp_api.py method <Имя> --module <Модуль> --src src/cf`:
 
-- `WorkWithCurrencyRates.NumberFieldTypeDescription(By AllowedFieldSign = Undefined)` -
-  description of a money field type (for constructing attributes).
-- `WorkWithCurrencyRatesClientLocalization.ShowCurrencyRatesLoad(LoadParameters)` -
-  interactive rate loading (stable variant; `LoadParameters.OpeningFromList`).
-- `CalendarSchedules.NonWorkingDayPeriods(ProductionCalendar, SelectionPeriod)` -
-  non-working day periods of a calendar.
-- `CalendarSchedules.CreateTempTablesForWorkSchedulesForPeriod(TempTableManager, Schedules, StartDate, EndDate)` /
-  `WorkSchedules.CreateTempTablesForWorkSchedulesForPeriod(...)` - schedule variant in
-  a temporary table (for queries).
-- `WorkSchedules.DatesBySchedule(By WorkSchedule, By DateFrom, By DaysArray, By CalculateNextDateFromPrevious = False, RaiseException = True)` -
-  a chain of dates by schedule (analog of `DatesByCalendar`).
+- `РаботаСКурсамиВалют.ОписаниеТипаДенежногоПоля(Знач ДопустимыйЗнакПоля = Неопределено)` —
+  description of the money field type (for constructing attributes).
+- `РаботаСКурсамиВалютКлиентЛокализация.ПоказатьЗагрузкуКурсовВалют(ПараметрыЗагрузки)` —
+  interactive currency rate loading (stable variant; `ПараметрыЗагрузки.ОткрытиеИзСписка`).
+- `КалендарныеГрафики.ПериодыНерабочихДней(ПроизводственныйКалендарь, ПериодОтбор)` —
+  calendar non-working day periods.
+- `КалендарныеГрафики.СоздатьВТРасписанияРаботыНаПериод(МенеджерВременныхТаблиц, Графики, ДатаНачала, ДатаОкончания)` /
+  `ГрафикиРаботы.СоздатьВТРасписанияРаботыНаПериод(...)` — schedule variant into a
+  temporary table (for queries).
+- `ГрафикиРаботы.ДатыПоГрафику(Знач ГрафикРаботы, Знач ДатаОт, Знач МассивДней, Знач РассчитыватьСледующуюДатуОтПредыдущей = Ложь, ВызыватьИсключение = Истина)` —
+  chain of dates by schedule (analog of `ДатыПоКалендарю`).
 
 ⚠️ Service methods (do not use in new code):
-- `WorkWithCurrencyRatesService.LoadCurrencyRates()` - ⚠️ service
-  (`ServiceProgrammaticInterface`). Manual rate loading; backward compatibility
-  is not guaranteed. Start through the interactive form
-  `WorkWithCurrencyRatesClientLocalization.ShowCurrencyRatesLoad`.
-- `WorkWithBanks.GetClassifierData(...)` - ⚠️ obsolete, replaced by `BIKInfo`.
-- `CalendarSchedules.DatesOfNearestWorkingDays(...)` - ⚠️ obsolete, replaced by
-  `NearestWorkingDates` / `NearestDatesIncludedInSchedule`.
-- `WorkSchedules.DateDifferenceByCalendar(...)` - ⚠️ service region; use
-  `CalendarSchedules.DateDifferenceByCalendar`.
+- `РаботаСКурсамиВалютСлужебный.ЗагрузитьКурсы()` — ⚠️ service
+  (`СлужебныйПрограммныйИнтерфейс`). Manual currency rate loading; backward compatibility
+  is not guaranteed. Launch through the interactive form
+  `РаботаСКурсамиВалютКлиентЛокализация.ПоказатьЗагрузкуКурсовВалют`.
+- Deprecated replacements are listed in place: `ПолучитьДанныеКлассификатора` → scenario 3,
+  `ДатыБлижайшихРабочихДней` → scenario 6, `ГрафикиРаботы.РазностьДатПоКалендарю` → section "Modules".
 
-The override hook `CalendarSchedulesOverride.OnProductionCalendarsUpdate`
-— application configuration reaction to the update of production calendars
-(implemented in the module with the same name, not called directly).
+Override hook `КалендарныеГрафикиПереопределяемый.ПриОбновленииПроизводственныхКалендарей`
+— application configuration reaction to updating production calendars
+(implemented in the module of the same name, not called directly).

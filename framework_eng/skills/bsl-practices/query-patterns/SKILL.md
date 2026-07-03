@@ -405,5 +405,18 @@ For small parameter lists, `IN (&List)` is fine. For large sets, subqueries, and
 Do not rewrite `IN` mechanically. Change the query shape only when there is an expected gain, readability, or evidence from the plan/measurement.
 
 ---
+
+## Rule 16: ИТОГИ only for hierarchical traversal
+
+`ИТОГИ` generates additional total rows. They are needed only when hierarchically traversing `Выбрать(ПоГруппировкам)`. For a flat selection, use `СГРУППИРОВАТЬ ПО`, without `ИТОГИ`.
+
+```bsl
+// Flat selection of totals by counterparties — СГРУППИРОВАТЬ ПО, without ИТОГИ
+"ВЫБРАТЬ Контрагент, СУММА(Сумма) КАК Итог
+|ИЗ ...
+|СГРУППИРОВАТЬ ПО Контрагент"
+```
+
+---
 depends_on: []
 ---

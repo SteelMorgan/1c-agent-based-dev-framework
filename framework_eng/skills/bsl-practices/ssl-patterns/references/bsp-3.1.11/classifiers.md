@@ -1,17 +1,17 @@
-# BSP Classifiers (loading and updating reference information)
+# BSP Classifiers (loading and updating normative-reference information)
 
 The **РаботаСКлассификаторами** subsystem is a unified mechanism for loading and updating
-classifiers from the 1С service (ITS portal) or from the cache of delivered data:
-address classifier, bank classifier (BIC), exchange rates, production calendars, countries
-of the world. Application code either registers its own classifier through a hook and
-processes the loaded files, or checks/updates existing ones, or reads reference data
-(countries, regions).
+classifiers from the 1C service (ITS portal) or from the cache of supplied data:
+address classifier, bank classifier (BIC), exchange rates, production
+calendars, countries of the world. Application code either registers its own classifier through
+a hook and processes the loaded files, or checks/updates existing ones, or
+reads reference data (countries, regions).
 
-Address validation itself by classifier and **region codes/OKTMO** are in
+The actual **address validation** by the classifier and **region/OKTMO codes** are in
 `contact-info.md` (module `АдресныйКлассификатор`); **date calculation by the
 production calendar** is in `currencies-banks.md` (module `КалендарныеГрафики`);
-**bank lookup by BIC** is in `currencies-banks.md` (module `РаботаСБанками`). Here is
-the update mechanism and registration of new classifiers.
+**bank lookup by BIC** is in `currencies-banks.md` (module `РаботаСБанками`). Here is the
+update mechanism and registration of new classifiers.
 
 ## Modules
 
@@ -27,21 +27,21 @@ the update mechanism and registration of new classifiers.
   compatibility is not guaranteed. Methods `РаботаСКлассификаторамиВызовСервера`
   (`НастройкиОбновленияКлассификаторов`, `ЗаписатьРасписаниеОбновления`,
   `ВключитьАвтоматическоеОбновлениеКлассификаторовИзСервиса`) — all in the region
-  `СлужебныйПрограммныйИнтерфейс`, not for application use.
+  `СлужебныйПрограммныйИнтерфейс`, not for application calls.
 
 ⚠️ Do not confuse: the countries of the world catalog and methods `ДанныеКлассификатораСтранМира*` live
 in the module `УправлениеКонтактнойИнформацией` (subsystem `КонтактнаяИнформация`), not
-in `РаботаСКлассификаторами` — see scenario 7.
+in `РаботаСКлассификаторами` — see scenario 5.
 
-### Which classifiers the mechanism loads
+### Which classifiers does the mechanism load
 
-| Identifier (service string) | What it updates | Who registers |
+| Identifier (service string) | What it updates | Who registers it |
 |---|---|---|
 | `АдресныйКлассификатор` | KLADR/FIAS (regions, cities, streets) | `КалендарныеГрафики.ПриДобавленииКлассификаторов`, `РаботаСАдресами` |
-| `КлассификаторБанков` | bank catalog by BIC | `РаботаСБанками` |
-| `КурсыВалют` | periodic exchange rates information register | `РаботаСКурсамиВалют` |
+| `КлассификаторБанков` | bank directory by BIC | `РаботаСБанками` |
+| `КурсыВалют` | periodic exchange rates register | `РаботаСКурсамиВалют` |
 | `ПроизводственныеКалендари` | production calendars of the Russian Federation | `КалендарныеГрафики.ПриДобавленииКлассификаторов` |
-| `СтраныМира` | countries catalog | `УправлениеКонтактнойИнформацией` |
+| `СтраныМира` | country directory | `УправлениеКонтактнойИнформацией` |
 
 Registration is through the `ПриДобавленииКлассификаторов` hook (see scenario 1).
 
@@ -49,19 +49,19 @@ Registration is through the `ПриДобавленииКлассификато�
 
 ### 1. Register your own classifier
 
-**Task:** connect an application classifier to the BSP update mechanism so that
-it updates automatically together with the others.
+**Task:** connect an application classifier to the БСП update mechanism so that
+it is updated automatically together with the others.
 
 **Function (hook):**
 `РаботаСКлассификаторамиПереопределяемый.ПриДобавленииКлассификаторов(Классификаторы) Экспорт`
 — Procedure, region `ПрограммныйИнтерфейс`. **Override hook**: implemented in the
-application configuration module of the same name, called by БСП when collecting classifiers.
+same-named module of the application configuration, called by БСП when collecting classifiers.
 
 **Parameters:**
 - `Классификаторы` (`Массив` of `Структура`) — each structure (from
   `РаботаСКлассификаторами.ОписаниеКлассификатора`) with keys: `Наименование`
   (String, ≤150 characters), `Идентификатор` (String, ≤50, identifier in the service),
-  `ОбновлятьАвтоматически` (Boolean), `ОбщиеДанные` (Boolean — `Ложь` loads into each
+  `ОбновлятьАвтоматически` (Boolean), `ОбщиеДанные` (Boolean — `Ложь` load into each
   data area; only in the service model), `СохранятьФайлВКэш` (Boolean).
 
 **Example:**
@@ -78,80 +78,56 @@ application configuration module of the same name, called by БСП when collect
 ```
 
 **Nuances / anti-patterns:**
-- ❌ Calling `ПриДобавленииКлассификаторов` directly from application code — this is
+- ❌ Call `ПриДобавленииКлассификаторов` directly from application code — this is
   a hook, БСП calls it itself when collecting classifiers. Only implement the body.
 - `ОписаниеКлассификатора()` returns a ready-made structure with all fields and
   default values — do not construct the structure manually.
 - With `ОбщиеДанные = Ложь` in the service model, loading goes into each data area
-  separately; `Истина` means once into shared data.
+  separately; `Истина` — once into common data.
 
-### 2. Check for available updates
+### 2. Update lifecycle: check → download → version
 
-**Task:** find out whether there are fresh versions of classifiers in the 1С service, without
-performing the load itself.
+One cycle, three groups of stable methods (`РаботаСКлассификаторами`, region
+`ПрограммныйИнтерфейс`, Server):
 
-**Function:**
-`РаботаСКлассификаторами.ДоступныеОбновленияКлассификаторов(Идентификаторы) Экспорт`
-— Function, region `ПрограммныйИнтерфейс` (stable). Server.
+**Check for updates (without downloading):**
+`ДоступныеОбновленияКлассификаторов(Идентификаторы) Экспорт`
+— `Идентификаторы` (`Массив` of `Строка`); returns `Структура`: `КодОшибки`
+(`Строка`; empty = success; `"НеверныйЛогинИлиПароль"`, `"ПревышеноКоличествоПопыток"`
+and so on.) and `ДоступныеВерсии` (`ТаблицаЗначений`: `Идентификатор`, `Версия`,
+`ИдентификаторФайла`) — empty for classifiers with `СохранятьФайлВКэш = Ложь`
+(their versions are not cached; use `ПолучитьФайлыКлассификаторов`).
 
-**Parameters:**
-- `Идентификаторы` (`Массив` of `Строка`) — classifier identifiers in the service.
+**Download and process:**
+`ОбновитьКлассификаторы(Идентификаторы) Экспорт` — the full cycle in one call
+(file download + processing); returns a `Структура` with `КодОшибки` (`""`,
+`"ОбновлениеНеТребуется"`, `"НеверныйЛогинИлиПароль"`, `"ПревышеноКоличествоПопыток"` ...).
+`ОбработатьОбновлениеКлассификатора(Идентификатор, Версия, ИдентификаторФайла) Экспорт`
+— step-by-step variant: parameters are taken from the result row `ДоступныеОбновленияКлассификаторов`.
+`ПолучитьФайлыКлассификаторов(Идентификаторы) Экспорт` — current files from the service/cache.
 
-**Return value:** `Структура` with result: `КодОшибки` (String; empty =
-success; `"НеверныйЛогинИлиПароль"`, `"ПревышеноКоличествоПопыток"` etc.) and
-`ДоступныеВерсии` (`ТаблицаЗначений`) — empty if `СохранятьФайлВКэш = Ложь` for the
-classifier.
+**Version and date of the downloaded one (without contacting the service):**
+`ВерсияКлассификатора(Идентификатор, ВызыватьИсключение = Ложь) Экспорт` → `Число` / `Неопределено`.
+`ДатаОбновленияКлассификатора(Идентификатор, ВызыватьИсключение = Ложь) Экспорт` → `Дата` / `Неопределено`.
+`УстановитьВерсиюКлассификатора(Идентификатор, Версия)` /
+`УстановитьДатуОбновленияКлассификатора(Идентификатор, ДатаОбновления)` — **only**
+for loading not from the service (for example, migration from an external file).
+`ВызыватьИсключение` — `Истина` throws an exception if the identifier is not found;
+`Ложь` (default) → `Неопределено` (= the classifier has not been loaded yet).
 
-**Example:**
+**Example (full cycle):**
 ```bsl
 Идентификаторы = Новый Массив;
 Идентификаторы.Добавить("АдресныйКлассификатор");
 Идентификаторы.Добавить("КлассификаторБанков");
 
-Результат = РаботаСКлассификаторами.ДоступныеОбновленияКлассификаторов(Идентификаторы);
-Если ПустаяСтрока(Результат.КодОшибки) Тогда
-    Для Каждого СтрокаВерсии Из Результат.ДоступныеВерсии Цикл
-        // СтрокаВерсии.Идентификатор, .Версия, .ИдентификаторФайла
-    КонецЦикла;
-КонецЕсли;
-```
-
-**Nuances / anti-patterns:**
-- The method accesses the 1С service (or the cache of delivered data) — run it in a
-  background job if you call it from the UI, so you do not block the form.
-- `ДоступныеВерсии` will be empty for classifiers with `СохранятьФайлВКэш = Ложь` —
-  their current versions are not cached; use `ПолучитьФайлыКлассификаторов`.
-
-### 3. Load a classifier update
-
-**Task:** perform loading and processing of a classifier update (in one call or step by step
-— check + process).
-
-**Functions:**
-`РаботаСКлассификаторами.ОбновитьКлассификаторы(Идентификаторы) Экспорт`
-— Function, region `ПрограммныйИнтерфейс` (stable). Full cycle: file download +
-  processing. Returns `Структура` with `КодОшибки` (`""`, `"ОбновлениеНеТребуется"`,
-  `"НеверныйЛогинИлиПароль"`, `"ПревышеноКоличествоПопыток"` …).
-`РаботаСКлассификаторами.ОбработатьОбновлениеКлассификатора(Идентификатор, Версия, ИдентификаторФайла) Экспорт`
-— Function, region `ПрограммныйИнтерфейс` (stable). Download of a specific file +
-  processing; use together with `ДоступныеОбновленияКлассификаторов`.
-`РаботаСКлассификаторами.ПолучитьФайлыКлассификаторов(Идентификаторы) Экспорт`
-— Function, region `ПрограммныйИнтерфейс` (stable). Current files from the service/cache.
-
-**Parameters:**
-- `Идентификаторы` (`Массив` of `Строка`).
-- `Идентификатор` (`Строка`), `Версия` (`Строка`), `ИдентификаторФайла` (`Строка`) —
-  from the result row of `ДоступныеОбновленияКлассификаторов`.
-
-**Example:**
-```bsl
-// Вариант А — полный цикл одним вызовом
+// Variant A — full cycle in one call
 Результат = РаботаСКлассификаторами.ОбновитьКлассификаторы(Идентификаторы);
 Если Результат.КодОшибки = "ОбновлениеНеТребуется" Тогда
     // already up to date
 КонецЕсли;
 
-// Вариант Б — пошагово: сначала проверить, потом обработать
+// Variant B — step by step: check, then process
 Доступно = РаботаСКлассификаторами.ДоступныеОбновленияКлассификаторов(Идентификаторы);
 Если ПустаяСтрока(Доступно.КодОшибки) Тогда
     Для Каждого СтрокаВерсии Из Доступно.ДоступныеВерсии Цикл
@@ -159,44 +135,9 @@ classifier.
             СтрокаВерсии.Идентификатор, СтрокаВерсии.Версия, СтрокаВерсии.ИдентификаторФайла);
     КонецЦикла;
 КонецЕсли;
-```
 
-**Nuances / anti-patterns:**
-- ❌ Ignoring `КодОшибки` — with `"НеверныйЛогинИлиПароль"` the data will not load,
-  but no exception is thrown. Check the code and notify the user.
-- Loading from the service is a network operation; in BSP scheduled jobs it is already
-  wrapped. From application code, call it in a background job if there is a lot of data.
-- After successful processing, БСП will itself call `УстановитьВерсиюКлассификатора` /
-  `УстановитьДатуОбновленияКлассификатора` — you only need to do this manually when loading
-  **not from the service** (for example, data migration from an external file).
-
-### 4. Find out the version and date of a loaded classifier
-
-**Task:** check which classifier version is loaded and when, without contacting the
-service.
-
-**Functions:**
-`РаботаСКлассификаторами.ВерсияКлассификатора(Идентификатор, ВызыватьИсключение = Ложь) Экспорт`
-— Function → `Число` / `Неопределено`, region `ПрограммныйИнтерфейс` (stable).
-`РаботаСКлассификаторами.ДатаОбновленияКлассификатора(Идентификатор, ВызыватьИсключение = Ложь) Экспорт`
-— Function → `Дата` / `Неопределено`, region `ПрограммныйИнтерфейс` (stable).
-`РаботаСКлассификаторами.УстановитьВерсиюКлассификатора(Идентификатор, Версия) Экспорт`
-`РаботаСКлассификаторами.УстановитьДатуОбновленияКлассификатора(Идентификатор, ДатаОбновления) Экспорт`
-— Procedures (stable). Only for loading not from the service.
-
-**Parameters:**
-- `Идентификатор` (`Строка`).
-- `ВызыватьИсключение` (`Булево`) — `Истина` throws an exception if the
-  identifier is not found; `Ложь` (default) — returns `Неопределено`.
-
-**Example:**
-```bsl
+// Control: which version is loaded
 Версия = РаботаСКлассификаторами.ВерсияКлассификатора("АдресныйКлассификатор");
-ДатаОбновления = РаботаСКлассификаторами.ДатаОбновленияКлассификатора("АдресныйКлассификатор");
-
-Если Версия = Неопределено Тогда
-    // classifier has not been loaded yet
-КонецЕсли;
 
 // After manual data loading (not from the service) — mark the version
 РаботаСКлассификаторами.УстановитьВерсиюКлассификатора("MyAppClassifier", 42);
@@ -204,28 +145,35 @@ service.
 ```
 
 **Nuances / anti-patterns:**
-- If the identifier is not found, the methods themselves perform an update of the
-  `ВерсииКлассификаторов` register data — no manual synchronization is required.
+- ❌ Ignore `КодОшибки` — when `"НеверныйЛогинИлиПароль"`, the data will not be loaded,
+  but an exception is not thrown. Check the code and inform the user.
+- Checking and downloading contact the 1С service (or the cache of supplied data) —
+  network operations; in BSP scheduled jobs this is already wrapped, from application
+  code / UI call it in a background job so as not to block the form.
+- After successful processing, БСП itself will call `УстановитьВерсиюКлассификатора` /
+  `УстановитьДатуОбновленияКлассификатора` — only set them manually when loading **not from the service**.
+- If the identifier is not found, the version/date methods themselves update the data in the
+  `ВерсииКлассификаторов` register — manual synchronization is not needed.
 - `УстановитьДатуОбновленияКлассификатора` in the exclusive update handler
-  records information only **after** the update of the “Working with classifiers” subsystem
-  is completed — keep the order in mind.
+  registers information only **after** the update of the "Работа с классификаторами" subsystem
+  is completed — take the order into account.
 
-### 5. Process a loaded classifier file
+### 3. Process the loaded classifier file
 
-**Task:** the application configuration registered its own classifier — it needs to
+**Task:** the application configuration registered its classifier — it is necessary to
 process the binary file that БСП loaded from the service.
 
 **Function (hook):**
 `РаботаСКлассификаторамиПереопределяемый.ПриЗагрузкеКлассификатора(Идентификатор, Версия, Адрес, Обработан, ДополнительныеПараметры) Экспорт`
-— Procedure, region `ПрограммныйИнтерфейс`. **Override hook**: implemented in the
-application configuration module of the same name.
+— Procedure, `ПрограммныйИнтерфейс` region. **Override hook**: implemented in the
+module of the same name in the application configuration.
 
 **Parameters:**
-- `Идентификатор` (`Строка`) — the identifier specified in `ПриДобавленииКлассификаторов`.
+- `Идентификатор` (`Строка`) — identifier specified in `ПриДобавленииКлассификаторов`.
 - `Версия` (`Число`) — loaded version number.
-- `Адрес` (`Строка`) — address of the binary file data in temporary storage.
+- `Адрес` (`Строка`) — address of the file's binary data in temporary storage.
 - `Обработан` (`Булево`, output) — `Ложь` if there were errors during processing and the file
-  must be loaded again.
+  needs to be uploaded again.
 - `ДополнительныеПараметры` (`Структура`) — service parameters.
 
 **Example:**
@@ -241,17 +189,19 @@ application configuration module of the same name.
 ```
 
 **Nuances / anti-patterns:**
-- ❌ Deleting the temporary storage `Адрес` in the handler — БСП stores the file itself in
-  the cache (when `СохранятьФайлВКэш = Истина`) for later use in other data areas.
-- `Обработан = Ложь` (default) will make БСП retry the load — always set `Истина` when processing succeeds.
-- The `ПриОпределенииНачальногоНомераВерсииКлассификатора(Идентификатор, НачальныйНомерВерсии)`
-  hook sets the starting version from which the count of “updates” begins for a new
+- ❌ Deleting the temporary storage `Адрес` in the handler — БСП itself saves the file in
+  the cache (when `СохранятьФайлВКэш = Истина`) for later use in other
+  data areas.
+- `Обработан = Ложь` (default) will make БСП repeat the upload — be sure to
+  set `Истина` on successful processing.
+- The hook `ПриОпределенииНачальногоНомераВерсииКлассификатора(Идентификатор, НачальныйНомерВерсии)`
+  sets the starting version from which the count of "updates" begins for a new
   classifier.
 
-### 6. Start interactive classifier updates from the client
+### 4. Launch interactive classifier update from the client
 
-**Task:** from a form, show the user the classifier update assistant and wait for the
-download to finish.
+**Task:** from the form, show the user the classifier update assistant and
+wait for the загрузки to complete.
 
 **Functions:**
 `РаботаСКлассификаторамиКлиент.НовыйПараметрыОбновленияКлассификаторов(Владелец = Неопределено, Идентификаторы = Неопределено, ОписаниеОповещения = Неопределено) Экспорт`
@@ -259,12 +209,12 @@ download to finish.
 `РаботаСКлассификаторамиКлиент.ОбновитьКлассификаторы(ПараметрыОбновления = Неопределено) Экспорт`
 — Procedure, opens the update assistant. Client, stable.
 `РаботаСКлассификаторамиКлиент.ИмяСобытияОповещенияОЗагрузки() Экспорт`
-— Function → `Строка` (name of the notification event for download completion). Client, stable.
+— Function → `Строка` (notification event name for completion of loading). Client, stable.
 
 **Parameters:**
 - `Владелец` (`ФормаКлиентскогоПриложения`) — owner form.
-- `Идентификаторы` (`Массив` of `Строка` / `Неопределено`) — which ones to update; `Неопределено` = all registered.
-- `ОписаниеОповещения` (`ОписаниеОповещения`) — called after the assistant closes; `Результат` = array of updated identifiers.
+- `Идентификаторы` (`Массив` из `Строка` / `Неопределено`) — which ones to update; `Неопределено` = all registered.
+- `ОписаниеОповещения` (`ОписаниеОповещения`) — will be called after the assistant closes; `Результат` = array of updated identifiers.
 
 **Example:**
 ```bsl
@@ -272,25 +222,26 @@ download to finish.
 Процедура ОбновитьКлассификаторы(Команда)
     Параметры = РаботаСКлассификаторамиКлиент.НовыйПараметрыОбновленияКлассификаторов(
         ЭтаФорма,
-        ,   // все классификаторы
+        ,   // all classifiers
         Новый ОписаниеОповещения("ПослеОбновленияКлассификаторов", ЭтаФорма));
     РаботаСКлассификаторамиКлиент.ОбновитьКлассификаторы(Параметры);
 КонецПроцедуры
 
 &НаКлиенте
 Процедура ПослеОбновленияКлассификаторов(ОбновленныеИдентификаторы, ДопПараметры) Экспорт
-    // ОбновленныеИдентификаторы — массив строк
+    // ОбновленныеИдентификаторы — array of strings
 КонецПроцедуры
 ```
 
 **Nuances / anti-patterns:**
-- ❌ Calling the server `ОбновитьКлассификаторы`/`ОбработатьОбновлениеКлассификатора`
+- ❌ Call the server `ОбновитьКлассификаторы`/`ОбработатьОбновлениеКлассификатора`
   directly from a client handler — this is server API with network calls.
   Use the client assistant `ОбновитьКлассификаторы`.
 - Before calling, you can check `РаботаСКлассификаторами.ИнтерактивнаяЗагрузкаКлассификаторовДоступна()`
-  (server, stable) — returns `Истина` if classifier update processing is allowed in the current mode.
+  (server, stable) — returns `Истина` if classifier update processing
+  is allowed in the current mode.
 
-### 7. Get countries of the world data by code or name
+### 5. Get world country data by code or name
 
 **Task:** by numeric/alphabetic code or name, get the country structure
 (name, Alpha-2/Alpha-3 codes, EAEU membership flag).
@@ -303,7 +254,7 @@ download to finish.
 `УправлениеКонтактнойИнформацией.СтранаМираПоКодуИлиНаименованию(КодИлиНаименование, ДанныеЗаполнения = Неопределено) Экспорт`
 — Function → country reference/data. stable.
 `УправлениеКонтактнойИнформацией.СтраныУчастникиЕАЭС() Экспорт` / `ЭтоСтранаУчастникЕАЭС(Страна) Экспорт`
-— reference functions for EAEU. stable.
+— reference functions for the EAEU. stable.
 
 **Parameters:**
 - `Код` (`Строка` / `Число`) — country code.
@@ -317,28 +268,28 @@ download to finish.
 // Россия.Наименование, Россия.КодАльфа2, Россия.КодАльфа3, Россия.УчастникЕАЭС
 
 Если УправлениеКонтактнойИнформацией.ЭтоСтранаУчастникЕАЭС(Россия) Тогда
-    // особый режим адреса ЕАЭС
+    // special EAEU address mode
 КонецЕсли;
 ```
 
 **Nuances / anti-patterns:**
 - ⚠️ The methods live in the `УправлениеКонтактнойИнформацией` module, **not** in
-  `РаботаСКлассификаторами` — a typical mistake is to look for them in the classifiers module.
-- `ДанныеКлассификатораСтранМираПоКоду` works from the loaded countries catalog
-  (updated through the `СтраныМира` mechanism) — if the classifier is not loaded,
+  `РаботаСКлассификаторами` — a common mistake is to look for them in the classifiers module.
+- `ДанныеКлассификатораСтранМираПоКоду` works from the loaded country directory
+  (updated via the `СтраныМира` mechanism) — if the classifier is not loaded,
   the data will be incomplete.
 
 ## Additional
 
-Other stable methods (region `ПрограммныйИнтерфейс`), full signatures — via
+Other stable methods (region `ПрограммныйИнтерфейс`), full signatures via
 `python scripts/bsp_api.py method <Имя> --module <Модуль> --src src/cf`:
 
 - `РаботаСКлассификаторами.ИнтерактивнаяЗагрузкаКлассификаторовДоступна()` —
-  indicator of whether update processing is available in the current mode (server).
+  sign of update processing availability in the current mode (server).
 - `РаботаСКлассификаторами.ОписаниеКлассификатора()` — constructor for the
   classifier description structure for `ПриДобавленииКлассификаторов`.
 - `РаботаСКлассификаторамиКлиент.ИмяСобытияОповещенияОЗагрузки()` — name of the
-  notification event for download completion (for subscription through `ПодключитьОбработчикОповещения`).
+  load completion notification event (for subscription via `ПодключитьОбработчикОповещения`).
 
 Override hook `РаботаСКлассификаторамиПереопределяемый.ПриОпределенииНастроекПользователя(Настройки)`
-— user settings parameters (ITS portal authentication) for classifiers.
+— user parameter setup (ITS portal authentication) for classifiers.

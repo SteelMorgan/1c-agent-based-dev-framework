@@ -135,11 +135,9 @@ description: >
 
 ### 2. Маршрутизация моделей
 
-**ОБЯЗАТЕЛЬНО** указывай `model` при запуске сабагентов. Tier из frontmatter:
-- Economy: Explorer
-- Mid/High: Developer, Tester
-- High/Premium: Architect, Analyst
-- Premium: Reviewer (spec, arch, JSON) / High: Reviewer (code, tests, bdd)
+**ОБЯЗАТЕЛЬНО** указывай `model` при запуске сабагентов. Канонический реестр роль → tier —
+единый источник в `framework/skills/framework-meta/agent-development-ext/SKILL.md` §2
+(таблица «Роли и модели фреймворка»); маршрутизацию выполняй по ней, не заводи параллельный список здесь.
 
 ### 2a. Режим запуска сабагентов
 
@@ -579,8 +577,9 @@ read-on-choice по входу в фазу. Ниже — скелет, форм�
 8. Результат пользователю
 ```
 
-Phase 3 идёт строго последовательно: 3a → 3b → 3c → 3d. Каждая следующая фаза стартует только после
-Reviewer + advisory cross-provider-review предыдущей.
+Phase 3: 3a ∥ 3b запускаются параллельно (общий вход из Phase 2, взаимных зависимостей нет), каждая
+проходит своё Reviewer + advisory cross-provider-review независимо. 3c стартует после приёмки 3a,
+3d — после приёмки И 3b, И 3c.
 
 ---
 
@@ -657,4 +656,5 @@ depends_on:
   - framework/subagents/debugger.md
   - framework/skills/tool-usage/diagnostics/bug-reporting/SKILL.md
   - framework/skills/tool-usage/diagnostics/runtime-investigation/SKILL.md
+  - framework/skills/framework-meta/agent-development-ext/SKILL.md
 ---

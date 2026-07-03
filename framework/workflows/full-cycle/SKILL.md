@@ -37,9 +37,9 @@ Approval gate Phase 1 нужен, потому что спецификация �
 
 Вход: утверждённая спека + `explorer-context.md`. Architect → `technical-design.md` + `task-breakdown.json`. Ревью + **STOP: ждём ОК пользователя**.
 
-### Phase 3: ПОСЛЕДОВАТЕЛЬНО (3a → 3b → 3c → 3d)
+### Phase 3: 3a ∥ 3b → 3c → 3d
 
-Фазы 3a–3d идут строго последовательно. Каждая следующая начинается только после ревью предыдущей (и cross-provider-review в advisory).
+Фазы 3a и 3b запускаются ПАРАЛЛЕЛЬНО: у них общий вход (спека + `technical-design.md` + `task-breakdown.json`) и они не читают артефакты друг друга. Каждая проходит своё ревью (и advisory cross-provider-review) независимо. 3c стартует после приёмки 3a (нужны `.feature`), 3d — после приёмки И 3b, И 3c.
 
 - **3a (Scenario-Author → Mid):** перед написанием новых UI/форменных сценариев проводит исследование формы через Vanessa MCP workflow (`vanessa-authoring`: запуск VA manager → `connect_test_client` → VA-tools → `close_test_client`) и фиксирует точные команды/элементы/обязательные поля в своём контексте. Затем intent-сценарии спеки → `.feature` Vanessa с пометкой `# unknown_step_candidate` для не найденных шагов. Ревью (scope=bdd).
 - **3b (Developer-Tests → Mid/High):** MUST-сценарии Test Plan, относящиеся к серверной логике/серверному контексту, → YaxUnit unit/интеграционные тесты (Red). Если серверный метод изменён и тест уже есть — актуализирует и перепрогоняет его; если теста нет — создаёт. Ревью (scope=tests).

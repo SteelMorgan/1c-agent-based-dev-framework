@@ -144,11 +144,9 @@ Read `testing.md` for `launch mcp va`; it is part of the workflow for debugging 
 
 ## WS mode for session-manager
 
-> **SteelMorgan forks in use.** The WS transport is implemented in forks because upstream PRs are not accepted:
-> - v8-runner: upstream [`alkoleft/v8-runner-rust`](https://github.com/alkoleft/v8-runner-rust) → used fork [`SteelMorgan/v8-runner-rust`](https://github.com/SteelMorgan/v8-runner-rust)
-> - onec-client-mcp-devkit: used fork [`SteelMorgan/onec-client-mcp-devkit`](https://github.com/SteelMorgan/onec-client-mcp-devkit)
+> SteelMorgan forks used for WS transport (`v8-runner-rust`, `onec-client-mcp-devkit`) are canonical in `SKILL.md`, section "Command Form".
 
-When [`v8-client-session-manager`](https://github.com/SteelMorgan/v8-client-session-manager) is running alongside the project, the 1С client can connect to it over WebSocket instead of the local HTTP MCP server (`runMcp` mode). v8-runner makes the choice automatically.
+When [`v8-client-session-manager`](https://github.com/SteelMorgan/v8-client-session-manager) is running alongside the project, the 1С client can connect to it over WebSocket instead of the local HTTP MCP server (`runMcp` mode). v8-runner makes the choice automatically. Applicable entry points, VA MCP and UI MCP workflow are in `SKILL.md` (section "WS parameters for coupling with session-manager"); this section is canonical for transport mechanics, `/C` and `kind`.
 
 ### Transport and autodetection
 
@@ -158,7 +156,16 @@ When [`v8-client-session-manager`](https://github.com/SteelMorgan/v8-client-sess
 - `ws` — strict WS; if the manager is unavailable, launch fails with `session-manager unreachable at <url>`.
 - `mcp` — local HTTP MCP mode without a probe.
 
-Override via `--mcp-transport={ws|mcp|auto}`. CLI takes priority over config.
+Override via `--mcp-transport={ws|mcp|auto}`. CLI takes precedence over config. The same parameters are configured via `tools.client_mcp.*` in `v8project.yaml` / `v8project.local.yaml`:
+
+```yaml
+tools:
+  client_mcp:
+    transport: auto         # mcp | ws | auto
+    manager_url: ws://127.0.0.1:4000/sessions
+    log_level: info
+    ws_timeout_ms: 1000
+```
 
 ### What v8-runner injects into `/C` in the WS branch
 
@@ -177,10 +184,19 @@ Sources of values:
 | `mcp_log_level` | `tools.client_mcp.log_level` or `info` | `--mcp-log-level={off\|error\|warn\|info\|debug\|trace}` |
 | `mcp_ws_timeout_ms` | `tools.client_mcp.ws_timeout_ms` or `1000` | `--mcp-ws-timeout-ms <N>` |
 
+For `launch mcp` / `launch mcp va`, this fragment is the entire `/C`. For `launch thin/thick/ordinary`, the same WS fragment is used, but **without** `kind=<KIND>`, and it is appended via `;` to the existing `/C` if one is already set:
+
+```text
+/C"mcpMode=ws;manager_url=<URL>;client_uid=<UUID>;corr_id=<CORR>;mcp_log_level=<LVL>;mcp_ws_timeout_ms=<MS>"
+```
+
+**Important:** do not add `kind` manually for `launch thin/thick/ordinary` - such a client publishes only the base `client_mcp` tools, not Vanessa Automation MCP.
+
 ### Internal `kind` mapping
 
 | v8-runner command | `kind` |
 |---|---|
+| `launch thin/thick/ordinary` | not passed; the client side declares the default kind |
 | `launch mcp` | `v8_runner_client` |
 | `launch mcp va` | `vanessa_test_client` |
 | `test yaxunit ...` | `yaxunit_runner` |

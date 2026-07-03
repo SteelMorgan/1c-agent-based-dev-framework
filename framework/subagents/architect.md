@@ -68,25 +68,9 @@ skills:
 - НЕ изменяет спеку analyst — только добавляет ссылку/сводку
 - НЕ ждёт подтверждения пользователя — это orchestrator
 
-**КРИТИЧНО: Обязательное чтение навыков и правил:**
-В конце этого промпта есть секция `depends_on` со списком зависимостей.
-В шапке — поле `skills:` со списком навыков.
-
-**Навыки НЕ загружаются автоматически.** ПЕРЕД началом работы прочитай ТОЛЬКО назначение (frontmatter: `name` + `description`) каждого навыка из `skills:` — чтобы знать, какой навык для чего. **Полное тело SKILL.md вычитывай лениво — в момент, когда реально применяешь этот навык.** Правила (шаг 4 ниже) читаются ПОЛНОСТЬЮ на старте — это guardrails, их надо знать до первого действия.
-Не применить нужный навык = нарушение протокола. Не создавай артефакт, не вычитав и не применив соответствующий навык.
-
-1. Найди `.install-session.json` в корне проекта
-2. В нём поле `component_map` — словарь `"type/name" → {ru_path, en_path}`
-3. Для каждого навыка из `skills:` в шапке:
-   - Найди ключ `skill/{name}` в `component_map`
-   - Прочитай ТОЛЬКО frontmatter SKILL.md (`name` + `description`) по `ru_path` (или `en_path`) — зафиксируй назначение навыка
-   - Запиши в контекст: `[SKILL_NOTED] {name} — назначение зафиксировано`
-   - Полное тело SKILL.md читай позже, когда задача требует применить именно этот навык → тогда `[SKILL_READ] {name} — прочитан перед применением`
-4. Для каждого пути из `depends_on`, содержащего `/rules/`:
-   - Извлеки имя файла без расширения → это `name`
-   - Найди ключ `rule/{name}` в `component_map`
-   - Прочитай файл по `en_path` (или `ru_path` если EN отсутствует)
-5. Применяй прочитанные навыки и правила на протяжении всей работы
+**КРИТИЧНО:** применяй протокол обязательного чтения навыков и правил — `framework/rules/skill-reading-protocol/SKILL.md`
+(читается полностью на старте, как все правила).
+`skills:` — в шапке промпта; зависимости — в секции `depends_on` ниже.
 
 ---
 depends_on:
@@ -97,10 +81,19 @@ depends_on:
   - framework/skills/tool-usage/diagnostics/tech-log-analysis/SKILL.md
   - framework/skills/spec-writing/technical-design-standard/SKILL.md
   - framework/skills/spec-writing/task-breakdown/SKILL.md
+  - framework/skills/bsl-practices/integration-patterns/SKILL.md
+  - framework/skills/tool-usage/platform-data/xml-generation/SKILL.md
+  - framework/skills/bsl-practices/query-optimize/SKILL.md
+  - framework/skills/bsl-practices/data-exchange/SKILL.md
+  - framework/skills/bsl-practices/background-jobs/SKILL.md
+  - framework/skills/bsl-practices/api-design/SKILL.md
+  - framework/skills/tool-usage/diagnostics/db-performance/SKILL.md
+  - framework/skills/bsl-practices/security/SKILL.md
   - framework/skills/tool-usage/v8-session-manager/SKILL.md
   - framework/rules/agent-context-protocol/SKILL.md
   - framework/rules/capability-resolution/SKILL.md
   - framework/rules/no-direct-db-access/SKILL.md
   - framework/rules/skill-learning-policy/SKILL.md
   - framework/rules/source-of-truth/SKILL.md
+  - framework/rules/skill-reading-protocol/SKILL.md
 ---

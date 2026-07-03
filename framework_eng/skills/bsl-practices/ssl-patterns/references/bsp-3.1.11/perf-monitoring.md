@@ -1,11 +1,16 @@
-# Monitoring Performance and BSP Business Statistics
+# Performance and business statistics monitoring in БСП
 
-Three related subsystems: **ОценкаПроизводительности** (APDEX measurements of key operations in the `ЗамерыВремени` register), **ЦентрМониторинга** (anonymized business statistics and technical information sent by a scheduled job to a 1C service or a third-party service), and **КонтрольРаботыПользователей** (managing the registration of data access events in the registration log).
-It teaches you to wrap business operations with measurements and record quantitative metrics without creating your own wrappers.
+Three related subsystems: **ОценкаПроизводительности** (APDEX measurements of key
+operations in the `ЗамерыВремени` register), **ЦентрМониторинга** (anonymized
+business statistics and technical data sent by a scheduled job to a 1С service
+or a third-party service) and **КонтрольРаботыПользователей**
+(managing the registration of data access events in the registration log).
+It teaches how to wrap business operations with measurements and record quantitative
+metrics without creating your own wrappers.
 
 ## Modules
 
-`ОценкаПроизводительности` family (suffix-based logic):
+The `ОценкаПроизводительности` family (suffix logic):
 
 - `ОценкаПроизводительности` — server-side measurements: `НачатьЗамерВремени`,
   `ЗакончитьЗамерВремени`, `ЗакончитьЗамерВремениТехнологический`,
@@ -13,22 +18,22 @@ It teaches you to wrap business operations with measurements and record quantita
   `ЗакончитьЗамерДлительнойОперации`, `СоздатьКлючевыеОперации`,
   `УстановитьЦелевоеВремя`, `ИзменитьКлючевыеОперации`.
 - `ОценкаПроизводительностиКлиент` — client-side measurements: `ЗамерВремени`
-  (single-line, auto-completing), `ЗавершитьЗамерВремени`,
+  (single-line, auto-complete), `ЗавершитьЗамерВремени`,
   `НачатьЗамерВремениТехнологический`, `УстановитьПараметрыЗамера` and others.
-  ⚠️ `ОценкаПроизводительностиКлиент.НачатьЗамерВремени` is **deprecated**
+  ⚠️ `ОценкаПроизводительностиКлиент.НачатьЗамерВремени` — **deprecated**
   (`УстаревшиеПроцедурыИФункции`); use `ЗамерВремени`.
-- `ОценкаПроизводительностиВызовСервера` — batch recording of measurements.
+- `ОценкаПроизводительностиВызовСервера` — batch writing of measurements.
   ⚠️ `ЗафиксироватьДлительностьКлючевыхОпераций(ЗамерыДляЗаписи)` — region
   `СлужебныеПроцедурыИФункции` (internal, backward compatibility not
   guaranteed); do not use as the main API.
-- `ОценкаПроизводительностиВызовСервераПовтИсп` — cached check of
+- `ОценкаПроизводительностиВызовСервераПовтИсп` — cached check
   `ВыполнятьЗамерыПроизводительности` (measurement gating).
 - ⚠️ `ОценкаПроизводительностиСлужебный` — internal API; in `src/cf` the root
   module also has methods in `СлужебныеПроцедурыИФункции`
   (`СоздатьКлючевуюОперацию`, `ЭкспортОценкиПроизводительности`, …) — do not
   call from application code.
 
-`ЦентрМониторинга` family:
+The `ЦентрМониторинга` family:
 
 - `ЦентрМониторинга` — stable server API: `ЦентрМониторингаВключен`,
   `ВключитьПодсистему`, `ОтключитьПодсистему`, `ИдентификаторИнформационнойБазы`,
@@ -38,22 +43,23 @@ It teaches you to wrap business operations with measurements and record quantita
 - `ЦентрМониторингаКлиент` — client-side statistics recording. ⚠️ Signatures
   **differ** from the server-side ones: `ЗаписатьОперациюБизнесСтатистики(ИмяОперации,
   Значение)` (without `Комментарий`/`Разделитель`), and `…Час`/`…Сутки` have a different
-  parameter order (`Значение` before `КлючУникальности`, with `КлючУникальности`
-  optional). Do not copy the server signature into client code.
+  parameter order (`Значение` before `КлючУникальности`, `КлючУникальности`
+  is optional). Do not copy the server signature into client code.
 - ⚠️ `ЦентрМониторингаСлужебный` — internal API; including
   `ЗаписатьОперациюБизнесСтатистикиСлужебная(ПараметрыЗаписи)`,
   `ПолучитьПараметрыЦентраМониторинга` — backward compatibility is not
   guaranteed.
 
-`КонтрольРаботыПользователей` is one server module, with 4 stable methods for
-controlling the registration of data access events (a separate subsystem from
+`КонтрольРаботыПользователей` — one server module, 4 stable methods for
+managing the registration of data access events (a separate subsystem from
 `ОценкаПроизводительности`, but related to access monitoring).
 
 ## Scenarios
 
 ### 1. Measure a server-side key operation
 
-**Task:** wrap a server method (document posting, report generation) with an APDEX measurement and write the result to the `ЗамерыВремени` register.
+**Task:** wrap a server method (posting a document, generating
+report) with an APDEX measurement and write the result to the `ЗамерыВремени` register.
 
 **Functions:**
 `ОценкаПроизводительности.НачатьЗамерВремени() Экспорт`
@@ -63,25 +69,25 @@ controlling the registration of data access events (a separate subsystem from
 
 **Parameters:**
 - `КлючеваяОперация` (`СправочникСсылка.КлючевыеОперации` / `Строка`) —
-  key operation; when given a string, BSP will find/create the
-  `КлючевыеОперации` catalog item itself when writing.
-- `ВремяНачала` (`Число`) — the value returned by `НачатьЗамерВремени`.
-  If `0` is passed (measurements were disabled at start time), the record is
-  skipped silently; no check is required in the calling code.
-- `ВесЗамера` (`Число`) — quantitative measurement value (for example, the
-  number of lines in a document); default is `1`.
-- `Комментарий` (`Строка` / `Соответствие`) — arbitrary measurement
-  information; default is `Неопределено`.
-- `ВыполненСОшибкой` (`Булево`) — indicates that the measurement was not
-  completed successfully; default is `Ложь`.
+  key operation; for a string, БСП will find/create the catalog item
+  `КлючевыеОперации` itself when writing.
+- `ВремяНачала` (`Число`) — value returned by `НачатьЗамерВремени`.
+  If `0` is passed (measurements were disabled at start time) — the write is
+  skipped silently, no check is required on the caller side.
+- `ВесЗамера` (`Число`) — quantitative measurement value (e.g. number of
+  lines in the document); default is `1`.
+- `Комментарий` (`Строка` / `Соответствие`) — arbitrary measurement information;
+  default is `Неопределено`.
+- `ВыполненСОшибкой` (`Булево`) — indicates that the measurement was not completed;
+  default is `Ложь`.
 
 **Example:**
 ```bsl
-// В обработчике ОбработкаПроведения модуля документа
+// In the ОбработкаПроведения handler of the document module
 ВремяНачала = ОценкаПроизводительности.НачатьЗамерВремени();
 
 Попытка
-    // ...штатная логика проведения...
+    // ...standard posting logic...
     Отказ = Ложь;
 Исключение
     Отказ = Истина;
@@ -96,35 +102,38 @@ controlling the registration of data access events (a separate subsystem from
 ```
 
 **Nuances / anti-patterns:**
-- ❌ Measuring via `ТекущаяДата()` / `ТекущаяДатаСеанса()` — low precision
-  (seconds), no connection to the key operation and register. Only
-  `ОценкаПроизводительности.НачатьЗамерВремени` (millisecond precision, APDEX).
-- ❌ Calling `ОценкаПроизводительности.НачатьЗамерВремени` on the thin client
-  — the module is server-side. For the client, use `ОценкаПроизводительностиКлиент.ЗамерВремени`.
+- ❌ Measurement via `ТекущаяДата()` / `ТекущаяДатаСеанса()` — low precision
+  (seconds), no link to the key operation and the register. Only
+  `ОценкаПроизводительности.НачатьЗамерВремени` (precision down to ms, APDEX).
+- ❌ Call `ОценкаПроизводительности.НачатьЗамерВремени` on a thin client
+  — the module is server-side. For the client — `ОценкаПроизводительностиКлиент.ЗамерВремени`.
 - ❌ `ОценкаПроизводительности.ЗакончитьЗамерВремени("Операция", 0)` without a
-  preceding `НачатьЗамерВремени` — duration will be calculated from the "epoch";
-  always pass the value returned by `НачатьЗамерВремени`.
-- `НачатьЗамерВремени` itself gates recording through `ВыполнятьЗамерыПроизводительности`
-  (reusable cache) — wrapping it in `Если … Тогда` is not needed.
+  preceding `НачатьЗамерВремени` — the duration will be calculated from the "epoch";
+  always pass the value from `НачатьЗамерВремени`.
+- `НачатьЗамерВремени` itself gates the write through `ВыполнятьЗамерыПроизводительности`
+  (reuse cache) — wrapping in `If ... Then` is not needed.
 
 ### 2. Measure a long-running operation with nested steps
 
-**Goal:** measure a multi-step operation (load → parse → write to the information base) with detail for each step.
+**Task:** measure a multi-step operation (loading → parsing → writing to the DB) with
+detailing for each step.
 
 **Functions:**
 `ОценкаПроизводительности.НачатьЗамерДлительнойОперации(КлючеваяОперация) Экспорт`
-— Function → `Соответствие` (measurement context; keys `КлючеваяОперация`, `ВремяНачала`, `ВремяПоследнегоЗамера`, `ВесЗамера`, `ВложенныеЗамеры`), region `#Область ПрограммныйИнтерфейс` (stable). Server, thick client, external connection.
+— Function → `Соответствие` (measurement context; keys `КлючеваяОперация`, `ВремяНачала`, `ВремяПоследнегоЗамера`, `ВесЗамера`, `ВложенныеЗамеры`), region `#Область ПрограммныйИнтерфейс` (stable). Server, Thick client, External connection.
 `ОценкаПроизводительности.ЗафиксироватьЗамерДлительнойОперации(ОписаниеЗамера, КоличествоДанных, ИмяШага, Комментарий = "") Экспорт`
-— Procedure (intermediate step), region `#Область ПрограммныйИнтерфейс` (stable). Server, thick client, external connection.
+— Procedure (intermediate step), region `#Область ПрограммныйИнтерфейс` (stable). Server, Thick client, External connection.
 `ОценкаПроизводительности.ЗакончитьЗамерДлительнойОперации(ОписаниеЗамера, КоличествоДанных, ИмяШага = "", Комментарий = "") Экспорт`
-— Procedure (completion), region `#Область ПрограммныйИнтерфейс` (stable). Server, thick client, external connection.
+— Procedure (completion), region `#Область ПрограммныйИнтерфейс` (stable). Server, Thick client, External connection.
 
 **Parameters:**
 - `КлючеваяОперация` (`Строка`) — the name of the key operation.
-- `ОписаниеЗамера` (`Соответствие`) — the value returned by `НачатьЗамерДлительнойОперации`; **must** be from the same pair of calls.
-- `КоличествоДанных` (`Число`) — the amount processed in the step (e.g. number of rows).
-- `ИмяШага` (`Строка`) — arbitrary name of the nested step.
-- `Комментарий` (`Строка`) — arbitrary description; default is `""`.
+- `ОписаниеЗамера` (`Соответствие`) — the value returned by
+  `НачатьЗамерДлительнойОперации`; **must** be from the same pair of calls.
+- `КоличествоДанных` (`Число`) — the amount processed in the step (for example, the number of
+  rows).
+- `ИмяШага` (`Строка`) — an arbitrary name of the nested step.
+- `Комментарий` (`Строка`) — an arbitrary description; default is `""`.
 
 **Example:**
 ```bsl
@@ -143,38 +152,49 @@ controlling the registration of data access events (a separate subsystem from
     Замер, Строки.Количество(), "ЗаписьВБД", "");
 ```
 
-**Notes / anti-patterns:**
-- ❌ Passing to `ОписаниеЗамера` a `Соответствие` from another operation or `Неопределено` will make the measurement incorrect; the context must come from the same `НачатьЗамерДлительнойОперации`.
-- ❌ `ОценкаПроизводительности.ЗафиксироватьДлительностьКлючевойОперации(100)` — such a method **does not exist**. A single record is `ЗакончитьЗамерВремени`; batch recording is `ОценкаПроизводительностиВызовСервера.ЗафиксироватьДлительностьКлючевыхОпераций` (⚠️ internal, see “Rare Methods”).
-- For long-running background operations (background job), there is a separate subsystem `ДлительныеОперации`; here only measurement **inside** such an operation is covered.
+**Nuances / anti-patterns:**
+- ❌ Passing into `ОписаниеЗамера` a `Соответствие` from another operation or
+  `Неопределено` — the measurement will be incorrect; the context must come from the same
+  `НачатьЗамерДлительнойОперации`.
+- ❌ `ОценкаПроизводительности.ЗафиксироватьДлительностьКлючевойОперации(100)`
+  — such a method **does not exist**. A single entry is
+  `ЗакончитьЗамерВремени`; batch processing is
+  `ОценкаПроизводительностиВызовСервера.ЗафиксироватьДлительностьКлючевыхОпераций`
+  (⚠️ internal, see “Редкие методы”).
+- For long-running background operations (background job) — a separate subsystem
+  `ДлительныеОперации`; here only the measurement **inside** such an operation.
 
-### 3. Measure a client-side operation
+### 3. Measure a client operation
 
-**Goal:** measure the time to open a form / client-side processing with recording to the same `ЗамерыВремени` register through the client buffer.
+**Task:** measure the time to open a form / client processing and write it to
+the same `ЗамерыВремени` register via the client buffer.
 
 **Functions:**
 `ОценкаПроизводительностиКлиент.ЗамерВремени(КлючеваяОперация = Неопределено, ФиксироватьСОшибкой = Ложь, АвтоЗавершение = Истина) Экспорт`
-— Function → `УникальныйИдентификатор` (measurement ID), region `#Область ПрограммныйИнтерфейс` (stable). Thin client, thick client.
+— Function → `УникальныйИдентификатор` (measurement identifier), region `#Область ПрограммныйИнтерфейс` (stable). Thin client, Thick client.
 `ОценкаПроизводительностиКлиент.ЗавершитьЗамерВремени(УИДЗамера, ВыполненСОшибкой = Ложь) Экспорт`
-— Procedure (explicit completion when `АвтоЗавершение = Ложь`), region `#Область ПрограммныйИнтерфейс` (stable). Thin client, thick client.
+— Procedure (explicit completion when `АвтоЗавершение = Ложь`), region `#Область ПрограммныйИнтерфейс` (stable). Thin client, Thick client.
 `ОценкаПроизводительностиКлиент.УстановитьКлючевуюОперациюЗамера(УИДЗамера, КлючеваяОперация) Экспорт`
 `ОценкаПроизводительностиКлиент.УстановитьВесЗамера(УИДЗамера, ВесЗамера) Экспорт`
 `ОценкаПроизводительностиКлиент.УстановитьКомментарийЗамера(УИДЗамера, Комментарий) Экспорт`
 `ОценкаПроизводительностиКлиент.УстановитьПризнакОшибкиЗамера(УИДЗамера, Признак) Экспорт`
-— all Procedures, region `#Область ПрограммныйИнтерфейс` (stable). Thin client, thick client.
+— all Procedures, region `#Область ПрограммныйИнтерфейс` (stable). Thin client, Thick client.
 
 **Parameters:**
-- `КлючеваяОперация` (`Строка` / `Неопределено`) — the name of the key operation; if `Неопределено`, it is set later via `УстановитьКлючевуюОперациюЗамера`.
-- `ФиксироватьСОшибкой` (`Булево`) — `Истина` → on auto-completion, the measurement is recorded with the “completed with error” flag; `Ложь` → normal.
-- `АвтоЗавершение` (`Булево`) — `Истина` (default) → completion through the global wait handler; `Ложь` → explicit call to `ЗавершитьЗамерВремени`.
+- `КлючеваяОперация` (`Строка` / `Неопределено`) — name of the key operation; if
+  `Неопределено` — it is set later via `УстановитьКлючевуюОперациюЗамера`.
+- `ФиксироватьСОшибкой` (`Булево`) — `Истина` → when auto-completed, the measurement
+  will be recorded with the "completed with error" flag; `Ложь` → normal.
+- `АвтоЗавершение` (`Булево`) — `Истина` (default) → completion through the
+  global wait handler; `Ложь` → explicit call to `ЗавершитьЗамерВремени`.
 - `УИДЗамера` (`УникальныйИдентификатор`) — the value returned by `ЗамерВремени`.
 
 **Example:**
 ```bsl
-// Однострочный замер с авто-завершением
+// Single-line measurement with auto-completion
 УИД = ОценкаПроизводительностиКлиент.ЗамерВремени("ОткрытиеФормыДокумента");
 
-// Явный цикл: точные границы + вес + признак ошибки
+// Explicit cycle: exact boundaries + weight + error flag
 УИД = ОценкаПроизводительностиКлиент.ЗамерВремени(, Ложь, Ложь);
 Попытка
     // ...длительная клиентская обработка...
@@ -185,14 +205,21 @@ controlling the registration of data access events (a separate subsystem from
 ОценкаПроизводительностиКлиент.ЗавершитьЗамерВремени(УИД);
 ```
 
-**Notes / anti-patterns:**
-- ⚠️ Client measurements are stored in the client buffer and written with the periodicity of constant `ОценкаПроизводительностиПериодЗаписи` (by default, once per minute); if the session ends abnormally, some measurements may be lost.
-- ❌ `ОценкаПроизводительностиКлиент.НачатьЗамерВремени(...)` — **deprecated** (`УстаревшиеПроцедурыИФункции`). Use `ЗамерВремени`.
-- If `КлючеваяОперация = Неопределено`, be sure to set it via `УстановитьКлючевуюОперациюЗамера`, otherwise the measurement will not be linked to an operation.
+**Nuances / anti-patterns:**
+- ⚠️ Client measurements are stored in the client buffer and written with the
+  periodicity of the `ОценкаПроизводительностиПериодЗаписи` constant (by
+  default, every minute); if the session terminates abnormally, some measurements
+  may be lost.
+- ❌ `ОценкаПроизводительностиКлиент.НачатьЗамерВремени(...)` — **deprecated**
+  (`УстаревшиеПроцедурыИФункции`). Use `ЗамерВремени`.
+- If `КлючеваяОперация = Неопределено` — be sure to set it via
+  `УстановитьКлючевуюОперациюЗамера`, otherwise the measurement will not be tied to an operation.
 
 ### 4. Register business statistics
 
-**Task:** record a quantitative metric ("how many documents were posted", "average attachment size") in the `БуферОперацийСтатистики` buffer for scheduled sending to the service.
+**Task:** write a quantitative indicator (“how many documents
+were posted”, “average attachment size”) to the `БуферОперацийСтатистики` buffer for
+scheduled sending to the service.
 
 **Functions:**
 `ЦентрМониторинга.ЗаписатьОперациюБизнесСтатистики(ИмяОперации, Значение, Комментарий = Неопределено, Разделитель = ".") Экспорт`
@@ -201,23 +228,29 @@ controlling the registration of data access events (a separate subsystem from
 `ЦентрМониторинга.ЗаписатьОперациюБизнесСтатистикиСутки(ИмяОперации, КлючУникальности, Значение, Замещать = Ложь) Экспорт`
 — Procedures, region `#Область ПрограммныйИнтерфейс` (stable). Server, Thick client, External connection.
 `ЦентрМониторинга.ЗаписыватьОперацииБизнесСтатистики() Экспорт`
-— Function → `Булево` (registration state getter), region `#Область ПрограммныйИнтерфейс` (stable). Server.
+— Function → `Булево` (registration status getter), region `#Область ПрограммныйИнтерфейс` (stable). Server.
 
 **Parameters:**
-- `ИмяОперации` (`Строка`) — statistics operation name; if absent, a new one is created. The hierarchy is separated by `Разделитель` (default `"."`).
+- `ИмяОперации` (`Строка`) — the name of the statistics operation; if absent,
+  a new one is created. The hierarchy is separated by `Разделитель` (default
+  `"."`).
 - `Значение` (`Число`) — quantitative value.
-- `Комментарий` (`Строка`) — arbitrary comment; default is `Неопределено`.
-- `Разделитель` (`Строка`) — separator for values in `ИмяОперации`, if not a dot; default is `"."`.
-- `КлючУникальности` (arbitrary) — for `…Час`/`…Сутки`: a key by which only one record is kept for the period (hour/day).
-- `Замещать` (`Булево`) — `Истина` → replaces the previous value for the period; `Ложь` (default) → accumulates.
+- `Комментарий` (`Строка`) — arbitrary comment; defaults to
+  `Неопределено`.
+- `Разделитель` (`Строка`) — separator for values in `ИмяОперации`, if not
+  a dot; default `"."`.
+- `КлючУникальности` (arbitrary) — for `…Час`/`…Сутки`: a key by which
+  only one record is stored per period (hour/day).
+- `Замещать` (`Булево`) — `Истина` → replaces the previous value for the period;
+  `Ложь` (default) → accumulates.
 
 **Example:**
 ```bsl
-// Простой счётчик
+// Simple counter
 ЦентрМониторинга.ЗаписатьОперациюБизнесСтатистики(
     "Документы.ЗаказПокупателя.Проведение.Количество", 1, , ".");
 
-// Счётчик с уникальностью за час (одна запись на документ в час)
+// Counter with uniqueness per hour (one record per document per hour)
 Для Каждого Строка Из ТаблицаДокументов Цикл
     ПровестиДокумент(Строка.Ссылка);
     ЦентрМониторинга.ЗаписатьОперациюБизнесСтатистикиЧас(
@@ -229,54 +262,37 @@ controlling the registration of data access events (a separate subsystem from
 **Nuances / anti-patterns:**
 - ❌ Wrapping the write in `Если ЦентрМониторинга.ЦентрМониторингаВключен()`
   is redundant: `ЗаписатьОперациюБизнесСтатистики` gates the write itself through
-  `ЗаписыватьОперацииБизнесСтатистики()`. The check is only appropriate if you need separate logic when the center is disabled (for example, writing to a local log).
-- ❌ `ЦентрМониторинга.ЗаписатьОперацию("Сервис.Тест", 1)` — there is **no** such method; the stable name is `ЗаписатьОперациюБизнесСтатистики`.
+  `ЗаписыватьОперацииБизнесСтатистики()`. The check is only appropriate if, when
+  the center is disabled, separate logic is needed (for example, writing to a local log).
+- ❌ `ЦентрМониторинга.ЗаписатьОперацию("Сервис.Тест", 1)` — there is **no** such method;
+  the stable name is `ЗаписатьОперациюБизнесСтатистики`.
 - ❌ Direct write to the register `РегистрыСведений.БуферОперацийСтатистики.СоздатьНаборЗаписей()`
-  bypasses service checks and categorization. Use only `ЦентрМониторинга.*`.
+  — bypasses service checks and categorization. Only through
+  `ЦентрМониторинга.*`.
 - ⚠️ On the client the signatures are different: `ЦентрМониторингаКлиент.ЗаписатьОперациюБизнесСтатистики(ИмяОперации, Значение)`
   (without `Комментарий`/`Разделитель`), and `…Час`/`…Сутки` —
   `(ИмяОперации, Значение, Замещать = Ложь, КлючУникальности = Неопределено)`
   (different parameter order). Do not substitute the server signature into
   client code.
 
-### 5. Manage the "Monitoring Center" subsystem
+### 5. Manage the "Monitoring Center" subsystem programmatically
 
-**Task:** programmatically check/enable/disable the monitoring center and
-obtain the information base identifier for linking statistics.
+All methods without parameters, region `#Область ПрограммныйИнтерфейс` (stable), Server / Thick client / External connection:
+`ЦентрМониторинга.ЦентрМониторингаВключен()` → `Булево`; `ЦентрМониторинга.ВключитьПодсистему()` / `ОтключитьПодсистему()`;
+`ЦентрМониторинга.ИдентификаторИнформационнойБазы()` → information base identifier (binding of statistics packages).
 
-**Functions:**
-`ЦентрМониторинга.ЦентрМониторингаВключен() Экспорт`
-— Function → `Булево`, region `#Область ПрограммныйИнтерфейс` (stable). Server, Thick client, External connection.
-`ЦентрМониторинга.ВключитьПодсистему() Экспорт`
-`ЦентрМониторинга.ОтключитьПодсистему() Экспорт`
-— Procedures, region `#Область ПрограммныйИнтерфейс` (stable). Server, Thick client, External connection.
-`ЦентрМониторинга.ИдентификаторИнформационнойБазы() Экспорт`
-— Function → information base identifier, region `#Область ПрограммныйИнтерфейс` (stable). Server, Thick client, External connection.
-
-**Parameters:** no parameters.
-
-**Example:**
-```bsl
-Если Не ЦентрМониторинга.ЦентрМониторингаВключен() Тогда
-    ЦентрМониторинга.ВключитьПодсистему();   // включит и регламент. задание сбора/отправки
-КонецЕсли;
-
-ИдентификаторИБ = ЦентрМониторинга.ИдентификаторИнформационнойБазы();
-// Используется для привязки пакетов статистики к конкретной ИБ
-```
-
-**Nuances / anti-patterns:**
+**Nuances / antipatterns:**
 - ❌ `ЦентрМониторингаКлиент.ПоказатьНастройкиЦентраМониторинга` — this is
   a UI method (region `СлужебныйПрограммныйИнтерфейс`), not a server API; for
-  programmatic control, use the server-side `ВключитьПодсистему` /
+  programmatic control use the server-side `ВключитьПодсистему` /
   `ОтключитьПодсистему`.
-- `ВключитьПодсистему` enables the scheduled job `СборИОтправкаСтатистики`
-  (through the service module) — no separate job registration is needed.
+- `ВключитьПодсистему` activates the scheduled job `СборИОтправкаСтатистики`
+  (through a service module) — no separate job registration is needed.
 
 ### 6. Create and configure a key operation programmatically
 
 **Task:** programmatically register a key operation in the `КлючевыеОперации`
-catalog with target time and a “long-running” flag.
+reference catalog with a target time and the "long-running" flag.
 
 **Functions:**
 `ОценкаПроизводительности.СоздатьКлючевыеОперации(КлючевыеОперации) Экспорт`
@@ -284,20 +300,20 @@ catalog with target time and a “long-running” flag.
 `ОценкаПроизводительности.ИзменитьКлючевыеОперации(КлючевыеОперации) Экспорт`
 — Procedures, region `#Область ПрограммныйИнтерфейс` (stable). Server, Thick client, External connection.
 `ОценкаПроизводительности.СоздатьКлючевуюОперацию(ИмяКлючевойОперации, ЦелевоеВремя = 1, Длительная = Ложь) Экспорт`
-— Function → `СправочникСсылка.КлючевыеОперации`, ⚠️ region `#Область СлужебныеПроцедурыИФункции` (internal).
+— Function → `СправочникСсылка.КлючевыеОперации`, ⚠️ region `#Область СлужебныеПроцедурыИФункции` (service).
 
 **Parameters:**
-- `КлючевыеОперации` (`Массив` из `Структура`) — for batch
+- `КлючевыеОперации` (`Массив` from `Структура`) — for batch
   `СоздатьКлючевыеОперации`/`УстановитьЦелевоеВремя`/`ИзменитьКлючевыеОперации`:
-  structure items with fields `ИмяКлючевойОперации`, `ЦелевоеВремя`,
+  structure elements with fields `ИмяКлючевойОперации`, `ЦелевоеВремя`,
   `Длительная` and others.
-- `ИмяКлючевойОперации` (`Строка`) — the operation name.
+- `ИмяКлючевойОперации` (`Строка`) — operation name.
 - `ЦелевоеВремя` (`Число`) — target time in seconds; default is `1`.
 - `Длительная` (`Булево`) — long-running operation flag; default is `Ложь`.
 
 **Example:**
 ```bsl
-// Пакетная регистрация (стабильный API)
+// Batch registration (stable API)
 КлючевыеОперации = Новый Массив;
 Операция = Новый Структура;
 Операция.Вставить("ИмяКлючевойОперации", "Документы.ЗаказПокупателя.Проведение");
@@ -306,93 +322,71 @@ catalog with target time and a “long-running” flag.
 КлючевыеОперации.Добавить(Операция);
 ОценкаПроизводительности.СоздатьКлючевыеОперации(КлючевыеОперации);
 
-// Позже — поменять целевое время
+// Later — change the target time
 ОценкаПроизводительности.УстановитьЦелевоеВремя(КлючевыеОперации);
 ```
 
-**Nuances / anti-patterns:**
-- ⚠️ `СоздатьКлючевуюОперацию` (single item) is **internal** region
-  (`СлужебныеПроцедурыИФункции`); for new code, prefer the stable batch
-  `СоздатьКлючевыеОперации`.
+**Nuances / antipatterns:**
+- ⚠️ `СоздатьКлючевуюОперацию` (single) — **service** region
+  (`СлужебныеПроцедурыИФункции`); for new code, prefer the stable
+  batch `СоздатьКлючевыеОперации`.
 - ❌ Invented `ОценкаПроизводительности.ЗафиксироватьДлительностьКлючевойОперации(...)`
-  does not exist. See scenario 2 and “Редкие методы”.
-- Passing a string to `ЗакончитьЗамерВремени` instead of a reference is allowed:
-  BSP will find/create the `КлючевыеОперации` catalog item itself when the measurement is written; separate operation registration is not required for one-off measurements.
+  — does not exist. See scenario 2 and "Rare methods".
+- Passing a string to `ЗакончитьЗамерВремени` instead of a reference is acceptable:
+  БСП will find/create the `КлючевыеОперации` reference catalog item itself when the
+  measurement is written; separate operation registration is not required for one-off measurements.
 
-### 7. Enable registration of data access events
+### 7. Enable data access event logging
 
-**Task:** programmatically control registration of “Доступ.Доступ” events to
-data in the registration log (152-FZ requirement for personal data) - a global
-switch and detailed settings.
+Programmatic control of logging the `Доступ.Доступ` event in the Event Log (152-FZ requirement for personal data). A pair of getter/setter for the global switch and a pair for detailed settings — all in region `#Область ПрограммныйИнтерфейс` (stable), Server / Thick client / External connection:
 
-**Functions:**
-`КонтрольРаботыПользователей.РегистрироватьДоступКДанным() Экспорт`
-— Function → `Булево` (getter for the `НастройкиПользователейИПрав` panel setting), region `#Область ПрограммныйИнтерфейс` (stable). Server, Thick client, External connection.
-`КонтрольРаботыПользователей.УстановитьРегистрациюДоступаКДанным(РегистрироватьДоступКДанным) Экспорт`
-— Procedure (setter), region `#Область ПрограммныйИнтерфейс` (stable). Server, Thick client, External connection.
-`КонтрольРаботыПользователей.НастройкиРегистрацииСобытийДоступаКДанным() Экспорт`
-— Function → `Структура` (`Состав` — array of descriptions, `Комментарии` — `Соответствие`, `ОбщийКомментарий` — `Строка`), region `#Область ПрограммныйИнтерфейс` (stable). Server, Thick client, External connection.
-`КонтрольРаботыПользователей.УстановитьНастройкиРегистрацииСобытийДоступаКДанным(Настройки) Экспорт`
-— Procedure (settings setter), region `#Область ПрограммныйИнтерфейс` (stable). Server, Thick client, External connection.
+- `КонтрольРаботыПользователей.РегистрироватьДоступКДанным()` → `Булево` /
+  `УстановитьРегистрациюДоступаКДанным(РегистрироватьДоступКДанным)` — global flag
+  (setting of the panel `НастройкиПользователейИПрав`).
+- `КонтрольРаботыПользователей.НастройкиРегистрацииСобытийДоступаКДанным()` → `Структура`
+  (`Состав` — array of descriptions, `Комментарии` — `Соответствие`, e.g.
+  `Настройки.Комментарии.Вставить("Справочник.ФизическиеЛица.НомерДокумента", НСтр("ru = 'Серия и номер паспорта'"))`,
+  `ОбщийКомментарий` — `Строка`) /
+  `УстановитьНастройкиРегистрацииСобытийДоступаКДанным(Настройки)` — read → modify → write via the setter.
 
-**Parameters:**
-- `РегистрироватьДоступКДанным` (`Булево`) — global flag for registering
-  access events.
-- `Настройки` (`Структура`, see `НастройкиРегистрацииСобытийДоступаКДанным`) —
-  composition of registered events, comments by fields, overall comment.
-
-**Example:**
-```bsl
-// Включить регистрацию, если выключена
-Если Не КонтрольРаботыПользователей.РегистрироватьДоступКДанным() Тогда
-    КонтрольРаботыПользователей.УстановитьРегистрациюДоступаКДанным(Истина);
-КонецЕсли;
-
-// Прочитать текущие настройки и добавить комментарий по полю
-Настройки = КонтрольРаботыПользователей.НастройкиРегистрацииСобытийДоступаКДанным();
-Настройки.Комментарии.Вставить("Справочник.ФизическиеЛица.НомерДокумента",
-    НСтр("ru = 'Серия и номер паспорта'"));
-КонтрольРаботыПользователей.УстановитьНастройкиРегистрацииСобытийДоступаКДанным(Настройки);
-```
-
-**Nuances / anti-patterns:**
-- This is the **user activity control** subsystem (shared access log),
-  separate from `ЗащитаПерсональныхДанных` (which uses
-  `УстановитьИспользованиеСобытияДоступ` to enable “Доступ.Доступ” for
-  specific personal-data categories). Sequence: first the global switch
+**Nuances / antipatterns:**
+- This is the **User Activity Control** subsystem (common access log),
+  separate from `ЗащитаПерсональныхДанных` (which via
+  `УстановитьИспользованиеСобытияДоступ` enables `Доступ.Доступ` for
+  specific personal data categories). The chain is: first the global switch
   `КонтрольРаботыПользователей.УстановитьРегистрациюДоступаКДанным(Истина)`,
-  then per-category detail through `ЗащитаПерсональныхДанных`.
+  then detailed categorization by categories via `ЗащитаПерсональныхДанных`.
 - ❌ Direct write to the registration log `ЗаписьЖурналаРегистрации(...)` instead of
   subsystem settings bypasses structured accounting of access events and
-  personal-data categories.
-- Settings are a structure, modified through the setter; do not try to write
-  them directly into a constant/register.
+  personal data categories.
+- Settings are a structure, modified via the setter; do not try to write
+  it directly to a constant/register.
 
 ## Rare Methods
 
 - `ОценкаПроизводительности.ЗакончитьЗамерВремениТехнологический(КлючеваяОперация, ВремяНачала, ВесЗамера = 1, Комментарий = Неопределено) Экспорт`
-  — stable (`ПрограммныйИнтерфейс`); technological measurement (without an
-  error flag). Used less often than `ЗакончитьЗамерВремени`.
+  — stable (`ПрограммныйИнтерфейс`); technological measurement (without error
+  flag). Used less often than `ЗакончитьЗамерВремени`.
 - `ОценкаПроизводительностиКлиент.НачатьЗамерВремениТехнологический(АвтоЗавершение = Истина, КлючеваяОперация = Неопределено) Экспорт`
-  — stable; client technological measurement.
+  — stable; client-side technological measurement.
 - `ОценкаПроизводительности.УстановитьПризнакЗавершенияСОшибкой(КлючевыеОперации) Экспорт`
-  — ⚠️ **deprecated** (`УстаревшиеПроцедурыИФункции`): “deprecated, do not
+  — ⚠️ **deprecated** (`УстаревшиеПроцедурыИФункции`): "deprecated, do not
   use in new code; alternative —
-  `ЗакончитьЗамерВремени(…, ВыполненСОшибкой = Истина)`”.
+  `ЗакончитьЗамерВремени(…, ВыполненСОшибкой = Истина)`".
 - `ОценкаПроизводительностиВызовСервера.ЗафиксироватьДлительностьКлючевыхОпераций(ЗамерыДляЗаписи) Экспорт`
-  — ⚠️ **internal** (`СлужебныеПроцедурыИФункции`): batch recording of a
-  measurements array (`Структура` with `ЗамерыЗавершенные` — `Соответствие` from
+  — ⚠️ **service** (`СлужебныеПроцедурыИФункции`): batch write of an array
+  of measurements (`Структура` with `ЗамерыЗавершенные` — `Соответствие` from
   `УникальныйИдентификатор` → `Соответствие`, and `ИнформацияПрограммыПросмотра`
   — `Строка`). Returns the measurement write period on the server (seconds).
-  Backward compatibility is not guaranteed - do not use as the main method;
-  for a single record, use `ЗакончитьЗамерВремени`.
+  Backward compatibility is not guaranteed — do not use as the primary
+  method; for single writes, use `ЗакончитьЗамерВремени`.
 - `ЦентрМониторинга.ЗаписатьСтатистикуКонфигурации(СоответствиеИменМетаданных) Экспорт`
   and `ЦентрМониторинга.ЗаписатьСтатистикуОбъектаКонфигурации(ИмяОбъекта, Значение) Экспорт`
-  — stable (`ПрограммныйИнтерфейс`); writing technical statistics by
-  configuration metadata (volume, number of objects).
+  — stable (`ПрограммныйИнтерфейс`); writing technological statistics
+  for configuration metadata (volume, number of objects).
 - `ЦентрМониторингаСлужебный.ЗаписатьОперациюБизнесСтатистикиСлужебная(ПараметрыЗаписи) Экспорт`
-  — ⚠️ internal (`СлужебныеПроцедурыИФункции`); low-level write to the
+  — ⚠️ service (`СлужебныеПроцедурыИФункции`); low-level write to
   buffer; use the stable `ЦентрМониторинга.ЗаписатьОперациюБизнесСтатистики`.
 
-To look up the signature/region of any of these methods —
+To find the signature/region of any of these methods —
 `python .claude/skills/bsp/scripts/bsp_api.py method <Имя> --module <Модуль> --src src/cf`.
