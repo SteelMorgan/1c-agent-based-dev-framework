@@ -656,5 +656,4 @@ depends_on:
   - framework/subagents/debugger.md
   - framework/skills/tool-usage/diagnostics/bug-reporting/SKILL.md
   - framework/skills/tool-usage/diagnostics/runtime-investigation/SKILL.md
-  - framework/skills/framework-meta/agent-development-ext/SKILL.md
 ---

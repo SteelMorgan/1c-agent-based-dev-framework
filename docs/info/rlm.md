@@ -85,4 +85,4 @@ RLM решает **другую** задачу — **меж-сессионную
 
 ---
 
-> **Не путать.** «RLM» в этом фреймворке — про **память знаний** (`rlm-toolkit`). Существует независимый проект `rlm-tools-bsl` (анализатор BSL-кода, форк `stefanoshea/rlm-tools`) — общий префикс «rlm» случаен, к этой памяти он отношения не имеет.
+> **Не путать.** «RLM» в этом документе — про **память знаний** (`rlm-toolkit`). Есть независимый проект [`Dach-Coin/rlm-tools-bsl`](https://github.com/Dach-Coin/rlm-tools-bsl) — анализатор BSL-кода и индексированный проектный поиск. Теперь он поставляется вместе с BSL LS LSP Bridge в контейнере `mcp-bsl-rlm`, но к памяти `rlm-toolkit` отношения не имеет. Для него есть отдельный tool-usage навык: [`rlm-bsl-search`](../../framework/skills/tool-usage/code-analysis/rlm-bsl-search/).

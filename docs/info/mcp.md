@@ -7,6 +7,11 @@
 
 ## Оптимизация работы с кодовой базой
 1. [LSP BSL Bridge](https://github.com/SteelMorgan/mcp-bsl-lsp-bridge) — современные модели сами могут «нагрепать» всё что угодно, но работа через LSP Bridge экономит токены и позволяет надёжно строить графы вызовов (агенты на таких операциях иногда лажают).
+2. **MCP BSL RLM** (`mcp-bsl-rlm`) — контейнерная сборка BSL LS LSP Bridge + [`Dach-Coin/rlm-tools-bsl`](https://github.com/Dach-Coin/rlm-tools-bsl) в одной коробке. BSL LS остаётся точным LSP-слоем для diagnostics/hover/definition/references/rename/formatting, а `rlm-tools-bsl` добавляет индексированный проектный поиск по BSL/XML/MDO/forms/rights/query, граф вызовов и навигацию через tools `rlm_start`, `rlm_execute`, `rlm_help`, `rlm_end`, `rlm_index`, `rlm_projects`. Индекс RLM строится контейнером при старте и обновляется watcher'ом при изменениях.
+
+Практическое правило для агента: если нужна широкая разведка по 1C/BSL исходникам, сначала `rlm_start` + `rlm_execute`; если нужна точная IDE-семантика по уже известной позиции — BSL LS tools.
+
+Навык работы с RLM входит в комплект фреймворка: [`framework/skills/tool-usage/code-analysis/rlm-bsl-search/`](../../framework/skills/tool-usage/code-analysis/rlm-bsl-search/). При установке фреймворка в проект он попадает в `.claude/skills/rlm-bsl-search` и `.codex/skills/rlm-bsl-search`.
 
 ## Доступ «внутрь 1С» для агента
 1. MCP Server 1C: [SteelMorgan/1c-mcp-tools](https://github.com/SteelMorgan/1c-mcp-tools) — выполнение запросов, получение метаданных и др. Самостоятельный проект: основной код заимствован у [Владимира Харина](https://github.com/vladimir-kharin/1c_mcp) и его форка [Вадима Ли (RooLee10)](https://github.com/RooLee10/1c-mcp-tools), затем существенно переработан под работу с `wt-mcp-adapter` (логика и архитектура изменены). <<КОД 1С>>
@@ -63,6 +68,7 @@
 | metadata-tools | [SteelMorgan/1c-mcp-tools](https://github.com/SteelMorgan/1c-mcp-tools) | platform-data-core |
 | batch-ops | [vladimir-kharin/1c-batch](https://github.com/vladimir-kharin/1c-batch) | — |
 | lsp-bridge | [SteelMorgan/mcp-bsl-lsp-bridge](https://github.com/SteelMorgan/mcp-bsl-lsp-bridge) | code-navigation |
+| mcp-bsl-rlm | [SteelMorgan/mcp-bsl-lsp-bridge](https://github.com/SteelMorgan/mcp-bsl-lsp-bridge) + [Dach-Coin/rlm-tools-bsl](https://github.com/Dach-Coin/rlm-tools-bsl) | code-navigation + rlm-bsl-search |
 | 1c-debug-mcp | [liga-1c-command/1c-debug-mcp](https://github.com/liga-1c-command/1c-debug-mcp) | debug_bsl_code |
 | v8-session-manager | [1c-neurofish/v8-session-manager](https://github.com/1c-neurofish/v8-session-manager) | витрина для tools 1С-расширений (`vanessa_test_client`, `yaxunit_runner`, `v8_runner_client`) |
 | ~~test-runner~~ | ~~[alkoleft/mcp-onec-test-runner](https://github.com/alkoleft/mcp-onec-test-runner)~~ | **упразднён** — заменён CLI [v8-runner](https://github.com/SteelMorgan/v8-runner) (build / syntax / tests / dump) |

@@ -11,6 +11,10 @@
 | **spec-writing** | `framework/skills/spec-writing/` | Стандарты спецификаций | `spec-standard.md` |
 | **_ext** | `framework/skills/*_ext/` | Расширения внешних навыков (Anthropic и др.) | `agent-development_ext` |
 
+## Навыки для MCP-инструментов
+
+Для объединённого контейнера `mcp-bsl-rlm` в комплект входит навык [`rlm-bsl-search`](../../framework/skills/tool-usage/code-analysis/rlm-bsl-search/). Он описывает, когда использовать `rlm_start`/`rlm_execute` перед широким `Grep`/`Glob`/`Read`/`rg`, а когда оставаться на BSL LS tools для точной IDE-семантики.
+
 ## Как это связано с правилами
 
 - Навыки описывают **как лучше действовать** (рекомендации и сценарии).
