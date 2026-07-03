@@ -1257,10 +1257,10 @@
       "status": "synced"
     },
     "framework/subagents/orchestrator.md": {
-      "ru_hash": "sha256:a5bceab294119cb635e00303c81ceacfc98632e1204dd090775fb48bdb41ae8b",
+      "ru_hash": "sha256:c518173cb70ec9fb081c39edf3169e2f592b43552e17bed85a18775834ace249",
       "en_hash": "sha256:232e118eade8a449315cb187b06a9328d2a2132ebd67f9345f772f1c980d862b",
       "synced_at": "2026-07-02T18:36:47Z",
-      "status": "synced"
+      "status": "dirty"
     },
     "framework/rules/yaxunit-isolation/SKILL.md": {
       "ru_hash": "sha256:512e1e6f3b03c1df760f008703009ace4a69a00a047d6ef95e29da3879877f40",
@@ -1608,6 +1608,12 @@
       "ru_hash": "sha256:2eb176bcc42e8b430b8b34d8ab20728bc788af693bf55ebe7c9d19658f85f3b8",
       "en_hash": "sha256:ac4ce3d7200d6bdd9cb9b5bb6188b407357cde712e4fa1770917e9ffe3751893",
       "synced_at": "2026-07-02T10:22:53Z",
+      "status": "synced"
+    },
+    "framework/skills/tool-usage/code-analysis/rlm-bsl-search/SKILL.md": {
+      "ru_hash": "sha256:84316665db5796542423abf6c0678cfe819939a2bdbe7a260ddf3e769bc61166",
+      "en_hash": "sha256:d51178e08dc76b55fb400b4b3301bad6e81ed43727a084b3bfa9bcb3a874aa70",
+      "synced_at": "2026-07-03T19:09:23Z",
       "status": "synced"
     }
   }
