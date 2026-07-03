@@ -13,28 +13,41 @@ uses_capabilities:
 
 # Code Navigation
 
-Do not guess code location - use LSP. Exact results from the project index.
+Do not guess code location. For broad 1C/BSL search, use RLM first (`rlm-bsl-search`); use LSP when a concrete file, symbol, or cursor position is already known. LSP provides exact IDE semantics from the project index: definition/references, hover, signature, completion, diagnostics, rename, and code actions.
+
+## Boundary with RLM
+
+| Need | First tool |
+|-------------|-------------------|
+| Find a mechanism, similar implementation, business chain, query/XML/MDO/forms/rights relationships | RLM (`rlm_start` → `rlm_execute`) |
+| Assess broad blast radius of a metadata object, form, role, query, subscription | RLM, then LSP for found symbols |
+| Go to definition of an already found method/variable | BSL LS/LSP |
+| Get references/call graph by concrete position | BSL LS/LSP |
+| Check type, hover, signature, completion at a concrete code location | BSL LS/LSP |
+| Rename, formatting, quick fix, diagnostics | BSL LS/LSP |
 
 ## When to use
 
 | Trigger | Action |
 |---------|----------|
 | Search for procedure/function definitions | `navigate_symbol` operation `definition` |
-| All calls to function X | `navigate_symbol` `search` or `get_call_graph` `incoming` |
+| All calls to function X, when the concrete function/position is known | `navigate_symbol` `search` or `get_call_graph` `incoming` |
 | What a function calls | `get_call_graph` `outgoing` |
 | Rename across the project | `rename_symbol` (first `preview: true`) |
 | Quick Fixes | `get_code_actions` |
 | File diagnostics | `get_diagnostics` |
-| Investigating unknown code | `navigate_symbol` → `get_call_graph` → hover |
+| Investigating unknown code after RLM discovery | `navigate_symbol` → `get_call_graph` → hover |
 | Error "method not found" on a platform type | `getMembers` / `getMember` / `getConstructors` |
 | Object structure / tabular sections / attributes, enum values, predefined items | `get_completion` after a dot (see "Metadata discovery") |
-| Where a metadata object is used in code | `search_ssl_functions` references on `Документы.X` + grep (see below) |
+| Where a metadata object is used in code, if the manager/symbol is already known | `search_ssl_functions` references on `Документы.X`; broad usage - via RLM |
 | Estimate who a procedure/function change affects | `get_symbol_impact` (incoming + references + classification) |
 | Parameter hints while writing a call | `signature_help` — cursor INSIDE the call parentheses (see "Parameter hints") |
 
 ## Algorithms
 
 ### Find all calls to a function
+
+If only the business topic or an approximate name is known, use RLM first. Use this algorithm when a concrete method or position is already known.
 
 1. `navigate_symbol(query: "ИмяФункции", operation: "search")` → get `uri`, `line`, `character`
 2. `get_call_graph(uri, line, character, direction: "incoming")`
@@ -77,22 +90,25 @@ BSL LS Type System v2 exposes configuration metadata through completion. One too
 
 ### Find where a metadata object is used in code
 
+For a broad map of metadata object usages, start with RLM: it covers BSL, XML/MDO/forms/rights/query, subscriptions, and scheduled jobs better. Use this LSP algorithm after RLM or when exact references for a known manager are needed.
+
 The picture is hybrid (how the object is used in BSL itself):
 
 1. `search_ssl_functions` (references mode) on the manager symbol `Документы.ИмяОбъекта` → **semantically exact** manager-access locations. References exclude matches in comments/strings/query text.
-2. **Supplement with grep** for what is not a symbol and therefore is not visible to references: string literals of the type (`"ДокументСсылка.ИмяОбъекта"`, `Тип("ДокументСсылка.…")`) and metadata paths inside query text (`ИЗ Документ.ИмяОбъекта`).
+2. **Supplement with RLM** for what is not a symbol and therefore is not visible to references: string literals of the type (`"ДокументСсылка.ИмяОбъекта"`, `Тип("ДокументСсылка.…")`), metadata paths inside query text (`ИЗ Документ.ИмяОбъекта`), forms, rights, subscriptions, and XML/MDO.
+3. Use raw grep only as fallback if RLM is unavailable or one known file needs checking.
 
-> For "where used", prefer references over a bare grep by name: grep produces false positives in comments and strings. Use grep only to pick up string/query usages.
+> For "where used", do not start with bare grep by name: it produces false positives in comments and strings. Broad search - RLM; exact positional semantics - LSP references.
 
 ### Change-impact analysis: `get_symbol_impact`
 
-Before renaming/changing a procedure, estimate the blast radius in one call:
+Before renaming/changing a concrete procedure, estimate the local LSP blast radius in one call:
 
 1. `navigate_symbol` → `uri`, `line`, `character` of the symbol.
 2. `get_symbol_impact(uri, line, character)` → incoming callers (call hierarchy) + all references + **caller classification by module type** (CommonModule / FormModule / ManagerModule / ObjectModule / …) — shows where the change is pulled through from: UI, server, or background.
 
 **Two blind spots (built into the output, keep in mind):**
-- **Triggers.** Call hierarchy shows only direct calls. A method is also reached via event subscriptions, form handlers, scheduled jobs, extension `&Вместо/&Перед/&После` — this is NOT visible here (declarative; pick up via 1c-mcp/XML).
+- **Triggers.** Call hierarchy shows only direct calls. A method is also reached via event subscriptions, form handlers, scheduled jobs, extension `&Вместо/&Перед/&После` — this is NOT visible here; pick it up via RLM over BSL + XML/MDO.
 - **Namesakes.** For shared object methods (`ОбработкаПроведения`, `ПередЗаписью`, present in hundreds of modules), anchor call hierarchy to the specific module — otherwise the result will include false links from same-named methods of other objects.
 
 ### Parameter hints at the call site: `signature_help`

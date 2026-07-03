@@ -20,6 +20,20 @@ Use this skill when working with 1C/BSL and the answer requires project reconnai
 
 The main rule: for broad 1C/BSL search, use RLM before `Grep`, `Glob`, broad `Read`, `Bash rg`, `grep`, `find`, and manual recursive file reading.
 
+## Quick decision: RLM or BSL LS
+
+| If you need to... | Use |
+|--------------------|-----|
+| Find where a mechanism, similar implementation, or business chain lives in the project | RLM first |
+| Find all project relationships of an object: BSL, queries, XML/MDO, forms, rights, subscriptions, scheduled jobs | RLM first |
+| Understand blast radius before choosing a concrete file/symbol | RLM first |
+| Go to definition/references of an already known symbol at a concrete location | BSL LS first |
+| Get hover, signature, completion, diagnostics, code actions, rename | BSL LS first |
+| Check a changed BSL file after editing | BSL LS diagnostics, then final verification through v8-runner |
+| Quickly read one known file/fragment | `Read` / LSP file tool |
+
+Working model: RLM answers “where and what should I search across the project?”, while BSL LS answers “what exactly does this symbol/type/position mean?”. If the task starts from an unclear business need or broad search over 1C sources, start with RLM. If the task is already positional, start with BSL LS.
+
 ## When not to use first
 
 | Situation | Tool |
