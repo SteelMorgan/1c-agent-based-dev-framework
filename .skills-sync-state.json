@@ -531,9 +531,9 @@
       "status": "synced"
     },
     "framework/workflows/orchestrator/references/orchestrator-structures.md": {
-      "ru_hash": "sha256:293be9d1368adbd7a208b9ed7c872bfec3fd8dadbc8353d90ca8ecb48a4dd2f0",
-      "en_hash": "sha256:6140c8f81dea6b7ba00dd4824c7d33c0ece9fe178bd128ec22b0c79a3ef554a0",
-      "synced_at": "2026-07-02T19:25:46Z",
+      "ru_hash": "sha256:cc7e7535611be9175c356ad4cd2641873af29b6005cb9dfa286bd6e07bfa4eb5",
+      "en_hash": "sha256:05d69c5f5eccdc3b40413bc948a88823c2d3e2635c0f7563f3ceaa4ce999be7e",
+      "synced_at": "2026-07-03T20:28:38Z",
       "status": "synced"
     },
     "framework/skills/tool-usage/vanessa/vanessa-authoring/references/steps.json": {
