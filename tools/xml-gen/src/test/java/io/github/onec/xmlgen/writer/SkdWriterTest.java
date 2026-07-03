@@ -462,18 +462,14 @@ class SkdWriterTest {
         String content = Files.readString(out);
         assertThat(content).contains("<template");
         assertThat(content).contains("<name>Макет1</name>");
-        assertThat(content).contains("<style>header</style>");
-        // ширины
-        assertThat(content).contains("<width>15</width>");
-        assertThat(content).contains("<width min=\"10\" max=\"20\">");
-        assertThat(content).contains("<width>30</width>");
-        // строки
-        assertThat(content).contains("<row>");
-        assertThat(content).contains("<cell type=\"text\">Заголовок</cell>");
-        assertThat(content).contains("<cell type=\"mergeUp\">");
-        assertThat(content).contains("<cell type=\"mergeLeft\">");
-        assertThat(content).contains("<cell type=\"empty\">");
-        assertThat(content).contains("<cell type=\"param\" name=\"Сумма\">");
+        assertThat(content).doesNotContain("<style>header</style>");
+        assertThat(content).doesNotContain("<widths>");
+        assertThat(content).doesNotContain("<rows>");
+        assertThat(content).contains("xsi:type=\"dcsat:AreaTemplate\"");
+        assertThat(content).contains("xsi:type=\"dcsat:TableRow\"");
+        assertThat(content).contains("xsi:type=\"v8:LocalStringType\"");
+        assertThat(content).contains("<v8:content>Заголовок</v8:content>");
+        assertThat(content).contains("xsi:type=\"dcscor:Parameter\">Сумма</dcsat:value>");
         // drilldown
         assertThat(content).contains("DetailsAreaTemplateParameter");
         assertThat(content).contains("<dcsat:name>Расшифровка_Сумма</dcsat:name>");

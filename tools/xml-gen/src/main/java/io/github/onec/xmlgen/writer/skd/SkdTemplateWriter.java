@@ -58,33 +58,6 @@ public final class SkdTemplateWriter {
         if (tpl.getName() != null) {
             writeSimple(writer, "name", tpl.getName(), inner);
         }
-        if (tpl.getStyle() != null) {
-            writeSimple(writer, "style", tpl.getStyle(), inner);
-        }
-        if (tpl.getMinHeight() != null) {
-            writeSimple(writer, "minHeight", tpl.getMinHeight().toString(), inner);
-        }
-
-        // Ширины колонок.
-        if (tpl.getWidths() != null && !tpl.getWidths().isEmpty()) {
-            writer.writeCharacters(inner);
-            writer.writeStartElement("widths");
-            writer.writeCharacters("\n");
-            for (Object w : tpl.getWidths()) {
-                writeWidth(writer, w, inner + "\t");
-            }
-            writer.writeCharacters(inner);
-            writer.writeEndElement();
-            writer.writeCharacters("\n");
-        }
-
-        // Параметры шаблона.
-        if (tpl.getParameters() != null) {
-            for (SkdDsl.TemplateParameter p : tpl.getParameters()) {
-                writeParameter(writer, p, inner);
-            }
-        }
-
         // Raw dcsat:AreaTemplate XML — insert as XML subtree, not as escaped text/CDATA.
         if (tpl.getTemplate() != null) {
             writer.writeCharacters(inner);
@@ -92,17 +65,16 @@ public final class SkdTemplateWriter {
             writer.writeCharacters("\n");
         }
 
-        // Строки.
+        // Строки DSL должны превращаться в канонический AreaTemplate, который читает Designer.
         if (tpl.getTemplate() == null && tpl.getRows() != null) {
-            writer.writeCharacters(inner);
-            writer.writeStartElement("rows");
-            writer.writeCharacters("\n");
-            for (Object row : tpl.getRows()) {
-                writeRow(writer, row, inner + "\t");
+            writeAreaTemplate(writer, tpl.getRows(), inner);
+        }
+
+        // Параметры шаблона в каноне идут рядом с AreaTemplate внутри <template>.
+        if (tpl.getParameters() != null) {
+            for (SkdDsl.TemplateParameter p : tpl.getParameters()) {
+                writeParameter(writer, p, inner);
             }
-            writer.writeCharacters(inner);
-            writer.writeEndElement();
-            writer.writeCharacters("\n");
         }
 
         writer.writeCharacters(indent);
@@ -135,22 +107,6 @@ public final class SkdTemplateWriter {
 
     // ---- helpers --------------------------------------------------------
 
-    private static void writeWidth(XMLStreamWriter writer, Object w, String indent)
-            throws XMLStreamException {
-        String value = w.toString();
-        writer.writeCharacters(indent);
-        writer.writeStartElement("width");
-        if (value.contains("-")) {
-            String[] parts = value.split("-", 2);
-            writer.writeAttribute("min", parts[0].trim());
-            writer.writeAttribute("max", parts[1].trim());
-        } else {
-            writer.writeCharacters(value);
-        }
-        writer.writeEndElement();
-        writer.writeCharacters("\n");
-    }
-
     private static void writeParameter(XMLStreamWriter writer, SkdDsl.TemplateParameter p, String indent)
             throws XMLStreamException {
         // ExpressionAreaTemplateParameter
@@ -181,6 +137,21 @@ public final class SkdTemplateWriter {
             writer.writeEndElement();
             writer.writeCharacters("\n");
         }
+    }
+
+    private static void writeAreaTemplate(XMLStreamWriter writer, List<Object> rows, String indent)
+            throws XMLStreamException {
+        writer.writeCharacters(indent);
+        writer.writeStartElement("template");
+        writer.writeNamespace("dcsat", DCS_AREA_TEMPLATE_NS);
+        writer.writeAttribute("xsi:type", "dcsat:AreaTemplate");
+        writer.writeCharacters("\n");
+        for (Object row : rows) {
+            writeAreaTemplateRow(writer, row, indent + "\t");
+        }
+        writer.writeCharacters(indent);
+        writer.writeEndElement();
+        writer.writeCharacters("\n");
     }
 
     private static void writeXmlFragment(XMLStreamWriter writer, String xml)
@@ -269,7 +240,7 @@ public final class SkdTemplateWriter {
     }
 
     @SuppressWarnings("unchecked")
-    private static void writeRow(XMLStreamWriter writer, Object row, String indent)
+    private static void writeAreaTemplateRow(XMLStreamWriter writer, Object row, String indent)
             throws XMLStreamException {
         List<Object> cells;
         if (row instanceof List) {
@@ -281,11 +252,12 @@ public final class SkdTemplateWriter {
             return;
         }
         writer.writeCharacters(indent);
-        writer.writeStartElement("row");
+        writer.writeStartElement("dcsat", "item", DCS_AREA_TEMPLATE_NS);
+        writer.writeAttribute("xsi:type", "dcsat:TableRow");
         writer.writeCharacters("\n");
         String inner = indent + "\t";
         for (Object cell : cells) {
-            writeCell(writer, cell, inner);
+            writeAreaTemplateCell(writer, cell, inner);
         }
         writer.writeCharacters(indent);
         writer.writeEndElement();
@@ -293,42 +265,93 @@ public final class SkdTemplateWriter {
     }
 
     @SuppressWarnings("unchecked")
-    private static void writeCell(XMLStreamWriter writer, Object cell, String indent)
+    private static void writeAreaTemplateCell(XMLStreamWriter writer, Object cell, String indent)
             throws XMLStreamException {
         writer.writeCharacters(indent);
-        writer.writeStartElement("cell");
+        writer.writeStartElement("dcsat", "tableCell", DCS_AREA_TEMPLATE_NS);
 
-        if (cell == null) {
-            writer.writeAttribute("type", "empty");
-        } else if (cell instanceof Map) {
-            Map<String, Object> m = (Map<String, Object>) cell;
-            String type = m.get("type") != null ? m.get("type").toString() : "text";
-            writer.writeAttribute("type", type);
-            if (m.get("name") != null) {
-                writer.writeAttribute("name", m.get("name").toString());
-            }
-            if (m.get("value") != null) {
-                writer.writeCharacters(m.get("value").toString());
-            }
-            if (m.get("format") != null) {
-                writer.writeAttribute("format", m.get("format").toString());
-            }
-        } else {
-            String s = cell.toString();
-            if ("|".equals(s)) {
-                writer.writeAttribute("type", "mergeUp");
-            } else if (">".equals(s)) {
-                writer.writeAttribute("type", "mergeLeft");
-            } else if (s.startsWith("{") && s.endsWith("}")) {
-                writer.writeAttribute("type", "param");
-                writer.writeAttribute("name", s.substring(1, s.length() - 1));
-            } else {
-                writer.writeAttribute("type", "text");
-                writer.writeCharacters(s);
+        if (cell != null) {
+            CellValue cellValue = parseCellValue(cell);
+            if (cellValue != null) {
+                writer.writeCharacters("\n");
+                writeAreaTemplateField(writer, cellValue, indent + "\t");
+                writer.writeCharacters(indent);
             }
         }
         writer.writeEndElement();
         writer.writeCharacters("\n");
+    }
+
+    @SuppressWarnings("unchecked")
+    private static CellValue parseCellValue(Object cell) {
+        if (cell instanceof Map) {
+            Map<String, Object> m = (Map<String, Object>) cell;
+            Object type = m.get("type");
+            Object name = m.get("name");
+            Object value = m.get("value");
+            if ("param".equals(type) && name != null) {
+                return new CellValue(true, name.toString());
+            }
+            if (value != null) {
+                return new CellValue(false, value.toString());
+            }
+            return null;
+        }
+
+        String s = cell.toString();
+        if ("|".equals(s) || ">".equals(s)) {
+            return null;
+        }
+        if (s.startsWith("{") && s.endsWith("}")) {
+            return new CellValue(true, s.substring(1, s.length() - 1));
+        }
+        return new CellValue(false, s);
+    }
+
+    private static void writeAreaTemplateField(XMLStreamWriter writer, CellValue cellValue, String indent)
+            throws XMLStreamException {
+        writer.writeCharacters(indent);
+        writer.writeStartElement("dcsat", "item", DCS_AREA_TEMPLATE_NS);
+        writer.writeAttribute("xsi:type", "dcsat:Field");
+        writer.writeCharacters("\n");
+        writer.writeCharacters(indent + "\t");
+        writer.writeStartElement("dcsat", "value", DCS_AREA_TEMPLATE_NS);
+        if (cellValue.parameter) {
+            writer.writeAttribute("xsi:type", "dcscor:Parameter");
+            writer.writeCharacters(cellValue.value);
+        } else {
+            writer.writeAttribute("xsi:type", "v8:LocalStringType");
+            writer.writeCharacters("\n");
+            writeLocalStringItem(writer, cellValue.value, indent + "\t\t");
+            writer.writeCharacters(indent + "\t");
+        }
+        writer.writeEndElement();
+        writer.writeCharacters("\n");
+        writer.writeCharacters(indent);
+        writer.writeEndElement();
+        writer.writeCharacters("\n");
+    }
+
+    private static void writeLocalStringItem(XMLStreamWriter writer, String value, String indent)
+            throws XMLStreamException {
+        writer.writeCharacters(indent);
+        writer.writeStartElement("v8", "item", V8_CORE_NS);
+        writer.writeCharacters("\n");
+        writeSimple(writer, "v8:lang", "ru", indent + "\t");
+        writeSimple(writer, "v8:content", value, indent + "\t");
+        writer.writeCharacters(indent);
+        writer.writeEndElement();
+        writer.writeCharacters("\n");
+    }
+
+    private static final class CellValue {
+        private final boolean parameter;
+        private final String value;
+
+        private CellValue(boolean parameter, String value) {
+            this.parameter = parameter;
+            this.value = value;
+        }
     }
 
     private static void writeSimple(XMLStreamWriter writer, String name, String text, String indent)
