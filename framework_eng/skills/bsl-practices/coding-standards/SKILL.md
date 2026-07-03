@@ -6,9 +6,9 @@ alwaysApply: false
 
 # BSL Coding Standards (1C)
 
-## Rule 1: Variable naming - CamelCase in Russian
+## Rule 1: Naming identifiers - CamelCase in Russian
 
-ITS standard: "Module texts" - names in Russian, CamelCase.
+ITS standard: "Module texts" - names in Russian, CamelCase. For procedures, functions, variables, and parameters, use CamelCase with a capital first letter.
 
 | Element | Format | Example |
 |---------|--------|--------|
@@ -17,6 +17,15 @@ ITS standard: "Module texts" - names in Russian, CamelCase.
 | Function | NounOrQuestion | `ПолучитьСписокДокументов`, `ЭтоНовый` |
 | Boolean variable | Affirmative form | `ЭтоНовый`, `РазрешеноРедактирование`, `ЕстьОшибки` |
 | Parameter | AsVariable | `ДокументСсылка`, `РежимОткрытия` |
+
+### Naming procedures and functions
+
+- Name procedures with a verbal phrase in the infinitive: `ЗаполнитьТабличнуюЧасть`, `УстановитьОтбор`.
+- Name functions by their return value, without indicating the type in the name: `СписокДокументов`, `ЭтоНовый`.
+- Start constructor functions with the word `Новый`: `НовыйПараметрыОтбора`.
+- Start validation functions with `Это`, `Есть`, `Используется`, `Включено`, or use a participle: `ЭтоНовый`, `ЕстьОшибки`, `ЗаполненоЗначение`.
+- If the way the result is obtained matters, a function name derived from a verb is allowed: `ПолучитьСписокДокументов`.
+- If a function is used for its action and the result is a side effect, name it like a procedure.
 
 ```bsl
 Процедура ЗаполнитьТабличнуюЧастьТовары(ДокументОбъект, ДанныеЗаполнения)
