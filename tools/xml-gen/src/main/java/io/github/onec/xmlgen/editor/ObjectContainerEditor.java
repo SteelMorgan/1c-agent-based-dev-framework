@@ -1,0 +1,669 @@
+package io.github.onec.xmlgen.editor;
+
+import io.github.onec.xmlgen.model.ConfigurationXmlReader;
+import io.github.onec.xmlgen.model.UuidGenerator;
+
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+
+/**
+ * Универсальный редактор ChildObjects для любого типа метаданных 1С.
+ * <p>
+ * Работает с корневым XML-файлом объекта (EPF/ERF/Catalog/Document/etc.)
+ * и позволяет добавлять/удалять формы, макеты и другие дочерние объекты.
+ * <p>
+ * Использует строковые операции для сохранения оригинального форматирования XML.
+ */
+public class ObjectContainerEditor {
+
+    private static final Pattern CHILD_OBJECTS_SELF_CLOSING = Pattern.compile("([ \t]*)<ChildObjects/>");
+    private static final Pattern CHILD_OBJECTS_END = Pattern.compile("([ \t]*)</ChildObjects>");
+    private static final Pattern FORM_ENTRY = Pattern.compile("\\s*<Form>[^<]+</Form>\\s*");
+    private static final Pattern TEMPLATE_ENTRY = Pattern.compile("\\s*<Template>[^<]+</Template>\\s*");
+    private static final Pattern FIRST_TEMPLATE = Pattern.compile("<Template>");
+    private static final byte[] BOM = {(byte) 0xEF, (byte) 0xBB, (byte) 0xBF};
+
+    private final Path objectXmlPath;
+    private String content;
+    private boolean hasBom;
+
+    /**
+     * @param objectXmlPath путь к корневому XML объекта
+     */
+    public ObjectContainerEditor(Path objectXmlPath) throws IOException {
+        this.objectXmlPath = objectXmlPath;
+        byte[] raw = Files.readAllBytes(objectXmlPath);
+        this.hasBom = raw.length >= 3 && raw[0] == BOM[0] && raw[1] == BOM[1] && raw[2] == BOM[2];
+        this.content = hasBom
+                ? new String(raw, 3, raw.length - 3, StandardCharsets.UTF_8)
+                : new String(raw, StandardCharsets.UTF_8);
+    }
+
+    /**
+     * Добавить форму в ChildObjects.
+     * Формы вставляются ДО первого Template (если есть).
+     *
+     * @param formName имя формы
+     */
+    public void addForm(String formName) {
+        expandSelfClosingChildObjects();
+        //**agent XG-18 [28.09.2026 19:50:00]
+        // Раньше: entry "\t\t<Form>" подставлялся ПОСЛЕ уже существующего отступа
+        // закрывающего тега -> 4 таба у <Form> и 1 у </ChildObjects> (канон: 3 и 2),
+        // плюс голый LF в CRLF-файле. Отступ и перевод строки берём из файла.
+        //String entry = "\t\t<Form>" + escapeXml(formName) + "</Form>\n";
+        String childIndent = childObjectsIndent() + "\t";
+        String entry = childIndent + "<Form>" + escapeXml(formName) + "</Form>" + eol();
+
+        // Insert before first <Template> if exists
+        Matcher tplMatcher = FIRST_TEMPLATE.matcher(content);
+        if (tplMatcher.find()) {
+            int pos = content.lastIndexOf('\n', tplMatcher.start());
+            if (pos >= 0) {
+                content = content.substring(0, pos + 1) + entry + content.substring(pos + 1);
+            } else {
+                insertBeforeChildObjectsEnd(entry);
+            }
+        } else {
+            insertBeforeChildObjectsEnd(entry);
+        }
+        //**agent XG-18
+    }
+
+    //++agent XG-18 [28.09.2026 19:50:00]
+    /** Отступ строки закрывающего {@code </ChildObjects>} (канон: 2 таба). */
+    private String childObjectsIndent() {
+        Matcher m = CHILD_OBJECTS_END.matcher(content);
+        String indent = null;
+        while (m.find()) {
+            indent = m.group(1);
+        }
+        return indent == null || indent.isEmpty() ? "\t\t" : indent;
+    }
+
+    private String eol() {
+        return content.contains("\r\n") ? "\r\n" : "\n";
+    }
+
+    /** Вставить готовую строку (с отступом и переводом строки) в начало строки последнего </ChildObjects>. */
+    private void insertBeforeChildObjectsEnd(String line) {
+        Matcher m = CHILD_OBJECTS_END.matcher(content);
+        int start = -1;
+        while (m.find()) {
+            start = m.start();
+        }
+        if (start < 0) {
+            throw new IllegalStateException("No </ChildObjects> found");
+        }
+        int lineStart = content.lastIndexOf('\n', start) + 1;
+        if (!content.substring(lineStart, start).isBlank()) {
+            lineStart = start;
+        }
+        // m.start() включает ведущие пробелы/табы группы (1) — вставляем в начало строки.
+        content = content.substring(0, lineStart) + line + content.substring(lineStart);
+    }
+    //++agent XG-18
+
+    /**
+     * Удалить форму из ChildObjects.
+     *
+     * @param formName имя формы
+     * @return true если форма была найдена и удалена
+     */
+    public boolean removeForm(String formName) {
+        String pattern = "<Form>" + Pattern.quote(formName) + "</Form>";
+        Pattern p = Pattern.compile("[ \t]*" + pattern + "[ \t]*\\r?\\n?");
+        Matcher m = p.matcher(content);
+        if (m.find()) {
+            content = m.replaceFirst("");
+            return true;
+        }
+        return false;
+    }
+
+    /**
+     * Добавить макет в ChildObjects (в конец).
+     *
+     * @param templateName имя макета
+     */
+    public void addTemplate(String templateName) {
+        expandSelfClosingChildObjects();
+        //**agent XG-18 [28.09.2026 19:50:00]
+        //String entry = "\t\t<Template>" + escapeXml(templateName) + "</Template>\n";
+        //content = content.replace("</ChildObjects>", entry + "\t</ChildObjects>");
+        insertBeforeChildObjectsEnd(childObjectsIndent() + "\t<Template>" + escapeXml(templateName)
+                + "</Template>" + eol());
+        //**agent XG-18
+    }
+
+    /**
+     * Удалить макет из ChildObjects.
+     *
+     * @param templateName имя макета
+     * @return true если макет был найден и удалён
+     */
+    public boolean removeTemplate(String templateName) {
+        String pattern = "<Template>" + Pattern.quote(templateName) + "</Template>";
+        Pattern p = Pattern.compile("[ \t]*" + pattern + "[ \t]*\\r?\\n?");
+        Matcher m = p.matcher(content);
+        if (m.find()) {
+            content = m.replaceFirst("");
+            return true;
+        }
+        return false;
+    }
+
+    /**
+     * Установить DefaultForm.
+     *
+     * @param defaultFormValue полное значение DefaultForm (напр. "ExternalDataProcessor.Name.Form.FormName")
+     */
+    public void setDefaultForm(String defaultFormValue) {
+        // Try to update existing empty DefaultForm
+        if (content.contains("<DefaultForm></DefaultForm>")) {
+            content = content.replace("<DefaultForm></DefaultForm>",
+                    "<DefaultForm>" + defaultFormValue + "</DefaultForm>");
+        } else if (content.contains("<DefaultForm/>")) {
+            content = content.replace("<DefaultForm/>",
+                    "<DefaultForm>" + defaultFormValue + "</DefaultForm>");
+        }
+    }
+
+    /**
+     * Очистить form-slot свойства, если они ссылаются на указанную форму.
+     *
+     * @param formName имя формы
+     */
+    public void clearDefaultFormIfMatches(String formName) {
+        String pattern = "<([A-Za-z][A-Za-z0-9]*Form)>[^<]*\\.Form\\."
+                + Pattern.quote(formName)
+                + "</\\1>";
+        content = content.replaceAll(pattern, "<$1></$1>");
+    }
+
+    /**
+     * Определить тип корневого элемента метаданных.
+     *
+     * @return тип объекта (ExternalDataProcessor, ExternalReport, Catalog, Document и т.д.)
+     */
+    public String detectObjectType() {
+        // Inside MetaDataObject wrapper
+        Pattern p = Pattern.compile("<MetaDataObject[^>]*>[\\s]*<(\\w+)");
+        Matcher m = p.matcher(content);
+        if (m.find()) return m.group(1);
+
+        // Direct root
+        Pattern directRoot = Pattern.compile("<(ExternalDataProcessor|ExternalReport|Catalog|Document|" +
+                "InformationRegister|AccumulationRegister|DataProcessor|Report|CommonForm|" +
+                "ChartOfCharacteristicTypes|ChartOfAccounts|BusinessProcess|Task)\\b");
+        m = directRoot.matcher(content);
+        if (m.find()) return m.group(1);
+
+        return "Unknown";
+    }
+
+    /**
+     * Получить имя объекта из Properties/Name.
+     */
+    public String getObjectName() {
+        Pattern p = Pattern.compile("<Name>([^<]+)</Name>");
+        Matcher m = p.matcher(content);
+        if (m.find()) return m.group(1);
+        return null;
+    }
+
+    /**
+     * Проверить, есть ли форма с таким именем в ChildObjects.
+     */
+    public boolean hasForm(String formName) {
+        return content.contains("<Form>" + formName + "</Form>");
+    }
+
+    /**
+     * Проверить, есть ли макет с таким именем в ChildObjects.
+     */
+    public boolean hasTemplate(String templateName) {
+        return content.contains("<Template>" + templateName + "</Template>");
+    }
+
+    /**
+     * Сохранить изменения.
+     */
+    public void save() throws IOException {
+        //++agent TASK-172 [02.06.2026 07:21:00]
+        // Правка существующего объекта строковыми заменами вставляет \n-фрагменты в
+        // CRLF-канон. Нормализуем итог к CRLF идемпотентно (не дублирует \r\n), сохраняя
+        // решение о BOM из оригинала. Это приводит вывод к канону Designer (_Демо).
+        byte[] contentBytes = io.github.onec.xmlgen.io.Crlf.normalize(content).getBytes(StandardCharsets.UTF_8);
+        if (hasBom) {
+            byte[] result = new byte[BOM.length + contentBytes.length];
+            System.arraycopy(BOM, 0, result, 0, BOM.length);
+            System.arraycopy(contentBytes, 0, result, BOM.length, contentBytes.length);
+            Files.write(objectXmlPath, result);
+        } else {
+            Files.write(objectXmlPath, contentBytes);
+        }
+        //++agent TASK-172
+    }
+
+    /**
+     * Создать scaffold формы (Designer формат).
+     * <p>
+     * Создаёт: Forms/<formName>.xml (метаданные) + Forms/<formName>/Ext/Form.xml + Module.bsl
+     *
+     * @param baseDir    каталог объекта (где лежат Forms/)
+     * @param formName   имя формы
+     * @param synonym    синоним (null = formName)
+     * @param objectType тип объекта для GeneratedType
+     * @param objectName имя объекта
+     */
+    public static void createFormScaffold(Path baseDir, String formName, String synonym,
+                                          String objectType, String objectName) throws IOException {
+        createFormScaffold(baseDir, formName, synonym, objectType, objectName,
+                ConfigurationXmlReader.DEFAULT_FORMAT_VERSION);
+    }
+
+    public static void createFormScaffold(Path baseDir, String formName, String synonym,
+                                          String objectType, String objectName,
+                                          String formatVersion) throws IOException {
+        Path formsDir = baseDir.resolve("Forms");
+        Files.createDirectories(formsDir);
+
+        String formUuid = UuidGenerator.generate();
+        String syn = synonym != null ? synonym : formName;
+        String generatedType = objectType + "Object." + objectName;
+        String fmt = effectiveFormatVersion(formatVersion);
+
+        // 1. Form metadata: Forms/<formName>.xml
+	        String metaXml = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
+	                + "<MetaDataObject xmlns=\"http://v8.1c.ru/8.3/MDClasses\" xmlns:v8=\"http://v8.1c.ru/8.1/data/core\" "
+	                + "xmlns:app=\"http://v8.1c.ru/8.2/managed-application/core\" "
+	                + "xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\" version=\"" + escapeXml(fmt) + "\">\n"
+                + "\t<Form uuid=\"" + formUuid + "\">\n"
+                + "\t\t<Properties>\n"
+                + "\t\t\t<Name>" + escapeXml(formName) + "</Name>\n"
+                + "\t\t\t<Synonym>\n"
+                + "\t\t\t\t<v8:item>\n"
+                + "\t\t\t\t\t<v8:lang>ru</v8:lang>\n"
+                + "\t\t\t\t\t<v8:content>" + escapeXml(syn) + "</v8:content>\n"
+                + "\t\t\t\t</v8:item>\n"
+                + "\t\t\t</Synonym>\n"
+	                + "\t\t\t<Comment></Comment>\n"
+	                + "\t\t\t<FormType>Managed</FormType>\n"
+	                + "\t\t\t<IncludeHelpInContents>false</IncludeHelpInContents>\n"
+	                + "\t\t\t<UsePurposes>\n"
+	                + "\t\t\t\t<v8:Value xsi:type=\"app:ApplicationUsePurpose\">PlatformApplication</v8:Value>\n"
+	                + "\t\t\t\t<v8:Value xsi:type=\"app:ApplicationUsePurpose\">MobilePlatformApplication</v8:Value>\n"
+	                + "\t\t\t</UsePurposes>\n"
+	                + "\t\t</Properties>\n"
+                + "\t</Form>\n"
+                + "</MetaDataObject>\n";
+        writeWithBom(formsDir.resolve(formName + ".xml"), metaXml);
+
+        // 2. Form definition: Forms/<formName>/Ext/Form.xml
+        Path formExtDir = formsDir.resolve(formName).resolve("Ext");
+        Files.createDirectories(formExtDir);
+
+        String formXml = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
+                // XG-115 [28.09.2026]: канонический набор xmlns Designer 8.3.27 (алфавитный);
+                // прежний скаффолд не объявлял xmlns:cfg при <v8:Type>cfg:...</v8:Type> (FORM-137).
+                + "<Form xmlns=\"http://v8.1c.ru/8.3/xcf/logform\""
+                + " xmlns:app=\"http://v8.1c.ru/8.2/managed-application/core\""
+                + " xmlns:cfg=\"http://v8.1c.ru/8.1/data/enterprise/current-config\""
+                + " xmlns:dcscor=\"http://v8.1c.ru/8.1/data-composition-system/core\""
+                + " xmlns:dcssch=\"http://v8.1c.ru/8.1/data-composition-system/schema\""
+                + " xmlns:dcsset=\"http://v8.1c.ru/8.1/data-composition-system/settings\""
+                + " xmlns:ent=\"http://v8.1c.ru/8.1/data/enterprise\""
+                + " xmlns:lf=\"http://v8.1c.ru/8.2/managed-application/logform\""
+                + " xmlns:style=\"http://v8.1c.ru/8.1/data/ui/style\""
+                + " xmlns:sys=\"http://v8.1c.ru/8.1/data/ui/fonts/system\""
+                + " xmlns:v8=\"http://v8.1c.ru/8.1/data/core\""
+                + " xmlns:v8ui=\"http://v8.1c.ru/8.1/data/ui\""
+                + " xmlns:web=\"http://v8.1c.ru/8.1/data/ui/colors/web\""
+                + " xmlns:win=\"http://v8.1c.ru/8.1/data/ui/colors/windows\""
+                + " xmlns:xr=\"http://v8.1c.ru/8.3/xcf/readable\""
+                + " xmlns:xs=\"http://www.w3.org/2001/XMLSchema\""
+                + " xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\""
+                + " version=\"" + escapeXml(fmt) + "\">\n"
+                + "\t<Title>\n"
+                + "\t\t<v8:item>\n"
+                + "\t\t\t<v8:lang>ru</v8:lang>\n"
+                + "\t\t\t<v8:content>" + escapeXml(syn) + "</v8:content>\n"
+                + "\t\t</v8:item>\n"
+                + "\t</Title>\n"
+                + "\t<AutoCommandBar name=\"ФормаКоманднаяПанель\" id=\"-1\"/>\n"
+                + "\t<Events>\n"
+                + "\t\t<Event name=\"OnCreateAtServer\">ПриСозданииНаСервере</Event>\n"
+                + "\t</Events>\n"
+                + "\t<Attributes>\n"
+                + "\t\t<Attribute name=\"Объект\" id=\"1\">\n"
+                + "\t\t\t<MainAttribute>true</MainAttribute>\n"
+                + "\t\t\t<Type>\n"
+                + "\t\t\t\t<v8:Type>cfg:" + generatedType + "</v8:Type>\n"
+                + "\t\t\t</Type>\n"
+                + "\t\t</Attribute>\n"
+                + "\t</Attributes>\n"
+                + "\t<ChildItems/>\n"
+                + "</Form>\n";
+        writeWithBom(formExtDir.resolve("Form.xml"), formXml);
+
+        // 3. Module: Forms/<formName>/Ext/Form/Module.bsl
+        Path moduleDir = formExtDir.resolve("Form");
+        Files.createDirectories(moduleDir);
+        //**agent TASK-172 [02.06.2026 07:19:00]
+        // Канон Designer (_Демо): .bsl c BOM + CRLF. BOM добавляет Crlf.withBom (байтовый
+        // ef bb bf), поэтому inline U+FEFF убран (иначе двойной BOM); литералы \n → CRLF.
+        Files.write(moduleDir.resolve("Module.bsl"),
+                io.github.onec.xmlgen.io.Crlf.withBom(
+                "#Область ОбработчикиСобытийФормы\n\n"
+                        + "&НаСервере\n"
+                        + "Процедура ПриСозданииНаСервере(Отказ, СтандартнаяОбработка)\n"
+                        + "\t\n"
+                        + "КонецПроцедуры\n\n"
+                        + "#КонецОбласти\n"));
+        //**agent TASK-172
+    }
+
+    /**
+     * Создать scaffold макета (Designer формат).
+     *
+     * @param baseDir      каталог объекта
+     * @param templateName имя макета
+     * @param synonym      синоним
+     * @param templateType тип (SpreadsheetDocument, HTMLDocument, TextDocument, BinaryData, DataCompositionSchema)
+     */
+    public static void createTemplateScaffold(Path baseDir, String templateName, String synonym,
+                                              String templateType) throws IOException {
+        createTemplateScaffold(baseDir, templateName, synonym, templateType,
+                ConfigurationXmlReader.DEFAULT_FORMAT_VERSION);
+    }
+
+    public static void createTemplateScaffold(Path baseDir, String templateName, String synonym,
+                                              String templateType, String formatVersion) throws IOException {
+        //++agent TASK-174.XG-105 [14.07.2026 12:10:00]
+        // Общий helper сохраняет object-level контракт, но позволяет корню конфигурации
+        // получить канонические CommonTemplates/<Name> и <CommonTemplate>.
+        createTemplateScaffold(baseDir, "Templates", "Template", templateName, synonym,
+                templateType, formatVersion);
+        //++agent TASK-174.XG-105
+    }
+
+    //++agent TASK-174.XG-105 [14.07.2026 12:10:00]
+    /**
+     * Создать общий макет конфигурации в каноническом каталоге CommonTemplates.
+     */
+    public static void createCommonTemplateScaffold(Path configDir, String templateName, String synonym,
+                                                    String templateType, String formatVersion) throws IOException {
+        createTemplateScaffold(configDir, "CommonTemplates", "CommonTemplate", templateName, synonym,
+                templateType, formatVersion);
+    }
+
+    private static void createTemplateScaffold(Path baseDir, String directoryName, String metadataElement,
+                                               String templateName, String synonym,
+                                               String templateType, String formatVersion) throws IOException {
+        Path templatesDir = baseDir.resolve(directoryName);
+        Files.createDirectories(templatesDir);
+
+        String uuid = UuidGenerator.generate();
+        String syn = synonym != null ? synonym : templateName;
+        String fmt = effectiveFormatVersion(formatVersion);
+
+        // 1. Template metadata
+        String metaXml = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
+                + "<MetaDataObject xmlns=\"http://v8.1c.ru/8.3/MDClasses\" xmlns:v8=\"http://v8.1c.ru/8.1/data/core\" version=\"" + escapeXml(fmt) + "\">\n"
+                + "\t<" + metadataElement + " uuid=\"" + uuid + "\">\n"
+                + "\t\t<Properties>\n"
+                + "\t\t\t<Name>" + escapeXml(templateName) + "</Name>\n"
+                + "\t\t\t<Synonym>\n"
+                + "\t\t\t\t<v8:item>\n"
+                + "\t\t\t\t\t<v8:lang>ru</v8:lang>\n"
+                + "\t\t\t\t\t<v8:content>" + escapeXml(syn) + "</v8:content>\n"
+                + "\t\t\t\t</v8:item>\n"
+                + "\t\t\t</Synonym>\n"
+                + "\t\t\t<Comment></Comment>\n"
+                + "\t\t\t<TemplateType>" + templateType + "</TemplateType>\n"
+                + "\t\t</Properties>\n"
+                + "\t</" + metadataElement + ">\n"
+                + "</MetaDataObject>\n";
+        writeWithBom(templatesDir.resolve(templateName + ".xml"), metaXml);
+
+        // 2. Template body
+        Path extDir = templatesDir.resolve(templateName).resolve("Ext");
+        Files.createDirectories(extDir);
+
+        String ext = getExtension(templateType);
+        Path bodyPath = extDir.resolve("Template." + ext);
+        String body = getTemplateBody(templateType, fmt);
+        // TASK-171 D7: тела макетов в Designer-выводе пишем с UTF-8 BOM — реальные демо-макеты
+        // (src/xml/.../Templates/**/Ext/Template.xml) начинаются с ef bb bf, как и весь Designer-дамп.
+        // BinaryData/TextDocument дают пустое тело — пишем только BOM (как в EPF-ветке).
+        writeWithBom(bodyPath, body);
+        if ("Help".equals(templateType) || "HTMLDocument".equals(templateType)) {
+            createHelpTemplateHtml(extDir, "ru");
+        }
+    }
+    //++agent TASK-174.XG-105
+
+    /**
+     * Создать scaffold справки (Help.xml + HTML).
+     *
+     * @param baseDir каталог объекта
+     * @param lang    язык (по умолчанию "ru")
+     */
+    public static void createHelpScaffold(Path baseDir, String lang) throws IOException {
+        createHelpScaffold(baseDir, lang, ConfigurationXmlReader.DEFAULT_FORMAT_VERSION);
+    }
+
+    public static void createHelpScaffold(Path baseDir, String lang, String formatVersion) throws IOException {
+        Path extDir = baseDir.resolve("Ext");
+        Files.createDirectories(extDir);
+        String fmt = effectiveFormatVersion(formatVersion);
+
+        // Help.xml
+        String helpXml = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
+                + "<Help xmlns=\"http://v8.1c.ru/8.3/xcf/extrnprops\"\n"
+                + "\txmlns:xs=\"http://www.w3.org/2001/XMLSchema\"\n"
+                + "\txmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\"\n"
+                + "\tversion=\"" + escapeXml(fmt) + "\">\n"
+                + "\t<Page>" + escapeXml(lang) + "</Page>\n"
+                + "</Help>\n";
+        writeWithBom(extDir.resolve("Help.xml"), helpXml);
+
+        // HTML
+        Path helpDir = extDir.resolve("Help");
+        Files.createDirectories(helpDir);
+        String html = "<!DOCTYPE html PUBLIC \"-//W3C//DTD HTML 4.0 Transitional//EN\">\n"
+                + "<html>\n"
+                + "<head>\n"
+                + "\t<meta http-equiv=\"Content-Type\" content=\"text/html; charset=utf-8\"/>\n"
+                + "\t<link rel=\"stylesheet\" type=\"text/css\" href=\"v8help://service_book/service_style\"/>\n"
+                + "</head>\n"
+                + "<body>\n"
+                + "\t<h1>Справка</h1>\n"
+                + "\t<p>Описание</p>\n"
+                + "</body>\n"
+                + "</html>\n";
+        //++agent TASK-172 [02.06.2026 07:28:00]
+        // Канон Designer (_Демо) — CRLF; нормализуем переводы строк html-справки.
+        Files.writeString(helpDir.resolve(lang + ".html"), io.github.onec.xmlgen.io.Crlf.normalize(html), StandardCharsets.UTF_8);
+        //++agent TASK-172
+    }
+
+    /**
+     * Проверить, нет ли уже форм в ChildObjects (для автоматического DefaultForm).
+     */
+    public boolean hasAnyForm() {
+        return FORM_ENTRY.matcher(content).find();
+    }
+
+    /**
+     * Обновить MainDataCompositionSchema если пусто.
+     */
+    public void setMainDataCompositionSchemaIfEmpty(String value) {
+        if (content.contains("<MainDataCompositionSchema></MainDataCompositionSchema>")) {
+            content = content.replace("<MainDataCompositionSchema></MainDataCompositionSchema>",
+                    "<MainDataCompositionSchema>" + escapeXml(value) + "</MainDataCompositionSchema>");
+        } else if (content.contains("<MainDataCompositionSchema/>")) {
+            content = content.replace("<MainDataCompositionSchema/>",
+                    "<MainDataCompositionSchema>" + escapeXml(value) + "</MainDataCompositionSchema>");
+        }
+    }
+
+    /**
+     * Принудительно установить MainDataCompositionSchema (перезаписывает существующее значение).
+     *
+     * @param value новое значение (напр. "Report.ОстаткиТоваров.Template.ОсновнаяСхема")
+     */
+    public void setMainDataCompositionSchema(String value) {
+        // Replace existing value (empty, self-closing, or non-empty)
+        content = content.replaceAll(
+                "<MainDataCompositionSchema>[^<]*</MainDataCompositionSchema>",
+                "<MainDataCompositionSchema>" + escapeXml(value) + "</MainDataCompositionSchema>");
+        content = content.replace(
+                "<MainDataCompositionSchema/>",
+                "<MainDataCompositionSchema>" + escapeXml(value) + "</MainDataCompositionSchema>");
+    }
+
+    /**
+     * Очистить MainDataCompositionSchema если она ссылается на указанный макет.
+     *
+     * @param value полное значение, которое надо очистить
+     */
+    public void clearMainDataCompositionSchemaIfMatches(String value) {
+        String escaped = escapeXml(value);
+        String pattern = "<MainDataCompositionSchema>" + Pattern.quote(escaped) + "</MainDataCompositionSchema>";
+        content = content.replaceAll(pattern,
+                "<MainDataCompositionSchema></MainDataCompositionSchema>");
+    }
+
+    // --- Utility ---
+
+    /**
+     * Раскрыть самозакрывающийся &lt;ChildObjects/&gt; в парный тег.
+     */
+    private void expandSelfClosingChildObjects() {
+        Matcher m = CHILD_OBJECTS_SELF_CLOSING.matcher(content);
+        if (m.find()) {
+            String indent = m.group(1);
+            //**agent XG-18 [28.09.2026 19:50:00]
+            //content = m.replaceFirst(indent + "<ChildObjects>\n" + indent + "</ChildObjects>");
+            content = m.replaceFirst(Matcher.quoteReplacement(indent + "<ChildObjects>" + eol() + indent + "</ChildObjects>"));
+            //**agent XG-18
+        }
+    }
+
+    /**
+     * Экранирование спецсимволов XML в пользовательских строках.
+     */
+    static String escapeXml(String s) {
+        if (s == null) return "";
+        return s.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+                .replace("\"", "&quot;").replace("'", "&apos;");
+    }
+
+    private static String effectiveFormatVersion(String formatVersion) {
+        return formatVersion == null || formatVersion.isBlank()
+                ? ConfigurationXmlReader.DEFAULT_FORMAT_VERSION
+                : formatVersion;
+    }
+
+    private static void writeWithBom(Path path, String content) throws IOException {
+        //++agent TASK-172 [02.06.2026 07:15:00]
+        // Канон Designer (_Демо): новые scaffold-файлы объекта (форма/макет/Help) — BOM + CRLF.
+        Files.write(path, io.github.onec.xmlgen.io.Crlf.withBom(content));
+        //++agent TASK-172
+    }
+
+    /**
+     * Расширение файла тела макета по типу (Designer-раскладка).
+     * TASK-171: public static — единый источник истины для EpfWriter (EPF/ERF идут тем же путём, W5).
+     */
+	    public static String getExtension(String templateType) {
+	        switch (templateType) {
+	            case "HTMLDocument": return "xml";
+	            case "TextDocument": return "txt";
+            case "BinaryData": return "bin";
+            case "AddIn": return "bin";
+            case "Help": return "xml";
+            default: return "xml"; // SpreadsheetDocument, DataCompositionSchema
+        }
+    }
+
+    /**
+     * Каноническое тело макета по типу.
+     * TASK-171: public static — EpfWriter делегирует сюда генерацию тел (D1/D3/W5),
+     * чтобы EPF/ERF и конфиг-объекты использовали один корректный шаблон
+     * (SpreadsheetDocument → корень {@code <document>}, DCS → {@code <DataCompositionSchema>}).
+     */
+    public static String getTemplateBody(String templateType) {
+        return getTemplateBody(templateType, ConfigurationXmlReader.DEFAULT_FORMAT_VERSION);
+    }
+
+    private static String getTemplateBody(String templateType, String formatVersion) {
+        String fmt = effectiveFormatVersion(formatVersion);
+        switch (templateType) {
+            case "SpreadsheetDocument":
+                return "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
+                        + "<document xmlns=\"http://v8.1c.ru/8.2/data/spreadsheet\">\n"
+                        + "\t<columns>\n"
+                        + "\t\t<size>1</size>\n"
+                        + "\t</columns>\n"
+                        + "\t<height>0</height>\n"
+                        + "</document>\n";
+            case "DataCompositionSchema":
+                return "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
+                        + "<DataCompositionSchema xmlns=\"http://v8.1c.ru/8.1/data-composition-system/schema\">\n"
+                        + "\t<dataSource>\n"
+                        + "\t\t<name>ИсточникДанных1</name>\n"
+                        + "\t\t<dataSourceType>Local</dataSourceType>\n"
+                        + "\t</dataSource>\n"
+                        + "</DataCompositionSchema>\n";
+	            case "HTMLDocument":
+	                return "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
+	                        + "<Help xmlns=\"http://v8.1c.ru/8.3/xcf/extrnprops\"\n"
+	                        + "\txmlns:xs=\"http://www.w3.org/2001/XMLSchema\"\n"
+	                        + "\txmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\"\n"
+	                        + "\tversion=\"" + escapeXml(fmt) + "\">\n"
+	                        + "\t<Page>ru</Page>\n"
+	                        + "</Help>\n";
+            case "TextDocument":
+                return "";
+            case "BinaryData":
+                return "";
+            case "AddIn":
+                return "";
+            case "Help":
+                return "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
+                        + "<Help xmlns=\"http://v8.1c.ru/8.3/xcf/extrnprops\"\n"
+                        + "\txmlns:xs=\"http://www.w3.org/2001/XMLSchema\"\n"
+                        + "\txmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\"\n"
+                        + "\tversion=\"" + escapeXml(fmt) + "\">\n"
+                        + "\t<Page>ru</Page>\n"
+                        + "</Help>\n";
+            default:
+                return "";
+        }
+    }
+
+    private static void createHelpTemplateHtml(Path extDir, String lang) throws IOException {
+        Path helpDir = extDir.resolve("Template");
+        Files.createDirectories(helpDir);
+        String html = "<!DOCTYPE html PUBLIC \"-//W3C//DTD HTML 4.0 Transitional//EN\">\n"
+                + "<html>\n"
+                + "<head>\n"
+                + "\t<meta http-equiv=\"Content-Type\" content=\"text/html; charset=utf-8\"/>\n"
+                + "\t<link rel=\"stylesheet\" type=\"text/css\" href=\"v8help://service_book/service_style\"/>\n"
+                + "</head>\n"
+                + "<body>\n"
+                + "\t<h1>Справка</h1>\n"
+                + "\t<p>Описание макета справки.</p>\n"
+                + "</body>\n"
+                + "</html>\n";
+        Files.writeString(helpDir.resolve(lang + ".html"),
+                io.github.onec.xmlgen.io.Crlf.normalize(html), StandardCharsets.UTF_8);
+    }
+}

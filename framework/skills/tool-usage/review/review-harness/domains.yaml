@@ -1,0 +1,449 @@
+# Декларативный реестр доменных пакетов (CONS-03, E-1; + пакет code-review роя,
+# RVSW-01 TD §5.8). Роли/линзы/риск-чеклисты — по пакетам; default-домен
+# architecture дословно воспроизводит состав и последовательность исторического
+# ROLE_CATALOG. Расширение — правкой реестра без правок ядра (по образцу
+# adapters.yaml). Пакет code-review использует метку applies_to `tour1` —
+# она вне CHECKLIST_WAVE_TYPES консилиума и валидируется только с wave_types
+# туров роя (review-swarm swarm_core.SWARM_WAVE_TYPES).
+version: 1
+domains:
+  - id: architecture
+    description: Дефолтный пакет архитектурного консилиума (поведение CONS-01/02).
+    roles:
+      - id: security
+        title: security
+        lens: Оценивай решение через угрозы: границы доверия, секреты, поверхности атаки, fail-closed поведение защитных контуров.
+        risk_checklist:
+          - item_id: overengineering
+            text: «Оверинжиниринг: соразмерна ли сложность решения подтверждённому риску или требованию?»
+            applies_to: [proposal, attack, response, redteam, confirmation]
+          - item_id: bounded-context-erosion
+            text: «Эрозия bounded-контекстов: не размывает ли решение границы сервисов и владения данными?»
+            applies_to: [proposal, attack, response, redteam, confirmation]
+          - item_id: first-proposal-anchoring
+            text: «Якорение на первом предложении: проверена ли альтернатива ранней модели, а не только её защита?»
+            applies_to: [attack, response]
+      - id: architecture
+        title: architecture
+        lens: Оценивай структурную целостность: границы bounded-контекстов, направление зависимостей, источники истины, эволюционируемость без переписывания ядра.
+        risk_checklist:
+          - item_id: overengineering
+            text: «Оверинжиниринг: соразмерна ли сложность решения подтверждённому риску или требованию?»
+            applies_to: [proposal, attack, response, redteam, confirmation]
+          - item_id: bounded-context-erosion
+            text: «Эрозия bounded-контекстов: не размывает ли решение границы сервисов и владения данными?»
+            applies_to: [proposal, attack, response, redteam, confirmation]
+          - item_id: first-proposal-anchoring
+            text: «Якорение на первом предложении: проверена ли альтернатива ранней модели, а не только её защита?»
+            applies_to: [attack, response]
+      - id: pragmatics
+        title: pragmatics
+        lens: Оценивай прагматику: стоимость реализации и сопровождения, риск оверинжиниринга, обратимость, простейшее решение, закрывающее подтверждённый риск.
+        risk_checklist:
+          - item_id: overengineering
+            text: «Оверинжиниринг: соразмерна ли сложность решения подтверждённому риску или требованию?»
+            applies_to: [proposal, attack, response, redteam, confirmation]
+          - item_id: bounded-context-erosion
+            text: «Эрозия bounded-контекстов: не размывает ли решение границы сервисов и владения данными?»
+            applies_to: [proposal, attack, response, redteam, confirmation]
+          - item_id: first-proposal-anchoring
+            text: «Якорение на первом предложении: проверена ли альтернатива ранней модели, а не только её защита?»
+            applies_to: [attack, response]
+      - id: эксплуатация
+        title: эксплуатация
+        lens: Оценивай эксплуатационный аспект: наблюдаемость, деградация, восстановление, поведение на аварийных ветках, стоимость владения.
+        risk_checklist:
+          - item_id: overengineering
+            text: «Оверинжиниринг: соразмерна ли сложность решения подтверждённому риску или требованию?»
+            applies_to: [proposal, attack, response, redteam, confirmation]
+          - item_id: bounded-context-erosion
+            text: «Эрозия bounded-контекстов: не размывает ли решение границы сервисов и владения данными?»
+            applies_to: [proposal, attack, response, redteam, confirmation]
+          - item_id: first-proposal-anchoring
+            text: «Якорение на первом предложении: проверена ли альтернатива ранней модели, а не только её защита?»
+            applies_to: [attack, response]
+    evidence_requirements:
+      - архитектурные claims — со ссылкой на артефакты репозитория (код, спеки, реестры)
+  - id: requirements
+    description: Консилиум по требованиям и спецификации без принятия решений технического дизайна.
+    roles:
+      - id: бизнес-контракт
+        title: бизнес-контракт
+        lens: Проверяй наблюдаемую бизнес-цель, уровни MUST/SHOULD/MAY и отсутствие подмены intent способом реализации.
+        risk_checklist:
+          - item_id: hidden-design
+            text: «Скрытый дизайн: не зафиксировано ли техническое решение как бизнес-требование без подтверждённой необходимости?»
+            applies_to: [proposal, attack, response, redteam, confirmation]
+          - item_id: missing-observable-outcome
+            text: «Наблюдаемый результат: у каждого MUST есть проверяемый бизнес-исход?»
+            applies_to: [proposal, attack, response, redteam, confirmation]
+          - item_id: overengineering
+            text: «Оверинжиниринг: не расширяет ли спецификация scope и технологическую сложность сверх явной цели?»
+            applies_to: [proposal, attack, response, redteam, confirmation]
+          - item_id: claim-evidence-ref
+            text: «Evidence: подтверждён ли каждый спорный MUST входными данными или явным решением владельца?»
+            applies_to: [attack, response, redteam, confirmation]
+      - id: полнота
+        title: полнота
+        lens: Ищи пропущенные акторы, входы, исключения, граничные случаи, данные и нефункциональные ограничения; не проектируй компоненты.
+        risk_checklist:
+          - item_id: hidden-design
+            text: «Скрытый дизайн: не зафиксировано ли техническое решение как бизнес-требование без подтверждённой необходимости?»
+            applies_to: [proposal, attack, response, redteam, confirmation]
+          - item_id: missing-observable-outcome
+            text: «Наблюдаемый результат: у каждого MUST есть проверяемый бизнес-исход?»
+            applies_to: [proposal, attack, response, redteam, confirmation]
+          - item_id: overengineering
+            text: «Оверинжиниринг: не расширяет ли спецификация scope и технологическую сложность сверх явной цели?»
+            applies_to: [proposal, attack, response, redteam, confirmation]
+          - item_id: claim-evidence-ref
+            text: «Evidence: подтверждены ли полнота акторов, границ и исключений входными данными, а не догадкой?»
+            applies_to: [attack, response, redteam, confirmation]
+      - id: проверяемость
+        title: проверяемость
+        lens: Оценивай acceptance criteria и test plan — можно ли доказать каждый MUST на правильном runtime-слое без ложного green.
+        risk_checklist:
+          - item_id: hidden-design
+            text: «Скрытый дизайн: не зафиксировано ли техническое решение как бизнес-требование без подтверждённой необходимости?»
+            applies_to: [proposal, attack, response, redteam, confirmation]
+          - item_id: missing-observable-outcome
+            text: «Наблюдаемый результат: у каждого MUST есть проверяемый бизнес-исход?»
+            applies_to: [proposal, attack, response, redteam, confirmation]
+          - item_id: overengineering
+            text: «Оверинжиниринг: не расширяет ли спецификация scope и технологическую сложность сверх явной цели?»
+            applies_to: [proposal, attack, response, redteam, confirmation]
+          - item_id: claim-evidence-ref
+            text: «Evidence: связан ли каждый критерий проверки с конкретным MUST и правильным runtime-слоем?»
+            applies_to: [attack, response, redteam, confirmation]
+      - id: критический-партнёр
+        title: критический партнёр
+        lens: Атакуй удобные допущения, scope creep и социально комфортное согласие; требуй evidence для каждого спорного MUST.
+        risk_checklist:
+          - item_id: hidden-design
+            text: «Скрытый дизайн: не зафиксировано ли техническое решение как бизнес-требование без подтверждённой необходимости?»
+            applies_to: [proposal, attack, response, redteam, confirmation]
+          - item_id: missing-observable-outcome
+            text: «Наблюдаемый результат: у каждого MUST есть проверяемый бизнес-исход?»
+            applies_to: [proposal, attack, response, redteam, confirmation]
+          - item_id: overengineering
+            text: «Оверинжиниринг: не расширяет ли спецификация scope и технологическую сложность сверх явной цели?»
+            applies_to: [proposal, attack, response, redteam, confirmation]
+          - item_id: claim-evidence-ref
+            text: «Evidence: есть ли разрешимая ссылка для каждого спорного утверждения и допущения?»
+            applies_to: [attack, response, redteam, confirmation]
+          - item_id: first-proposal-anchoring
+            text: «Якорение: проверена ли независимая альтернатива первой формулировке требований?»
+            applies_to: [attack, response]
+    evidence_requirements:
+      - каждый спорный MUST и assumption — со ссылкой на бизнес-вход или явный ответ владельца; design-claims запрещены
+  - id: security-compliance
+    description: Консилиум по безопасности и регуляторному соответствию (152-ФЗ, PDn, governance).
+    roles:
+      - id: атакующий
+        title: атакующий
+        lens: Играй красную команду: ищи конкретные векторы компрометации — инъекции, обход границ доверия, злоупотребление правами. Атакуй по существу, с evidence.
+        risk_checklist:
+          - item_id: consensus-not-compliance
+            text: «Консенсус ≠ факт комплаенса: соответствие подтверждено артефактами, а не согласием участников?»
+            applies_to: [proposal, attack, response, redteam, confirmation]
+          - item_id: claim-evidence-ref
+            text: «Claim без evidence-ref не засчитывается: у каждого compliance-утверждения есть ссылка на артефакт?»
+            applies_to: [proposal, attack, response, redteam, confirmation]
+          - item_id: low-confidence-marking
+            text: «Low-confidence маркировка (право РФ): неопределённости регуляторной трактовки явно промаркированы?»
+            applies_to: [proposal, attack, response, redteam, confirmation]
+          - item_id: prompt-injection-artifacts
+            text: «Prompt-injection через артефакты: учтено ли, что обрабатываемые агентами артефакты могут содержать враждебные инструкции?»
+            applies_to: [proposal, attack, response, redteam, confirmation]
+      - id: защитник
+        title: защитник
+        lens: Оценивай достаточность защитных контуров против заявленных угроз: fail-closed при отсутствии конфигурации, отсутствие ослабления защиты ради удобства разработки.
+        risk_checklist:
+          - item_id: consensus-not-compliance
+            text: «Консенсус ≠ факт комплаенса: соответствие подтверждено артефактами, а не согласием участников?»
+            applies_to: [proposal, attack, response, redteam, confirmation]
+          - item_id: claim-evidence-ref
+            text: «Claim без evidence-ref не засчитывается: у каждого compliance-утверждения есть ссылка на артефакт?»
+            applies_to: [proposal, attack, response, redteam, confirmation]
+          - item_id: low-confidence-marking
+            text: «Low-confidence маркировка (право РФ): неопределённости регуляторной трактовки явно промаркированы?»
+            applies_to: [proposal, attack, response, redteam, confirmation]
+          - item_id: prompt-injection-artifacts
+            text: «Prompt-injection через артефакты: учтено ли, что обрабатываемые агентами артефакты могут содержать враждебные инструкции?»
+            applies_to: [proposal, attack, response, redteam, confirmation]
+      - id: compliance
+        title: compliance
+        lens: Оценивай соответствие регуляторике и политикам (152-ФЗ, PDn, governance-правила репозитория): требования к evidence, аудиту, разграничению доступа. Claim без evidence-ref не засчитывай.
+        risk_checklist:
+          - item_id: consensus-not-compliance
+            text: «Консенсус ≠ факт комплаенса: соответствие подтверждено артефактами, а не согласием участников?»
+            applies_to: [proposal, attack, response, redteam, confirmation]
+          - item_id: claim-evidence-ref
+            text: «Claim без evidence-ref не засчитывается: у каждого compliance-утверждения есть ссылка на артефакт?»
+            applies_to: [proposal, attack, response, redteam, confirmation]
+          - item_id: low-confidence-marking
+            text: «Low-confidence маркировка (право РФ): неопределённости регуляторной трактовки явно промаркированы?»
+            applies_to: [proposal, attack, response, redteam, confirmation]
+          - item_id: prompt-injection-artifacts
+            text: «Prompt-injection через артефакты: учтено ли, что обрабатываемые агентами артефакты могут содержать враждебные инструкции?»
+            applies_to: [proposal, attack, response, redteam, confirmation]
+      - id: эксплуатация
+        title: эксплуатация
+        lens: Оценивай эксплуатационную пригодность мер безопасности: мониторинг инцидентов, реагирование, ротация секретов, деградация без fail-open.
+        risk_checklist:
+          - item_id: consensus-not-compliance
+            text: «Консенсус ≠ факт комплаенса: соответствие подтверждено артефактами, а не согласием участников?»
+            applies_to: [proposal, attack, response, redteam, confirmation]
+          - item_id: claim-evidence-ref
+            text: «Claim без evidence-ref не засчитывается: у каждого compliance-утверждения есть ссылка на артефакт?»
+            applies_to: [proposal, attack, response, redteam, confirmation]
+          - item_id: low-confidence-marking
+            text: «Low-confidence маркировка (право РФ): неопределённости регуляторной трактовки явно промаркированы?»
+            applies_to: [proposal, attack, response, redteam, confirmation]
+          - item_id: prompt-injection-artifacts
+            text: «Prompt-injection через артефакты: учтено ли, что обрабатываемые агентами артефакты могут содержать враждебные инструкции?»
+            applies_to: [proposal, attack, response, redteam, confirmation]
+    evidence_requirements:
+      - каждый compliance-claim — с evidence-ref на норму/артефакт; неопределённости — с явной low-confidence маркировкой
+  - id: data-schema-evolution
+    description: Консилиум по эволюции схем данных и миграциям.
+    roles:
+      - id: data integrity
+        title: data integrity
+        lens: Оценивай целостность данных: инварианты хранения, миграции без потерь, идемпотентность, восстановимость после сбоя посреди миграции.
+        risk_checklist:
+          - item_id: migration-cost-section
+            text: «Секция стоимости миграции обязательна: содержит ли ТВОЙ proposal оценку стоимости миграции данных?»
+            applies_to: [proposal]
+          - item_id: consumer-impact-repo
+            text: «Consumer impact по факту репозитория: влияние на потребителей подтверждено фактическими ссылками на код/контракты, а не предположениями?»
+            applies_to: [proposal, attack, response, redteam, confirmation]
+      - id: backward compat
+        title: backward compat
+        lens: Оценивай обратную совместимость: чтение старых записей новым кодом и наоборот, версионирование схемы, порядок выкатки (expand/migrate/contract).
+        risk_checklist:
+          - item_id: migration-cost-section
+            text: «Секция стоимости миграции обязательна: содержит ли ТВОЙ proposal оценку стоимости миграции данных?»
+            applies_to: [proposal]
+          - item_id: consumer-impact-repo
+            text: «Consumer impact по факту репозитория: влияние на потребителей подтверждено фактическими ссылками на код/контракты, а не предположениями?»
+            applies_to: [proposal, attack, response, redteam, confirmation]
+      - id: consumer impact
+        title: consumer impact
+        lens: Оценивай влияние на потребителей по факту репозитория: кто читает и пишет затронутые схемы, контрактные обязательства, план breaking changes.
+        risk_checklist:
+          - item_id: migration-cost-section
+            text: «Секция стоимости миграции обязательна: содержит ли ТВОЙ proposal оценку стоимости миграции данных?»
+            applies_to: [proposal]
+          - item_id: consumer-impact-repo
+            text: «Consumer impact по факту репозитория: влияние на потребителей подтверждено фактическими ссылками на код/контракты, а не предположениями?»
+            applies_to: [proposal, attack, response, redteam, confirmation]
+      - id: performance
+        title: performance
+        lens: Оценивай стоимость изменения по производительности: объёмы данных, индексы, блокировки миграции, деградация запросов.
+        risk_checklist:
+          - item_id: migration-cost-section
+            text: «Секция стоимости миграции обязательна: содержит ли ТВОЙ proposal оценку стоимости миграции данных?»
+            applies_to: [proposal]
+          - item_id: consumer-impact-repo
+            text: «Consumer impact по факту репозитория: влияние на потребителей подтверждено фактическими ссылками на код/контракты, а не предположениями?»
+            applies_to: [proposal, attack, response, redteam, confirmation]
+    evidence_requirements:
+      - claims о потребителях и объёмах — со ссылками на код/реестры репозитория
+  - id: incident-postmortem
+    description: Консилиум-разбор инцидентов (postmortem) с повышенным весом minority-фиксации.
+    roles:
+      - id: reliability
+        title: reliability
+        lens: Разбирай инцидент через надёжность: что должно было сработать, где защитные контуры молчали, каких детекторов и пределов не хватило.
+        risk_checklist:
+          - item_id: hypothesis-evidence-ref
+            text: «Гипотеза без ссылки на артефакт не засчитывается: у каждой причинной гипотезы есть evidence-ref (логи, transcript, метрики)?»
+            applies_to: [proposal, attack, response, redteam, confirmation]
+          - item_id: hindsight-bias
+            text: «Hindsight bias: решения участников инцидента оцениваются по информации, которая у них была, а не по послезнанию?»
+            applies_to: [proposal, attack, response, redteam, confirmation]
+          - item_id: minority-completeness
+            text: «Полнота minority-фиксации: несогласованные гипотезы в твоём ходе сформулированы полностью, без сглаживания (повышенный вес minority report в этом домене)?»
+            applies_to: [proposal, attack, response, redteam, confirmation]
+      - id: data integrity
+        title: data integrity
+        lens: Оценивай последствия для данных: что повреждено или потеряно, доказательства целостности, корректность восстановления.
+        risk_checklist:
+          - item_id: hypothesis-evidence-ref
+            text: «Гипотеза без ссылки на артефакт не засчитывается: у каждой причинной гипотезы есть evidence-ref (логи, transcript, метрики)?»
+            applies_to: [proposal, attack, response, redteam, confirmation]
+          - item_id: hindsight-bias
+            text: «Hindsight bias: решения участников инцидента оцениваются по информации, которая у них была, а не по послезнанию?»
+            applies_to: [proposal, attack, response, redteam, confirmation]
+          - item_id: minority-completeness
+            text: «Полнота minority-фиксации: несогласованные гипотезы в твоём ходе сформулированы полностью, без сглаживания (повышенный вес minority report в этом домене)?»
+            applies_to: [proposal, attack, response, redteam, confirmation]
+      - id: security
+        title: security
+        lens: Оценивай security-измерение инцидента: был ли вектор злоупотребления, не открыла ли реакция на инцидент новую поверхность.
+        risk_checklist:
+          - item_id: hypothesis-evidence-ref
+            text: «Гипотеза без ссылки на артефакт не засчитывается: у каждой причинной гипотезы есть evidence-ref (логи, transcript, метрики)?»
+            applies_to: [proposal, attack, response, redteam, confirmation]
+          - item_id: hindsight-bias
+            text: «Hindsight bias: решения участников инцидента оцениваются по информации, которая у них была, а не по послезнанию?»
+            applies_to: [proposal, attack, response, redteam, confirmation]
+          - item_id: minority-completeness
+            text: «Полнота minority-фиксации: несогласованные гипотезы в твоём ходе сформулированы полностью, без сглаживания (повышенный вес minority report в этом домене)?»
+            applies_to: [proposal, attack, response, redteam, confirmation]
+      - id: devil's advocate
+        title: devil's advocate
+        lens: Оспаривай консенсус: атакуй официальную гипотезу причины, ищи альтернативные объяснения и скрытые допущения.
+        risk_checklist:
+          - item_id: hypothesis-evidence-ref
+            text: «Гипотеза без ссылки на артефакт не засчитывается: у каждой причинной гипотезы есть evidence-ref (логи, transcript, метрики)?»
+            applies_to: [proposal, attack, response, redteam, confirmation]
+          - item_id: hindsight-bias
+            text: «Hindsight bias: решения участников инцидента оцениваются по информации, которая у них была, а не по послезнанию?»
+            applies_to: [proposal, attack, response, redteam, confirmation]
+          - item_id: minority-completeness
+            text: «Полнота minority-фиксации: несогласованные гипотезы в твоём ходе сформулированы полностью, без сглаживания (повышенный вес minority report в этом домене)?»
+            applies_to: [proposal, attack, response, redteam, confirmation]
+    evidence_requirements:
+      - каждая причинная гипотеза — с evidence-ref на артефакт инцидента
+  - id: design-direction
+    description: Консилиум по дизайн-направлениям поверхностей (бренд, конверсия, доступность, runtime).
+    roles:
+      - id: конверсия
+        title: конверсия
+        lens: Оценивай через цель поверхности: ведёт ли решение к целевому действию, закрыты ли возражения аудитории, не размыто ли целевое впечатление.
+        risk_checklist:
+          - item_id: runtime-feasibility-check
+            text: «Текст ≠ рендер: оценена ли исполняемость направления в фактических runtime-контрактах shell, а не как текстовое описание (текстовая оценка не подменяет judge-машинерию)?»
+            applies_to: [proposal, attack, response, redteam, confirmation]
+          - item_id: generic-patterns
+            text: «Generic-паттерны: есть ли именованная точка отличия, или решение — усреднённый шаблон?»
+            applies_to: [proposal, attack, response, redteam, confirmation]
+          - item_id: shell-contracts-input
+            text: «Runtime-контракты shell как вход: решение строится от фактических контрактов shell, а не от предполагаемых?»
+            applies_to: [proposal, attack, response, redteam, confirmation]
+      - id: бренд
+        title: бренд
+        lens: Оценивай соответствие бренд-платформе и тону: узнаваемость, запрещённые элементы, точка отличия от медианы отрасли.
+        risk_checklist:
+          - item_id: runtime-feasibility-check
+            text: «Текст ≠ рендер: оценена ли исполняемость направления в фактических runtime-контрактах shell, а не как текстовое описание (текстовая оценка не подменяет judge-машинерию)?»
+            applies_to: [proposal, attack, response, redteam, confirmation]
+          - item_id: generic-patterns
+            text: «Generic-паттерны: есть ли именованная точка отличия, или решение — усреднённый шаблон?»
+            applies_to: [proposal, attack, response, redteam, confirmation]
+          - item_id: shell-contracts-input
+            text: «Runtime-контракты shell как вход: решение строится от фактических контрактов shell, а не от предполагаемых?»
+            applies_to: [proposal, attack, response, redteam, confirmation]
+      - id: доступность
+        title: доступность
+        lens: Оценивай доступность: контраст, клавиатурная навигация, скринридер, соответствие профилю доступности поверхности.
+        risk_checklist:
+          - item_id: runtime-feasibility-check
+            text: «Текст ≠ рендер: оценена ли исполняемость направления в фактических runtime-контрактах shell, а не как текстовое описание (текстовая оценка не подменяет judge-машинерию)?»
+            applies_to: [proposal, attack, response, redteam, confirmation]
+          - item_id: generic-patterns
+            text: «Generic-паттерны: есть ли именованная точка отличия, или решение — усреднённый шаблон?»
+            applies_to: [proposal, attack, response, redteam, confirmation]
+          - item_id: shell-contracts-input
+            text: «Runtime-контракты shell как вход: решение строится от фактических контрактов shell, а не от предполагаемых?»
+            applies_to: [proposal, attack, response, redteam, confirmation]
+      - id: runtime-feasibility
+        title: runtime-feasibility
+        lens: Оценивай реализуемость в runtime: контракты shell/mini-app, ограничения платформы, стоимость поддержки. Текст ≠ рендер — проверяй исполнимость, а не описание.
+        risk_checklist:
+          - item_id: runtime-feasibility-check
+            text: «Текст ≠ рендер: оценена ли исполняемость направления в фактических runtime-контрактах shell, а не как текстовое описание (текстовая оценка не подменяет judge-машинерию)?»
+            applies_to: [proposal, attack, response, redteam, confirmation]
+          - item_id: generic-patterns
+            text: «Generic-паттерны: есть ли именованная точка отличия, или решение — усреднённый шаблон?»
+            applies_to: [proposal, attack, response, redteam, confirmation]
+          - item_id: shell-contracts-input
+            text: «Runtime-контракты shell как вход: решение строится от фактических контрактов shell, а не от предполагаемых?»
+            applies_to: [proposal, attack, response, redteam, confirmation]
+    evidence_requirements:
+      - claims о контрактах shell — со ссылками на фактические runtime-контракты
+  - id: code-review
+    description: Линзы дивергентного код-ревью роя (RVSW-01, FR-11, TD §5.8). Чеклисты — фокус тура 1, не ограничение модели: out-of-lens находки репортятся (applies_to: [tour1]; туры 2–4 фокусные, без чеклистов).
+    roles:
+      - id: security
+        title: security
+        lens: Атакуй код как поверхность угроз: инъекции, границы доверия, секреты, authn/authz-обходы (ориентир CWE/OWASP).
+        risk_checklist:
+          - item_id: injection-surface
+            text: «Инъекции: все внешние входы (user input, файлы, сеть, env) санитизируются или параметризуются на границах доверия?»
+            applies_to: [tour1]
+          - item_id: secrets-exposure
+            text: «Секреты: нет ли секретов/токенов/ключей в коде, логах, сообщениях об ошибках и diff-артефактах?»
+            applies_to: [tour1]
+          - item_id: authz-bypass
+            text: «Authn/authz: каждый новый или изменённый вход проверяет аутентификацию и авторизацию; нет обхода по альтернативному пути?»
+            applies_to: [tour1]
+      - id: correctness
+        title: correctness
+        lens: Оценивай корректность: логические ошибки, граничные случаи, обработка ошибок, сохранение инвариантов на всех ветках.
+        risk_checklist:
+          - item_id: boundary-conditions
+            text: «Граничные случаи: пустые/None/переполнение/off-by-one обработаны явно, а не по молчаливому допущению?»
+            applies_to: [tour1]
+          - item_id: error-handling
+            text: «Обработка ошибок: исключения не глотаются, сбой не превращается в молчаливый успех, fail-closed там, где требуется?»
+            applies_to: [tour1]
+          - item_id: logic-invariants
+            text: «Логическая согласованность: инварианты сохраняются на всех ветках, включая early-return и ошибочные пути?»
+            applies_to: [tour1]
+      - id: concurrency
+        title: concurrency
+        lens: Оценивай конкурентность: гонки, блокировки, порядок захвата, надёжность retry/таймаутов.
+        risk_checklist:
+          - item_id: race-conditions
+            text: «Гонки: разделяемое состояние защищено; check-then-act без синхронизации отсутствует?»
+            applies_to: [tour1]
+          - item_id: retry-timeout-safety
+            text: «Retry/таймауты: повторы идемпотентны, ожидания ограничены таймаутами, нет бесконечных циклов ожидания?»
+            applies_to: [tour1]
+          - item_id: deadlock-risk
+            text: «Блокировки: порядок захвата единообразен, нет удержания lock через await/IO и циклов взаимного ожидания?»
+            applies_to: [tour1]
+      - id: performance
+        title: performance
+        lens: Оценивай производительность: алгоритмическая сложность, лишние IO/запросы, ресурсные пределы на горячих путях.
+        risk_checklist:
+          - item_id: algorithmic-complexity
+            text: «Сложность: нет ли скрытых O(n²) на горячих путях (вложенные циклы, линейный поиск по списку в цикле)?»
+            applies_to: [tour1]
+          - item_id: redundant-io
+            text: «Лишние IO: запросы в цикле, повторные чтения одного и того же, отсутствие батчинга/кэша на очевидных местах?»
+            applies_to: [tour1]
+          - item_id: unbounded-resources
+            text: «Ресурсные пределы: неограниченные буферы/выборки/страницы без лимита отсутствуют?»
+            applies_to: [tour1]
+      - id: data-contracts
+        title: data-contracts
+        lens: Оценивай данные и контракты: целостность данных, безопасность миграций, обратная совместимость API/схем.
+        risk_checklist:
+          - item_id: contract-compat
+            text: «Контракты: изменения API/схем обратно совместимы либо версионированы; влияние на потребителей учтено по факту кода?»
+            applies_to: [tour1]
+          - item_id: migration-safety
+            text: «Миграции: идемпотентны, восстановимы после сбоя посреди прогона, без потери данных на аварийной ветке?»
+            applies_to: [tour1]
+          - item_id: data-invariants
+            text: «Инварианты данных: валидация на границах записи; невозможные состояния непредставимы в схеме?»
+            applies_to: [tour1]
+      - id: tests
+        title: tests
+        lens: Оценивай тесты: пробелы покрытия новых веток и ошибочных путей, хрупкость, регрессионная фиксация дефектов.
+        risk_checklist:
+          - item_id: coverage-gaps
+            text: «Покрытие: новые ветки и ошибочные пути покрыты тестами; изменение без теста — осознанное и названное исключение?»
+            applies_to: [tour1]
+          - item_id: test-fragility
+            text: «Хрупкость: тесты не зависят от порядка/таймингов/окружения; assertions проверяют поведение, а не детали реализации?»
+            applies_to: [tour1]
+          - item_id: regression-lock
+            text: «Регрессионная фиксация: исправленный дефект закрыт тестом, воспроизводящим исходный сбой?»
+            applies_to: [tour1]
+    evidence_requirements:
+      - каждая находка — location (file:line) + evidence-фрагмент

@@ -1,0 +1,86 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://1c-agent-framework/spec-writing/task-breakdown.schema.json",
+  "title": "Task Breakdown",
+  "description": "Строгая схема артефакта декомпозиции задач (Task Breakdown JSON) навыка task-breakdown.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["spec_id", "tasks"],
+  "properties": {
+    "spec_id": {
+      "type": "string",
+      "description": "Идентификатор спецификации, например SPEC-002.",
+      "minLength": 1
+    },
+    "tasks": {
+      "type": "array",
+      "description": "Список задач декомпозиции.",
+      "minItems": 1,
+      "items": { "$ref": "#/definitions/task" }
+    }
+  },
+  "definitions": {
+    "task": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "task_id",
+        "task_type",
+        "title",
+        "description",
+        "depends_on",
+        "spec_refs",
+        "deliverables",
+        "done_criteria"
+      ],
+      "properties": {
+        "task_id": {
+          "type": "string",
+          "description": "Уникальный идентификатор задачи, например T1.",
+          "minLength": 1
+        },
+        "task_type": {
+          "type": "string",
+          "description": "Этап работ.",
+          "enum": ["analysis", "design", "implementation", "test"]
+        },
+        "title": {
+          "type": "string",
+          "description": "Краткое название задачи.",
+          "minLength": 1
+        },
+        "description": {
+          "type": "string",
+          "description": "Что должно быть сделано.",
+          "minLength": 1
+        },
+        "depends_on": {
+          "type": "array",
+          "description": "Идентификаторы задач-предшественников.",
+          "items": { "type": "string", "minLength": 1 },
+          "uniqueItems": true
+        },
+        "spec_refs": {
+          "type": "array",
+          "description": "Ссылки на конкретные разделы/требования спецификации.",
+          "items": { "type": "string", "minLength": 1 },
+          "minItems": 1,
+          "uniqueItems": true
+        },
+        "deliverables": {
+          "type": "array",
+          "description": "Ожидаемые артефакты задачи.",
+          "items": { "type": "string", "minLength": 1 },
+          "minItems": 1
+        },
+        "done_criteria": {
+          "type": "array",
+          "description": "Проверяемые и конкретные критерии готовности задачи.",
+          "items": { "type": "string", "minLength": 1 },
+          "minItems": 1,
+          "maxItems": 3
+        }
+      }
+    }
+  }
+}

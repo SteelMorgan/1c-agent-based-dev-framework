@@ -1,0 +1,101 @@
+# TDD в этом проекте (Test-Driven Development)
+
+TDD в этом фреймворке — это дисциплина **Red → Green → Refactor**, где тесты пишутся до реализации, а порядок фаз контролирует оркестратор.
+
+Базовое правило: [framework/rules/tdd-policy/SKILL.md](../../framework/rules/tdd-policy/SKILL.md)
+
+## Что это значит на практике
+
+- Сначала пишутся тесты на MUST-сценарии из Test Plan (Red).
+- Затем пишется минимальный код, чтобы тесты прошли (Green).
+- После этого выполняется рефакторинг с повторным прогоном тестов.
+- Тесты и код пишут разные роли, чтобы исключить конфликт интересов.
+
+## Как TDD встроен в фазы workflow
+
+В full-cycle процессе TDD распределён по фазам:
+
+1. **Phase 3a — Scenario-Author (BDD)**
+   - конвертирует intent-сценарии из спецификации в исполняемые `.feature`;
+   - выполняется параллельно с Phase 3b;
+   - не запускает сценарии — только авторинг.
+
+2. **Phase 3b — Developer-Tests (Red)**
+   - пишет unit-тесты по спецификации;
+   - покрывает все MUST-сценарии из Test Plan;
+   - тесты должны падать, так как реализации ещё нет;
+   - выполняется параллельно с Phase 3a.
+
+3. **Phase 3c — Developer-Code (Green)**
+   - реализует BSL-код по `spec.md` + `technical-design.md` + `task-breakdown.json`;
+   - не изменяет тесты из Phase 3b;
+   - добивается прохождения тестов;
+   - стартует ТОЛЬКО после завершения Phase 3a И Phase 3b.
+
+4. **Phase 4 — Tester (расширение покрытия)**
+   - дополняет edge cases, негативные, интеграционные и регрессионные сценарии;
+   - делает полный прогон;
+   - формирует `test-report.md`.
+
+Подробно:
+- [framework/workflows/full-cycle/SKILL.md](../../framework/workflows/full-cycle/SKILL.md)
+- [framework/workflows/orchestrator/SKILL.md](../../framework/workflows/orchestrator/SKILL.md)
+
+## Обязательные требования
+
+Согласно политике TDD:
+
+- Test Plan должен быть в спецификации до кодинга.
+- MUST-сценарии должны быть покрыты тестами до реализации.
+- Соблюдается порядок Red → Green → Refactor.
+- После правок по ревью — обязательный повторный прогон затронутых тестов.
+- После реализации выполняется проверка синтаксиса (`check_syntax`).
+
+## Граница ответственности ролей
+
+### Developer-Tests
+- пишет тесты по спецификации;
+- не реализует бизнес-код;
+- не принимает архитектурные решения за пределами Test Plan.
+
+### Developer-Code
+- пишет бизнес-код и проходит тесты;
+- не переписывает тестовые модули;
+- при проблемах в тестах/инфраструктуре сообщает в оркестратор через контекст и статус.
+
+### Tester
+- расширяет покрытие после Green-фазы;
+- различает `test_error` и `implementation_error`;
+- при `implementation_error` не правит код реализации, а возвращает задачу в Developer-Code через оркестратор.
+
+## Что означают `test_error` и `implementation_error`
+
+- **`test_error`**: ошибка в самом тесте или тестовых данных — исправляется Tester.
+- **`implementation_error`**: ошибка в бизнес-логике — задача маршрутизируется обратно в Developer-Code с описанием: какой тест упал, что ожидалось, что получено.
+
+Это поведение зафиксировано в:
+- [framework/workflows/orchestrator/SKILL.md](../../framework/workflows/orchestrator/SKILL.md)
+- [framework/subagents/tester.md](../../framework/subagents/tester.md)
+
+## Какие артефакты участвуют
+
+- `task_dir/.spec/spec.md` (включает Test Plan)
+- `.feature`-файлы из Phase 3a
+- тест-модули из Phase 3b
+- BSL-код из Phase 3c
+- `task_dir/.spec/test-report.md` из Phase 4
+- контекст-файлы в `task_dir/.context/` для статусов и маршрутизации
+
+## Связанные ресурсы
+
+- Политика TDD: [framework/rules/tdd-policy/SKILL.md](../../framework/rules/tdd-policy/SKILL.md)
+- Политика SDD: [framework/rules/sdd-policy/SKILL.md](../../framework/rules/sdd-policy/SKILL.md)
+- Кросс-ревью: [framework/rules/cross-review-policy.md](../../framework/rules/cross-review-policy.md)
+- Mandatory tools: [framework/rules/mandatory-tools.md](../../framework/rules/mandatory-tools.md)
+- Тестовый subagent: [framework/subagents/developer-tests.md](../../framework/subagents/developer-tests.md)
+- Кодовый subagent: [framework/subagents/developer-code.md](../../framework/subagents/developer-code.md)
+- Tester subagent: [framework/subagents/tester.md](../../framework/subagents/tester.md)
+
+---
+
+Коротко: в этом проекте TDD+BDD — это оркестрируемый процесс с разделением ролей, обязательными ревью и чёткой маршрутизацией ошибок. BDD-сценарии (Phase 3a) и unit-тесты (Phase 3b) пишутся параллельно до реализации, обеспечивая как acceptance-, так и unit-покрытие.

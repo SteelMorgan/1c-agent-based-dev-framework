@@ -1,0 +1,63 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<DataCompositionSchema xmlns="http://v8.1c.ru/8.1/data-composition-system/schema" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:dcsset="http://v8.1c.ru/8.1/data-composition-system/settings" xmlns:dcscor="http://v8.1c.ru/8.1/data-composition-system/core" xmlns:xs="http://www.w3.org/2001/XMLSchema">
+	<dataSource><name>ИсточникДанных1</name><dataSourceType>Local</dataSourceType></dataSource>
+	<dataSet xsi:type="DataSetQuery">
+		<name>ОстаткиМонет</name>
+		<field xsi:type="DataSetFieldField"><dataPath>Аккаунт</dataPath><field>Аккаунт</field></field>
+		<field xsi:type="DataSetFieldField"><dataPath>Монета</dataPath><field>Монета</field></field>
+		<field xsi:type="DataSetFieldField"><dataPath>Портфель</dataPath><field>Портфель</field></field>
+		<field xsi:type="DataSetFieldField"><dataPath>ТекЦена</dataPath><field>ТекЦена</field></field>
+		<field xsi:type="DataSetFieldField"><dataPath>PnL</dataPath><field>PnL</field></field>
+		<field xsi:type="DataSetFieldField"><dataPath>PnLRate</dataPath><field>PnLRate</field></field>
+		<field xsi:type="DataSetFieldField"><dataPath>ВалютаОценкиПортфеля</dataPath><field>ВалютаОценкиПортфеля</field></field>
+		<field xsi:type="DataSetFieldField"><dataPath>ПокупкаКоличество</dataPath><field>ПокупкаКоличество</field></field>
+		<field xsi:type="DataSetFieldField"><dataPath>ПокупкаЦена</dataPath><field>ПокупкаЦена</field></field>
+		<field xsi:type="DataSetFieldField"><dataPath>ПокупкаСумма</dataPath><field>ПокупкаСумма</field></field>
+		<field xsi:type="DataSetFieldField"><dataPath>ТекСумма</dataPath><field>ТекСумма</field></field>
+		<field xsi:type="DataSetFieldField"><dataPath>Account</dataPath><field>Account</field></field>
+		<field xsi:type="DataSetFieldField"><dataPath>ccy</dataPath><field>ccy</field></field>
+		<field xsi:type="DataSetFieldField"><dataPath>ТипПозиции</dataPath><field>ТипПозиции</field></field>
+		<field xsi:type="DataSetFieldField"><dataPath>Количество</dataPath><field>Количество</field></field>
+		<field xsi:type="DataSetFieldField"><dataPath>Сумма</dataPath><field>Сумма</field></field>
+		<field xsi:type="DataSetFieldField"><dataPath>Партия</dataPath><field>Партия</field></field>
+		<field xsi:type="DataSetFieldField"><dataPath>ПартияПредставление</dataPath><field>ПартияПредставление</field></field>
+		<field xsi:type="DataSetFieldField"><dataPath>ПартияPositions</dataPath><field>ПартияPositions</field></field>
+		<field xsi:type="DataSetFieldField"><dataPath>ПартияOrder</dataPath><field>ПартияOrder</field></field>
+		<field xsi:type="DataSetFieldField"><dataPath>ПартияAlgo</dataPath><field>ПартияAlgo</field></field>
+		<field xsi:type="DataSetFieldField"><dataPath>Поле22</dataPath><field>Поле22</field></field>
+		<field xsi:type="DataSetFieldField"><dataPath>Поле23</dataPath><field>Поле23</field></field>
+		<field xsi:type="DataSetFieldField"><dataPath>Поле24</dataPath><field>Поле24</field></field>
+		<field xsi:type="DataSetFieldField"><dataPath>Поле25</dataPath><field>Поле25</field></field>
+		<field xsi:type="DataSetFieldField"><dataPath>Поле26</dataPath><field>Поле26</field></field>
+		<field xsi:type="DataSetFieldField"><dataPath>Поле27</dataPath><field>Поле27</field></field>
+		<dataSource>ИсточникДанных1</dataSource>
+		<query>ВЫБРАТЬ 1 КАК Аккаунт</query>
+	</dataSet>
+	<dataSet xsi:type="DataSetObject">
+		<name>Справочник</name>
+		<field xsi:type="DataSetFieldField"><dataPath>Аккаунт</dataPath><field>Аккаунт</field></field>
+		<objectName>Справочник</objectName>
+	</dataSet>
+	<dataSetLink><sourceDataSet>ОстаткиМонет</sourceDataSet><destinationDataSet>Справочник</destinationDataSet><sourceExpression>Аккаунт</sourceExpression><destinationExpression>Аккаунт</destinationExpression></dataSetLink>
+	<calculatedField><dataPath>РесурсPnL</dataPath><expression>Сумма(PnL)</expression></calculatedField>
+	<groupTemplate><name>ЖивойШаблон</name><template>НЕ_МЕНЯТЬ</template></groupTemplate>
+	<settingsVariant>
+		<dcsset:name>Основной_1</dcsset:name>
+		<dcsset:settings>
+			<dcsset:structure>
+				<dcsset:item xsi:type="dcsset:StructureItemGroup">
+					<dcsset:name>ГруппировкаМонета</dcsset:name>
+					<dcsset:filter><dcsset:item xsi:type="dcsset:FilterItemComparison"><dcsset:left xsi:type="dcscor:Field">ТекСумма</dcsset:left><dcsset:comparisonType>Greater</dcsset:comparisonType><dcsset:right xsi:type="xs:decimal">1</dcsset:right></dcsset:item></dcsset:filter>
+					<dcsset:filter><dcsset:item xsi:type="dcsset:FilterItemComparison"><dcsset:left xsi:type="dcscor:Field">PnL</dcsset:left><dcsset:comparisonType>Greater</dcsset:comparisonType><dcsset:right xsi:type="xs:decimal">0</dcsset:right></dcsset:item></dcsset:filter>
+					<dcsset:item xsi:type="dcsset:StructureItemGroup">
+						<dcsset:name>ГруппировкаДеталиПартий</dcsset:name>
+						<dcsset:filter><dcsset:item xsi:type="dcsset:FilterItemComparison"><dcsset:left xsi:type="dcscor:Field">ТекСумма</dcsset:left><dcsset:comparisonType>Greater</dcsset:comparisonType><dcsset:right xsi:type="xs:decimal">1.0</dcsset:right></dcsset:item></dcsset:filter>
+						<dcsset:selection><dcsset:item xsi:type="dcsset:SelectedItemField"><dcsset:field>PnL</dcsset:field></dcsset:item></dcsset:selection>
+					</dcsset:item>
+					<dcsset:selection><dcsset:item xsi:type="dcsset:SelectedItemField"><dcsset:field>Монета</dcsset:field></dcsset:item></dcsset:selection>
+				</dcsset:item>
+			</dcsset:structure>
+			<dcsset:outputParameters><dcscor:item><dcscor:parameter>ЖивойПараметр</dcscor:parameter></dcscor:item></dcsset:outputParameters>
+		</dcsset:settings>
+	</settingsVariant>
+</DataCompositionSchema>

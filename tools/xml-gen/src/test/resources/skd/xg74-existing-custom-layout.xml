@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<DataCompositionSchema xmlns="http://v8.1c.ru/8.1/data-composition-system/schema" xmlns:dcsat="http://v8.1c.ru/8.1/data-composition-system/area-template" xmlns:dcsset="http://v8.1c.ru/8.1/data-composition-system/settings" xmlns:v8="http://v8.1c.ru/8.1/data/core" xmlns:xs="http://www.w3.org/2001/XMLSchema" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+	<dataSource>
+		<name>ИсточникДанных1</name>
+		<dataSourceType>Local</dataSourceType>
+	</dataSource>
+	<dataSet xsi:type="DataSetQuery">
+		<name>Основной</name>
+		<field xsi:type="DataSetFieldField">
+			<dataPath>Значение</dataPath>
+			<field>Значение</field>
+		</field>
+		<dataSource>ИсточникДанных1</dataSource>
+		<query>ВЫБРАТЬ
+	1 КАК Значение</query>
+	</dataSet>
+	<template>
+		<name>СуществующаяОбласть</name>
+		<template xmlns:dcsat="http://v8.1c.ru/8.1/data-composition-system/area-template" xsi:type="dcsat:AreaTemplate">
+			<dcsat:item xsi:type="dcsat:Table">
+				<dcsat:row>
+					<dcsat:item xsi:type="dcsat:Cell">
+						<dcsat:item xsi:type="dcsat:Field">
+							<dcsat:value xsi:type="v8:LocalStringType">
+								<v8:item><v8:lang>ru</v8:lang><v8:content>Существующая
+геометрия</v8:content></v8:item>
+							</dcsat:value>
+						</dcsat:item>
+					</dcsat:item>
+				</dcsat:row>
+			</dcsat:item>
+		</template>
+	</template>
+	<groupTemplate>
+		<groupName>СуществующаяГруппа</groupName>
+		<templateType>Header</templateType>
+		<template>СуществующаяОбласть</template>
+	</groupTemplate>
+	<settingsVariant>
+		<dcsset:name>Основной</dcsset:name>
+		<dcsset:presentation xsi:type="v8:LocalStringType"><v8:item><v8:lang>ru</v8:lang><v8:content>Существующий вариант</v8:content></v8:item></dcsset:presentation>
+		<dcsset:settings/>
+	</settingsVariant>
+</DataCompositionSchema>

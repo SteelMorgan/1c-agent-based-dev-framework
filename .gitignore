@@ -1,0 +1,71 @@
+# Generated artifacts (do not commit)
+output/
+
+# Review sandboxes (shared, per-session runtime — never commit)
+.review-sandboxes/
+
+# Local tool/browser session artifacts
+tools/.browser-session.json
+tools/error-shot.png
+tools/*.png
+
+# Reference sources (local only)
+src_temp/
+.venv-tokens/
+
+# IDE / agent configs
+.cursor/
+.agents/
+.kilocode/
+.mcp.json
+
+# Node
+node_modules/
+
+# Python
+__pycache__/
+*.pyc
+
+# Gradle
+.gradle/
+build/
+test-output/
+
+# Local install shortcuts
+tools/fast-install/
+.claude/fast-install.mdc
+
+# External tool binaries (downloaded by tools/install.py from GitHub Releases)
+tools/external/
+
+# Local rules (not shared)
+.claude/rules/CLAUDE.md
+
+# Local task artifacts
+tasks/TASK-AUDIT-framework-knowledge/
+
+# Personal: infostart-kb (non-public tool, do not share)
+framework/skills/other/infostart-kb/
+framework_eng/skills/other/infostart-kb/
+
+# Claude Code runtime artefacts
+.claude/scheduled_tasks.lock
+
+# Codex CLI marker (empty file)
+.codex
+
+# Agent session reports (transient artifacts)
+**/PHASE*-REPORT.md
+**/PHASE*-SUMMARY.md
+**/PHASE*-COMPLETION-REPORT.md
+**/SESSION-*.md
+**/FINAL-*REPORT*.md
+**/PROJECT-COMPLETION-REPORT.md
+**/PROJECT-SUMMARY.md
+**/TODO.md
+**/SPEC-*-CHECKLIST.md
+
+# Runtime-реестры consilium/swarm (per-machine, не коммитить)
+.consilium-sessions/
+.consilium-track-record/
+.swarm-track-record/

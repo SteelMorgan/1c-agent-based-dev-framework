@@ -1,0 +1,18 @@
+benchmark,model,effort,cost_ratio_vs_opus48,quality_percent_vs_opus48
+FrontierCode,Claude Fable 5,low,1.719,140.7
+FrontierCode,Claude Fable 5,med,1.690,301.7
+FrontierCode,Claude Fable 5,high,2.000,275.9
+FrontierCode,Claude Fable 5,xhigh,1.563,220.3
+FrontierCode,Claude Fable 5,max,1.790,273.5
+FrontierCode,GPT-5.5,low,0.563,63.0
+FrontierCode,GPT-5.5,med,0.952,105.1
+FrontierCode,GPT-5.5,high,1.041,58.6
+FrontierCode,GPT-5.5,xhigh,0.800,42.1
+BrowseComp,Sonnet 5,low,0.235,77.4
+BrowseComp,Sonnet 5,med,0.267,90.5
+BrowseComp,Sonnet 5,high,0.486,96.7
+BrowseComp,Sonnet 5,xhigh,0.849,97.9
+BrowseComp,Sonnet 5,max,0.860,100.2
+BrowseComp,Sonnet 4.6,med,1.042,85.4
+BrowseComp,Sonnet 4.6,high,1.725,92.8
+BrowseComp,Sonnet 4.6,max,1.720,90.4

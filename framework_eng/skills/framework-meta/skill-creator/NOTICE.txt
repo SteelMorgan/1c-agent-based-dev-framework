@@ -1,0 +1,3 @@
+Этот навык основан на материалах openai/skills (https://github.com/openai/skills)
+и anthropics/skills (https://github.com/anthropics/skills), распространяемых по Apache License 2.0
+(полный текст - LICENSE.txt в этом каталоге). Файлы изменены SteelMorgan в 2026 году.

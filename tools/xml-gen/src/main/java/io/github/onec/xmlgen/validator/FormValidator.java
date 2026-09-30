@@ -1,0 +1,1812 @@
+package io.github.onec.xmlgen.validator;
+
+import com.github._1c_syntax.bsl.mdo.storage.form.FormElementType;
+
+import io.github.onec.xmlgen.form.edit.EventSignature;
+
+import java.util.*;
+
+/**
+ * Валидатор для XML управляемой формы (Form.xml / Form.form).
+ * <p>
+ * Level 1 (Structure): FORM-001..008
+ * Level 2 (Semantic):  FORM-101..114, FORM-115, FORM-116
+ *
+ * <p><b>FORM-115</b> и <b>FORM-116</b> добавлены в задаче err-form-xml-tooling-fix
+ * (происходит из эскалации OC-22444 Phase 3c F-01 BLOCK):
+ * <ul>
+ *   <li>FORM-115 — non-canonical wrapper типа в {@code <Attribute>} или {@code <Column>}
+ *       ({@code <ValueType>...</ValueType>} или {@code <Type><Type>...</Type></Type>}
+ *       без префикса {@code v8:}). Canonical: {@code <Type><v8:Type>X</v8:Type></Type>}.</li>
+ *   <li>FORM-116 — cross-check между {@code Attribute.Columns} и UI {@code Table.ChildItems}.
+ *       Если у атрибута есть {@code <Columns>} с колонками и в форме есть
+ *       {@code <Table><DataPath>X</DataPath>}, то в её {@code <ChildItems>}
+ *       (в т.ч. вложенные {@code <ColumnGroup>}) обязан присутствовать
+ *       {@code <InputField>}/{@code <CheckBoxField>}/{@code <LabelField>}
+ *       с {@code <DataPath>X.col</DataPath>} для каждой колонки.</li>
+ * </ul>
+ */
+public class FormValidator implements XmlValidator {
+
+    private static final String NS_FORM = "http://v8.1c.ru/8.3/xcf/logform";
+
+    /** Канонический префикс v8 (namespace {@code http://v8.1c.ru/8.1/data/core}). */
+    private static final String V8_PREFIX = "v8";
+
+    /** Имена UI-элементов, которые могут привязываться к колонке атрибута через DataPath
+     *  (FORM-116): берём только те, что используются в Drive-эталонах. */
+    private static final Set<String> COLUMN_UI_FIELD_TYPES =
+            Set.of("InputField", "CheckBoxField", "LabelField");
+
+    /**
+     * Дополнительные валидные типы полей формы, отсутствующие в enum
+     * {@code FormElementType} библиотеки 1c_syntax (TASK-171 V-2).
+     * <p>Белый список enum неполон: например {@code SpreadSheetDocumentField} —
+     * стандартное валидное поле табличного документа, встречается в реальной выгрузке БСП
+     * ({@code _ДемоГенерацияШтрихкода/Forms/Форма}) и давало ложный ERROR FORM-101.
+     * Перечень полей платформы, которые enum может не знать, добавляем хардкодом поверх enum.
+     */
+    private static final Set<String> EXTRA_KNOWN_ELEMENT_TYPES = Set.of(
+            "SpreadSheetDocumentField", "HTMLDocumentField", "GanttChartField",
+            "PlannerField", "FormattedDocumentField", "ChartField",
+            "GraphicalSchemaField", "GeographicalSchemaField", "DendrogramField",
+            "TextDocumentField", "TrackBarField", "ProgressBarField"
+    );
+
+    /** Известные имена UI-элементов (из FormElementType enum + платформенные поля сверх enum). */
+    private static final Set<String> KNOWN_ELEMENT_TYPES;
+    static {
+        Set<String> types = new HashSet<>();
+        for (FormElementType t : FormElementType.values()) {
+            types.add(t.fullName().getEn());
+        }
+        types.addAll(EXTRA_KNOWN_ELEMENT_TYPES); // TASK-171 V-2
+        KNOWN_ELEMENT_TYPES = Collections.unmodifiableSet(types);
+    }
+
+    private static final Set<String> KNOWN_ALLOWED_LENGTHS = Set.of("Variable", "Fixed");
+    private static final Set<String> KNOWN_ALLOWED_SIGNS = Set.of("Any", "Nonnegative");
+    private static final Set<String> KNOWN_DATE_FRACTIONS = Set.of("Date", "Time", "DateTime");
+    private static final Set<String> KNOWN_CALL_TYPES = Set.of("Before", "After", "Override");
+
+    private static final List<String> DATA_BINDING_TAGS = List.of(
+            "DataPath", "TitleDataPath", "FooterDataPath", "HeaderDataPath",
+            "MultipleValueDataPath", "MultipleValuePresentDataPath",
+            "RowPictureDataPath"); // XG-112: binding-тег строки таблицы
+
+    //++agent TASK-174 [15.07.2026 23:18:00] XG-109
+    /** XDTO sequence прямых детей Form, подтверждённый corpus 1094 Designer-форм. */
+    private static final List<String> ROOT_CHILD_ORDER = List.of(
+            "Title", "Width", "Height", "WindowOpeningMode", "AutoSaveDataInSettings",
+            "SaveDataInSettings", "EnterKeyBehavior", "AutoTitle", "AutoURL", "Group",
+            "AutoFillCheck", "Customizable", "ChildItemsWidth", "VerticalAlign", "Enabled",
+            "HorizontalAlign", "VerticalSpacing", "CommandBarLocation", "VerticalScroll",
+            "ScalingMode", "ConversationsRepresentation", "MobileDeviceCommandBarContent",
+            "CommandSet", "UseForFoldersAndItems", "AutoTime", "UsePostingMode",
+            "RepostOnWrite", "ReportResult", "DetailsData", "ReportFormType", "ShowTitle",
+            "ShowCloseButton", "VariantAppearance", "AutoShowState", "CustomSettingsFolder",
+            "ReportResultViewMode", "ViewModeApplicationOnSetReportResult",
+            "CollapseItemsByImportanceVariant", "AutoCommandBar");
+
+    private static final Map<String, Integer> ROOT_CHILD_RANK;
+    static {
+        Map<String, Integer> ranks = new HashMap<>();
+        for (int i = 0; i < ROOT_CHILD_ORDER.size(); i++) {
+            ranks.put(ROOT_CHILD_ORDER.get(i), i);
+        }
+        ROOT_CHILD_RANK = Collections.unmodifiableMap(ranks);
+    }
+    //--agent TASK-174 XG-109
+
+    @Override
+    public String objectType() {
+        return "form";
+    }
+
+    @Override
+    public boolean supports(XmlDocument document) {
+        return "Form".equals(document.getRootElement());
+    }
+
+    @Override
+    public List<ValidationIssue> validate(XmlDocument document, ValidationLevel level) {
+        List<ValidationIssue> issues = new ArrayList<>();
+
+        validateStructure(document, issues);
+
+        if (level == ValidationLevel.SEMANTIC) {
+            validateSemantic(document, issues);
+        }
+
+        return issues;
+    }
+
+    // ==================== Level 1: Structure ====================
+
+    private void validateStructure(XmlDocument document, List<ValidationIssue> issues) {
+        XmlNode root = document.getRoot();
+
+        //++agent TASK-174 [15.07.2026 23:18:00] XG-109
+        validateRootChildOrder(root, issues);
+        //--agent TASK-174 XG-109
+
+        //++agent TASK-174 [15.07.2026 23:35:00] XG-109 BUG-013
+        for (FormDesignerDomain.Violation violation : FormDesignerDomain.validate(root)) {
+            issues.add(ValidationIssue.error(violation.code(), violation.message(),
+                    violation.line(), violation.path()));
+        }
+        //--agent TASK-174 XG-109 BUG-013
+
+        // FORM-001: AutoCommandBar
+        XmlNode autoCmd = root.child("AutoCommandBar");
+        if (autoCmd == null) {
+            issues.add(ValidationIssue.error("FORM-001",
+                    "Missing required <AutoCommandBar> element",
+                    root.getLine(), "/Form"));
+        } else {
+            // TASK-171 V-1: имя главной AutoCommandBar НЕ фиксировано платформой.
+            // Реальные выгрузки Конфигуратора используют и 'ФормаКоманднаяПанель', и
+            // 'Форма_КоманднаяПанель' (11 из 145 _Демо-форм) — проверка имени давала ложный
+            // ERROR на валидных формах. Николай имя не проверяет вовсе, только id == -1.
+            // Проверяем ТОЛЬКО id (это инвариант главной панели формы).
+            String cmdId = autoCmd.attr("id");
+            if (!"-1".equals(cmdId)) {
+                issues.add(ValidationIssue.error("FORM-001",
+                        "AutoCommandBar id must be '-1', found '" + cmdId + "'",
+                        autoCmd.getLine(), "/Form/AutoCommandBar/@id"));
+            }
+        }
+
+        // FORM-002: version attribute
+        String version = root.attr("version");
+        if (version == null || version.isEmpty()) {
+            issues.add(ValidationIssue.warning("FORM-002",
+                    "Missing version attribute on <Form>",
+                    root.getLine(), "/Form/@version"));
+        }
+
+        // Собираем все id для проверки уникальности (FORM-004)
+        // В 1С id атрибутов, команд и элементов нумеруются НЕЗАВИСИМО
+        Set<String> attrIds = new HashSet<>();
+        Set<String> cmdIds = new HashSet<>();
+        Set<String> elemIds = new HashSet<>();
+        List<String> duplicateIds = new ArrayList<>();
+
+        // FORM-003: Attributes
+        XmlNode attributes = root.child("Attributes");
+        if (attributes != null) {
+            for (XmlNode attr : attributes.getChildren()) {
+                // Пропускаем системные элементы (ConditionalAppearance и т.д.)
+                if (isSystemAttributeElement(attr.getName())) continue;
+                validateNameAndId(attr, "/Form/Attributes/" + attr.getName(), attrIds, duplicateIds, "FORM-003", issues);
+            }
+        }
+
+        // FORM-008: Commands
+        XmlNode commands = root.child("Commands");
+        if (commands != null) {
+            for (XmlNode cmd : commands.getChildren()) {
+                validateNameAndId(cmd, "/Form/Commands/" + cmd.getName(), cmdIds, duplicateIds, "FORM-008", issues);
+            }
+        }
+
+        // FORM-006: ChildItems.
+        // TASK-171 V-5: отсутствие <ChildItems> — НЕ ошибка. Валидные служебные формы обработок
+        // без UI-дерева (работают через код/параметры) штатно не имеют <ChildItems> (5 из 145
+        // _Демо-форм). Прежний WARN был ложным; у Николая такой проверки нет вовсе. WARNING убран,
+        // при наличии <ChildItems> по-прежнему проверяем name/id вложенных элементов (FORM-007).
+        XmlNode childItems = root.child("ChildItems");
+        // FORM-007: UI elements имеют name и id. Проверяем все реальные UI-деревья:
+        // тело формы, корневой AutoCommandBar, контекстные меню и командные панели таблиц.
+        collectElementIdsInAllChildItems(root, "/Form", elemIds, duplicateIds, issues);
+
+        // FORM-004: Дубли id
+        for (String dupId : duplicateIds) {
+            issues.add(ValidationIssue.error("FORM-004",
+                    "Duplicate id '" + dupId + "' found among form elements/attributes/commands",
+                    0, "/Form"));
+        }
+
+        // FORM-005: ID последовательные ≥ 1 (только предупреждение)
+        // Пропускаем для MVP — это soft-check
+
+        //++agent TASK-174 [05.06.2026 12:50:00]
+        // FORM-121 (XG-11): корневой <Title> формы. Прецеденты TASK-173/память
+        // project_form_xdto_root_title_multilang: форма без корневого Title (или с
+        // Title-плоским-текстом без v8:item) отвергалась Designer-batch XDTO-ошибкой
+        // «при чтении файла», а validate давал PASS (класс XG-04 — слепой валидатор).
+        validateRootTitle(root, issues);
+        //++agent XG-114 [28.09.2026 22:05:00]
+        validateNamespacePrefixes(root, issues);
+        validateDuplicateNames(root, issues);
+        //++agent XG-114
+
+        // FORM-122 (XG-10): пайп внутри ОДНОГО <v8:Type> — признак невалидной
+        // сериализации составного типа («cfg:CatalogRef.A | CatalogRef.B» одной
+        // строкой). Платформа падает: «Ошибка отображения типов ... QName».
+        // Канон — отдельные соседние <v8:Type>.
+        validateNoPipeInV8Types(root, "/Form", issues);
+
+        // FORM-123 (XG-14): <Button> без дочернего <Type> — Designer молча обрезает
+        // такую кнопку при загрузке (validate раньше давал PASS — класс XG-04).
+        // FORM-124 (XG-15): контейнерный элемент без <ChildItems> — Designer молча
+        // обрезает контейнер. Проверяем оба инварианта одним обходом UI-дерева.
+        validateButtonsAndContainersInAllChildItems(root, "/Form", issues);
+        //++agent TASK-174
+    }
+
+    //++agent TASK-174 [15.07.2026 23:18:00] XG-109
+    private void validateRootChildOrder(XmlNode root, List<ValidationIssue> issues) {
+        int lastRank = -1;
+        String lastName = null;
+        for (XmlNode child : root.getChildren()) {
+            Integer rank = ROOT_CHILD_RANK.get(child.getName());
+            if (rank == null) {
+                continue;
+            }
+            if (rank < lastRank) {
+                issues.add(ValidationIssue.error("FORM-130",
+                        "Root element <" + child.getName() + "> violates the XDTO sequence; "
+                                + "it must precede <" + lastName + ">",
+                        child.getLine(), "/Form/" + child.getName()));
+                continue;
+            }
+            lastRank = rank;
+            lastName = child.getName();
+        }
+    }
+    //--agent TASK-174 XG-109
+
+    //++agent TASK-174 [05.06.2026 12:50:00]
+    /**
+     * FORM-121: корневой Title.
+     * <ul>
+     *   <li>Отсутствие Title — WARNING, не ERROR: реальные загружаемые формы без
+     *       корневого Title существуют массово (177/200 форм боевой конфигурации,
+     *       плюс real-form тест testRealFormIfAvailable) — ERROR давал бы false
+     *       positive на валидных рукописных формах. form compile теперь пишет
+     *       Title всегда, так что для сгенерированных форм warning не появляется.</li>
+     *   <li>Title-плоский-текст (без v8:item) — ERROR: подтверждённо негрузимый
+     *       класс (XDTO-отказ «при чтении файла», память
+     *       project_form_xdto_root_title_multilang).</li>
+     * </ul>
+     */
+    private void validateRootTitle(XmlNode root, List<ValidationIssue> issues) {
+        XmlNode title = root.child("Title");
+        if (title == null) {
+            return;
+        }
+        boolean hasItem = title.getChildren().stream()
+                .anyMatch(c -> "item".equals(c.getName()) && V8_PREFIX.equals(c.getPrefix()));
+        if (!hasItem) {
+            String rawText = title.getText();
+            String detail = (rawText != null && !rawText.trim().isEmpty())
+                    ? "is plain text" : "has no <v8:item> children";
+            issues.add(ValidationIssue.error("FORM-121",
+                    "Root <Title> " + detail + "; expected multilingual "
+                            + "<Title><v8:item><v8:lang>ru</v8:lang><v8:content>...</v8:content></v8:item></Title>",
+                    title.getLine(), "/Form/Title"));
+        }
+    }
+
+    /**
+     * Контейнерные UI-элементы, для которых отсутствие {@code <ChildItems>} подозрительно
+     * (FORM-124). AutoCommandBar и CommandBar сюда НЕ входят: спека 1c-form-spec §6 прямо
+     * разрешает пустую командную панель («Может быть пустым (самозакрывающийся тег)»).
+     */
+    private static final Set<String> CONTAINER_ELEMENT_TYPES = Set.of(
+            "UsualGroup", "Pages", "Page", "Popup", "PopupGroup", "ButtonGroup", "ColumnGroup");
+
+    /**
+     * FORM-123 + FORM-124: обход UI-дерева.
+     * <ul>
+     *   <li>FORM-123 (ERROR) — {@code <Button>} без дочернего {@code <Type>}: спека
+     *       1c-form-spec §8.3 объявляет Type первым элементом кнопки
+     *       (CommandBarButton | UsualButton | Hyperlink); Designer молча удаляет кнопку
+     *       без Type при загрузке (прецедент XG-14, домен форм, TASK-174).</li>
+     *   <li>FORM-124 (WARNING) — контейнер (UsualGroup/Pages/Page/PopupGroup/ButtonGroup/
+     *       ColumnGroup) без {@code <ChildItems>} или с пустым: Designer молча обрезает
+     *       такой контейнер (прецедент XG-15). WARNING, не ERROR — пустая страница/группа
+     *       формально загружаема, но почти всегда признак бага генератора.</li>
+     * </ul>
+     */
+    private void validateButtonsAndContainersInAllChildItems(XmlNode node, String path,
+                                                             List<ValidationIssue> issues) {
+        if ("ChildItems".equals(node.getName())) {
+            validateButtonsAndContainers(node, path, issues);
+        }
+        for (XmlNode child : node.getChildren()) {
+            validateButtonsAndContainersInAllChildItems(child,
+                    path + "/" + child.getName(), issues);
+        }
+    }
+
+    private void validateButtonsAndContainers(XmlNode parent, String parentPath,
+                                              List<ValidationIssue> issues) {
+        for (XmlNode elem : parent.getChildren()) {
+            String elemName = elem.getName();
+            String name = elem.attr("name");
+            String label = name != null ? "'" + name + "'" : "(unnamed)";
+            String elemPath = parentPath + "/" + elemName;
+
+            if ("Button".equals(elemName) && elem.child("Type") == null) {
+                issues.add(ValidationIssue.error("FORM-123",
+                        "Button " + label + " has no <Type> child. Designer silently drops such "
+                                + "buttons on load; expected <Type>CommandBarButton|UsualButton|Hyperlink</Type>",
+                        elem.getLine(), elemPath));
+            }
+
+            XmlNode innerChildItems = elem.child("ChildItems");
+            // Empty containers are valid in Designer canon: they are used as
+            // user-settings placeholders and command menu buckets. Do not warn
+            // on canon XML; generators should prevent accidental empty layout
+            // through focused tests instead of global validation noise.
+        }
+    }
+
+    /** FORM-122: ни один <v8:Type> в документе не должен содержать "|" в тексте. */
+    private void validateNoPipeInV8Types(XmlNode node, String path, List<ValidationIssue> issues) {
+        if ("Type".equals(node.getName()) && V8_PREFIX.equals(node.getPrefix())) {
+            String text = node.getText();
+            if (text != null && text.contains("|")) {
+                issues.add(ValidationIssue.error("FORM-122",
+                        "Composite type serialized as single <v8:Type> with '|': '" + text.trim()
+                                + "'. Platform rejects this (QName mapping error); emit separate "
+                                + "adjacent <v8:Type> elements instead",
+                        node.getLine(), path + "/v8:Type"));
+            }
+        }
+        for (XmlNode child : node.getChildren()) {
+            validateNoPipeInV8Types(child, path + "/" + child.getName(), issues);
+        }
+    }
+    //++agent TASK-174
+
+    private void validateNameAndId(XmlNode node, String path, Set<String> allIds,
+                                    List<String> duplicateIds, String code, List<ValidationIssue> issues) {
+        String name = node.attr("name");
+        if (name == null) name = node.childText("name");
+        String id = node.attr("id");
+        if (id == null) id = node.childText("id");
+
+        if (name == null || name.isEmpty()) {
+            issues.add(ValidationIssue.error(code,
+                    "Element missing name",
+                    node.getLine(), path));
+        }
+        if (id == null || id.isEmpty()) {
+            issues.add(ValidationIssue.error(code,
+                    "Element missing id",
+                    node.getLine(), path));
+        } else {
+            // Проверяем уникальность (id = -1 для AutoCommandBar — допустимое исключение)
+            if (!"-1".equals(id) && !allIds.add(id)) {
+                duplicateIds.add(id);
+            }
+        }
+    }
+
+    private void collectElementIdsInAllChildItems(XmlNode node, String path,
+                                                  Set<String> allIds, List<String> duplicateIds,
+                                                  List<ValidationIssue> issues) {
+        if ("ChildItems".equals(node.getName())) {
+            collectElementIds(node, path, allIds, duplicateIds, issues);
+        }
+        for (XmlNode child : node.getChildren()) {
+            collectElementIdsInAllChildItems(child, path + "/" + child.getName(),
+                    allIds, duplicateIds, issues);
+        }
+    }
+
+    private void collectElementIds(XmlNode parent, String parentPath,
+                                   Set<String> allIds, List<String> duplicateIds,
+                                   List<ValidationIssue> issues) {
+        for (XmlNode child : parent.getChildren()) {
+            String childPath = parentPath + "/" + child.getName();
+
+            // FORM-007: Каждый UI-элемент имеет name и id
+            String name = child.attr("name");
+            String id = child.attr("id");
+
+            if (name == null || name.isEmpty()) {
+                issues.add(ValidationIssue.error("FORM-007",
+                        "UI element <" + child.getName() + "> missing name attribute",
+                        child.getLine(), childPath));
+            }
+            if (id == null || id.isEmpty()) {
+                issues.add(ValidationIssue.error("FORM-007",
+                        "UI element <" + child.getName() + "> missing id attribute",
+                        child.getLine(), childPath));
+            } else if (!"-1".equals(id) && !allIds.add(id)) {
+                duplicateIds.add(id);
+            }
+
+        }
+    }
+
+    // ==================== Level 2: Semantic ====================
+
+    private void validateSemantic(XmlDocument document, List<ValidationIssue> issues) {
+        XmlNode root = document.getRoot();
+
+        // Собираем известные имена атрибутов (для FORM-102)
+        Set<String> attributeNames = new HashSet<>();
+        XmlNode attributes = root.child("Attributes");
+        if (attributes != null) {
+            for (XmlNode attr : attributes.getChildren()) {
+                String name = attr.attr("name");
+                if (name == null) name = attr.childText("name");
+                if (name != null) attributeNames.add(name);
+            }
+        }
+
+        // Собираем известные имена команд (для FORM-103)
+        Set<String> commandNames = new HashSet<>();
+        XmlNode commands = root.child("Commands");
+        if (commands != null) {
+            for (XmlNode cmd : commands.getChildren()) {
+                String name = cmd.attr("name");
+                if (name == null) name = cmd.childText("name");
+                if (name != null) commandNames.add(name);
+            }
+        }
+
+        // Собираем карту Table-элементов (имя → DataPath) для резолва Items.X.CurrentData.*
+        Map<String, String> tableDataPaths = collectTableDataPaths(root);
+
+        // FORM-101: Тип UI-элемента — известный FormElementType
+        XmlNode childItems = root.child("ChildItems");
+        //**agent TASK-175 [07.06.2026 19:10:00]
+        // XG-38 (5f7ee6fc, .ps1-эталон A-5): у заимствованной формы расширения (<BaseForm>)
+        // реквизиты base-элементов живут в базовой конфигурации, а Attributes расширения
+        // пусты ПО ПОСТРОЕНИЮ — DataPath-проверки на них дают ложные ошибки.
+        boolean hasBaseForm = root.child("BaseForm") != null;
+        //validateElementsInAllChildItems(root, "/Form",
+        //        attributeNames, commandNames, tableDataPaths, issues);
+        validateElementsInAllChildItems(root, "/Form",
+                attributeNames, commandNames, tableDataPaths, hasBaseForm, issues);
+        //**agent TASK-175
+
+        // Проверяем атрибуты (FORM-107..110, 114, 115)
+        if (attributes != null) {
+            validateAttributes(attributes, issues);
+        }
+
+        // FORM-116: cross-check Attribute.Columns ↔ Table.ChildItems
+        validateValueTableUiColumns(root, issues);
+
+        //++agent XG-63 [28.09.2026 21:15:00]
+        // FORM-125: поля DynamicList (Список.Number/Date/...) Designer резолвит только по
+        // Settings/MainTable или QueryText; без них "Неверный путь к данным" при загрузке.
+        if (attributes != null && !hasBaseForm) {
+            validateDynamicListFieldPaths(root, attributes, issues);
+        }
+        //++agent XG-63
+
+        // FORM-111: Events
+        XmlNode events = root.child("Events");
+        if (events != null) {
+            for (XmlNode event : events.getChildren()) {
+                String eventName = event.attr("name");
+                if (eventName == null) eventName = event.getName();
+                String handler = event.getText();
+                if (eventName != null && (handler == null || handler.isEmpty())) {
+                    // Event без обработчика — обычно не ошибка, но имя должно быть
+                }
+            }
+        }
+
+        // FORM-112: Command.Action
+        if (commands != null) {
+            int idx = 0;
+            for (XmlNode cmd : commands.getChildren()) {
+                idx++;
+                String cmdPath = "/Form/Commands/" + cmd.getName() + "[" + idx + "]";
+                String action = cmd.childText("Action");
+                if (action == null || action.isEmpty()) {
+                    issues.add(ValidationIssue.warning("FORM-112",
+                            "Command has no <Action>",
+                            cmd.getLine(), cmdPath + "/Action"));
+                }
+            }
+        }
+
+        // FORM-118: Event-хэндлер не должен быть пустой строкой (при наличии name)
+        validateEventHandlersNonEmpty(root, issues);
+
+        // FORM-126/127: callType on events/actions is extension-only and has a fixed enum.
+        validateCallTypes(root, issues);
+
+        // FORM-117: Companions для UI-элементов
+        validateElementCompanionsInAllChildItems(root, "/Form", issues);
+
+        // FORM-125: Table addition elements must carry AdditionSource(Item/Type)
+        if (childItems != null) {
+            validateTableAdditions(childItems, "/Form/ChildItems", issues);
+        }
+
+        // FORM-119: MainAttribute должен быть только у одного Attribute
+        validateMainAttributeCount(attributes, issues);
+
+        // FORM-120: Title должен быть multilingual XML (v8:item), а не plain text
+        validateMultilingualTitles(root, issues);
+
+        //++agent TASK-175 [07.06.2026 19:05:00]
+        // FORM-128 (XG-37): минимальный объём Check 12 upstream (A-7 спеки) —
+        // External*-типы валидны только в EPF/ERF; в контексте конфигурации платформа
+        // бросает XDTO-исключение. Полные словари Check 12 (dd88f789) НЕ портированы — D-4.
+        validateExternalObjectTypesInContext(document, issues);
+        //++agent TASK-175
+    }
+
+    //++agent TASK-175 [07.06.2026 19:05:00]
+    /**
+     * FORM-128 (TASK-175 W-03, XG-37; upstream dd88f789 → 3bd69baa → d5aacc9e):
+     * {@code cfg:ExternalDataProcessorObject.*} / {@code cfg:ExternalReportObject.*}
+     * валидны только в контексте EPF/ERF; внутри выгрузки конфигурации платформа
+     * отвергает их XDTO-исключением → ERROR.
+     *
+     * <p>Контекст определяется подъёмом от файла формы вверх (максимум 15 уровней,
+     * как в upstream 3bd69baa) в поисках {@code Configuration.xml}. Документ без
+     * привязки к файлу контекста не имеет — проверка пропускается.</p>
+     */
+    private void validateExternalObjectTypesInContext(XmlDocument document,
+                                                      List<ValidationIssue> issues) {
+        if (document.getFile() == null) return;
+        if (!isConfigurationContext(document.getFile())) return;
+        collectExternalObjectTypeIssues(document.getRoot(), "/Form", issues);
+    }
+
+    /** Подъём от файла формы вверх (≤15 уровней) в поисках Configuration.xml. */
+    private boolean isConfigurationContext(java.nio.file.Path formFile) {
+        java.nio.file.Path dir = formFile.toAbsolutePath().getParent();
+        for (int level = 0; level < 15 && dir != null; level++) {
+            if (java.nio.file.Files.isRegularFile(dir.resolve("Configuration.xml"))) {
+                return true;
+            }
+            dir = dir.getParent();
+        }
+        return false;
+    }
+
+    private void collectExternalObjectTypeIssues(XmlNode node, String path,
+                                                 List<ValidationIssue> issues) {
+        if ("Type".equals(node.getName()) && V8_PREFIX.equals(node.getPrefix())) {
+            String text = node.getText() != null ? node.getText().trim() : "";
+            // F-03 cross-review: upstream form-validate.py ~689 сравнивает ТОЧНЫЙ
+            // префикс до первой точки (suffix.split('.')[0] in ('ExternalDataProcessorObject',
+            // 'ExternalReportObject')), а не startsWith — иначе суффиксное имя типа
+            // (cfg:ExternalDataProcessorObjectФу.Что) ловится ложно.
+            if (text.startsWith("cfg:")) {
+                String suffix = text.substring(4);
+                int dot = suffix.indexOf('.');
+                String prefix = dot >= 0 ? suffix.substring(0, dot) : suffix;
+                if ("ExternalDataProcessorObject".equals(prefix)
+                        || "ExternalReportObject".equals(prefix)) {
+                    // Формулировка по upstream d5aacc9e (Report-Error в Check 12)
+                    issues.add(ValidationIssue.error("FORM-128",
+                            "Type '" + text + "': External* type in configuration context "
+                                    + "(use DataProcessorObject/ReportObject instead)",
+                            node.getLine(), path + "/v8:Type"));
+                }
+            }
+        }
+        for (XmlNode child : node.getChildren()) {
+            collectExternalObjectTypeIssues(child, path + "/" + child.getName(), issues);
+        }
+    }
+    //++agent TASK-175
+
+    /**
+     * Коллекция UI-элементов типа Table в форме (для резолва Items.X.CurrentData.*).
+     * Заполняется один раз при семантической валидации и передаётся контекстом.
+     */
+    private Map<String, String> collectTableDataPaths(XmlNode root) {
+        Map<String, String> result = new LinkedHashMap<>();
+        XmlNode childItems = root.child("ChildItems");
+        if (childItems != null) {
+            collectTableDataPathsRecursive(childItems, result);
+        }
+        return result;
+    }
+
+    private void collectTableDataPathsRecursive(XmlNode parent, Map<String, String> tableMap) {
+        for (XmlNode child : parent.getChildren()) {
+            if ("Table".equals(child.getName())) {
+                String name = child.attr("name");
+                if (name == null) name = child.childText("name");
+                String dp = child.childText("DataPath");
+                if (name != null) {
+                    tableMap.put(name, dp); // dp may be null
+                }
+            }
+            XmlNode inner = child.child("ChildItems");
+            if (inner != null) {
+                collectTableDataPathsRecursive(inner, tableMap);
+            }
+        }
+    }
+
+    /**
+     * Резолв DataPath по алгоритму канона Широкова (SPEC §10.3):
+     * <ol>
+     *   <li>Числовые индексы {@code ^\d+$} или UUID-ссылки {@code \d+/\d+:[0-9a-fA-F-]+} → silent skip (null = skip).</li>
+     *   <li>{@code Items.<TableName>.CurrentData.<Field>} → найти Table, взять корневой реквизит её DataPath.</li>
+     *   <li>{@code ~<Attr>.*} → снять {@code ~}, взять первый сегмент как имя реквизита.</li>
+     *   <li>Иначе → взять первый сегмент через точку.</li>
+     * </ol>
+     *
+     * @param bindingName имя data-binding тега
+     * @param dataPath  значение data-binding пути из XML
+     * @param attrNames имена реквизитов формы
+     * @param tableMap  имена Table-элементов → DataPath таблицы (из ChildItems)
+     * @param elemLine  строка для отчёта
+     * @param elemPath  путь для отчёта
+     * @param issues    список для добавления ошибок
+     * @return true = резолв выполнен (не нужна дальнейшая проверка), false = стандартная проверка не нужна
+     */
+    private boolean resolveDataPath(String bindingName, String dataPath, Set<String> attrNames,
+                                    Map<String, String> tableMap,
+                                    int elemLine, String elemPath,
+                                    List<ValidationIssue> issues) {
+        if (dataPath == null || dataPath.isEmpty()) {
+            return true; // ничего не проверяем
+        }
+
+        // 1. Числовой индекс: "10", "1000003"
+        if (dataPath.matches("^\\d+$")) {
+            return true; // silent skip
+        }
+        // UUID-ссылка: "1/0:a917a122-f663-4c45-8de0-fd5104007de3"
+        if (dataPath.matches("^\\d+/\\d+:[0-9a-fA-F\\-]+$")) {
+            return true; // silent skip
+        }
+
+        // 2. Items.<TableName>.CurrentData.<Field>
+        if (dataPath.startsWith("Items.")) {
+            String[] parts = dataPath.split("\\.");
+            if (parts.length >= 3 && "CurrentData".equals(parts[2])) {
+                String tableName = parts[1];
+                if (!tableMap.containsKey(tableName)) {
+                    issues.add(ValidationIssue.error("FORM-102",
+                            bindingName + " '" + dataPath + "': Items table '" + tableName
+                                    + "' not found in form ChildItems",
+                            elemLine, elemPath + "/" + bindingName));
+                    return true;
+                }
+                String tableDataPath = tableMap.get(tableName);
+                if (tableDataPath == null || tableDataPath.isEmpty()) {
+                    // Таблица без DataPath (динамическая форма) — принять молча
+                    return true;
+                }
+                //++agent XG-112 [28.09.2026 21:35:00]
+                // Таблица, привязанная к текущей строке другой таблицы (Items.A.CurrentData.X,
+                // канон YAXUNIT ЮТЮнитТесты): следуем цепочке, до 10 шагов, как Designer.
+                java.util.Set<String> seen = new java.util.HashSet<>();
+                while (tableDataPath != null && tableDataPath.startsWith("Items.") && seen.add(tableDataPath)
+                        && seen.size() <= 10) {
+                    String[] tp = tableDataPath.split("\\.");
+                    if (tp.length < 3 || !"CurrentData".equals(tp[2]) || !tableMap.containsKey(tp[1])) {
+                        break;
+                    }
+                    tableDataPath = tableMap.get(tp[1]);
+                }
+                if (tableDataPath == null || tableDataPath.isEmpty() || tableDataPath.startsWith("Items.")) {
+                    return true;
+                }
+                //++agent XG-112
+                // Снять ~ и [N] от DataPath таблицы, взять первый сегмент
+                String cleaned = stripLeadingTilde(stripNumericSegments(tableDataPath));
+                String rootAttr = cleaned.contains(".") ? cleaned.split("\\.")[0] : cleaned;
+                if (!rootAttr.isEmpty() && !attrNames.contains(rootAttr) && !"Object".equals(rootAttr)) {
+                    issues.add(ValidationIssue.error("FORM-102",
+                            bindingName + " '" + dataPath + "': table '" + tableName + "' DataPath='"
+                                    + tableDataPath + "' references unknown attribute '" + rootAttr + "'",
+                            elemLine, elemPath + "/" + bindingName));
+                }
+                return true;
+            } else {
+                // Items.* но не Items.<T>.CurrentData — предупреждение (unknown shape)
+                issues.add(ValidationIssue.warning("FORM-102",
+                        bindingName + " '" + dataPath
+                                + "' has unknown Items.* shape; expected Items.<Table>.CurrentData.<Field>",
+                        elemLine, elemPath + "/" + bindingName));
+                return true;
+            }
+        }
+
+        // 3. ~<Attr>.* — относительная ссылка
+        if (dataPath.startsWith("~")) {
+            String withoutTilde = dataPath.substring(1);
+            String rootAttr = withoutTilde.contains(".") ? withoutTilde.split("\\.")[0] : withoutTilde;
+            if (!rootAttr.isEmpty() && !attrNames.contains(rootAttr) && !"Object".equals(rootAttr)) {
+                issues.add(ValidationIssue.error("FORM-102",
+                        bindingName + " '" + dataPath + "' references unknown attribute '" + rootAttr
+                                + "' (relative ~path)",
+                        elemLine, elemPath + "/" + bindingName));
+            }
+            return true;
+        }
+
+        // 4. Default — стандартная логика (берём первый сегмент)
+        return false;
+    }
+
+    //++agent XG-63 [28.09.2026 21:15:00]
+    private void validateDynamicListFieldPaths(XmlNode root, XmlNode attributes, List<ValidationIssue> issues) {
+        List<String> dataPaths = new ArrayList<>();
+        XmlNode items = root.child("ChildItems");
+        if (items != null) collectDataPaths(items, dataPaths);
+        for (XmlNode attr : attributes.children("Attribute")) {
+            XmlNode type = attr.child("Type");
+            boolean dynamic = type != null && type.getChildren().stream()
+                    .anyMatch(t -> t.getText() != null && t.getText().trim().endsWith("DynamicList"));
+            if (!dynamic) continue;
+            String name = attr.attr("name");
+            if (name == null || name.isEmpty()) continue;
+            XmlNode settings = attr.child("Settings");
+            String mainTable = settings == null ? null : settings.childText("MainTable");
+            String queryText = settings == null ? null : settings.childText("QueryText");
+            boolean resolvable = (mainTable != null && !mainTable.isBlank())
+                    || (queryText != null && !queryText.isBlank());
+            if (resolvable) continue;
+            for (String dp : dataPaths) {
+                if (dp.startsWith(name + ".")) {
+                    issues.add(ValidationIssue.error("FORM-125",
+                            "DataPath '" + dp + "': DynamicList '" + name
+                                    + "' has no Settings/MainTable or QueryText, Designer cannot resolve list fields",
+                            attr.getLine(), "/Form/Attributes/" + name));
+                }
+            }
+        }
+    }
+
+    private static void collectDataPaths(XmlNode node, List<String> out) {
+        for (XmlNode child : node.getChildren()) {
+            if ("DataPath".equals(child.getName()) && child.getText() != null) {
+                out.add(child.getText().trim());
+            }
+            collectDataPaths(child, out);
+        }
+    }
+    //++agent XG-63
+
+    //++agent XG-114 [28.09.2026 22:05:00]
+    private static final java.util.regex.Pattern QNAME_VALUE =
+            java.util.regex.Pattern.compile("^([A-Za-z_][A-Za-z0-9_.-]*):[^:\\s]+$");
+
+    /**
+     * FORM-137: префикс в значении типа ({@code <v8:Type>cfg:...}, {@code xsi:type="dcscor:..."})
+     * не объявлен ни одним xmlns. Designer отвергает форму XDTO-ошибкой разбора QName.
+     */
+    private void validateNamespacePrefixes(XmlNode root, List<ValidationIssue> issues) {
+        Set<String> declared = new HashSet<>(Set.of("xml", "xmlns"));
+        collectDeclaredPrefixes(root, declared);
+        Set<String> reported = new HashSet<>();
+        checkPrefixesRecursive(root, declared, reported, issues);
+    }
+
+    private void collectDeclaredPrefixes(XmlNode node, Set<String> declared) {
+        for (String key : node.getAttributes().keySet()) {
+            if (key.startsWith("xmlns:")) declared.add(key.substring(6));
+        }
+        for (XmlNode child : node.getChildren()) collectDeclaredPrefixes(child, declared);
+    }
+
+    private void checkPrefixesRecursive(XmlNode node, Set<String> declared, Set<String> reported,
+                                        List<ValidationIssue> issues) {
+        String name = node.getName();
+        if ("Type".equals(name) || "TypeSet".equals(name)) {
+            checkQName(node.getText(), node, declared, reported, issues);
+        }
+        String xsiType = node.getAttributes().get("xsi:type");
+        if (xsiType != null) checkQName(xsiType, node, declared, reported, issues);
+        for (XmlNode child : node.getChildren()) checkPrefixesRecursive(child, declared, reported, issues);
+    }
+
+    private void checkQName(String value, XmlNode node, Set<String> declared, Set<String> reported,
+                            List<ValidationIssue> issues) {
+        if (value == null) return;
+        java.util.regex.Matcher m = QNAME_VALUE.matcher(value.trim());
+        if (!m.matches()) return;
+        String prefix = m.group(1);
+        if (declared.contains(prefix) || !reported.add(prefix)) return;
+        issues.add(ValidationIssue.error("FORM-137",
+                "Namespace prefix '" + prefix + "' in '" + value.trim() + "' is not declared (xmlns:" + prefix
+                        + " missing); Designer fails QName resolution",
+                node.getLine(), "/Form"));
+    }
+
+    /**
+     * FORM-138: дубли имён. Имена элементов формы уникальны во всём дереве (кроме компаньонов),
+     * имена реквизитов и команд - в своих коллекциях, колонки - внутри своего реквизита.
+     */
+    private void validateDuplicateNames(XmlNode root, List<ValidationIssue> issues) {
+        Map<String, Integer> elemNames = new HashMap<>();
+        XmlNode childItems = root.child("ChildItems");
+        if (childItems != null) collectElementNames(childItems, elemNames, issues);
+        XmlNode acb = root.child("AutoCommandBar");
+        if (acb != null) {
+            XmlNode acbItems = acb.child("ChildItems");
+            if (acbItems != null) collectElementNames(acbItems, elemNames, issues);
+        }
+        checkCollectionNames(root.child("Attributes"), "attribute", issues);
+        checkCollectionNames(root.child("Commands"), "command", issues);
+        XmlNode attributes = root.child("Attributes");
+        if (attributes != null) {
+            for (XmlNode attr : attributes.getChildren()) checkColumnsRecursive(attr, issues);
+        }
+    }
+
+    private void collectElementNames(XmlNode container, Map<String, Integer> names, List<ValidationIssue> issues) {
+        for (XmlNode elem : container.getChildren()) registerElementName(elem, names, issues);
+    }
+
+    private void registerElementName(XmlNode elem, Map<String, Integer> names, List<ValidationIssue> issues) {
+        String n = elem.attr("name");
+        if (n != null && KNOWN_ELEMENT_TYPES.contains(elem.getName())) {
+            if (names.containsKey(n)) {
+                issues.add(ValidationIssue.error("FORM-138",
+                        "Duplicate form element name '" + n + "' (first at line " + names.get(n) + ")",
+                        elem.getLine(), "/Form/ChildItems"));
+            } else {
+                names.put(n, elem.getLine());
+            }
+        }
+        for (XmlNode sub : elem.getChildren()) {
+            if ("ChildItems".equals(sub.getName())) {
+                collectElementNames(sub, names, issues);
+            }
+            // Компаньоны (ContextMenu/ExtendedTooltip/*Addition) не проверяются: канон Designer
+            // допускает у них повторяющиеся имена (БСП УдалениеПомеченныхОбъектов: три 'Addition').
+        }
+    }
+
+    private void checkCollectionNames(XmlNode collection, String kind, List<ValidationIssue> issues) {
+        if (collection == null) return;
+        Set<String> seen = new HashSet<>();
+        for (XmlNode item : collection.getChildren()) {
+            String n = item.attr("name");
+            if (n != null && !seen.add(n)) {
+                issues.add(ValidationIssue.error("FORM-138",
+                        "Duplicate " + kind + " name '" + n + "'", item.getLine(),
+                        "/Form/" + collection.getName()));
+            }
+        }
+    }
+
+    private void checkColumnsRecursive(XmlNode owner, List<ValidationIssue> issues) {
+        XmlNode columns = owner.child("Columns");
+        if (columns == null) return;
+        Set<String> seen = new HashSet<>();
+        for (XmlNode col : columns.getChildren()) {
+            String n = col.attr("name");
+            if (n != null && "Column".equals(col.getName()) && !seen.add(n)) {
+                issues.add(ValidationIssue.error("FORM-138",
+                        "Duplicate column name '" + n + "' in attribute '" + owner.attr("name") + "'",
+                        col.getLine(), "/Form/Attributes"));
+            }
+            checkColumnsRecursive(col, issues);
+        }
+    }
+    //++agent XG-114
+
+    //++agent XG-113 [28.09.2026 21:50:00]
+    /** Компаньоны, которые Designer пишет прямыми потомками элемента (не в ChildItems). */
+    private static final Set<String> DIRECT_COMPANIONS = Set.of(
+            "ContextMenu", "ExtendedTooltip", "AutoCommandBar",
+            "SearchStringAddition", "ViewStatusAddition", "SearchControlAddition");
+
+    /**
+     * Канонические имена свойств UI-элементов (выгрузка Designer 8.3.27, 1118 форм src/xml+src/exts,
+     * коллизий по регистру нет). Используется только для поиска опечаток регистра (XG-105):
+     * имя вне набора, совпадающее без учёта регистра, Designer молча игнорирует.
+     */
+    private static final Set<String> CANONICAL_ELEMENT_PROPERTIES = Set.of(
+            "AdditionSource", "AllowGettingCurrentRowURL", "AllowRootChoice", "AutoAddIncomplete",
+            "AutoCellHeight", "AutoChoiceIncomplete", "AutoCommandBar", "AutoCorrectionOnTextInput",
+            "AutoInsertNewRow", "AutoMarkIncomplete", "AutoMaxHeight", "AutoMaxRowsCount", "AutoMaxWidth",
+            "AutoRefresh", "AutoRefreshPeriod", "AutoShowOpenButtonMode", "Autofill", "AvailableTypes",
+            "BackColor", "Behavior", "Border", "BorderColor", "CellHyperlink", "ChangeRowOrder",
+            "ChangeRowSet", "Check", "CheckBoxType", "ChildItems", "ChildItemsWidth", "ChildrenAlign",
+            "ChoiceButton", "ChoiceButtonPicture", "ChoiceButtonRepresentation", "ChoiceFoldersAndItems",
+            "ChoiceForm", "ChoiceHistoryOnInput", "ChoiceList", "ChoiceListButton", "ChoiceListHeight",
+            "ChoiceMode", "ChoiceParameterLinks", "ChoiceParameters", "ChooseType", "ClearButton",
+            "Collapsed", "CollapsedRepresentationTitle", "ColumnsCount", "CommandBarLocation", "CommandName",
+            "CommandSet", "CommandSource", "ContextMenu", "ControlRepresentation", "CreateButton",
+            "CurrentRowUse", "DataPath", "DefaultButton", "DefaultItem", "DropListButton", "DropListWidth",
+            "Edit", "EditFormat", "EditMode", "EditTextUpdate", "EnableContentChange", "EnableDrag",
+            "EnableStartDrag", "Enabled", "EqualColumnsWidth", "Events", "ExtendedEdit",
+            "ExtendedEditMultipleValues", "ExtendedTooltip", "FileDragMode", "FixingInTable", "Font",
+            "Footer", "FooterBackColor", "FooterDataPath", "FooterHeight", "FooterHorizontalAlign",
+            "FooterText", "FooterTextColor", "Format", "Group", "GroupHorizontalAlign", "GroupVerticalAlign",
+            "Header", "HeaderHeight", "HeaderHorizontalAlign", "HeaderPicture", "Height",
+            "HeightControlVariant", "HeightInMonths", "HeightInTableRows", "Hiperlink", "HorizontalAlign",
+            "HorizontalLines", "HorizontalLocation", "HorizontalScrollBar", "HorizontalSpacing",
+            "HorizontalStretch", "Hyperlink", "ImageScale", "IncompleteChoiceMode", "InitialListView",
+            "InitialTreeView", "InputHint", "Item", "ItemHeight", "ItemTitleHeight", "ItemWidth",
+            "LargeStep", "ListChoiceMode", "LocationInCommandBar", "MarkingStep", "Mask", "MaxHeight",
+            "MaxValue", "MaxWidth", "MinValue", "MultiLine", "MultipleChoice", "NonselectedPictureText",
+            "OpenButton", "Output", "PagesRepresentation", "Parameter", "PasswordMode", "Period", "Picture",
+            "PictureLocation", "PictureSize", "Protection", "QuickChoice", "RadioButtonType", "ReadOnly",
+            "Representation", "RepresentationInContextMenu", "RestoreCurrentRow", "RowFilter",
+            "RowInputMode", "RowPictureDataPath", "RowSelectionMode", "RowsPicture", "SearchControlAddition",
+            "SearchControlLocation", "SearchOnInput", "SearchStringAddition", "SearchStringLocation",
+            "SelectionMode", "SelectionShowMode", "SettingsNamedItemDetailedRepresentation", "Shape",
+            "ShapeRepresentation", "Shortcut", "ShowCellNames", "ShowCurrentDate", "ShowGrid", "ShowHeaders",
+            "ShowInFooter", "ShowInHeader", "ShowLeftMargin", "ShowMonthsPanel", "ShowPercent", "ShowRoot",
+            "ShowRowAndColumnNames", "ShowTitle", "SkipOnInput", "SpecialTextInputMode",
+            "SpellCheckingOnTextInput", "SpinButton", "Step", "TableAutofill", "TextColor", "TextEdit",
+            "ThreeState", "ThroughAlign", "Title", "TitleBackColor", "TitleDataPath", "TitleFont",
+            "TitleHeight", "TitleLocation", "TitleTextColor", "ToolTip", "ToolTipRepresentation",
+            "TopLevelParent", "Type", "TypeDomainEnabled", "TypeLink", "United", "UpdateOnDataChange",
+            "UseAlternationRowColor", "UserSettingsGroup", "UserVisible", "ValuesPicture", "VerticalAlign",
+            "VerticalLines", "VerticalScrollBar", "VerticalSpacing", "VerticalStretch", "ViewMode",
+            "ViewStatusAddition", "ViewStatusLocation", "Visible", "WarningOnEdit",
+            "WarningOnEditRepresentation", "Width", "WidthInMonths", "Wrap", "Zoomable");
+
+    private static final Map<String, String> CANONICAL_PROPERTY_BY_LOWER = new HashMap<>();
+    static {
+        for (String prop : CANONICAL_ELEMENT_PROPERTIES) {
+            CANONICAL_PROPERTY_BY_LOWER.put(prop.toLowerCase(Locale.ROOT), prop);
+        }
+    }
+
+    /**
+     * FORM-134 (XG-15/XG-19): вложенный элемент прямым потомком контейнера, вне {@code <ChildItems>}.
+     * FORM-135 (XG-57): CommandName без префикса (Form.Command./Form.Item./CommonCommand. ...).
+     * FORM-136 (XG-105): имя свойства в неверном регистре ({@code Multiline} вместо {@code MultiLine}).
+     */
+    private void validateElementStructure(XmlNode elem, String elemPath, Set<String> cmdNames,
+                                          List<ValidationIssue> issues) {
+        for (XmlNode child : elem.getChildren()) {
+            String childName = child.getName();
+            // name-атрибут отличает вложенный элемент от одноимённого свойства (Hyperlink у декораций).
+            if (KNOWN_ELEMENT_TYPES.contains(childName) && !DIRECT_COMPANIONS.contains(childName)
+                    && child.attr("name") != null) {
+                issues.add(ValidationIssue.error("FORM-134",
+                        "Element '" + childName + "' (" + safeName(child) + ") is a direct child of '"
+                                + elem.getName() + "' (" + safeName(elem) + ") outside <ChildItems>;"
+                                + " Designer ignores or rejects such nesting",
+                        child.getLine(), elemPath + "/" + childName));
+                continue;
+            }
+            if (!CANONICAL_ELEMENT_PROPERTIES.contains(childName)) {
+                String canonical = CANONICAL_PROPERTY_BY_LOWER.get(childName.toLowerCase(Locale.ROOT));
+                if (canonical != null) {
+                    issues.add(ValidationIssue.error("FORM-136",
+                            "Property '" + childName + "' has wrong case; expected '" + canonical
+                                    + "' (Designer silently ignores the unknown tag)",
+                            child.getLine(), elemPath + "/" + childName));
+                }
+            }
+        }
+        String commandName = elem.childText("CommandName");
+        if (commandName != null) {
+            String cmd = commandName.trim();
+            if (!cmd.isEmpty() && !"0".equals(cmd) && !cmd.contains(".")) {
+                String hint = cmdNames.contains(cmd) ? "; expected 'Form.Command." + cmd + "'" : "";
+                issues.add(ValidationIssue.error("FORM-135",
+                        "CommandName '" + cmd + "' has no command reference prefix"
+                                + " (Form.Command./Form.Item./Form.StandardCommand./CommonCommand. ...)" + hint
+                                + "; Designer: 'Неверное имя команды элемента формы'",
+                        elem.getLine(), elemPath + "/CommandName"));
+            }
+        }
+    }
+
+    private static String safeName(XmlNode node) {
+        String n = node.attr("name");
+        return n == null ? "?" : n;
+    }
+    //++agent XG-113
+
+    /** Убрать ведущий {@code ~} если присутствует. */
+    private static String stripLeadingTilde(String s) {
+        return s.startsWith("~") ? s.substring(1) : s;
+    }
+
+    /** Убрать числовые сегменты вида {@code [N]} из пути. Не используется пока, но готово к расширению. */
+    private static String stripNumericSegments(String s) {
+        // DataPath таблицы типа "Список[0]" или чистое "Список" — убираем [N]
+        return s.replaceAll("\\[\\d+\\]", "");
+    }
+
+    private void validateElements(XmlNode parent, String parentPath,
+                                   Set<String> attrNames, Set<String> cmdNames,
+                                   Map<String, String> tableMap,
+                                   boolean hasBaseForm,
+                                   List<ValidationIssue> issues) {
+        for (XmlNode elem : parent.getChildren()) {
+            String elemName = elem.getName();
+            String elemPath = parentPath + "/" + elemName;
+
+            // FORM-101: Известный тип
+            if (!KNOWN_ELEMENT_TYPES.contains(elemName) && !"AutoCommandBar".equals(elemName)) {
+                issues.add(ValidationIssue.error("FORM-101",
+                        "Unknown form element type '" + elemName + "'",
+                        elem.getLine(), elemPath));
+            }
+
+            //++agent XG-113 [28.09.2026 21:50:00]
+            validateElementStructure(elem, elemPath, cmdNames, issues);
+            //++agent XG-113
+
+            //++agent TASK-175 [07.06.2026 19:10:00]
+            // XG-38 (5f7ee6fc): skip DataPath-проверок (FORM-102/FORM-104) для base-элементов
+            // borrowed-формы. Условие СТРОГО по двум осям upstream: hasBaseForm И числовой
+            // id < 1000000 (платформа выдаёт own-элементам расширения id от 1000000).
+            // Содержимое DataPath в условии НЕ участвует — «разрешить все Объект.*» было бы
+            // сверхшироким фиксом (защитные кейсы F-02 в FormValidatorTask175Test).
+            boolean baseElementOfBorrowedForm = false;
+            if (hasBaseForm) {
+                String idText = elem.attr("id");
+                if (idText != null && idText.matches("-?\\d+")) {
+                    try {
+                        baseElementOfBorrowedForm = Long.parseLong(idText) < 1000000L;
+                    } catch (NumberFormatException ignored) {
+                        // id вне диапазона long — считаем own-элементом, проверки сохраняются
+                    }
+                }
+            }
+            //++agent TASK-175
+
+            // FORM-102: data-binding path → существующий Attribute.name (с расширенным резолвом)
+            if (!baseElementOfBorrowedForm) {
+                for (String bindingName : DATA_BINDING_TAGS) {
+                    String dataPath = elem.childText(bindingName);
+                    if (dataPath == null || dataPath.isEmpty()) continue;
+                    boolean handled = resolveDataPath(bindingName, dataPath, attrNames, tableMap,
+                            elem.getLine(), elemPath, issues);
+                    if (!handled) {
+                        // Стандартная логика: берём первый сегмент
+                        //**agent XG-112 [28.09.2026 21:35:00] индекс [N] (канон БСП: ОбъектПрототип[0].Поле)
+                        //String rootAttr = dataPath.contains(".") ? dataPath.split("\\.")[0] : dataPath;
+                        String cleanedPath = stripNumericSegments(dataPath);
+                        String rootAttr = cleanedPath.contains(".") ? cleanedPath.split("\\.")[0] : cleanedPath;
+                        //**agent XG-112
+                        if (!attrNames.contains(rootAttr) && !"Object".equals(rootAttr)) {
+                            issues.add(ValidationIssue.error("FORM-102",
+                                    bindingName + " '" + dataPath + "' references unknown attribute '"
+                                            + rootAttr + "'",
+                                    elem.getLine(), elemPath + "/" + bindingName));
+                        }
+                    }
+                }
+            }
+
+            // FORM-103: Button.CommandName → существующая Command формы.
+            // TASK-171 V-3: проверяем ТОЛЬКО ссылки вида "Form.Command.<name>" (команды самой формы).
+            // Всё остальное (Form.StandardCommand.*, DataProcessor.X.StandardCommand.*, CommonCommand.*,
+            // Catalog.*, Document.*, ExternalDataProcessor.*, Item.* и т.п.) — silent skip, как у Николая:
+            // это команды менеджера объекта / общие команды, резолвящиеся вне Form.xml, и из формы их
+            // проверить невозможно. Прежний хрупкий isStandardCommand давал ложный WARN на 3 _Демо-формах.
+            if ("Button".equals(elemName)) {
+                String commandName = elem.childText("CommandName");
+                if (commandName != null && commandName.startsWith("Form.Command.")) {
+                    String cmdRef = commandName.substring("Form.Command.".length());
+                    if (!cmdNames.contains(cmdRef)) {
+                        issues.add(ValidationIssue.warning("FORM-103",
+                                "Button CommandName '" + commandName + "' references unknown command",
+                                elem.getLine(), elemPath + "/CommandName"));
+                    }
+                }
+            }
+
+            // FORM-104: Missing DataPath is valid in Designer canon for hidden,
+            // dynamically controlled, and decoration-like fields. Keep FORM-102
+            // for invalid references when DataPath is present; do not warn when
+            // it is absent.
+            //**agent TASK-175 [07.06.2026 19:10:00]
+            // XG-38 (сосед того же класса, протокол FORM-103/104 дизайна §3.3 W-02):
+            // borrow вырезает DataPath у base-элементов → FORM-104 давал бы ложный WARN
+            // на каждом base-поле заимствованной формы. Тот же skip, что и FORM-102.
+            // FORM-103 не затронут: borrow заменяет CommandName на «0», префикс
+            // «Form.Command.» невозможен — ложных срабатываний нет.
+            //**agent TASK-175
+
+        }
+    }
+
+    //**agent TASK-175 [07.06.2026 19:10:00] — прокинут параметр hasBaseForm (XG-38)
+    private void validateElementsInAllChildItems(XmlNode node, String path,
+                                                 Set<String> attrNames, Set<String> cmdNames,
+                                                 Map<String, String> tableMap,
+                                                 boolean hasBaseForm,
+                                                 List<ValidationIssue> issues) {
+        if ("ChildItems".equals(node.getName())) {
+            validateElements(node, path, attrNames, cmdNames, tableMap, hasBaseForm, issues);
+        }
+        for (XmlNode child : node.getChildren()) {
+            validateElementsInAllChildItems(child, path + "/" + child.getName(),
+                    attrNames, cmdNames, tableMap, hasBaseForm, issues);
+        }
+    }
+    //**agent TASK-175
+
+    private void validateAttributes(XmlNode attributes, List<ValidationIssue> issues) {
+        int idx = 0;
+        for (XmlNode attr : attributes.getChildren()) {
+            // Системные элементы внутри <Attributes> (например ConditionalAppearance) не являются
+            // пользовательскими атрибутами — пропускаем.
+            if (isSystemAttributeElement(attr.getName())) continue;
+
+            idx++;
+            String attrName = attr.attr("name");
+            if (attrName == null) attrName = attr.childText("name");
+            String attrLabel = attrName != null ? attrName : attr.getName();
+            String attrPath = "/Form/Attributes/" + attr.getName() + "[" + idx + "]";
+
+            // FORM-107: Тип атрибута
+            XmlNode type = attr.child("Type");
+            if (type != null) {
+                // FORM-114: runtime-типы (FormDataStructure/Collection/Tree) не валидны в XML-схеме.
+                for (XmlNode t : type.children("Type")) {
+                    String typeText = t.getText();
+                    if (typeText == null) continue;
+                    String ts = typeText.trim();
+                    if ("FormDataStructure".equals(ts)
+                            || "FormDataCollection".equals(ts)
+                            || "FormDataTree".equals(ts)
+                            || ts.endsWith(":FormDataStructure")
+                            || ts.endsWith(":FormDataCollection")
+                            || ts.endsWith(":FormDataTree")) {
+                        issues.add(ValidationIssue.error("FORM-114",
+                                "Runtime type '" + ts
+                                + "' запрещён в реквизите формы (не существует в XML-схеме). "
+                                + "Используйте CatalogObject/DocumentObject/DataProcessorObject/ValueTable/ValueTree.",
+                                t.getLine(), attrPath + "/Type"));
+                    }
+                }
+            }
+
+            // FORM-108: StringQualifiers.AllowedLength
+            checkQualifier(attr, "StringQualifiers", "AllowedLength",
+                    KNOWN_ALLOWED_LENGTHS, "FORM-108", attrPath, issues);
+
+            // FORM-109: NumberQualifiers.AllowedSign
+            checkQualifier(attr, "NumberQualifiers", "AllowedSign",
+                    KNOWN_ALLOWED_SIGNS, "FORM-109", attrPath, issues);
+
+            // FORM-110: DateQualifiers.DateFractions
+            checkQualifier(attr, "DateQualifiers", "DateFractions",
+                    KNOWN_DATE_FRACTIONS, "FORM-110", attrPath, issues);
+
+            // FORM-115: non-canonical type wrapper в самом атрибуте
+            checkNonCanonicalTypeWrapper(attr, attrLabel, attrPath, issues);
+
+            // FORM-115: non-canonical type wrapper в каждой колонке атрибута
+            XmlNode columns = attr.child("Columns");
+            if (columns != null) {
+                int colIdx = 0;
+                for (XmlNode col : columns.getChildren()) {
+                    if (!"Column".equals(col.getName())) continue;
+                    colIdx++;
+                    String colName = col.attr("name");
+                    if (colName == null) colName = col.childText("name");
+                    String colLabel = (colName != null ? colName : col.getName());
+                    String colPath = attrPath + "/Columns/Column[" + colIdx + "]";
+                    String contextLabel = attrLabel + "." + colLabel;
+                    checkNonCanonicalTypeWrapper(col, contextLabel, colPath, issues);
+                }
+            }
+        }
+    }
+
+    /**
+     * FORM-115: детектирует non-canonical обёртку типа в {@code <Attribute>} или {@code <Column>}.
+     *
+     * <p>Canonical schema (источник истины — эталоны Drive Form.xml):
+     * <pre>{@code
+     * <Type>
+     *     <v8:Type>X</v8:Type>
+     * </Type>
+     * }</pre>
+     *
+     * Non-canonical (срабатывает FORM-115):
+     * <ul>
+     *   <li>{@code <ValueType>...</ValueType>} — внешний тег ValueType вместо Type
+     *       (например, кейс OC-22444: {@code <ValueType><Type>v8:ValueTable</Type></ValueType>}).</li>
+     *   <li>{@code <Type><Type>X</Type></Type>} — внутренний {@code <Type>} без префикса {@code v8:}.</li>
+     * </ul>
+     *
+     * <p>Допустимо:
+     * <ul>
+     *   <li>Отсутствие {@code <Type>} — атрибут «без типа».</li>
+     *   <li>Пустой {@code <Type/>} — допустимо для произвольного типа (см. эталон 1, колонка
+     *       «Питомец» в ВыборКонтрагентаУВЦ/Form.xml).</li>
+     *   <li>{@code <Type>} с одним или несколькими дочерними {@code <v8:Type>} —
+     *       полностью canonical (включая composite-type из нескольких {@code v8:Type}).</li>
+     * </ul>
+     *
+     * <p>Severity = ERROR (ADR-3 technical-design).
+     *
+     * @param node           узел {@code <Attribute>} или {@code <Column>}
+     * @param contextLabel   человекочитаемое имя (для сообщений), например «СообщенияБезОбъектаКонтекста.Аккаунт»
+     * @param nodePath       XPath-подобный путь к узлу (для поля element ValidationIssue)
+     * @param issues         список нарушений (добавление в место)
+     */
+    private void checkNonCanonicalTypeWrapper(XmlNode node, String contextLabel,
+                                              String nodePath, List<ValidationIssue> issues) {
+        // Случай 1: прямой потомок <ValueType>
+        XmlNode valueType = node.child("ValueType");
+        if (valueType != null) {
+            issues.add(ValidationIssue.error("FORM-115",
+                    "Non-canonical type wrapper <ValueType> in '" + contextLabel
+                            + "'. Use canonical <Type><v8:Type>X</v8:Type></Type> instead. "
+                            + "Use /form-edit skill or /form-dsl + xml-gen form compile.",
+                    valueType.getLine(), nodePath + "/ValueType"));
+        }
+
+        // Случаи 2 и 3: перебираем все прямые Type-потомки (независимо от префикса).
+        // Допустимо: outer <Type> (без префикса) с inner <v8:Type>. Недопустимо:
+        //   — outer <v8:Type> (или любой другой prefix) вместо чистого <Type>
+        //   — inner <Type> без префикса v8 внутри outer <Type>.
+        for (XmlNode typeNode : node.getChildren()) {
+            if (!"Type".equals(typeNode.getName())) continue;
+
+            String outerPrefix = typeNode.getPrefix();
+            if (outerPrefix != null && !outerPrefix.isEmpty()) {
+                issues.add(ValidationIssue.error("FORM-115",
+                        "Non-canonical outer type wrapper <" + outerPrefix + ":Type> in '"
+                                + contextLabel + "'. Canonical: <Type><v8:Type>X</v8:Type></Type> "
+                                + "(outer element must be <Type> without namespace prefix).",
+                        typeNode.getLine(), nodePath + "/" + outerPrefix + ":Type"));
+                // Не проверяем внутренности: outer уже некорректен, сообщение
+                // о вложенном <Type> запутает пользователя.
+                continue;
+            }
+
+            // outer <Type> — проверяем inner
+            for (XmlNode child : typeNode.getChildren()) {
+                if (!"Type".equals(child.getName())) continue;
+                String prefix = child.getPrefix();
+                if (!V8_PREFIX.equals(prefix)) {
+                    issues.add(ValidationIssue.error("FORM-115",
+                            "Non-canonical inner type tag <" + (prefix == null || prefix.isEmpty()
+                                    ? "Type" : prefix + ":Type")
+                                    + "> inside <Type> in '" + contextLabel
+                                    + "'. Canonical: <Type><v8:Type>X</v8:Type></Type>.",
+                            child.getLine(), nodePath + "/Type/Type"));
+                }
+            }
+        }
+    }
+
+    /**
+     * FORM-116: cross-check между {@code Attribute.Columns} и {@code Table.ChildItems}.
+     *
+     * <p>Алгоритм:
+     * <ol>
+     *   <li>Собрать список атрибутов с их колонками. Колонками считаются прямые потомки
+     *       {@code <Columns>/<Column>} в {@code <Attribute>}. Признак ValueTable/ValueTree
+     *       определяется liberal: либо явно по {@code <v8:Type>v8:ValueTable</v8:Type>}
+     *       (или {@code v8:ValueTree}) в {@code <Type>}, либо по наличию непустого
+     *       {@code <Columns>}. Это позволяет FORM-115 и FORM-116 срабатывать одновременно
+     *       на failed Form.xml DSSL_Коммуникатор, где schema атрибута non-canonical.</li>
+     *   <li>Рекурсивно собрать все UI-элементы {@code <Table>} в {@code /Form/ChildItems}
+     *       и для каждого — множество DataPath потомков (рекурсивно через ChildItems
+     *       и ColumnGroup) с {@code localName} в {InputField, CheckBoxField, LabelField}.</li>
+     *   <li>Для каждой пары (атрибут X с колонками, Table.dataPath = X): если в
+     *       {@code <ChildItems>} этой Table НЕТ НИ ОДНОГО UI-поля с
+     *       {@code DataPath = "X.<любая колонка атрибута>"} — ERROR FORM-116.</li>
+     *   <li>Если хотя бы одна колонка покрыта — НЕ срабатывает (это разрешает легитимный
+     *       паттерн «часть колонок видима, часть скрыта», встречающийся в эталонах Drive:
+     *       <ul>
+     *         <li>{@code ВыборКонтрагентаУВЦ/Form.xml} — у {@code СписокПитомцев}
+     *             в UI отображается только колонка {@code Питомец}, колонка {@code Умер} скрыта.</li>
+     *         <li>{@code ObjectRegistrationNodes/Form.xml} — у {@code ExchangeNodesTree}
+     *             отображены только {@code Description}, {@code Code}, {@code Check};
+     *             {@code PictureIndex}, {@code Ref}, {@code NotExported} и др. служебные.</li>
+     *       </ul>
+     *       </li>
+     *   <li>Если для атрибута X нет UI-Table с {@code DataPath = X} — НЕ срабатывает
+     *       (атрибут может использоваться только программно через {@code Items.Add()}).</li>
+     * </ol>
+     *
+     * <p>Severity = ERROR (ADR-3 technical-design).
+     *
+     * <p>Это ослабленная формулировка по сравнению с REQ-M-05 спецификации
+     * (которая говорила «для каждой колонки»). Решение принято в Phase 3c
+     * Developer-Code на основании source-of-truth-policy: эталоны Drive (L1)
+     * демонстрируют легитимный паттерн «часть колонок без UI», а Acceptance
+     * Scenario 2 спеки (§10) сформулирована именно как «нет ни одного
+     * InputField/CheckBoxField/LabelField» — что согласуется с этой реализацией.
+     * Главный кейс OC-22444 (полное отсутствие {@code <ChildItems>}) детектируется
+     * корректно.
+     */
+    private void validateValueTableUiColumns(XmlNode root, List<ValidationIssue> issues) {
+        // Шаг 1: собрать атрибуты с колонками.
+        Map<String, AttributeColumns> attrColumns = collectAttributeColumns(root);
+        if (attrColumns.isEmpty()) return;
+
+        // Шаг 2: собрать все UI-таблицы <Table> и для каждой — DataPath её потомков.
+        XmlNode childItems = root.child("ChildItems");
+        if (childItems == null) return;
+
+        List<TableInfo> tables = new ArrayList<>();
+        collectTablesRecursive(childItems, tables);
+        if (tables.isEmpty()) return;
+
+        // Шаг 3: для каждой пары (атрибут с колонками, UI Table.dataPath = attrName) —
+        // проверить, что хотя бы одна колонка атрибута связана через DataPath с UI-полем.
+        for (Map.Entry<String, AttributeColumns> entry : attrColumns.entrySet()) {
+            String attrName = entry.getKey();
+            AttributeColumns ac = entry.getValue();
+            if (ac.columnNames.isEmpty()) continue;
+
+            for (TableInfo tbl : tables) {
+                if (!attrName.equals(tbl.dataPath)) continue;
+
+                boolean atLeastOneColumnLinked = false;
+                //**agent XG-112 [28.09.2026 21:40:00]
+                // Канон БСП: колонки набора записей/объекта берутся из метаданных (НаборЗаписей.Исполнитель),
+                // в <Columns> реквизита - только дополнительные; любая привязка "<attr>.<поле>" = связь.
+                //for (String colName : ac.columnNames) {
+                //    String fullDataPath = attrName + "." + colName;
+                //    if (tbl.childDataPaths.contains(fullDataPath)) {
+                //        atLeastOneColumnLinked = true;
+                //        break;
+                //    }
+                //}
+                for (String childPath : tbl.childDataPaths) {
+                    if (stripNumericSegments(childPath).startsWith(attrName + ".")) {
+                        atLeastOneColumnLinked = true;
+                        break;
+                    }
+                }
+                //**agent XG-112
+                if (!atLeastOneColumnLinked) {
+                    String tableLabel = tbl.tableName != null ? tbl.tableName : "<unnamed>";
+                    issues.add(ValidationIssue.error("FORM-116",
+                            "UI Table '" + tableLabel + "' (DataPath='" + attrName + "')"
+                                    + " has no UI columns linked to ValueTable attribute '" + attrName
+                                    + "' (columns: " + ac.columnNames + ")."
+                                    + " Add at least one <InputField>/<CheckBoxField>/<LabelField>"
+                                    + " with DataPath='" + attrName + ".<column>' inside <ChildItems>"
+                                    + " (use /form-edit skill).",
+                            tbl.line, "/Form/ChildItems//Table[@name='" + tableLabel + "']"));
+                }
+            }
+        }
+    }
+
+    /** Собрать имена атрибутов и их колонок (для FORM-116). */
+    private Map<String, AttributeColumns> collectAttributeColumns(XmlNode root) {
+        Map<String, AttributeColumns> result = new LinkedHashMap<>();
+        XmlNode attributes = root.child("Attributes");
+        if (attributes == null) return result;
+
+        for (XmlNode attr : attributes.getChildren()) {
+            if (isSystemAttributeElement(attr.getName())) continue;
+            String name = attr.attr("name");
+            if (name == null) name = attr.childText("name");
+            if (name == null || name.isEmpty()) continue;
+
+            AttributeColumns ac = new AttributeColumns();
+            ac.attrLine = attr.getLine();
+
+            // Признак ValueTable/ValueTree (liberal — учитываем canonical и non-canonical schema)
+            ac.hasValueTableType = looksLikeValueTableType(attr);
+
+            // Колонки: прямые потомки <Columns>/<Column>
+            XmlNode columns = attr.child("Columns");
+            if (columns != null) {
+                for (XmlNode col : columns.getChildren()) {
+                    if (!"Column".equals(col.getName())) continue;
+                    String colName = col.attr("name");
+                    if (colName == null) colName = col.childText("name");
+                    if (colName != null && !colName.isEmpty()) {
+                        ac.columnNames.add(colName);
+                    }
+                }
+            }
+
+            result.put(name, ac);
+        }
+        return result;
+    }
+
+    /**
+     * Проверяет, похож ли тип атрибута на ValueTable/ValueTree.
+     * Учитывает canonical {@code <Type><v8:Type>v8:ValueTable</v8:Type></Type>}
+     * и non-canonical {@code <ValueType><Type>v8:ValueTable</Type></ValueType>}.
+     */
+    private boolean looksLikeValueTableType(XmlNode attr) {
+        // Canonical: <Type><v8:Type>v8:ValueTable</v8:Type></Type>
+        XmlNode typeNode = attr.child("Type");
+        if (typeNode != null) {
+            for (XmlNode t : typeNode.getChildren()) {
+                if (!"Type".equals(t.getName())) continue;
+                String text = t.getText();
+                if (text == null) continue;
+                String s = text.trim();
+                if (s.endsWith(":ValueTable") || s.endsWith(":ValueTree")
+                        || "ValueTable".equals(s) || "ValueTree".equals(s)) {
+                    return true;
+                }
+            }
+        }
+        // Non-canonical: <ValueType><Type>v8:ValueTable</Type></ValueType>
+        XmlNode valueType = attr.child("ValueType");
+        if (valueType != null) {
+            for (XmlNode t : valueType.getChildren()) {
+                if (!"Type".equals(t.getName())) continue;
+                String text = t.getText();
+                if (text == null) continue;
+                String s = text.trim();
+                if (s.endsWith(":ValueTable") || s.endsWith(":ValueTree")
+                        || "ValueTable".equals(s) || "ValueTree".equals(s)) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    /** Рекурсивный обход ChildItems для сбора всех UI {@code <Table>}. */
+    private void collectTablesRecursive(XmlNode parent, List<TableInfo> tables) {
+        for (XmlNode child : parent.getChildren()) {
+            if ("Table".equals(child.getName())) {
+                TableInfo info = new TableInfo();
+                info.tableName = child.attr("name");
+                if (info.tableName == null) info.tableName = child.childText("name");
+                info.dataPath = child.childText("DataPath");
+                info.line = child.getLine();
+                info.childDataPaths = new HashSet<>();
+                XmlNode tableChildItems = child.child("ChildItems");
+                if (tableChildItems != null) {
+                    collectColumnDataPathsRecursive(tableChildItems, info.childDataPaths);
+                }
+                tables.add(info);
+            }
+            // Углубляемся в любые ChildItems (Pages, Page, UsualGroup, Form root recursion)
+            XmlNode innerChildItems = child.child("ChildItems");
+            if (innerChildItems != null) {
+                collectTablesRecursive(innerChildItems, tables);
+            }
+        }
+    }
+
+    /** Собрать DataPath потомков таблицы (рекурсивно через ColumnGroup и любую вложенность). */
+    private void collectColumnDataPathsRecursive(XmlNode parent, Set<String> dataPaths) {
+        for (XmlNode child : parent.getChildren()) {
+            //**agent XG-112 [28.09.2026 21:40:00] любой вид поля (PictureField и др.), не только список
+            //if (COLUMN_UI_FIELD_TYPES.contains(child.getName())) {
+            if (child.child("DataPath") != null) {
+            //**agent XG-112
+                String dp = child.childText("DataPath");
+                if (dp != null && !dp.isEmpty()) {
+                    dataPaths.add(dp);
+                }
+            }
+            // Любая вложенность через ChildItems (включая ColumnGroup) — рекурсивно.
+            XmlNode innerChildItems = child.child("ChildItems");
+            if (innerChildItems != null) {
+                collectColumnDataPathsRecursive(innerChildItems, dataPaths);
+            }
+        }
+    }
+
+    /** Информация об атрибуте формы (для FORM-116). */
+    private static final class AttributeColumns {
+        boolean hasValueTableType;
+        int attrLine;
+        final List<String> columnNames = new ArrayList<>();
+    }
+
+    /** Информация об UI-таблице формы (для FORM-116). */
+    private static final class TableInfo {
+        String tableName;
+        String dataPath;
+        int line;
+        Set<String> childDataPaths;
+    }
+
+    private void checkQualifier(XmlNode attr, String qualName, String fieldName,
+                                 Set<String> validValues, String code, String path,
+                                 List<ValidationIssue> issues) {
+        // Ищем квалификатор рекурсивно (может быть в Type/Type/...)
+        XmlNode qual = findDescendant(attr, qualName);
+        if (qual != null) {
+            String value = qual.childText(fieldName);
+            if (value != null && !value.isEmpty() && !validValues.contains(value)) {
+                issues.add(ValidationIssue.error(code,
+                        fieldName + " value '" + value + "' is invalid, expected: " + validValues,
+                        qual.getLine(), path + "/" + qualName + "/" + fieldName));
+            }
+        }
+    }
+
+    private XmlNode findDescendant(XmlNode node, String name) {
+        XmlNode direct = node.child(name);
+        if (direct != null) return direct;
+
+        for (XmlNode child : node.getChildren()) {
+            XmlNode found = findDescendant(child, name);
+            if (found != null) return found;
+        }
+        return null;
+    }
+
+    // TASK-171 V-3: метод isStandardCommand удалён — FORM-103 больше не пытается распознавать
+    // «стандартные» команды по хрупкому белому списку. Теперь проверяются только ссылки
+    // Form.Command.* (команды самой формы), остальные префиксы пропускаются (см. validateElements).
+
+    /**
+     * Системные элементы внутри <Attributes>, которые не являются пользовательскими атрибутами.
+     * У них нет name/id атрибутов.
+     */
+    private static boolean isSystemAttributeElement(String elementName) {
+        return "ConditionalAppearance".equals(elementName);
+    }
+
+    // ==================== FORM-117: Companions ====================
+
+    /** Элементы → ожидаемый набор companion-тегов (parity с form-edit.py emit_element). */
+    private static final Map<String, List<String>> COMPANIONS_BY_TAG = Map.ofEntries(
+            Map.entry("InputField", List.of("ContextMenu", "ExtendedTooltip")),
+            Map.entry("CheckBoxField", List.of("ContextMenu", "ExtendedTooltip")),
+            Map.entry("LabelDecoration", List.of("ContextMenu", "ExtendedTooltip")),
+            Map.entry("LabelField", List.of("ContextMenu", "ExtendedTooltip")),
+            Map.entry("PictureField", List.of("ContextMenu", "ExtendedTooltip")),
+            Map.entry("CalendarField", List.of("ContextMenu", "ExtendedTooltip")),
+            Map.entry("PictureDecoration", List.of("ContextMenu", "ExtendedTooltip")),
+            Map.entry("Table", List.of("ContextMenu", "AutoCommandBar", "ExtendedTooltip",
+                    "SearchStringAddition", "ViewStatusAddition", "SearchControlAddition")),
+            Map.entry("Button", List.of("ExtendedTooltip")),
+            Map.entry("UsualGroup", List.of("ExtendedTooltip")),
+            Map.entry("Pages", List.of("ExtendedTooltip")),
+            Map.entry("Page", List.of("ExtendedTooltip"))
+    );
+
+    private void validateElementCompanions(XmlNode parent, String parentPath, List<ValidationIssue> issues) {
+        // Missing companions are valid in Designer canon. Keep companion
+        // generation requirements in writer/editor tests, not as global
+        // validation warnings for existing vendor XML.
+    }
+
+    private void validateElementCompanionsInAllChildItems(XmlNode node, String path,
+                                                          List<ValidationIssue> issues) {
+        if ("ChildItems".equals(node.getName())) {
+            validateElementCompanions(node, path, issues);
+        }
+        for (XmlNode child : node.getChildren()) {
+            validateElementCompanionsInAllChildItems(child,
+                    path + "/" + child.getName(), issues);
+        }
+    }
+
+    private static final Map<String, String> TABLE_ADDITION_TYPES = Map.of(
+            "SearchStringAddition", "SearchStringRepresentation",
+            "ViewStatusAddition", "ViewStatusRepresentation",
+            "SearchControlAddition", "SearchControl"
+    );
+
+    private void validateTableAdditions(XmlNode parent, String parentPath, List<ValidationIssue> issues) {
+        for (XmlNode elem : parent.getChildren()) {
+            String elemPath = parentPath + "/" + elem.getName();
+            if ("Table".equals(elem.getName())) {
+                String tableName = elem.attr("name");
+                for (Map.Entry<String, String> expected : TABLE_ADDITION_TYPES.entrySet()) {
+                    XmlNode addition = elem.child(expected.getKey());
+                    if (addition == null) {
+                        continue;
+                    }
+                    XmlNode source = addition.child("AdditionSource");
+                    String item = source != null ? source.childText("Item") : null;
+                    String type = source != null ? source.childText("Type") : null;
+                    if (source == null) {
+                        continue;
+                    }
+                    if (item == null || item.isBlank() || type == null || type.isBlank()) {
+                        continue;
+                    }
+                    if (!expected.getValue().equals(type)) {
+                        issues.add(ValidationIssue.warning("FORM-125",
+                                expected.getKey() + " for Table '" + tableName
+                                        + "' has unexpected AdditionSource Type '" + type
+                                        + "', expected '" + expected.getValue() + "'",
+                                addition.getLine(), elemPath + "/" + expected.getKey() + "/AdditionSource/Type"));
+                    } else if (tableName != null && !tableName.equals(item)) {
+                        issues.add(ValidationIssue.warning("FORM-125",
+                                expected.getKey() + " for Table '" + tableName
+                                        + "' points AdditionSource Item to '" + item
+                                        + "', expected owning table name '" + tableName + "'",
+                                addition.getLine(), elemPath + "/" + expected.getKey() + "/AdditionSource/Item"));
+                    }
+                }
+            }
+            XmlNode innerChildItems = elem.child("ChildItems");
+            if (innerChildItems != null) {
+                validateTableAdditions(innerChildItems, elemPath + "/ChildItems", issues);
+            }
+        }
+    }
+
+    // ==================== FORM-118: Event handler non-empty ====================
+
+    private void validateEventHandlersNonEmpty(XmlNode root, List<ValidationIssue> issues) {
+        // Form-level events
+        XmlNode formEvents = root.child("Events");
+        if (formEvents != null) {
+            for (XmlNode evt : formEvents.getChildren()) {
+                if (!"Event".equals(evt.getName())) continue;
+                String name = evt.attr("name");
+                String handler = evt.getText();
+                //++agent TASK-174 [15.07.2026 22:50:00] XG-109
+                validateCanonicalEventCase(name, evt, "/Form/Events", issues);
+                //--agent TASK-174 XG-109
+                if (name != null && (handler == null || handler.trim().isEmpty())) {
+                    issues.add(ValidationIssue.warning("FORM-118",
+                            "Form event '" + name + "' has empty handler name",
+                            evt.getLine(), "/Form/Events/Event[" + name + "]"));
+                }
+            }
+        }
+        // Element-level events (рекурсивно)
+        scanElementEventsInAllChildItems(root, "/Form", issues);
+    }
+
+    private void scanElementEvents(XmlNode parent, String parentPath, List<ValidationIssue> issues) {
+        for (XmlNode elem : parent.getChildren()) {
+            String elemPath = parentPath + "/" + elem.getName();
+            XmlNode events = elem.child("Events");
+            if (events != null) {
+                for (XmlNode evt : events.getChildren()) {
+                    if (!"Event".equals(evt.getName())) continue;
+                    String name = evt.attr("name");
+                    String handler = evt.getText();
+                    //++agent TASK-174 [15.07.2026 22:50:00] XG-109
+                    validateCanonicalEventCase(name, evt, elemPath + "/Events", issues);
+                    //--agent TASK-174 XG-109
+                    if (name != null && (handler == null || handler.trim().isEmpty())) {
+                        issues.add(ValidationIssue.warning("FORM-118",
+                                "Element '" + elem.attr("name") + "' event '" + name
+                                        + "' has empty handler name",
+                                evt.getLine(), elemPath + "/Events/Event[" + name + "]"));
+                    }
+                }
+            }
+        }
+    }
+
+    //++agent TASK-174 [15.07.2026 22:50:00] XG-109
+    //++agent TASK-225 [28.09.2026] XG-126: платформа регистронезависима к именам
+    // событий ('onCreateAtServer' валидно) — case-only ошибка была ложным срабатыванием.
+    // Оставляем ERROR только для lower-case имени, не совпадающего ни с одним
+    // известным событием даже без учёта регистра (вероятная опечатка в DSL).
+    private void validateCanonicalEventCase(String name, XmlNode event, String path,
+                                            List<ValidationIssue> issues) {
+        if (name != null && !name.isEmpty() && Character.isLowerCase(name.charAt(0))
+                && !EventSignature.isKnown(name)) {
+            issues.add(ValidationIssue.error("FORM-129",
+                    "Event name '" + name + "' is not a recognized form event "
+                            + "(platform accepts any letter case for known names)",
+                    event.getLine(), path + "/Event[" + name + "]"));
+        }
+    }
+    //--agent TASK-225 XG-126
+    //--agent TASK-174 XG-109
+
+    private void scanElementEventsInAllChildItems(XmlNode node, String path,
+                                                  List<ValidationIssue> issues) {
+        if ("ChildItems".equals(node.getName())) {
+            scanElementEvents(node, path, issues);
+        }
+        for (XmlNode child : node.getChildren()) {
+            scanElementEventsInAllChildItems(child,
+                    path + "/" + child.getName(), issues);
+        }
+    }
+
+    // ==================== FORM-126/127: callType ====================
+
+    private void validateCallTypes(XmlNode root, List<ValidationIssue> issues) {
+        boolean hasBaseForm = root.child("BaseForm") != null;
+        scanCallTypes(root, "/Form", hasBaseForm, issues);
+    }
+
+    private void scanCallTypes(XmlNode node, String path, boolean hasBaseForm,
+                               List<ValidationIssue> issues) {
+        if ("Event".equals(node.getName()) || "Action".equals(node.getName())) {
+            String callType = node.attr("callType");
+            if (callType != null) {
+                if (!KNOWN_CALL_TYPES.contains(callType)) {
+                    issues.add(ValidationIssue.error("FORM-126",
+                            node.getName() + " has invalid callType '" + callType
+                                    + "', expected one of: " + KNOWN_CALL_TYPES,
+                            node.getLine(), path + "/@callType"));
+                } else if (!hasBaseForm) {
+                    issues.add(ValidationIssue.warning("FORM-127",
+                            node.getName() + " has callType '" + callType
+                                    + "' but the form has no <BaseForm>; callType is valid only for borrowed extension forms",
+                            node.getLine(), path + "/@callType"));
+                }
+            }
+        }
+        int idx = 0;
+        for (XmlNode child : node.getChildren()) {
+            idx++;
+            scanCallTypes(child, path + "/" + child.getName() + "[" + idx + "]",
+                    hasBaseForm, issues);
+        }
+    }
+
+    // ==================== FORM-119: MainAttribute count ====================
+
+    private void validateMainAttributeCount(XmlNode attributes, List<ValidationIssue> issues) {
+        if (attributes == null) return;
+        int mainCount = 0;
+        String firstMainName = null;
+        List<String> extraMains = new ArrayList<>();
+        for (XmlNode attr : attributes.getChildren()) {
+            if (isSystemAttributeElement(attr.getName())) continue;
+            if ("true".equalsIgnoreCase(attr.childText("MainAttribute"))) {
+                mainCount++;
+                String n = attr.attr("name");
+                if (firstMainName == null) firstMainName = n;
+                else if (n != null) extraMains.add(n);
+            }
+        }
+        if (mainCount > 1) {
+            issues.add(ValidationIssue.error("FORM-119",
+                    "Form has " + mainCount + " MainAttribute entries; expected at most 1 "
+                            + "(first='" + firstMainName + "', duplicates=" + extraMains + ")",
+                    0, "/Form/Attributes"));
+        }
+    }
+
+    // ==================== FORM-120: multilingual Title ====================
+
+    private void validateMultilingualTitles(XmlNode root, List<ValidationIssue> issues) {
+        // Проверяем Title у Attributes, Commands, элементов
+        XmlNode attributes = root.child("Attributes");
+        if (attributes != null) {
+            for (XmlNode attr : attributes.getChildren()) {
+                if (isSystemAttributeElement(attr.getName())) continue;
+                checkTitleShape(attr, "/Form/Attributes/" + attr.attr("name"), issues);
+            }
+        }
+        XmlNode commands = root.child("Commands");
+        if (commands != null) {
+            for (XmlNode cmd : commands.getChildren()) {
+                checkTitleShape(cmd, "/Form/Commands/" + cmd.attr("name"), issues);
+            }
+        }
+        XmlNode childItems = root.child("ChildItems");
+        checkTitlesInAllChildItems(root, "/Form", issues);
+    }
+
+    private void checkTitlesRecursive(XmlNode parent, String path, List<ValidationIssue> issues) {
+        for (XmlNode elem : parent.getChildren()) {
+            String p = path + "/" + elem.getName();
+            checkTitleShape(elem, p, issues);
+        }
+    }
+
+    private void checkTitlesInAllChildItems(XmlNode node, String path,
+                                            List<ValidationIssue> issues) {
+        if ("ChildItems".equals(node.getName())) {
+            checkTitlesRecursive(node, path, issues);
+        }
+        for (XmlNode child : node.getChildren()) {
+            checkTitlesInAllChildItems(child, path + "/" + child.getName(), issues);
+        }
+    }
+
+    private void checkTitleShape(XmlNode owner, String ownerPath, List<ValidationIssue> issues) {
+        XmlNode title = owner.child("Title");
+        if (title == null) return;
+        // Title либо пуст, либо имеет v8:item дочерний. Если есть только текст — ошибка.
+        String rawText = title.getText();
+        boolean hasItem = title.getChildren().stream()
+                .anyMatch(c -> "item".equals(c.getName()) && V8_PREFIX.equals(c.getPrefix()));
+        if (!hasItem && rawText != null && !rawText.trim().isEmpty()) {
+            issues.add(ValidationIssue.warning("FORM-120",
+                    "Title for '" + owner.attr("name") + "' is plain text; expected multilingual "
+                            + "<Title><v8:item><v8:lang>ru</v8:lang><v8:content>...</v8:content></v8:item></Title>",
+                    title.getLine(), ownerPath + "/Title"));
+        }
+    }
+}

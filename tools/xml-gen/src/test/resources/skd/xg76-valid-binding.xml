@@ -1,0 +1,32 @@
+﻿<?xml version="1.0" encoding="UTF-8"?>
+<DataCompositionSchema xmlns="http://v8.1c.ru/8.1/data-composition-system/schema" xmlns:dcsat="http://v8.1c.ru/8.1/data-composition-system/area-template" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+	<template>
+		<name>Область</name>
+		<template xsi:type="dcsat:AreaTemplate"/>
+	</template>
+	<groupTemplate>
+		<groupName>Группа</groupName>
+		<templateType>Header</templateType>
+		<template>Область</template>
+	</groupTemplate>
+	<groupTemplate>
+		<groupName>Группа</groupName>
+		<templateType>OverallHeader</templateType>
+		<template>Область</template>
+	</groupTemplate>
+	<groupTemplate>
+		<groupName>Группа</groupName>
+		<templateType>Footer</templateType>
+		<template>Область</template>
+	</groupTemplate>
+	<groupTemplate>
+		<groupName>Группа</groupName>
+		<templateType>OverallFooter</templateType>
+		<template>Область</template>
+	</groupTemplate>
+	<groupHeaderTemplate>
+		<groupName>Группа</groupName>
+		<template>Область</template>
+	</groupHeaderTemplate>
+	<settingsVariant><name>Основной</name></settingsVariant>
+</DataCompositionSchema>

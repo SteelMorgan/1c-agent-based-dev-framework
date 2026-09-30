@@ -1,0 +1,3663 @@
+package io.github.onec.xmlgen.writer;
+
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import io.github.onec.xmlgen.editor.ConfigEditor;
+import io.github.onec.xmlgen.model.ConfigurationXmlReader;
+import io.github.onec.xmlgen.model.MetadataStandardFields;
+import io.github.onec.xmlgen.model.MetadataTypeRegistry;
+import io.github.onec.xmlgen.model.MetadataTypeRegistry.TypeDescriptor;
+import io.github.onec.xmlgen.model.UuidGenerator;
+
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.*;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+
+/**
+ * Генератор объектов метаданных 1С из JSON DSL.
+ * Phase 5b: 7 ссылочных типов — Catalog, Document, Enum,
+ * ChartOfAccounts, ChartOfCharacteristicTypes, ChartOfCalculationTypes, ExchangePlan.
+ * Phase 5c: 4 регистра — InformationRegister, AccumulationRegister,
+ * AccountingRegister, CalculationRegister.
+ * Phase 5d: 12 оставшихся типов — Constant, DefinedType, CommonModule,
+ * ScheduledJob, EventSubscription, Report, DataProcessor,
+ * BusinessProcess, Task, DocumentJournal, HTTPService, WebService.
+ */
+public class MetaWriter {
+
+    private static final byte[] BOM = {(byte) 0xEF, (byte) 0xBB, (byte) 0xBF};
+
+    // --- Russian type name synonyms ---
+    private static final Map<String, String> RU_TYPE_NAMES = new LinkedHashMap<>();
+    static {
+        RU_TYPE_NAMES.put("Справочник", "Catalog");
+        RU_TYPE_NAMES.put("Документ", "Document");
+        RU_TYPE_NAMES.put("Перечисление", "Enum");
+        RU_TYPE_NAMES.put("ПланСчетов", "ChartOfAccounts");
+        RU_TYPE_NAMES.put("ПланВидовХарактеристик", "ChartOfCharacteristicTypes");
+        RU_TYPE_NAMES.put("ПланВидовРасчёта", "ChartOfCalculationTypes");
+        RU_TYPE_NAMES.put("ПланВидовРасчета", "ChartOfCalculationTypes");
+        RU_TYPE_NAMES.put("ПланОбмена", "ExchangePlan");
+        RU_TYPE_NAMES.put("Константа", "Constant");
+        RU_TYPE_NAMES.put("РегистрСведений", "InformationRegister");
+        RU_TYPE_NAMES.put("РегистрНакопления", "AccumulationRegister");
+        RU_TYPE_NAMES.put("РегистрБухгалтерии", "AccountingRegister");
+        RU_TYPE_NAMES.put("РегистрРасчёта", "CalculationRegister");
+        RU_TYPE_NAMES.put("РегистрРасчета", "CalculationRegister");
+        RU_TYPE_NAMES.put("БизнесПроцесс", "BusinessProcess");
+        RU_TYPE_NAMES.put("Задача", "Task");
+        RU_TYPE_NAMES.put("Отчёт", "Report");
+        RU_TYPE_NAMES.put("Отчет", "Report");
+        RU_TYPE_NAMES.put("Обработка", "DataProcessor");
+        RU_TYPE_NAMES.put("ОбщийМодуль", "CommonModule");
+        RU_TYPE_NAMES.put("РегламентноеЗадание", "ScheduledJob");
+        RU_TYPE_NAMES.put("ПодпискаНаСобытие", "EventSubscription");
+        RU_TYPE_NAMES.put("HTTPСервис", "HTTPService");
+        RU_TYPE_NAMES.put("ВебСервис", "WebService");
+        RU_TYPE_NAMES.put("ОпределяемыйТип", "DefinedType");
+        RU_TYPE_NAMES.put("ЖурналДокументов", "DocumentJournal");
+        //++agent TASK-174 XG-108 [20.07.2026 03:28:29]
+        RU_TYPE_NAMES.put("ПараметрСеанса", "SessionParameter");
+        //++agent TASK-174 XG-108
+    }
+
+    // --- Russian DSL type synonyms ---
+    private static final Map<String, String> RU_DSL_TYPES = new LinkedHashMap<>();
+    static {
+        RU_DSL_TYPES.put("Строка", "String");
+        RU_DSL_TYPES.put("Число", "Number");
+        RU_DSL_TYPES.put("Булево", "Boolean");
+        RU_DSL_TYPES.put("Дата", "Date");
+        RU_DSL_TYPES.put("ДатаВремя", "DateTime");
+        RU_DSL_TYPES.put("СправочникСсылка", "CatalogRef");
+        RU_DSL_TYPES.put("ДокументСсылка", "DocumentRef");
+        RU_DSL_TYPES.put("ПеречислениеСсылка", "EnumRef");
+        RU_DSL_TYPES.put("ПланСчетовСсылка", "ChartOfAccountsRef");
+        RU_DSL_TYPES.put("ПланВидовХарактеристикСсылка", "ChartOfCharacteristicTypesRef");
+        RU_DSL_TYPES.put("ПланВидовРасчётаСсылка", "ChartOfCalculationTypesRef");
+        RU_DSL_TYPES.put("ПланВидовРасчетаСсылка", "ChartOfCalculationTypesRef");
+        RU_DSL_TYPES.put("ПланОбменаСсылка", "ExchangePlanRef");
+        RU_DSL_TYPES.put("БизнесПроцессСсылка", "BusinessProcessRef");
+        RU_DSL_TYPES.put("ЗадачаСсылка", "TaskRef");
+        RU_DSL_TYPES.put("ОпределяемыйТип", "DefinedType");
+        //++agent TASK-174 XG-108 [20.07.2026 03:28:29]
+        // Русский тип нужен именно на общей type-поверхности, чтобы он одинаково
+        // работал для параметров сеанса и других объектов с Type.
+        RU_DSL_TYPES.put("ХранилищеЗначения", "ValueStorage");
+        //++agent TASK-174 XG-108
+    }
+
+    // Shorthand attribute pattern: "Name: Type | flags"
+    private static final Pattern ATTR_SHORT =
+            Pattern.compile("^([^:]+?)(?:\\s*:\\s*(.+?))?(?:\\s*\\|\\s*(.+))?$");
+
+    // Type patterns for XML generation
+    private static final Pattern STRING_TYPE = Pattern.compile("String(?:\\((\\d+)\\))?", Pattern.CASE_INSENSITIVE);
+    private static final Pattern NUMBER_TYPE = Pattern.compile("Number\\((\\d+)(?:,(\\d+))?(?:,(nonneg))?\\)", Pattern.CASE_INSENSITIVE);
+
+    // All supported types (Phase 5b-5d)
+    private static final Set<String> SUPPORTED_TYPES = Set.of(
+            // Phase 5b: Reference types
+            "Catalog", "Document", "Enum",
+            "ChartOfAccounts", "ChartOfCharacteristicTypes",
+            "ChartOfCalculationTypes", "ExchangePlan",
+            // Phase 5c: Registers
+            "InformationRegister", "AccumulationRegister",
+            "AccountingRegister", "CalculationRegister",
+            // Phase 5d: Remaining types
+            "Constant", "DefinedType", "SessionParameter", "CommonModule",
+            "ScheduledJob", "EventSubscription",
+            "Report", "DataProcessor",
+            "BusinessProcess", "Task",
+            "DocumentJournal", "HTTPService", "WebService");
+
+    /**
+     * Compile JSON DSL to XML metadata object.
+     *
+     * @param jsonPath  path to JSON definition
+     * @param outputDir root directory for config dump (e.g., src/); type directory is auto-created
+     */
+    public void compile(Path jsonPath, Path outputDir) throws IOException {
+        ObjectMapper mapper = new ObjectMapper();
+        JsonNode root = mapper.readTree(jsonPath.toFile());
+        compileFromNode(root, outputDir);
+    }
+
+    /**
+     * Compile from pre-parsed JsonNode.
+     */
+    public void compileFromNode(JsonNode root, Path outputDir) throws IOException {
+        String rawType = requireString(root, "type");
+        String type = normalizeTypeName(rawType);
+        String name = requireString(root, "name");
+
+        TypeDescriptor td = MetadataTypeRegistry.get(type);
+        if (td == null) {
+            throw new IllegalArgumentException("Unknown metadata type: " + rawType);
+        }
+        if (!SUPPORTED_TYPES.contains(type)) {
+            throw new IllegalArgumentException("Type '" + type + "' not yet supported in meta compile. "
+                    + "Supported: " + String.join(", ", SUPPORTED_TYPES));
+        }
+
+        //++agent TASK-174 XG-101 2026-07-14
+        // Collision должен завершать compile до создания каталога объекта и до
+        // регистрации в Configuration.xml: иначе fail-fast оставляет частичный dump.
+        preflightReservedObjectFields(root, type, name, standardFieldContext(root, type));
+        //--agent TASK-174 XG-101
+
+        //++agent TASK-174 [15.07.2026 22:10:56] XG-104/XG-107
+        // Реквизиты ТЧ проходят typed-проверку до любой записи, чтобы
+        // ошибка indexing/allowedLength не оставляла частичный dump.
+        preflightTabularSectionAttributes(root.get("tabularSections"), type, name);
+        //++agent TASK-174 XG-104/XG-107
+
+        //++agent TASK-221 XG-103 [2026-09-22]
+        // Проверяем расписание до создания каталога и XML объекта: ошибка DSL
+        // не должна оставлять частичный dump ScheduledJob.
+        int scheduledJobRepeatPause = "ScheduledJob".equals(type)
+                ? scheduledJobRepeatPause(root)
+                : 0;
+        //--agent TASK-221 XG-103
+
+        // Resolve output directory: outputDir/<TypeDirectory>/
+        Path typeDir = outputDir.resolve(td.directory());
+        Files.createDirectories(typeDir);
+
+        // Версия формата метаданных берётся из Configuration.xml в корне выгрузки
+        // (TASK-171 D-6): и объект, и Ext/Predefined.xml ДОЛЖНЫ иметь ту же версию,
+        // что и конфигурация, иначе full-load падает «Версия формата ... отличается».
+        Path configurationXml = outputDir.resolve("Configuration.xml");
+        //**agent XG-42 [28.09.2026 19:50:00]
+        //String formatVersion = ConfigurationXmlReader.readFormatVersion(configurationXml);
+        String formatVersion = ConfigurationXmlReader.resolveFormatVersion(outputDir, typeDir);
+        //**agent XG-42
+        preflightConfigurationRegistration(configurationXml, td.xmlElement(), name);
+
+        // Generate UUIDs
+        String objectUuid = UuidGenerator.generate();
+
+        // Build XML
+        String xml = generateXml(root, type, name, td, objectUuid, formatVersion);
+        writeWithBom(typeDir.resolve(name + ".xml"), xml);
+
+        // Create directory structure
+        createDirStructure(typeDir, name, type, td, formatVersion, scheduledJobRepeatPause);
+
+        // Предопределённые элементы (TASK-171 D-1): Ext/Predefined.xml для
+        // справочников и планов видов характеристик/счетов/расчёта.
+        writePredefinedItems(typeDir, name, type, root, formatVersion);
+
+        // Регистрация в Configuration.xml (TASK-171 D-3): без этого шага build
+        // падает «Неизвестное имя типа». Делаем автоматически, если конфиг найден.
+        registerInConfiguration(configurationXml, td.xmlElement(), name);
+    }
+
+    /**
+     * Зарегистрировать объект в {@code <ChildObjects>} {@code Configuration.xml}
+     * (TASK-171 D-3). Переиспользует {@link ConfigEditor} с его каноническим
+     * порядком типов. Если конфиг не найден — предупреждение, без падения:
+     * compile в принципе может вызываться вне корня выгрузки.
+     */
+    private void registerInConfiguration(Path configurationXml, String xmlElement, String name) {
+        if (!Files.isRegularFile(configurationXml)) {
+            System.err.println("WARN: Configuration.xml не найден рядом с outputDir ("
+                    + configurationXml + ") — объект " + xmlElement + "." + name
+                    + " НЕ зарегистрирован. Добавьте вручную: "
+                    + "xml-gen config edit Configuration.xml --op add-childObject --value \""
+                    + xmlElement + "." + name + "\"");
+            return;
+        }
+        try {
+            ConfigEditor editor = new ConfigEditor(configurationXml);
+            editor.addChildObject(xmlElement + "." + name);
+            editor.save();
+        } catch (IOException e) {
+            throw new RuntimeException("Не удалось зарегистрировать " + xmlElement + "." + name
+                    + " в Configuration.xml: " + e.getMessage(), e);
+        }
+    }
+
+    private void preflightConfigurationRegistration(Path configurationXml, String xmlElement, String name) {
+        if (!Files.isRegularFile(configurationXml)) {
+            return;
+        }
+        try {
+            ConfigEditor editor = new ConfigEditor(configurationXml);
+            editor.setSkipFileCheck(true);
+            editor.addChildObject(xmlElement + "." + name);
+        } catch (IOException e) {
+            throw new RuntimeException("Не удалось проверить регистрацию " + xmlElement + "." + name
+                    + " в Configuration.xml: " + e.getMessage(), e);
+        }
+    }
+
+    // ==================== XML Generation ====================
+
+    private String generateXml(JsonNode root, String type, String name,
+                                TypeDescriptor td, String objectUuid, String formatVersion) {
+        String synonym = getString(root, "synonym", null);
+        if (synonym == null) synonym = camelCaseToWords(name);
+        String comment = getString(root, "comment", "");
+
+        StringBuilder sb = new StringBuilder();
+
+        // XML declaration + MetaDataObject root
+        sb.append("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n");
+        sb.append("<MetaDataObject xmlns=\"http://v8.1c.ru/8.3/MDClasses\"\n");
+        sb.append("\txmlns:app=\"http://v8.1c.ru/8.2/managed-application/core\"\n");
+        sb.append("\txmlns:cfg=\"http://v8.1c.ru/8.1/data/enterprise/current-config\"\n");
+        sb.append("\txmlns:cmi=\"http://v8.1c.ru/8.2/managed-application/cmi\"\n");
+        sb.append("\txmlns:ent=\"http://v8.1c.ru/8.1/data/enterprise\"\n");
+        sb.append("\txmlns:lf=\"http://v8.1c.ru/8.2/managed-application/logform\"\n");
+        sb.append("\txmlns:style=\"http://v8.1c.ru/8.1/data/ui/style\"\n");
+        sb.append("\txmlns:sys=\"http://v8.1c.ru/8.1/data/ui/fonts/system\"\n");
+        sb.append("\txmlns:v8=\"http://v8.1c.ru/8.1/data/core\"\n");
+        sb.append("\txmlns:v8ui=\"http://v8.1c.ru/8.1/data/ui\"\n");
+        sb.append("\txmlns:web=\"http://v8.1c.ru/8.1/data/ui/colors/web\"\n");
+        sb.append("\txmlns:win=\"http://v8.1c.ru/8.1/data/ui/colors/windows\"\n");
+        // TASK-171 D-2: канонический namespace v8.1c.ru, иначе платформа при
+        // DESIGNER full-load отвергает объект («Отсутствует внутренняя информация»).
+        sb.append("\txmlns:xen=\"http://v8.1c.ru/8.3/xcf/enums\"\n");
+        sb.append("\txmlns:xpr=\"http://v8.1c.ru/8.3/xcf/predef\"\n");
+        sb.append("\txmlns:xr=\"http://v8.1c.ru/8.3/xcf/readable\"\n");
+        sb.append("\txmlns:xs=\"http://www.w3.org/2001/XMLSchema\"\n");
+        sb.append("\txmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\"\n");
+        // TASK-171 D-6: версия формата из Configuration.xml, не хардкод.
+        sb.append("\tversion=\"").append(formatVersion).append("\">\n");
+
+        // Type element
+        sb.append("\t<").append(td.xmlElement()).append(" uuid=\"").append(objectUuid).append("\">\n");
+
+        // InternalInfo
+        writeInternalInfo(sb, type, name, td);
+
+        // Properties
+        writeProperties(sb, root, type, name, synonym, comment, td);
+
+        // ChildObjects
+        writeChildObjects(sb, root, type, name, td);
+
+        sb.append("\t</").append(td.xmlElement()).append(">\n");
+        sb.append("</MetaDataObject>\n");
+
+        //**agent TASK-174 [07.06.2026 12:05:00]
+        // Порт-аудит: элементы формата 2.20 (TypeReductionMode в стандартных реквизитах,
+        // LineNumberLength в ТЧ — спека §26.1) эмитятся всегда (канон 2.20), а для
+        // конфигураций со старым форматом (< 2.20) вырезаются здесь единым фильтром.
+        // Заодно чинится прежняя непоследовательность: вербатим-блоки
+        // StandardTabularSections писали TypeReductionMode даже в 2.17.
+        //return sb.toString();
+        String xml = sb.toString();
+        if (!isFormatAtLeast220(formatVersion)) {
+            xml = xml.replaceAll("(?m)^\\t*<xr:TypeReductionMode>[^<]*</xr:TypeReductionMode>\\n", "");
+            xml = xml.replaceAll("(?m)^\\t*<LineNumberLength>[^<]*</LineNumberLength>\\n", "");
+        }
+        return xml;
+        //**agent TASK-174
+    }
+
+    //++agent TASK-174 [07.06.2026 12:05:00]
+    /** Формат выгрузки >= 2.20 (платформа 8.3.27+): сравнение по числам major.minor. */
+    static boolean isFormatAtLeast220(String formatVersion) {
+        if (formatVersion == null) return false;
+        Matcher m = Pattern.compile("^(\\d+)\\.(\\d+)").matcher(formatVersion.trim());
+        if (!m.find()) return false;
+        int major = Integer.parseInt(m.group(1));
+        int minor = Integer.parseInt(m.group(2));
+        return major > 2 || (major == 2 && minor >= 20);
+    }
+    //++agent TASK-174
+
+    // ==================== InternalInfo ====================
+
+    private void writeInternalInfo(StringBuilder sb, String type, String name,
+                                    TypeDescriptor td) {
+        // TASK-171 D-4: блок <InternalInfo> существует только у типов с
+        // GeneratedType-категориями (ссылочные, регистры, Constant, DefinedType)
+        // ИЛИ у ExchangePlan (ThisNode). У CommonModule/ScheduledJob/EventSubscription/
+        // HTTPService/WebService категорий нет — пустой <InternalInfo></InternalInfo>
+        // платформа отвергает. Не выводим блок вовсе.
+        if (td.categories().isEmpty() && !"ExchangePlan".equals(type)) {
+            return;
+        }
+
+        sb.append("\t\t<InternalInfo>\n");
+
+        // ExchangePlan: ThisNode
+        if ("ExchangePlan".equals(type)) {
+            sb.append("\t\t\t<xr:ThisNode>").append(UuidGenerator.generate()).append("</xr:ThisNode>\n");
+        }
+
+        // GeneratedType entries
+        for (String category : td.categories()) {
+            String gtName = resolveGeneratedTypeName(type, name, category);
+            sb.append("\t\t\t<xr:GeneratedType name=\"").append(esc(gtName))
+                    .append("\" category=\"").append(category).append("\">\n");
+            sb.append("\t\t\t\t<xr:TypeId>").append(UuidGenerator.generate()).append("</xr:TypeId>\n");
+            sb.append("\t\t\t\t<xr:ValueId>").append(UuidGenerator.generate()).append("</xr:ValueId>\n");
+            sb.append("\t\t\t</xr:GeneratedType>\n");
+        }
+
+        sb.append("\t\t</InternalInfo>\n");
+    }
+
+    private String resolveGeneratedTypeName(String type, String name, String category) {
+        // Pattern: {TypeCategory}.{ObjectName}
+        // e.g., CatalogObject.Номенклатура, CatalogRef.Номенклатура
+        return switch (category) {
+            case "Object" -> type + "Object." + name;
+            case "Ref" -> type + "Ref." + name;
+            case "Selection" -> type + "Selection." + name;
+            case "List" -> type + "List." + name;
+            case "Manager" -> type + "Manager." + name;
+            case "Record" -> type + "Record." + name;
+            case "RecordSet" -> type + "RecordSet." + name;
+            case "RecordKey" -> type + "RecordKey." + name;
+            case "RecordManager" -> type + "RecordManager." + name;
+            case "ValueManager" -> type + "ValueManager." + name;
+            case "ValueKey" -> type + "ValueKey." + name;
+            case "Characteristic" -> type + "Characteristic." + name;
+            case "DefinedType" -> "DefinedType." + name;
+            case "RoutePointRef" -> type + "RoutePointRef." + name;
+            // ChartOfCalculationTypes specifics
+            case "DisplacingCalculationTypes" -> type + "DisplacingCalculationTypes." + name;
+            case "DisplacingCalculationTypesRow" -> type + "DisplacingCalculationTypesRow." + name;
+            case "BaseCalculationTypes" -> type + "BaseCalculationTypes." + name;
+            case "BaseCalculationTypesRow" -> type + "BaseCalculationTypesRow." + name;
+            case "LeadingCalculationTypes" -> type + "LeadingCalculationTypes." + name;
+            case "LeadingCalculationTypesRow" -> type + "LeadingCalculationTypesRow." + name;
+            // AccountingRegister
+            case "ExtDimensions" -> type + "ExtDimensions." + name;
+            default -> type + category + "." + name;
+        };
+    }
+
+    // ==================== Properties ====================
+
+    private void writeProperties(StringBuilder sb, JsonNode root, String type, String name,
+                                  String synonym, String comment, TypeDescriptor td) {
+        sb.append("\t\t<Properties>\n");
+
+        // Common properties
+        writeElement(sb, 3, "Name", name);
+        writeSynonym(sb, 3, synonym);
+        writeComment(sb, 3, comment);
+
+        // Type-specific
+        switch (type) {
+            case "Catalog" -> writeCatalogProperties(sb, root);
+            case "Document" -> writeDocumentProperties(sb, root);
+            case "Enum" -> writeEnumProperties(sb, root);
+            case "ChartOfAccounts" -> writeChartOfAccountsProperties(sb, root);
+            case "ChartOfCharacteristicTypes" -> writeChartOfCharacteristicTypesProperties(sb, root);
+            case "ChartOfCalculationTypes" -> writeChartOfCalculationTypesProperties(sb, root);
+            case "ExchangePlan" -> writeExchangePlanProperties(sb, root);
+            case "InformationRegister" -> writeInformationRegisterProperties(sb, root);
+            case "AccumulationRegister" -> writeAccumulationRegisterProperties(sb, root);
+            case "AccountingRegister" -> writeAccountingRegisterProperties(sb, root);
+            case "CalculationRegister" -> writeCalculationRegisterProperties(sb, root);
+            case "Constant" -> writeConstantProperties(sb, root);
+            case "DefinedType" -> writeDefinedTypeProperties(sb, root);
+            //++agent TASK-174 XG-108 [20.07.2026 03:28:29]
+            case "SessionParameter" -> writeSessionParameterProperties(sb, root);
+            //++agent TASK-174 XG-108
+            case "CommonModule" -> writeCommonModuleProperties(sb, root);
+            case "ScheduledJob" -> writeScheduledJobProperties(sb, root, name);
+            case "EventSubscription" -> writeEventSubscriptionProperties(sb, root);
+            case "Report" -> writeReportProperties(sb, root);
+            case "DataProcessor" -> writeDataProcessorProperties(sb, root);
+            case "BusinessProcess" -> writeBusinessProcessProperties(sb, root);
+            case "Task" -> writeTaskProperties(sb, root);
+            case "DocumentJournal" -> writeDocumentJournalProperties(sb, root);
+            case "HTTPService" -> writeHTTPServiceProperties(sb, root, name);
+            case "WebService" -> writeWebServiceProperties(sb, root);
+        }
+
+        sb.append("\t\t</Properties>\n");
+    }
+
+    // TASK-171 W1: полный набор Properties Catalog в строгом порядке xs:sequence
+    // по образцу _ДемоВидыНоменклатуры (54 элемента). Раньше выпускалось ~19
+    // элементов в произвольном порядке без StandardAttributes — риск отказа full-load.
+    private void writeCatalogProperties(StringBuilder sb, JsonNode root) {
+        String objectName = requireString(root, "name");
+
+        // Hierarchy — поля иерархии присутствуют ВСЕГДА (как в _Демо), а не только
+        // при hierarchical=true; платформа ожидает их в xs:sequence.
+        boolean hierarchical = getBool(root, "hierarchical", false);
+        writeElement(sb, 3, "Hierarchical", String.valueOf(hierarchical));
+        writeElement(sb, 3, "HierarchyType",
+                getString(root, "hierarchyType", "HierarchyFoldersAndItems"));
+        writeElement(sb, 3, "LimitLevelCount",
+                String.valueOf(getBool(root, "limitLevelCount", false)));
+        writeElement(sb, 3, "LevelCount", String.valueOf(getInt(root, "levelCount", 2)));
+        writeElement(sb, 3, "FoldersOnTop",
+                String.valueOf(getBool(root, "foldersOnTop", true)));
+
+        writeElement(sb, 3, "UseStandardCommands",
+                String.valueOf(getBool(root, "useStandardCommands", true)));
+
+        // Owners + subordination (SubordinationUse идёт сразу за Owners)
+        List<String> owners = getStringList(root, "owners");
+        if (owners.isEmpty()) {
+            writeEmptyElement(sb, 3, "Owners");
+        } else {
+            sb.append(indent(3)).append("<Owners>\n");
+            for (String owner : owners) {
+                sb.append(indent(4)).append("<xr:Item xsi:type=\"xr:MDObjectRef\">")
+                        .append(esc(owner)).append("</xr:Item>\n");
+            }
+            sb.append(indent(3)).append("</Owners>\n");
+        }
+        writeElement(sb, 3, "SubordinationUse",
+                getString(root, "subordinationUse", "ToItems"));
+
+        // Code & description — порядок _Демо: CodeLength, DescriptionLength, CodeType,
+        // CodeAllowedLength, CodeSeries, CheckUnique, Autonumbering, DefaultPresentation
+        writeElement(sb, 3, "CodeLength", String.valueOf(getInt(root, "codeLength", 9)));
+        writeElement(sb, 3, "DescriptionLength", String.valueOf(getInt(root, "descriptionLength", 25)));
+        writeElement(sb, 3, "CodeType", getString(root, "codeType", "String"));
+        writeElement(sb, 3, "CodeAllowedLength", getString(root, "codeAllowedLength", "Variable"));
+        writeElement(sb, 3, "CodeSeries", getString(root, "codeSeries", "WholeCatalog"));
+        writeElement(sb, 3, "CheckUnique", String.valueOf(getBool(root, "checkUnique", true)));
+        writeElement(sb, 3, "Autonumbering", String.valueOf(getBool(root, "autonumbering", true)));
+        writeElement(sb, 3, "DefaultPresentation",
+                getString(root, "defaultPresentation", "AsDescription"));
+
+        // StandardAttributes + Characteristics + PredefinedDataUpdate
+        writeStandardAttributes(sb, "Catalog");
+        writeEmptyElement(sb, 3, "Characteristics");
+        writeElement(sb, 3, "PredefinedDataUpdate",
+                getString(root, "predefinedDataUpdate", "Auto"));
+
+        // Edit / choice
+        writeElement(sb, 3, "EditType", getString(root, "editType", "InDialog"));
+        writeElement(sb, 3, "QuickChoice", String.valueOf(getBool(root, "quickChoice", false)));
+        writeElement(sb, 3, "ChoiceMode", getString(root, "choiceMode", "BothWays"));
+
+        // Input-by-string + режимы поиска
+        writeInputByString(sb, "Catalog", objectName, "Description", "Code");
+        writeElement(sb, 3, "SearchStringModeOnInputByString",
+                getString(root, "searchStringModeOnInputByString", "Begin"));
+        writeElement(sb, 3, "FullTextSearchOnInputByString",
+                getString(root, "fullTextSearchOnInputByString", "DontUse"));
+        writeElement(sb, 3, "ChoiceDataGetModeOnInputByString",
+                getString(root, "choiceDataGetModeOnInputByString", "Directly"));
+
+        // Формы (Default*/Auxiliary*) — всегда пустые по дефолту
+        writePresentationBlocks(sb, "DefaultObjectForm", "DefaultFolderForm",
+                "DefaultListForm", "DefaultChoiceForm", "DefaultFolderChoiceForm",
+                "AuxiliaryObjectForm", "AuxiliaryFolderForm", "AuxiliaryListForm",
+                "AuxiliaryChoiceForm", "AuxiliaryFolderChoiceForm");
+
+        writeElement(sb, 3, "IncludeHelpInContents",
+                String.valueOf(getBool(root, "includeHelpInContents", false)));
+        writeEmptyElement(sb, 3, "BasedOn");
+        writeEmptyElement(sb, 3, "DataLockFields");
+        writeBehaviorProperties(sb, root); // DataLockControlMode + FullTextSearch
+        writePresentationBlocks(sb, "ObjectPresentation", "ExtendedObjectPresentation",
+                "ListPresentation", "ExtendedListPresentation", "Explanation");
+
+        writeElement(sb, 3, "CreateOnInput", getString(root, "createOnInput", "DontUse"));
+        writeElement(sb, 3, "ChoiceHistoryOnInput",
+                getString(root, "choiceHistoryOnInput", "Auto"));
+        writeDataHistoryTail(sb, root);
+    }
+
+    // TASK-171 W1: полный набор Properties Document в строгом порядке xs:sequence
+    // по образцу _ДемоЗаказПокупателя (46 элементов). КРИТИЧНО: PostInPrivilegedMode/
+    // UnpostInPrivilegedMode идут ПОСЛЕ RegisterRecords (а тот — после SequenceFilling).
+    // Старый writer ставил Post*/Unpost* ДО RegisterRecords и до движений —
+    // платформа отвергает такой xs:sequence (XDTO-отказ).
+    private void writeDocumentProperties(StringBuilder sb, JsonNode root) {
+        String objectName = requireString(root, "name");
+
+        writeElement(sb, 3, "UseStandardCommands",
+                String.valueOf(getBool(root, "useStandardCommands", true)));
+
+        // Numbering
+        writeEmptyElement(sb, 3, "Numerator");
+        writeElement(sb, 3, "NumberType", getString(root, "numberType", "String"));
+        writeElement(sb, 3, "NumberLength", String.valueOf(getInt(root, "numberLength", 11)));
+        writeElement(sb, 3, "NumberAllowedLength", getString(root, "numberAllowedLength", "Variable"));
+        writeElement(sb, 3, "NumberPeriodicity", getString(root, "numberPeriodicity", "Year"));
+        writeElement(sb, 3, "CheckUnique", String.valueOf(getBool(root, "checkUnique", true)));
+        writeElement(sb, 3, "Autonumbering", String.valueOf(getBool(root, "autonumbering", true)));
+
+        // StandardAttributes + Characteristics + BasedOn
+        writeStandardAttributes(sb, "Document");
+        writeEmptyElement(sb, 3, "Characteristics");
+        writeEmptyElement(sb, 3, "BasedOn");
+
+        // Input-by-string (Number) + CreateOnInput + режимы поиска
+        writeInputByString(sb, "Document", objectName, "Number");
+        writeElement(sb, 3, "CreateOnInput", getString(root, "createOnInput", "DontUse"));
+        writeElement(sb, 3, "SearchStringModeOnInputByString",
+                getString(root, "searchStringModeOnInputByString", "Begin"));
+        writeElement(sb, 3, "FullTextSearchOnInputByString",
+                getString(root, "fullTextSearchOnInputByString", "DontUse"));
+        writeElement(sb, 3, "ChoiceDataGetModeOnInputByString",
+                getString(root, "choiceDataGetModeOnInputByString", "Directly"));
+
+        // Формы
+        writePresentationBlocks(sb, "DefaultObjectForm", "DefaultListForm",
+                "DefaultChoiceForm", "AuxiliaryObjectForm", "AuxiliaryListForm",
+                "AuxiliaryChoiceForm");
+
+        // Posting + движения. Порядок _Демо: Posting, RealTimePosting,
+        // RegisterRecordsDeletion, RegisterRecordsWritingOnPost, SequenceFilling,
+        // RegisterRecords, PostInPrivilegedMode, UnpostInPrivilegedMode.
+        writeElement(sb, 3, "Posting", getString(root, "posting", "Allow"));
+        writeElement(sb, 3, "RealTimePosting", getString(root, "realTimePosting", "Deny"));
+        writeElement(sb, 3, "RegisterRecordsDeletion",
+                getString(root, "registerRecordsDeletion", "AutoDeleteOnUnpost"));
+        writeElement(sb, 3, "RegisterRecordsWritingOnPost",
+                getString(root, "registerRecordsWritingOnPost", "WriteSelected"));
+        writeElement(sb, 3, "SequenceFilling", getString(root, "sequenceFilling", "AutoFill"));
+
+        List<String> registerRecords = getStringList(root, "registerRecords");
+        if (registerRecords.isEmpty()) {
+            writeEmptyElement(sb, 3, "RegisterRecords");
+        } else {
+            sb.append(indent(3)).append("<RegisterRecords>\n");
+            for (String rr : registerRecords) {
+                sb.append(indent(4)).append("<xr:Item xsi:type=\"xr:MDObjectRef\">")
+                        .append(esc(rr)).append("</xr:Item>\n");
+            }
+            sb.append(indent(3)).append("</RegisterRecords>\n");
+        }
+        writeElement(sb, 3, "PostInPrivilegedMode",
+                String.valueOf(getBool(root, "postInPrivilegedMode", true)));
+        writeElement(sb, 3, "UnpostInPrivilegedMode",
+                String.valueOf(getBool(root, "unpostInPrivilegedMode", true)));
+
+        writeElement(sb, 3, "IncludeHelpInContents",
+                String.valueOf(getBool(root, "includeHelpInContents", false)));
+        writeEmptyElement(sb, 3, "DataLockFields");
+        writeBehaviorProperties(sb, root); // DataLockControlMode + FullTextSearch
+        writePresentationBlocks(sb, "ObjectPresentation", "ExtendedObjectPresentation",
+                "ListPresentation", "ExtendedListPresentation", "Explanation");
+
+        writeElement(sb, 3, "ChoiceHistoryOnInput",
+                getString(root, "choiceHistoryOnInput", "Auto"));
+        writeDataHistoryTail(sb, root);
+    }
+
+    // TASK-171 W1: полный набор Properties Enum по образцу
+    // _ДемоСтатусыЗаказовПокупателей. Ранее выпускались только QuickChoice/ChoiceMode
+    // без UseStandardCommands/StandardAttributes/форм/презентаций.
+    private void writeEnumProperties(StringBuilder sb, JsonNode root) {
+        writeElement(sb, 3, "UseStandardCommands",
+                String.valueOf(getBool(root, "useStandardCommands", false)));
+        writeStandardAttributes(sb, "Enum");
+        writeEmptyElement(sb, 3, "Characteristics");
+        writeElement(sb, 3, "QuickChoice", String.valueOf(getBool(root, "quickChoice", true)));
+        writeElement(sb, 3, "ChoiceMode", getString(root, "choiceMode", "BothWays"));
+        writePresentationBlocks(sb, "DefaultListForm", "DefaultChoiceForm",
+                "AuxiliaryListForm", "AuxiliaryChoiceForm",
+                "ListPresentation", "ExtendedListPresentation", "Explanation");
+        writeElement(sb, 3, "ChoiceHistoryOnInput",
+                getString(root, "choiceHistoryOnInput", "Auto"));
+    }
+
+    //++agent TASK-171 [01.06.2026 21:11:12]
+    // Полный набор Properties ChartOfAccounts в порядке xs:sequence по грунт-труфу
+    // ChartsOfAccounts/_ДемоОсновной.xml (46 элементов). Прежний writer выпускал ~12
+    // элементов без StandardAttributes/StandardTabularSections/форм/презентаций — риск
+    // отказа full-load. Особенности: Hierarchical/Autonumbering отсутствуют у плана
+    // счетов; CodeMask присутствует всегда (пустым); StandardTabularSections содержит
+    // фиксированную секцию ExtDimensionTypes (вербатим по грунт-труфу).
+    private void writeChartOfAccountsProperties(StringBuilder sb, JsonNode root) {
+        String objectName = requireString(root, "name");
+
+        writeElement(sb, 3, "UseStandardCommands",
+                String.valueOf(getBool(root, "useStandardCommands", true)));
+        writeElement(sb, 3, "IncludeHelpInContents",
+                String.valueOf(getBool(root, "includeHelpInContents", false)));
+        writeEmptyElement(sb, 3, "BasedOn");
+
+        String edt = getString(root, "extDimensionTypes", "");
+        if (edt.isEmpty()) {
+            writeEmptyElement(sb, 3, "ExtDimensionTypes");
+        } else {
+            writeElement(sb, 3, "ExtDimensionTypes", edt);
+        }
+        writeElement(sb, 3, "MaxExtDimensionCount",
+                String.valueOf(getInt(root, "maxExtDimensionCount", 3)));
+
+        // CodeMask присутствует всегда (как в _Демо), даже пустым.
+        String codeMask = getString(root, "codeMask", "");
+        if (codeMask.isEmpty()) {
+            writeEmptyElement(sb, 3, "CodeMask");
+        } else {
+            writeElement(sb, 3, "CodeMask", codeMask);
+        }
+        writeElement(sb, 3, "CodeLength", String.valueOf(getInt(root, "codeLength", 8)));
+        writeElement(sb, 3, "DescriptionLength", String.valueOf(getInt(root, "descriptionLength", 120)));
+        writeElement(sb, 3, "CodeSeries", getString(root, "codeSeries", "WholeChartOfAccounts"));
+        writeElement(sb, 3, "CheckUnique", String.valueOf(getBool(root, "checkUnique", true)));
+        writeElement(sb, 3, "DefaultPresentation",
+                getString(root, "defaultPresentation", "AsDescription"));
+
+        writeStandardAttributes(sb, "ChartOfAccounts");
+        writeEmptyElement(sb, 3, "Characteristics");
+        writeChartOfAccountsStandardTabularSections(sb);
+        writeElement(sb, 3, "PredefinedDataUpdate",
+                getString(root, "predefinedDataUpdate", "Auto"));
+
+        writeElement(sb, 3, "EditType", getString(root, "editType", "InDialog"));
+        writeElement(sb, 3, "QuickChoice", String.valueOf(getBool(root, "quickChoice", false)));
+        writeElement(sb, 3, "ChoiceMode", getString(root, "choiceMode", "BothWays"));
+
+        writeInputByString(sb, "ChartOfAccounts", objectName, "Code", "Description");
+        writeElement(sb, 3, "SearchStringModeOnInputByString",
+                getString(root, "searchStringModeOnInputByString", "Begin"));
+        writeElement(sb, 3, "FullTextSearchOnInputByString",
+                getString(root, "fullTextSearchOnInputByString", "DontUse"));
+        writeElement(sb, 3, "ChoiceDataGetModeOnInputByString",
+                getString(root, "choiceDataGetModeOnInputByString", "Directly"));
+        writeElement(sb, 3, "CreateOnInput", getString(root, "createOnInput", "DontUse"));
+        writeElement(sb, 3, "ChoiceHistoryOnInput",
+                getString(root, "choiceHistoryOnInput", "Auto"));
+
+        writePresentationBlocks(sb, "DefaultObjectForm", "DefaultListForm",
+                "DefaultChoiceForm", "AuxiliaryObjectForm", "AuxiliaryListForm",
+                "AuxiliaryChoiceForm");
+
+        writeElement(sb, 3, "AutoOrderByCode",
+                String.valueOf(getBool(root, "autoOrderByCode", true)));
+        writeElement(sb, 3, "OrderLength", String.valueOf(getInt(root, "orderLength", 5)));
+
+        writeEmptyElement(sb, 3, "DataLockFields");
+        writeBehaviorProperties(sb, root); // DataLockControlMode + FullTextSearch
+        writeDataHistoryTail(sb, root);
+        writePresentationBlocks(sb, "ObjectPresentation", "ExtendedObjectPresentation",
+                "ListPresentation", "ExtendedListPresentation", "Explanation");
+    }
+    //++agent TASK-171
+
+    //++agent TASK-171 [01.06.2026 21:11:12]
+    // Полный набор Properties ChartOfCharacteristicTypes в порядке xs:sequence по
+    // грунт-труфу ChartsOfCharacteristicTypes/_ДемоВидыСубконто.xml (50 элементов).
+    // Прежний writer выпускал ~14 элементов в неверном порядке без StandardAttributes/
+    // форм/презентаций — риск отказа full-load (тот же класс, что D-6 у Catalog/Document).
+    // Особенности грунт-труфа: CodeType отсутствует (только CodeLength/CodeAllowedLength);
+    // CharacteristicExtValues, Type, Hierarchical, FoldersOnTop идут ДО блока кода.
+    private void writeChartOfCharacteristicTypesProperties(StringBuilder sb, JsonNode root) {
+        String objectName = requireString(root, "name");
+
+        writeElement(sb, 3, "UseStandardCommands",
+                String.valueOf(getBool(root, "useStandardCommands", true)));
+        writeElement(sb, 3, "IncludeHelpInContents",
+                String.valueOf(getBool(root, "includeHelpInContents", false)));
+
+        // CharacteristicExtValues (ссылка на справочник доп.значений) — обычно пуст.
+        String charExtVal = getString(root, "characteristicExtValues", "");
+        if (charExtVal.isEmpty()) {
+            writeEmptyElement(sb, 3, "CharacteristicExtValues");
+        } else {
+            writeElement(sb, 3, "CharacteristicExtValues", charExtVal);
+        }
+
+        // Type — состав типов характеристик (всегда присутствует).
+        List<String> valueTypes = getValueTypesList(root);
+        if (valueTypes.isEmpty()) {
+            valueTypes = List.of("Boolean", "String(100)", "Number(15,2)", "DateTime");
+        }
+        writeTypeComposite(sb, 3, valueTypes);
+
+        // Иерархия (поля присутствуют всегда — как в _Демо).
+        writeElement(sb, 3, "Hierarchical",
+                String.valueOf(getBool(root, "hierarchical", false)));
+        writeElement(sb, 3, "FoldersOnTop",
+                String.valueOf(getBool(root, "foldersOnTop", true)));
+
+        // Код/наименование (без CodeType — грунт-труф его не пишет).
+        writeElement(sb, 3, "CodeLength", String.valueOf(getInt(root, "codeLength", 9)));
+        writeElement(sb, 3, "CodeAllowedLength", getString(root, "codeAllowedLength", "Variable"));
+        writeElement(sb, 3, "DescriptionLength", String.valueOf(getInt(root, "descriptionLength", 25)));
+        writeElement(sb, 3, "CodeSeries", getString(root, "codeSeries", "WholeCharacteristicKind"));
+        writeElement(sb, 3, "CheckUnique", String.valueOf(getBool(root, "checkUnique", false)));
+        writeElement(sb, 3, "Autonumbering", String.valueOf(getBool(root, "autonumbering", true)));
+        writeElement(sb, 3, "DefaultPresentation",
+                getString(root, "defaultPresentation", "AsDescription"));
+
+        writeStandardAttributes(sb, "ChartOfCharacteristicTypes");
+        writeEmptyElement(sb, 3, "Characteristics");
+        writeElement(sb, 3, "PredefinedDataUpdate",
+                getString(root, "predefinedDataUpdate", "Auto"));
+
+        writeElement(sb, 3, "EditType", getString(root, "editType", "InDialog"));
+        writeElement(sb, 3, "QuickChoice", String.valueOf(getBool(root, "quickChoice", false)));
+        writeElement(sb, 3, "ChoiceMode", getString(root, "choiceMode", "BothWays"));
+
+        writeInputByString(sb, "ChartOfCharacteristicTypes", objectName, "Description", "Code");
+        writeElement(sb, 3, "CreateOnInput", getString(root, "createOnInput", "DontUse"));
+        writeElement(sb, 3, "SearchStringModeOnInputByString",
+                getString(root, "searchStringModeOnInputByString", "Begin"));
+        writeElement(sb, 3, "ChoiceDataGetModeOnInputByString",
+                getString(root, "choiceDataGetModeOnInputByString", "Directly"));
+        writeElement(sb, 3, "FullTextSearchOnInputByString",
+                getString(root, "fullTextSearchOnInputByString", "DontUse"));
+        writeElement(sb, 3, "ChoiceHistoryOnInput",
+                getString(root, "choiceHistoryOnInput", "Auto"));
+
+        writePresentationBlocks(sb, "DefaultObjectForm", "DefaultFolderForm",
+                "DefaultListForm", "DefaultChoiceForm", "DefaultFolderChoiceForm",
+                "AuxiliaryObjectForm", "AuxiliaryFolderForm", "AuxiliaryListForm",
+                "AuxiliaryChoiceForm", "AuxiliaryFolderChoiceForm");
+
+        writeEmptyElement(sb, 3, "BasedOn");
+        writeEmptyElement(sb, 3, "DataLockFields");
+        writeBehaviorProperties(sb, root); // DataLockControlMode + FullTextSearch
+        writePresentationBlocks(sb, "ObjectPresentation", "ExtendedObjectPresentation",
+                "ListPresentation", "ExtendedListPresentation", "Explanation");
+        writeDataHistoryTail(sb, root);
+    }
+    //++agent TASK-171
+
+    //++agent TASK-171 [01.06.2026 21:11:12]
+    // Полный набор Properties ChartOfCalculationTypes в порядке xs:sequence по грунт-труфу
+    // ChartsOfCalculationTypes/_ДемоОсновныеНачисления.xml (44 элемента). Прежний writer
+    // выпускал ~13 элементов без StandardAttributes/StandardTabularSections/форм/презентаций
+    // и в неверном порядке. StandardTabularSections содержит фиксированные секции
+    // Leading/Displacing/BaseCalculationTypes (вербатим). Сохранены D-7 нормализация
+    // DependenceOnCalculationTypes и дефолт DontUse.
+    private void writeChartOfCalculationTypesProperties(StringBuilder sb, JsonNode root) {
+        String objectName = requireString(root, "name");
+
+        writeElement(sb, 3, "UseStandardCommands",
+                String.valueOf(getBool(root, "useStandardCommands", true)));
+        writeElement(sb, 3, "CodeLength", String.valueOf(getInt(root, "codeLength", 9)));
+        writeElement(sb, 3, "DescriptionLength", String.valueOf(getInt(root, "descriptionLength", 25)));
+        writeElement(sb, 3, "CodeType", getString(root, "codeType", "String"));
+        writeElement(sb, 3, "CodeAllowedLength", getString(root, "codeAllowedLength", "Variable"));
+        writeElement(sb, 3, "DefaultPresentation",
+                getString(root, "defaultPresentation", "AsDescription"));
+
+        writeElement(sb, 3, "EditType", getString(root, "editType", "InDialog"));
+        writeElement(sb, 3, "QuickChoice", String.valueOf(getBool(root, "quickChoice", false)));
+        writeElement(sb, 3, "ChoiceMode", getString(root, "choiceMode", "BothWays"));
+
+        writeInputByString(sb, "ChartOfCalculationTypes", objectName, "Description", "Code");
+        writeElement(sb, 3, "SearchStringModeOnInputByString",
+                getString(root, "searchStringModeOnInputByString", "Begin"));
+        writeElement(sb, 3, "FullTextSearchOnInputByString",
+                getString(root, "fullTextSearchOnInputByString", "DontUse"));
+        writeElement(sb, 3, "ChoiceDataGetModeOnInputByString",
+                getString(root, "choiceDataGetModeOnInputByString", "Directly"));
+        writeElement(sb, 3, "CreateOnInput", getString(root, "createOnInput", "DontUse"));
+        writeElement(sb, 3, "ChoiceHistoryOnInput",
+                getString(root, "choiceHistoryOnInput", "Auto"));
+
+        writePresentationBlocks(sb, "DefaultObjectForm", "DefaultListForm",
+                "DefaultChoiceForm", "AuxiliaryObjectForm", "AuxiliaryListForm",
+                "AuxiliaryChoiceForm");
+
+        writeEmptyElement(sb, 3, "BasedOn");
+
+        // TASK-171 D-7: дефолт DontUse (не "NotUsed" — такого значения у платформы нет;
+        // грунт-труф _ДемоОсновныеНачисления = OnActionPeriod, валидные = DontUse/OnActionPeriod).
+        writeElement(sb, 3, "DependenceOnCalculationTypes",
+                normalizeDependence(getString(root, "dependenceOnCalculationTypes", "DontUse")));
+
+        List<String> baseCT = getStringList(root, "baseCalculationTypes");
+        if (baseCT.isEmpty()) {
+            writeEmptyElement(sb, 3, "BaseCalculationTypes");
+        } else {
+            sb.append(indent(3)).append("<BaseCalculationTypes>\n");
+            for (String ct : baseCT) {
+                sb.append(indent(4)).append("<xr:Item xsi:type=\"xr:MDObjectRef\">")
+                        .append(esc(ct)).append("</xr:Item>\n");
+            }
+            sb.append(indent(3)).append("</BaseCalculationTypes>\n");
+        }
+
+        writeElement(sb, 3, "ActionPeriodUse",
+                String.valueOf(getBool(root, "actionPeriodUse", false)));
+
+        writeStandardAttributes(sb, "ChartOfCalculationTypes");
+        writeEmptyElement(sb, 3, "Characteristics");
+        writeChartOfCalculationTypesStandardTabularSections(sb);
+        writeElement(sb, 3, "PredefinedDataUpdate",
+                getString(root, "predefinedDataUpdate", "Auto"));
+
+        writeElement(sb, 3, "IncludeHelpInContents",
+                String.valueOf(getBool(root, "includeHelpInContents", false)));
+        writeEmptyElement(sb, 3, "DataLockFields");
+        writeBehaviorProperties(sb, root); // DataLockControlMode + FullTextSearch
+        writePresentationBlocks(sb, "ObjectPresentation", "ExtendedObjectPresentation",
+                "ListPresentation", "ExtendedListPresentation", "Explanation");
+        writeDataHistoryTail(sb, root);
+    }
+    //++agent TASK-171
+
+    //++agent TASK-171 [01.06.2026 21:11:12]
+    // Полный набор Properties ExchangePlan в порядке xs:sequence по грунт-труфу
+    // ExchangePlans/_ДемоАвтономнаяРабота.xml (40 элементов). Прежний writer выпускал
+    // ~5 элементов без StandardAttributes/форм/презентаций. Особенность: DistributedInfoBase/
+    // IncludeConfigurationExtensions идут ПОСЛЕ StandardAttributes/Characteristics/BasedOn.
+    private void writeExchangePlanProperties(StringBuilder sb, JsonNode root) {
+        String objectName = requireString(root, "name");
+
+        writeElement(sb, 3, "UseStandardCommands",
+                String.valueOf(getBool(root, "useStandardCommands", true)));
+        writeElement(sb, 3, "CodeLength", String.valueOf(getInt(root, "codeLength", 9)));
+        writeElement(sb, 3, "CodeAllowedLength", getString(root, "codeAllowedLength", "Variable"));
+        writeElement(sb, 3, "DescriptionLength", String.valueOf(getInt(root, "descriptionLength", 100)));
+        writeElement(sb, 3, "DefaultPresentation",
+                getString(root, "defaultPresentation", "AsDescription"));
+
+        writeElement(sb, 3, "EditType", getString(root, "editType", "InDialog"));
+        writeElement(sb, 3, "QuickChoice", String.valueOf(getBool(root, "quickChoice", false)));
+        writeElement(sb, 3, "ChoiceMode", getString(root, "choiceMode", "BothWays"));
+
+        writeInputByString(sb, "ExchangePlan", objectName, "Description", "Code");
+        writeElement(sb, 3, "SearchStringModeOnInputByString",
+                getString(root, "searchStringModeOnInputByString", "Begin"));
+        writeElement(sb, 3, "FullTextSearchOnInputByString",
+                getString(root, "fullTextSearchOnInputByString", "DontUse"));
+        writeElement(sb, 3, "ChoiceDataGetModeOnInputByString",
+                getString(root, "choiceDataGetModeOnInputByString", "Directly"));
+
+        writePresentationBlocks(sb, "DefaultObjectForm", "DefaultListForm",
+                "DefaultChoiceForm", "AuxiliaryObjectForm", "AuxiliaryListForm",
+                "AuxiliaryChoiceForm");
+
+        writeStandardAttributes(sb, "ExchangePlan");
+        writeEmptyElement(sb, 3, "Characteristics");
+        writeEmptyElement(sb, 3, "BasedOn");
+
+        writeElement(sb, 3, "DistributedInfoBase",
+                String.valueOf(getBool(root, "distributedInfoBase", false)));
+        writeElement(sb, 3, "IncludeConfigurationExtensions",
+                String.valueOf(getBool(root, "includeConfigurationExtensions", false)));
+
+        writeElement(sb, 3, "CreateOnInput", getString(root, "createOnInput", "DontUse"));
+        writeElement(sb, 3, "ChoiceHistoryOnInput",
+                getString(root, "choiceHistoryOnInput", "Auto"));
+        writeElement(sb, 3, "IncludeHelpInContents",
+                String.valueOf(getBool(root, "includeHelpInContents", false)));
+        writeEmptyElement(sb, 3, "DataLockFields");
+        writeBehaviorProperties(sb, root); // DataLockControlMode + FullTextSearch
+        writePresentationBlocks(sb, "ObjectPresentation", "ExtendedObjectPresentation",
+                "ListPresentation", "ExtendedListPresentation", "Explanation");
+        writeDataHistoryTail(sb, root);
+    }
+    //++agent TASK-171
+
+    // TASK-171 W1: полный набор Properties InformationRegister по образцу
+    // _ДемоГрафикиРаботы. Ранее выпускались только периодичность/режим записи
+    // без UseStandardCommands/форм/StandardAttributes/презентаций.
+    private void writeInformationRegisterProperties(StringBuilder sb, JsonNode root) {
+        writeElement(sb, 3, "UseStandardCommands",
+                String.valueOf(getBool(root, "useStandardCommands", true)));
+        writeElement(sb, 3, "EditType", getString(root, "editType", "InDialog"));
+        writePresentationBlocks(sb, "DefaultRecordForm", "DefaultListForm",
+                "AuxiliaryRecordForm", "AuxiliaryListForm");
+        writeStandardAttributes(sb, "InformationRegister");
+
+        String periodicity = getString(root, "periodicity", "Nonperiodical");
+        writeElement(sb, 3, "InformationRegisterPeriodicity", periodicity);
+        writeElement(sb, 3, "WriteMode", getString(root, "writeMode", "Independent"));
+        boolean isPeriodic = !"Nonperiodical".equals(periodicity);
+        writeElement(sb, 3, "MainFilterOnPeriod",
+                String.valueOf(getBool(root, "mainFilterOnPeriod", isPeriodic)));
+
+        writeElement(sb, 3, "IncludeHelpInContents",
+                String.valueOf(getBool(root, "includeHelpInContents", false)));
+        writeBehaviorProperties(sb, root); // DataLockControlMode + FullTextSearch
+        writeElement(sb, 3, "EnableTotalsSliceFirst",
+                String.valueOf(getBool(root, "enableTotalsSliceFirst", false)));
+        writeElement(sb, 3, "EnableTotalsSliceLast",
+                String.valueOf(getBool(root, "enableTotalsSliceLast", false)));
+        writePresentationBlocks(sb, "RecordPresentation", "ExtendedRecordPresentation",
+                "ListPresentation", "ExtendedListPresentation", "Explanation");
+        writeDataHistoryTail(sb, root);
+    }
+
+    // TASK-171 W1: полный набор Properties AccumulationRegister по образцу
+    // _ДемоОстаткиТоваровВМестахХранения. TASK-171 D-8: дефолт RegisterType=Balance
+    // (не "Balances" — такого значения у платформы нет, см. D-1).
+    private void writeAccumulationRegisterProperties(StringBuilder sb, JsonNode root) {
+        //++agent TASK-171 [01.06.2026 21:32:00]
+        // RegisterType считаем один раз: от него зависит набор StandardAttributes.
+        String regType = normalizeRegisterType(getString(root, "registerType", "Balance"));
+        //++agent TASK-171
+        writeElement(sb, 3, "UseStandardCommands",
+                String.valueOf(getBool(root, "useStandardCommands", true)));
+        writePresentationBlocks(sb, "DefaultListForm", "AuxiliaryListForm");
+        writeElement(sb, 3, "RegisterType", regType);
+        writeElement(sb, 3, "IncludeHelpInContents",
+                String.valueOf(getBool(root, "includeHelpInContents", false)));
+        //++agent TASK-171 [01.06.2026 21:32:00]
+        // RecordType — стандартный реквизит ТОЛЬКО у balance-регистра: грунт-труф
+        // _ДемоОстаткиТоваровВМестахХранения (RegisterType=Balance) пишет RecordType
+        // первым в <StandardAttributes>, а оборотный _ДемоОборотыПоСчетамНаОплату — нет.
+        // Прежняя статическая карта RecordType пропускала, поэтому balance-регистр
+        // недовыпускал реквизит (P3-структурный дифф прошёл по совпадению на обороте).
+        writeStandardAttributes(sb, "AccumulationRegister",
+                new MetadataStandardFields.Context(regType, false, false, false));
+        //++agent TASK-171
+        writeBehaviorProperties(sb, root); // DataLockControlMode + FullTextSearch
+        writeElement(sb, 3, "EnableTotalsSplitting",
+                String.valueOf(getBool(root, "enableTotalsSplitting", true)));
+        writePresentationBlocks(sb, "ListPresentation", "ExtendedListPresentation", "Explanation");
+    }
+
+    /** TASK-171 D-1/D-8: нормализация значения RegisterType (алиас Balances → Balance). */
+    private static String normalizeRegisterType(String value) {
+        return "Balances".equalsIgnoreCase(value) ? "Balance" : value;
+    }
+
+    /** TASK-171 D-7: нормализация DependenceOnCalculationTypes (фантомные алиасы → DontUse). */
+    private static String normalizeDependence(String value) {
+        if (value == null) return "DontUse";
+        return switch (value) {
+            case "NotUsed", "NoDependence", "NotDependOnCalculationTypes" -> "DontUse";
+            default -> value;
+        };
+    }
+
+    // TASK-171 W1: полный набор Properties AccountingRegister по образцу
+    // _ДемоЖурналПроводокБухгалтерскогоУчета. Порядок _Демо: EnableTotalsSplitting
+    // между DataLockControlMode и FullTextSearch.
+    private void writeAccountingRegisterProperties(StringBuilder sb, JsonNode root) {
+        String coa = getString(root, "chartOfAccounts", "");
+        if (coa.isEmpty()) {
+            throw new IllegalArgumentException(
+                    "AccountingRegister requires 'chartOfAccounts' property");
+        }
+        writeElement(sb, 3, "UseStandardCommands",
+                String.valueOf(getBool(root, "useStandardCommands", true)));
+        writeElement(sb, 3, "IncludeHelpInContents",
+                String.valueOf(getBool(root, "includeHelpInContents", false)));
+        writeElement(sb, 3, "ChartOfAccounts", coa);
+        boolean correspondence = getBool(root, "correspondence", false);
+        writeElement(sb, 3, "Correspondence", String.valueOf(correspondence));
+        writeElement(sb, 3, "PeriodAdjustmentLength",
+                String.valueOf(getInt(root, "periodAdjustmentLength", 0)));
+        writePresentationBlocks(sb, "DefaultListForm", "AuxiliaryListForm");
+        writeStandardAttributes(sb, "AccountingRegister",
+                new MetadataStandardFields.Context("Balance", correspondence, false, false));
+        writeElement(sb, 3, "DataLockControlMode",
+                getString(root, "dataLockControlMode", "Automatic"));
+        writeElement(sb, 3, "EnableTotalsSplitting",
+                String.valueOf(getBool(root, "enableTotalsSplitting", true)));
+        writeElement(sb, 3, "FullTextSearch", getString(root, "fullTextSearch", "Use"));
+        writePresentationBlocks(sb, "ListPresentation", "ExtendedListPresentation", "Explanation");
+    }
+
+    // TASK-171 W1: полный набор Properties CalculationRegister по образцу
+    // _ДемоОсновныеНачисления. Порядок _Демо (грунт-труф) — ChartOfCalculationTypes
+    // идёт ПОСЛЕ блока Schedule, а Schedule/ScheduleValue/ScheduleDate присутствуют
+    // всегда (пустыми). Раньше ChartOfCalculationTypes писался первым и Schedule*
+    // пропускались при отсутствии — несоответствие xs:sequence.
+    private void writeCalculationRegisterProperties(StringBuilder sb, JsonNode root) {
+        String coct = getString(root, "chartOfCalculationTypes", "");
+        if (coct.isEmpty()) {
+            throw new IllegalArgumentException(
+                    "CalculationRegister requires 'chartOfCalculationTypes' property");
+        }
+        writeElement(sb, 3, "UseStandardCommands",
+                String.valueOf(getBool(root, "useStandardCommands", true)));
+        writePresentationBlocks(sb, "DefaultListForm", "AuxiliaryListForm");
+        writeElement(sb, 3, "Periodicity", getString(root, "periodicity", "Month"));
+        boolean actionPeriod = getBool(root, "actionPeriod", false);
+        boolean basePeriod = getBool(root, "basePeriod", false);
+        writeElement(sb, 3, "ActionPeriod", String.valueOf(actionPeriod));
+        writeElement(sb, 3, "BasePeriod", String.valueOf(basePeriod));
+
+        // Schedule-блок присутствует всегда (пустой, если не задан).
+        String schedule = getString(root, "schedule", "");
+        if (schedule.isEmpty()) writeEmptyElement(sb, 3, "Schedule");
+        else writeElement(sb, 3, "Schedule", schedule);
+        String scheduleValue = getString(root, "scheduleValue", "");
+        if (scheduleValue.isEmpty()) writeEmptyElement(sb, 3, "ScheduleValue");
+        else writeElement(sb, 3, "ScheduleValue", scheduleValue);
+        String scheduleDate = getString(root, "scheduleDate", "");
+        if (scheduleDate.isEmpty()) writeEmptyElement(sb, 3, "ScheduleDate");
+        else writeElement(sb, 3, "ScheduleDate", scheduleDate);
+
+        writeElement(sb, 3, "ChartOfCalculationTypes", coct);
+        writeElement(sb, 3, "IncludeHelpInContents",
+                String.valueOf(getBool(root, "includeHelpInContents", false)));
+        writeStandardAttributes(sb, "CalculationRegister",
+                new MetadataStandardFields.Context("Balance", false, actionPeriod, basePeriod));
+        writeBehaviorProperties(sb, root); // DataLockControlMode + FullTextSearch
+        writePresentationBlocks(sb, "ListPresentation", "ExtendedListPresentation", "Explanation");
+    }
+
+    private void writeBehaviorProperties(StringBuilder sb, JsonNode root) {
+        writeElement(sb, 3, "DataLockControlMode",
+                getString(root, "dataLockControlMode", "Automatic"));
+        writeElement(sb, 3, "FullTextSearch", getString(root, "fullTextSearch", "Use"));
+    }
+
+    //++agent TASK-171 [01.06.2026 21:11:12]
+    // Платформенные StandardTabularSections для ChartOfAccounts/ChartOfCalculationTypes.
+    // Это фиксированные структуры (атрибуты TS включают TypeReductionMode, которого нет у
+    // обычного writeStandardAttribute), поэтому эмитятся вербатимом по грунт-труфу
+    // ChartsOfAccounts/_ДемоОсновной.xml и ChartsOfCalculationTypes/_ДемоОсновныеНачисления.xml.
+    private void writeChartOfAccountsStandardTabularSections(StringBuilder sb) {
+        sb.append(indent(0)).append("<StandardTabularSections>\n");
+        sb.append(indent(4)).append("<xr:StandardTabularSection name=\"ExtDimensionTypes\">\n");
+        sb.append(indent(5)).append("<xr:Synonym/>\n");
+        sb.append(indent(5)).append("<xr:Comment/>\n");
+        sb.append(indent(5)).append("<xr:ToolTip/>\n");
+        sb.append(indent(5)).append("<xr:FillChecking>DontCheck</xr:FillChecking>\n");
+        sb.append(indent(5)).append("<xr:StandardAttributes>\n");
+        sb.append(indent(6)).append("<xr:StandardAttribute name=\"TurnoversOnly\">\n");
+        sb.append(indent(7)).append("<xr:LinkByType/>\n");
+        sb.append(indent(7)).append("<xr:FillChecking>DontCheck</xr:FillChecking>\n");
+        sb.append(indent(7)).append("<xr:MultiLine>false</xr:MultiLine>\n");
+        sb.append(indent(7)).append("<xr:FillFromFillingValue>false</xr:FillFromFillingValue>\n");
+        sb.append(indent(7)).append("<xr:CreateOnInput>Auto</xr:CreateOnInput>\n");
+        sb.append(indent(7)).append("<xr:TypeReductionMode>TransformValues</xr:TypeReductionMode>\n");
+        sb.append(indent(7)).append("<xr:MaxValue xsi:nil=\"true\"/>\n");
+        sb.append(indent(7)).append("<xr:ToolTip/>\n");
+        sb.append(indent(7)).append("<xr:ExtendedEdit>false</xr:ExtendedEdit>\n");
+        sb.append(indent(7)).append("<xr:Format/>\n");
+        sb.append(indent(7)).append("<xr:ChoiceForm/>\n");
+        sb.append(indent(7)).append("<xr:QuickChoice>Auto</xr:QuickChoice>\n");
+        sb.append(indent(7)).append("<xr:ChoiceHistoryOnInput>Auto</xr:ChoiceHistoryOnInput>\n");
+        sb.append(indent(7)).append("<xr:EditFormat/>\n");
+        sb.append(indent(7)).append("<xr:PasswordMode>false</xr:PasswordMode>\n");
+        sb.append(indent(7)).append("<xr:DataHistory>Use</xr:DataHistory>\n");
+        sb.append(indent(7)).append("<xr:MarkNegatives>false</xr:MarkNegatives>\n");
+        sb.append(indent(7)).append("<xr:MinValue xsi:nil=\"true\"/>\n");
+        sb.append(indent(7)).append("<xr:Synonym/>\n");
+        sb.append(indent(7)).append("<xr:Comment/>\n");
+        sb.append(indent(7)).append("<xr:FullTextSearch>Use</xr:FullTextSearch>\n");
+        sb.append(indent(7)).append("<xr:ChoiceParameterLinks/>\n");
+        sb.append(indent(7)).append("<xr:FillValue xsi:nil=\"true\"/>\n");
+        sb.append(indent(7)).append("<xr:Mask/>\n");
+        sb.append(indent(7)).append("<xr:ChoiceParameters/>\n");
+        sb.append(indent(6)).append("</xr:StandardAttribute>\n");
+        sb.append(indent(6)).append("<xr:StandardAttribute name=\"Predefined\">\n");
+        sb.append(indent(7)).append("<xr:LinkByType/>\n");
+        sb.append(indent(7)).append("<xr:FillChecking>DontCheck</xr:FillChecking>\n");
+        sb.append(indent(7)).append("<xr:MultiLine>false</xr:MultiLine>\n");
+        sb.append(indent(7)).append("<xr:FillFromFillingValue>false</xr:FillFromFillingValue>\n");
+        sb.append(indent(7)).append("<xr:CreateOnInput>Auto</xr:CreateOnInput>\n");
+        sb.append(indent(7)).append("<xr:TypeReductionMode>TransformValues</xr:TypeReductionMode>\n");
+        sb.append(indent(7)).append("<xr:MaxValue xsi:nil=\"true\"/>\n");
+        sb.append(indent(7)).append("<xr:ToolTip/>\n");
+        sb.append(indent(7)).append("<xr:ExtendedEdit>false</xr:ExtendedEdit>\n");
+        sb.append(indent(7)).append("<xr:Format/>\n");
+        sb.append(indent(7)).append("<xr:ChoiceForm/>\n");
+        sb.append(indent(7)).append("<xr:QuickChoice>Auto</xr:QuickChoice>\n");
+        sb.append(indent(7)).append("<xr:ChoiceHistoryOnInput>Auto</xr:ChoiceHistoryOnInput>\n");
+        sb.append(indent(7)).append("<xr:EditFormat/>\n");
+        sb.append(indent(7)).append("<xr:PasswordMode>false</xr:PasswordMode>\n");
+        sb.append(indent(7)).append("<xr:DataHistory>Use</xr:DataHistory>\n");
+        sb.append(indent(7)).append("<xr:MarkNegatives>false</xr:MarkNegatives>\n");
+        sb.append(indent(7)).append("<xr:MinValue xsi:nil=\"true\"/>\n");
+        sb.append(indent(7)).append("<xr:Synonym/>\n");
+        sb.append(indent(7)).append("<xr:Comment/>\n");
+        sb.append(indent(7)).append("<xr:FullTextSearch>Use</xr:FullTextSearch>\n");
+        sb.append(indent(7)).append("<xr:ChoiceParameterLinks/>\n");
+        sb.append(indent(7)).append("<xr:FillValue xsi:nil=\"true\"/>\n");
+        sb.append(indent(7)).append("<xr:Mask/>\n");
+        sb.append(indent(7)).append("<xr:ChoiceParameters/>\n");
+        sb.append(indent(6)).append("</xr:StandardAttribute>\n");
+        sb.append(indent(6)).append("<xr:StandardAttribute name=\"ExtDimensionType\">\n");
+        sb.append(indent(7)).append("<xr:LinkByType/>\n");
+        sb.append(indent(7)).append("<xr:FillChecking>ShowError</xr:FillChecking>\n");
+        sb.append(indent(7)).append("<xr:MultiLine>false</xr:MultiLine>\n");
+        sb.append(indent(7)).append("<xr:FillFromFillingValue>false</xr:FillFromFillingValue>\n");
+        sb.append(indent(7)).append("<xr:CreateOnInput>Auto</xr:CreateOnInput>\n");
+        sb.append(indent(7)).append("<xr:TypeReductionMode>TransformValues</xr:TypeReductionMode>\n");
+        sb.append(indent(7)).append("<xr:MaxValue xsi:nil=\"true\"/>\n");
+        sb.append(indent(7)).append("<xr:ToolTip/>\n");
+        sb.append(indent(7)).append("<xr:ExtendedEdit>false</xr:ExtendedEdit>\n");
+        sb.append(indent(7)).append("<xr:Format/>\n");
+        sb.append(indent(7)).append("<xr:ChoiceForm/>\n");
+        sb.append(indent(7)).append("<xr:QuickChoice>Auto</xr:QuickChoice>\n");
+        sb.append(indent(7)).append("<xr:ChoiceHistoryOnInput>Auto</xr:ChoiceHistoryOnInput>\n");
+        sb.append(indent(7)).append("<xr:EditFormat/>\n");
+        sb.append(indent(7)).append("<xr:PasswordMode>false</xr:PasswordMode>\n");
+        sb.append(indent(7)).append("<xr:DataHistory>Use</xr:DataHistory>\n");
+        sb.append(indent(7)).append("<xr:MarkNegatives>false</xr:MarkNegatives>\n");
+        sb.append(indent(7)).append("<xr:MinValue xsi:nil=\"true\"/>\n");
+        sb.append(indent(7)).append("<xr:Synonym/>\n");
+        sb.append(indent(7)).append("<xr:Comment/>\n");
+        sb.append(indent(7)).append("<xr:FullTextSearch>Use</xr:FullTextSearch>\n");
+        sb.append(indent(7)).append("<xr:ChoiceParameterLinks/>\n");
+        sb.append(indent(7)).append("<xr:FillValue xsi:nil=\"true\"/>\n");
+        sb.append(indent(7)).append("<xr:Mask/>\n");
+        sb.append(indent(7)).append("<xr:ChoiceParameters/>\n");
+        sb.append(indent(6)).append("</xr:StandardAttribute>\n");
+        sb.append(indent(6)).append("<xr:StandardAttribute name=\"LineNumber\">\n");
+        sb.append(indent(7)).append("<xr:LinkByType/>\n");
+        sb.append(indent(7)).append("<xr:FillChecking>DontCheck</xr:FillChecking>\n");
+        sb.append(indent(7)).append("<xr:MultiLine>false</xr:MultiLine>\n");
+        sb.append(indent(7)).append("<xr:FillFromFillingValue>false</xr:FillFromFillingValue>\n");
+        sb.append(indent(7)).append("<xr:CreateOnInput>Auto</xr:CreateOnInput>\n");
+        sb.append(indent(7)).append("<xr:TypeReductionMode>TransformValues</xr:TypeReductionMode>\n");
+        sb.append(indent(7)).append("<xr:MaxValue xsi:nil=\"true\"/>\n");
+        sb.append(indent(7)).append("<xr:ToolTip/>\n");
+        sb.append(indent(7)).append("<xr:ExtendedEdit>false</xr:ExtendedEdit>\n");
+        sb.append(indent(7)).append("<xr:Format/>\n");
+        sb.append(indent(7)).append("<xr:ChoiceForm/>\n");
+        sb.append(indent(7)).append("<xr:QuickChoice>Auto</xr:QuickChoice>\n");
+        sb.append(indent(7)).append("<xr:ChoiceHistoryOnInput>Auto</xr:ChoiceHistoryOnInput>\n");
+        sb.append(indent(7)).append("<xr:EditFormat/>\n");
+        sb.append(indent(7)).append("<xr:PasswordMode>false</xr:PasswordMode>\n");
+        sb.append(indent(7)).append("<xr:DataHistory>Use</xr:DataHistory>\n");
+        sb.append(indent(7)).append("<xr:MarkNegatives>false</xr:MarkNegatives>\n");
+        sb.append(indent(7)).append("<xr:MinValue xsi:nil=\"true\"/>\n");
+        sb.append(indent(7)).append("<xr:Synonym/>\n");
+        sb.append(indent(7)).append("<xr:Comment/>\n");
+        sb.append(indent(7)).append("<xr:FullTextSearch>Use</xr:FullTextSearch>\n");
+        sb.append(indent(7)).append("<xr:ChoiceParameterLinks/>\n");
+        sb.append(indent(7)).append("<xr:FillValue xsi:nil=\"true\"/>\n");
+        sb.append(indent(7)).append("<xr:Mask/>\n");
+        sb.append(indent(7)).append("<xr:ChoiceParameters/>\n");
+        sb.append(indent(6)).append("</xr:StandardAttribute>\n");
+        sb.append(indent(5)).append("</xr:StandardAttributes>\n");
+        sb.append(indent(4)).append("</xr:StandardTabularSection>\n");
+        sb.append(indent(3)).append("</StandardTabularSections>\n");
+    }
+
+    private void writeChartOfCalculationTypesStandardTabularSections(StringBuilder sb) {
+        sb.append(indent(0)).append("<StandardTabularSections>\n");
+        sb.append(indent(4)).append("<xr:StandardTabularSection name=\"LeadingCalculationTypes\">\n");
+        sb.append(indent(5)).append("<xr:Synonym/>\n");
+        sb.append(indent(5)).append("<xr:Comment/>\n");
+        sb.append(indent(5)).append("<xr:ToolTip/>\n");
+        sb.append(indent(5)).append("<xr:FillChecking>DontCheck</xr:FillChecking>\n");
+        sb.append(indent(5)).append("<xr:StandardAttributes>\n");
+        sb.append(indent(6)).append("<xr:StandardAttribute name=\"Predefined\">\n");
+        sb.append(indent(7)).append("<xr:LinkByType/>\n");
+        sb.append(indent(7)).append("<xr:FillChecking>DontCheck</xr:FillChecking>\n");
+        sb.append(indent(7)).append("<xr:MultiLine>false</xr:MultiLine>\n");
+        sb.append(indent(7)).append("<xr:FillFromFillingValue>false</xr:FillFromFillingValue>\n");
+        sb.append(indent(7)).append("<xr:CreateOnInput>Auto</xr:CreateOnInput>\n");
+        sb.append(indent(7)).append("<xr:TypeReductionMode>TransformValues</xr:TypeReductionMode>\n");
+        sb.append(indent(7)).append("<xr:MaxValue xsi:nil=\"true\"/>\n");
+        sb.append(indent(7)).append("<xr:ToolTip/>\n");
+        sb.append(indent(7)).append("<xr:ExtendedEdit>false</xr:ExtendedEdit>\n");
+        sb.append(indent(7)).append("<xr:Format/>\n");
+        sb.append(indent(7)).append("<xr:ChoiceForm/>\n");
+        sb.append(indent(7)).append("<xr:QuickChoice>Auto</xr:QuickChoice>\n");
+        sb.append(indent(7)).append("<xr:ChoiceHistoryOnInput>Auto</xr:ChoiceHistoryOnInput>\n");
+        sb.append(indent(7)).append("<xr:EditFormat/>\n");
+        sb.append(indent(7)).append("<xr:PasswordMode>false</xr:PasswordMode>\n");
+        sb.append(indent(7)).append("<xr:DataHistory>Use</xr:DataHistory>\n");
+        sb.append(indent(7)).append("<xr:MarkNegatives>false</xr:MarkNegatives>\n");
+        sb.append(indent(7)).append("<xr:MinValue xsi:nil=\"true\"/>\n");
+        sb.append(indent(7)).append("<xr:Synonym/>\n");
+        sb.append(indent(7)).append("<xr:Comment/>\n");
+        sb.append(indent(7)).append("<xr:FullTextSearch>Use</xr:FullTextSearch>\n");
+        sb.append(indent(7)).append("<xr:ChoiceParameterLinks/>\n");
+        sb.append(indent(7)).append("<xr:FillValue xsi:nil=\"true\"/>\n");
+        sb.append(indent(7)).append("<xr:Mask/>\n");
+        sb.append(indent(7)).append("<xr:ChoiceParameters/>\n");
+        sb.append(indent(6)).append("</xr:StandardAttribute>\n");
+        sb.append(indent(6)).append("<xr:StandardAttribute name=\"CalculationType\">\n");
+        sb.append(indent(7)).append("<xr:LinkByType/>\n");
+        sb.append(indent(7)).append("<xr:FillChecking>ShowError</xr:FillChecking>\n");
+        sb.append(indent(7)).append("<xr:MultiLine>false</xr:MultiLine>\n");
+        sb.append(indent(7)).append("<xr:FillFromFillingValue>false</xr:FillFromFillingValue>\n");
+        sb.append(indent(7)).append("<xr:CreateOnInput>Auto</xr:CreateOnInput>\n");
+        sb.append(indent(7)).append("<xr:TypeReductionMode>TransformValues</xr:TypeReductionMode>\n");
+        sb.append(indent(7)).append("<xr:MaxValue xsi:nil=\"true\"/>\n");
+        sb.append(indent(7)).append("<xr:ToolTip/>\n");
+        sb.append(indent(7)).append("<xr:ExtendedEdit>false</xr:ExtendedEdit>\n");
+        sb.append(indent(7)).append("<xr:Format/>\n");
+        sb.append(indent(7)).append("<xr:ChoiceForm/>\n");
+        sb.append(indent(7)).append("<xr:QuickChoice>Auto</xr:QuickChoice>\n");
+        sb.append(indent(7)).append("<xr:ChoiceHistoryOnInput>Auto</xr:ChoiceHistoryOnInput>\n");
+        sb.append(indent(7)).append("<xr:EditFormat/>\n");
+        sb.append(indent(7)).append("<xr:PasswordMode>false</xr:PasswordMode>\n");
+        sb.append(indent(7)).append("<xr:DataHistory>Use</xr:DataHistory>\n");
+        sb.append(indent(7)).append("<xr:MarkNegatives>false</xr:MarkNegatives>\n");
+        sb.append(indent(7)).append("<xr:MinValue xsi:nil=\"true\"/>\n");
+        sb.append(indent(7)).append("<xr:Synonym/>\n");
+        sb.append(indent(7)).append("<xr:Comment/>\n");
+        sb.append(indent(7)).append("<xr:FullTextSearch>Use</xr:FullTextSearch>\n");
+        sb.append(indent(7)).append("<xr:ChoiceParameterLinks/>\n");
+        sb.append(indent(7)).append("<xr:FillValue xsi:nil=\"true\"/>\n");
+        sb.append(indent(7)).append("<xr:Mask/>\n");
+        sb.append(indent(7)).append("<xr:ChoiceParameters/>\n");
+        sb.append(indent(6)).append("</xr:StandardAttribute>\n");
+        sb.append(indent(6)).append("<xr:StandardAttribute name=\"LineNumber\">\n");
+        sb.append(indent(7)).append("<xr:LinkByType/>\n");
+        sb.append(indent(7)).append("<xr:FillChecking>DontCheck</xr:FillChecking>\n");
+        sb.append(indent(7)).append("<xr:MultiLine>false</xr:MultiLine>\n");
+        sb.append(indent(7)).append("<xr:FillFromFillingValue>false</xr:FillFromFillingValue>\n");
+        sb.append(indent(7)).append("<xr:CreateOnInput>Auto</xr:CreateOnInput>\n");
+        sb.append(indent(7)).append("<xr:TypeReductionMode>TransformValues</xr:TypeReductionMode>\n");
+        sb.append(indent(7)).append("<xr:MaxValue xsi:nil=\"true\"/>\n");
+        sb.append(indent(7)).append("<xr:ToolTip/>\n");
+        sb.append(indent(7)).append("<xr:ExtendedEdit>false</xr:ExtendedEdit>\n");
+        sb.append(indent(7)).append("<xr:Format/>\n");
+        sb.append(indent(7)).append("<xr:ChoiceForm/>\n");
+        sb.append(indent(7)).append("<xr:QuickChoice>Auto</xr:QuickChoice>\n");
+        sb.append(indent(7)).append("<xr:ChoiceHistoryOnInput>Auto</xr:ChoiceHistoryOnInput>\n");
+        sb.append(indent(7)).append("<xr:EditFormat/>\n");
+        sb.append(indent(7)).append("<xr:PasswordMode>false</xr:PasswordMode>\n");
+        sb.append(indent(7)).append("<xr:DataHistory>Use</xr:DataHistory>\n");
+        sb.append(indent(7)).append("<xr:MarkNegatives>false</xr:MarkNegatives>\n");
+        sb.append(indent(7)).append("<xr:MinValue xsi:nil=\"true\"/>\n");
+        sb.append(indent(7)).append("<xr:Synonym/>\n");
+        sb.append(indent(7)).append("<xr:Comment/>\n");
+        sb.append(indent(7)).append("<xr:FullTextSearch>Use</xr:FullTextSearch>\n");
+        sb.append(indent(7)).append("<xr:ChoiceParameterLinks/>\n");
+        sb.append(indent(7)).append("<xr:FillValue xsi:nil=\"true\"/>\n");
+        sb.append(indent(7)).append("<xr:Mask/>\n");
+        sb.append(indent(7)).append("<xr:ChoiceParameters/>\n");
+        sb.append(indent(6)).append("</xr:StandardAttribute>\n");
+        sb.append(indent(5)).append("</xr:StandardAttributes>\n");
+        sb.append(indent(4)).append("</xr:StandardTabularSection>\n");
+        sb.append(indent(4)).append("<xr:StandardTabularSection name=\"DisplacingCalculationTypes\">\n");
+        sb.append(indent(5)).append("<xr:Synonym/>\n");
+        sb.append(indent(5)).append("<xr:Comment/>\n");
+        sb.append(indent(5)).append("<xr:ToolTip/>\n");
+        sb.append(indent(5)).append("<xr:FillChecking>DontCheck</xr:FillChecking>\n");
+        sb.append(indent(5)).append("<xr:StandardAttributes>\n");
+        sb.append(indent(6)).append("<xr:StandardAttribute name=\"Predefined\">\n");
+        sb.append(indent(7)).append("<xr:LinkByType/>\n");
+        sb.append(indent(7)).append("<xr:FillChecking>DontCheck</xr:FillChecking>\n");
+        sb.append(indent(7)).append("<xr:MultiLine>false</xr:MultiLine>\n");
+        sb.append(indent(7)).append("<xr:FillFromFillingValue>false</xr:FillFromFillingValue>\n");
+        sb.append(indent(7)).append("<xr:CreateOnInput>Auto</xr:CreateOnInput>\n");
+        sb.append(indent(7)).append("<xr:TypeReductionMode>TransformValues</xr:TypeReductionMode>\n");
+        sb.append(indent(7)).append("<xr:MaxValue xsi:nil=\"true\"/>\n");
+        sb.append(indent(7)).append("<xr:ToolTip/>\n");
+        sb.append(indent(7)).append("<xr:ExtendedEdit>false</xr:ExtendedEdit>\n");
+        sb.append(indent(7)).append("<xr:Format/>\n");
+        sb.append(indent(7)).append("<xr:ChoiceForm/>\n");
+        sb.append(indent(7)).append("<xr:QuickChoice>Auto</xr:QuickChoice>\n");
+        sb.append(indent(7)).append("<xr:ChoiceHistoryOnInput>Auto</xr:ChoiceHistoryOnInput>\n");
+        sb.append(indent(7)).append("<xr:EditFormat/>\n");
+        sb.append(indent(7)).append("<xr:PasswordMode>false</xr:PasswordMode>\n");
+        sb.append(indent(7)).append("<xr:DataHistory>Use</xr:DataHistory>\n");
+        sb.append(indent(7)).append("<xr:MarkNegatives>false</xr:MarkNegatives>\n");
+        sb.append(indent(7)).append("<xr:MinValue xsi:nil=\"true\"/>\n");
+        sb.append(indent(7)).append("<xr:Synonym/>\n");
+        sb.append(indent(7)).append("<xr:Comment/>\n");
+        sb.append(indent(7)).append("<xr:FullTextSearch>Use</xr:FullTextSearch>\n");
+        sb.append(indent(7)).append("<xr:ChoiceParameterLinks/>\n");
+        sb.append(indent(7)).append("<xr:FillValue xsi:nil=\"true\"/>\n");
+        sb.append(indent(7)).append("<xr:Mask/>\n");
+        sb.append(indent(7)).append("<xr:ChoiceParameters/>\n");
+        sb.append(indent(6)).append("</xr:StandardAttribute>\n");
+        sb.append(indent(6)).append("<xr:StandardAttribute name=\"CalculationType\">\n");
+        sb.append(indent(7)).append("<xr:LinkByType/>\n");
+        sb.append(indent(7)).append("<xr:FillChecking>ShowError</xr:FillChecking>\n");
+        sb.append(indent(7)).append("<xr:MultiLine>false</xr:MultiLine>\n");
+        sb.append(indent(7)).append("<xr:FillFromFillingValue>false</xr:FillFromFillingValue>\n");
+        sb.append(indent(7)).append("<xr:CreateOnInput>Auto</xr:CreateOnInput>\n");
+        sb.append(indent(7)).append("<xr:TypeReductionMode>TransformValues</xr:TypeReductionMode>\n");
+        sb.append(indent(7)).append("<xr:MaxValue xsi:nil=\"true\"/>\n");
+        sb.append(indent(7)).append("<xr:ToolTip/>\n");
+        sb.append(indent(7)).append("<xr:ExtendedEdit>false</xr:ExtendedEdit>\n");
+        sb.append(indent(7)).append("<xr:Format/>\n");
+        sb.append(indent(7)).append("<xr:ChoiceForm/>\n");
+        sb.append(indent(7)).append("<xr:QuickChoice>Auto</xr:QuickChoice>\n");
+        sb.append(indent(7)).append("<xr:ChoiceHistoryOnInput>Auto</xr:ChoiceHistoryOnInput>\n");
+        sb.append(indent(7)).append("<xr:EditFormat/>\n");
+        sb.append(indent(7)).append("<xr:PasswordMode>false</xr:PasswordMode>\n");
+        sb.append(indent(7)).append("<xr:DataHistory>Use</xr:DataHistory>\n");
+        sb.append(indent(7)).append("<xr:MarkNegatives>false</xr:MarkNegatives>\n");
+        sb.append(indent(7)).append("<xr:MinValue xsi:nil=\"true\"/>\n");
+        sb.append(indent(7)).append("<xr:Synonym/>\n");
+        sb.append(indent(7)).append("<xr:Comment/>\n");
+        sb.append(indent(7)).append("<xr:FullTextSearch>Use</xr:FullTextSearch>\n");
+        sb.append(indent(7)).append("<xr:ChoiceParameterLinks/>\n");
+        sb.append(indent(7)).append("<xr:FillValue xsi:nil=\"true\"/>\n");
+        sb.append(indent(7)).append("<xr:Mask/>\n");
+        sb.append(indent(7)).append("<xr:ChoiceParameters/>\n");
+        sb.append(indent(6)).append("</xr:StandardAttribute>\n");
+        sb.append(indent(6)).append("<xr:StandardAttribute name=\"LineNumber\">\n");
+        sb.append(indent(7)).append("<xr:LinkByType/>\n");
+        sb.append(indent(7)).append("<xr:FillChecking>DontCheck</xr:FillChecking>\n");
+        sb.append(indent(7)).append("<xr:MultiLine>false</xr:MultiLine>\n");
+        sb.append(indent(7)).append("<xr:FillFromFillingValue>false</xr:FillFromFillingValue>\n");
+        sb.append(indent(7)).append("<xr:CreateOnInput>Auto</xr:CreateOnInput>\n");
+        sb.append(indent(7)).append("<xr:TypeReductionMode>TransformValues</xr:TypeReductionMode>\n");
+        sb.append(indent(7)).append("<xr:MaxValue xsi:nil=\"true\"/>\n");
+        sb.append(indent(7)).append("<xr:ToolTip/>\n");
+        sb.append(indent(7)).append("<xr:ExtendedEdit>false</xr:ExtendedEdit>\n");
+        sb.append(indent(7)).append("<xr:Format/>\n");
+        sb.append(indent(7)).append("<xr:ChoiceForm/>\n");
+        sb.append(indent(7)).append("<xr:QuickChoice>Auto</xr:QuickChoice>\n");
+        sb.append(indent(7)).append("<xr:ChoiceHistoryOnInput>Auto</xr:ChoiceHistoryOnInput>\n");
+        sb.append(indent(7)).append("<xr:EditFormat/>\n");
+        sb.append(indent(7)).append("<xr:PasswordMode>false</xr:PasswordMode>\n");
+        sb.append(indent(7)).append("<xr:DataHistory>Use</xr:DataHistory>\n");
+        sb.append(indent(7)).append("<xr:MarkNegatives>false</xr:MarkNegatives>\n");
+        sb.append(indent(7)).append("<xr:MinValue xsi:nil=\"true\"/>\n");
+        sb.append(indent(7)).append("<xr:Synonym/>\n");
+        sb.append(indent(7)).append("<xr:Comment/>\n");
+        sb.append(indent(7)).append("<xr:FullTextSearch>Use</xr:FullTextSearch>\n");
+        sb.append(indent(7)).append("<xr:ChoiceParameterLinks/>\n");
+        sb.append(indent(7)).append("<xr:FillValue xsi:nil=\"true\"/>\n");
+        sb.append(indent(7)).append("<xr:Mask/>\n");
+        sb.append(indent(7)).append("<xr:ChoiceParameters/>\n");
+        sb.append(indent(6)).append("</xr:StandardAttribute>\n");
+        sb.append(indent(5)).append("</xr:StandardAttributes>\n");
+        sb.append(indent(4)).append("</xr:StandardTabularSection>\n");
+        sb.append(indent(4)).append("<xr:StandardTabularSection name=\"BaseCalculationTypes\">\n");
+        sb.append(indent(5)).append("<xr:Synonym/>\n");
+        sb.append(indent(5)).append("<xr:Comment/>\n");
+        sb.append(indent(5)).append("<xr:ToolTip/>\n");
+        sb.append(indent(5)).append("<xr:FillChecking>DontCheck</xr:FillChecking>\n");
+        sb.append(indent(5)).append("<xr:StandardAttributes>\n");
+        sb.append(indent(6)).append("<xr:StandardAttribute name=\"Predefined\">\n");
+        sb.append(indent(7)).append("<xr:LinkByType/>\n");
+        sb.append(indent(7)).append("<xr:FillChecking>DontCheck</xr:FillChecking>\n");
+        sb.append(indent(7)).append("<xr:MultiLine>false</xr:MultiLine>\n");
+        sb.append(indent(7)).append("<xr:FillFromFillingValue>false</xr:FillFromFillingValue>\n");
+        sb.append(indent(7)).append("<xr:CreateOnInput>Auto</xr:CreateOnInput>\n");
+        sb.append(indent(7)).append("<xr:TypeReductionMode>TransformValues</xr:TypeReductionMode>\n");
+        sb.append(indent(7)).append("<xr:MaxValue xsi:nil=\"true\"/>\n");
+        sb.append(indent(7)).append("<xr:ToolTip/>\n");
+        sb.append(indent(7)).append("<xr:ExtendedEdit>false</xr:ExtendedEdit>\n");
+        sb.append(indent(7)).append("<xr:Format/>\n");
+        sb.append(indent(7)).append("<xr:ChoiceForm/>\n");
+        sb.append(indent(7)).append("<xr:QuickChoice>Auto</xr:QuickChoice>\n");
+        sb.append(indent(7)).append("<xr:ChoiceHistoryOnInput>Auto</xr:ChoiceHistoryOnInput>\n");
+        sb.append(indent(7)).append("<xr:EditFormat/>\n");
+        sb.append(indent(7)).append("<xr:PasswordMode>false</xr:PasswordMode>\n");
+        sb.append(indent(7)).append("<xr:DataHistory>Use</xr:DataHistory>\n");
+        sb.append(indent(7)).append("<xr:MarkNegatives>false</xr:MarkNegatives>\n");
+        sb.append(indent(7)).append("<xr:MinValue xsi:nil=\"true\"/>\n");
+        sb.append(indent(7)).append("<xr:Synonym/>\n");
+        sb.append(indent(7)).append("<xr:Comment/>\n");
+        sb.append(indent(7)).append("<xr:FullTextSearch>Use</xr:FullTextSearch>\n");
+        sb.append(indent(7)).append("<xr:ChoiceParameterLinks/>\n");
+        sb.append(indent(7)).append("<xr:FillValue xsi:nil=\"true\"/>\n");
+        sb.append(indent(7)).append("<xr:Mask/>\n");
+        sb.append(indent(7)).append("<xr:ChoiceParameters/>\n");
+        sb.append(indent(6)).append("</xr:StandardAttribute>\n");
+        sb.append(indent(6)).append("<xr:StandardAttribute name=\"CalculationType\">\n");
+        sb.append(indent(7)).append("<xr:LinkByType/>\n");
+        sb.append(indent(7)).append("<xr:FillChecking>ShowError</xr:FillChecking>\n");
+        sb.append(indent(7)).append("<xr:MultiLine>false</xr:MultiLine>\n");
+        sb.append(indent(7)).append("<xr:FillFromFillingValue>false</xr:FillFromFillingValue>\n");
+        sb.append(indent(7)).append("<xr:CreateOnInput>Auto</xr:CreateOnInput>\n");
+        sb.append(indent(7)).append("<xr:TypeReductionMode>TransformValues</xr:TypeReductionMode>\n");
+        sb.append(indent(7)).append("<xr:MaxValue xsi:nil=\"true\"/>\n");
+        sb.append(indent(7)).append("<xr:ToolTip/>\n");
+        sb.append(indent(7)).append("<xr:ExtendedEdit>false</xr:ExtendedEdit>\n");
+        sb.append(indent(7)).append("<xr:Format/>\n");
+        sb.append(indent(7)).append("<xr:ChoiceForm/>\n");
+        sb.append(indent(7)).append("<xr:QuickChoice>Auto</xr:QuickChoice>\n");
+        sb.append(indent(7)).append("<xr:ChoiceHistoryOnInput>Auto</xr:ChoiceHistoryOnInput>\n");
+        sb.append(indent(7)).append("<xr:EditFormat/>\n");
+        sb.append(indent(7)).append("<xr:PasswordMode>false</xr:PasswordMode>\n");
+        sb.append(indent(7)).append("<xr:DataHistory>Use</xr:DataHistory>\n");
+        sb.append(indent(7)).append("<xr:MarkNegatives>false</xr:MarkNegatives>\n");
+        sb.append(indent(7)).append("<xr:MinValue xsi:nil=\"true\"/>\n");
+        sb.append(indent(7)).append("<xr:Synonym/>\n");
+        sb.append(indent(7)).append("<xr:Comment/>\n");
+        sb.append(indent(7)).append("<xr:FullTextSearch>Use</xr:FullTextSearch>\n");
+        sb.append(indent(7)).append("<xr:ChoiceParameterLinks/>\n");
+        sb.append(indent(7)).append("<xr:FillValue xsi:nil=\"true\"/>\n");
+        sb.append(indent(7)).append("<xr:Mask/>\n");
+        sb.append(indent(7)).append("<xr:ChoiceParameters/>\n");
+        sb.append(indent(6)).append("</xr:StandardAttribute>\n");
+        sb.append(indent(6)).append("<xr:StandardAttribute name=\"LineNumber\">\n");
+        sb.append(indent(7)).append("<xr:LinkByType/>\n");
+        sb.append(indent(7)).append("<xr:FillChecking>DontCheck</xr:FillChecking>\n");
+        sb.append(indent(7)).append("<xr:MultiLine>false</xr:MultiLine>\n");
+        sb.append(indent(7)).append("<xr:FillFromFillingValue>false</xr:FillFromFillingValue>\n");
+        sb.append(indent(7)).append("<xr:CreateOnInput>Auto</xr:CreateOnInput>\n");
+        sb.append(indent(7)).append("<xr:TypeReductionMode>TransformValues</xr:TypeReductionMode>\n");
+        sb.append(indent(7)).append("<xr:MaxValue xsi:nil=\"true\"/>\n");
+        sb.append(indent(7)).append("<xr:ToolTip/>\n");
+        sb.append(indent(7)).append("<xr:ExtendedEdit>false</xr:ExtendedEdit>\n");
+        sb.append(indent(7)).append("<xr:Format/>\n");
+        sb.append(indent(7)).append("<xr:ChoiceForm/>\n");
+        sb.append(indent(7)).append("<xr:QuickChoice>Auto</xr:QuickChoice>\n");
+        sb.append(indent(7)).append("<xr:ChoiceHistoryOnInput>Auto</xr:ChoiceHistoryOnInput>\n");
+        sb.append(indent(7)).append("<xr:EditFormat/>\n");
+        sb.append(indent(7)).append("<xr:PasswordMode>false</xr:PasswordMode>\n");
+        sb.append(indent(7)).append("<xr:DataHistory>Use</xr:DataHistory>\n");
+        sb.append(indent(7)).append("<xr:MarkNegatives>false</xr:MarkNegatives>\n");
+        sb.append(indent(7)).append("<xr:MinValue xsi:nil=\"true\"/>\n");
+        sb.append(indent(7)).append("<xr:Synonym/>\n");
+        sb.append(indent(7)).append("<xr:Comment/>\n");
+        sb.append(indent(7)).append("<xr:FullTextSearch>Use</xr:FullTextSearch>\n");
+        sb.append(indent(7)).append("<xr:ChoiceParameterLinks/>\n");
+        sb.append(indent(7)).append("<xr:FillValue xsi:nil=\"true\"/>\n");
+        sb.append(indent(7)).append("<xr:Mask/>\n");
+        sb.append(indent(7)).append("<xr:ChoiceParameters/>\n");
+        sb.append(indent(6)).append("</xr:StandardAttribute>\n");
+        sb.append(indent(5)).append("</xr:StandardAttributes>\n");
+        sb.append(indent(4)).append("</xr:StandardTabularSection>\n");
+        sb.append(indent(3)).append("</StandardTabularSections>\n");
+    }
+    //++agent TASK-171
+
+    // ==================== StandardAttributes (TASK-171 W1/D-6) ====================
+
+    /**
+     * Эмитит полный набор {@code <StandardAttributes>} по матрице,
+     * выверенной на платформенных объектах Designer.
+     */
+    private void writeStandardAttributes(StringBuilder sb, String type) {
+        writeStandardAttributes(sb, type, MetadataStandardFields.Context.defaults());
+    }
+
+    //++agent TASK-171 [01.06.2026 21:32:00]
+    // Набор и порядок стандартных реквизитов регистра зависит от его свойств.
+    private void writeStandardAttributes(StringBuilder sb, String type,
+                                         MetadataStandardFields.Context context) {
+        List<String> attrs = MetadataStandardFields.canonicalNames(type, context);
+        if (attrs.isEmpty()) {
+            return;
+        }
+        sb.append(indent(3)).append("<StandardAttributes>\n");
+        for (String a : attrs) {
+            writeStandardAttribute(sb, 4, a);
+        }
+        sb.append(indent(3)).append("</StandardAttributes>\n");
+    }
+    //++agent TASK-171
+
+    /**
+     * Один {@code <xr:StandardAttribute>} с дефолтным набором свойств
+     * (порядок дочерних — как у платформенных _Демо).
+     */
+    private void writeStandardAttribute(StringBuilder sb, int ind, String attrName) {
+        sb.append(indent(ind)).append("<xr:StandardAttribute name=\"").append(esc(attrName)).append("\">\n");
+        sb.append(indent(ind + 1)).append("<xr:LinkByType/>\n");
+        sb.append(indent(ind + 1)).append("<xr:FillChecking>DontCheck</xr:FillChecking>\n");
+        sb.append(indent(ind + 1)).append("<xr:MultiLine>false</xr:MultiLine>\n");
+        sb.append(indent(ind + 1)).append("<xr:FillFromFillingValue>false</xr:FillFromFillingValue>\n");
+        sb.append(indent(ind + 1)).append("<xr:CreateOnInput>Auto</xr:CreateOnInput>\n");
+        //++agent TASK-174 [07.06.2026 12:05:00]
+        // Порт-аудит: TypeReductionMode (формат 2.20, спека §26.1) был опущен — каждый
+        // стандартный реквизит в Designer-дампе 2.20 имеет его после CreateOnInput.
+        // Для формата < 2.20 строка вырезается глобальным фильтром в generateXml.
+        sb.append(indent(ind + 1)).append("<xr:TypeReductionMode>TransformValues</xr:TypeReductionMode>\n");
+        //++agent TASK-174
+        sb.append(indent(ind + 1)).append("<xr:MaxValue xsi:nil=\"true\"/>\n");
+        sb.append(indent(ind + 1)).append("<xr:ToolTip/>\n");
+        sb.append(indent(ind + 1)).append("<xr:ExtendedEdit>false</xr:ExtendedEdit>\n");
+        sb.append(indent(ind + 1)).append("<xr:Format/>\n");
+        sb.append(indent(ind + 1)).append("<xr:ChoiceForm/>\n");
+        sb.append(indent(ind + 1)).append("<xr:QuickChoice>Auto</xr:QuickChoice>\n");
+        sb.append(indent(ind + 1)).append("<xr:ChoiceHistoryOnInput>Auto</xr:ChoiceHistoryOnInput>\n");
+        sb.append(indent(ind + 1)).append("<xr:EditFormat/>\n");
+        sb.append(indent(ind + 1)).append("<xr:PasswordMode>false</xr:PasswordMode>\n");
+        sb.append(indent(ind + 1)).append("<xr:DataHistory>Use</xr:DataHistory>\n");
+        sb.append(indent(ind + 1)).append("<xr:MarkNegatives>false</xr:MarkNegatives>\n");
+        sb.append(indent(ind + 1)).append("<xr:MinValue xsi:nil=\"true\"/>\n");
+        sb.append(indent(ind + 1)).append("<xr:Synonym/>\n");
+        sb.append(indent(ind + 1)).append("<xr:Comment/>\n");
+        sb.append(indent(ind + 1)).append("<xr:FullTextSearch>Use</xr:FullTextSearch>\n");
+        sb.append(indent(ind + 1)).append("<xr:ChoiceParameterLinks/>\n");
+        sb.append(indent(ind + 1)).append("<xr:FillValue xsi:nil=\"true\"/>\n");
+        sb.append(indent(ind + 1)).append("<xr:Mask/>\n");
+        sb.append(indent(ind + 1)).append("<xr:ChoiceParameters/>\n");
+        sb.append(indent(ind)).append("</xr:StandardAttribute>\n");
+    }
+
+    /** Блок ввода по строке {@code <InputByString>} c полями стандартных реквизитов. */
+    private void writeInputByString(StringBuilder sb, String type, String objectName, String... fields) {
+        sb.append(indent(3)).append("<InputByString>\n");
+        for (String f : fields) {
+            sb.append(indent(4)).append("<xr:Field>")
+                    .append(esc(type + "." + objectName + ".StandardAttribute." + f))
+                    .append("</xr:Field>\n");
+        }
+        sb.append(indent(3)).append("</InputByString>\n");
+    }
+
+    /** Многоязычный текстовый блок презентаций (всегда пустой по дефолту). */
+    private void writePresentationBlocks(StringBuilder sb, String... tags) {
+        for (String t : tags) {
+            writeEmptyElement(sb, 3, t);
+        }
+    }
+
+    /** Хвостовой блок DataHistory, общий для ссылочных типов и регистров. */
+    private void writeDataHistoryTail(StringBuilder sb, JsonNode root) {
+        writeElement(sb, 3, "DataHistory", getString(root, "dataHistory", "DontUse"));
+        writeElement(sb, 3, "UpdateDataHistoryImmediatelyAfterWrite",
+                String.valueOf(getBool(root, "updateDataHistoryImmediatelyAfterWrite", false)));
+        writeElement(sb, 3, "ExecuteAfterWriteDataHistoryVersionProcessing",
+                String.valueOf(getBool(root, "executeAfterWriteDataHistoryVersionProcessing", false)));
+    }
+
+    // ==================== Phase 5d Property Writers ====================
+
+    //++agent TASK-171 [01.06.2026 21:11:12]
+    // Полный набор Properties Constant в порядке xs:sequence по грунт-труфу
+    // Constants/АдресКриптосервиса.xml (30 элементов). Прежний writer пропускал голову
+    // UseStandardCommands/DefaultForm/ExtendedPresentation/Explanation (между Type и
+    // PasswordMode), элемент ChoiceFoldersAndItems (перед ChoiceParameterLinks) и хвост
+    // DataHistory — риск отказа full-load по xs:sequence.
+    private void writeConstantProperties(StringBuilder sb, JsonNode root) {
+        // Constant value type — support split-form: "valueType":"String","length":100
+        String resolvedType = resolveValueType(root);
+        writeTypeElement(sb, 3, resolvedType);
+
+        writeElement(sb, 3, "UseStandardCommands",
+                String.valueOf(getBool(root, "useStandardCommands", true)));
+        writeOptionalRefBlock(sb, "DefaultForm", getString(root, "defaultForm", ""));
+        writePresentationBlocks(sb, "ExtendedPresentation", "Explanation");
+
+        writeElement(sb, 3, "PasswordMode", String.valueOf(getBool(root, "passwordMode", false)));
+        writeEmptyElement(sb, 3, "Format");
+        writeEmptyElement(sb, 3, "EditFormat");
+        writeEmptyElement(sb, 3, "ToolTip");
+        writeElement(sb, 3, "MarkNegatives", "false");
+        writeEmptyElement(sb, 3, "Mask");
+        writeElement(sb, 3, "MultiLine", "false");
+        writeElement(sb, 3, "ExtendedEdit", "false");
+        sb.append(indent(3)).append("<MinValue xsi:nil=\"true\"/>\n");
+        sb.append(indent(3)).append("<MaxValue xsi:nil=\"true\"/>\n");
+        writeElement(sb, 3, "FillChecking", "DontCheck");
+        writeElement(sb, 3, "ChoiceFoldersAndItems",
+                getString(root, "choiceFoldersAndItems", "Items"));
+        writeEmptyElement(sb, 3, "ChoiceParameterLinks");
+        writeEmptyElement(sb, 3, "ChoiceParameters");
+        writeElement(sb, 3, "QuickChoice", "Auto");
+        writeEmptyElement(sb, 3, "ChoiceForm");
+        writeEmptyElement(sb, 3, "LinkByType");
+        writeElement(sb, 3, "ChoiceHistoryOnInput", "Auto");
+        writeElement(sb, 3, "DataLockControlMode",
+                getString(root, "dataLockControlMode", "Automatic"));
+        writeDataHistoryTail(sb, root);
+    }
+    //++agent TASK-171
+
+    /** Resolve valueType/valueTypes with split-form support (length/precision/nonneg). */
+    private String resolveValueType(JsonNode root) {
+        // Check array form first
+        List<String> valueTypes = getValueTypesList(root);
+        if (valueTypes.size() > 1) {
+            // Composite — for now just use the first type (Constant has single type)
+            return normalizeDslType(valueTypes.get(0));
+        }
+
+        String type = valueTypes.isEmpty() ? "String(10)" : valueTypes.get(0);
+        type = normalizeDslType(type);
+
+        // Handle split-form: "valueType":"String","length":100
+        if (!type.contains("(")) {
+            if ("String".equalsIgnoreCase(type) && root.has("length")) {
+                type = "String(" + root.get("length").asInt() + ")";
+            } else if ("Number".equalsIgnoreCase(type) && root.has("length")) {
+                int len = root.get("length").asInt();
+                int prec = root.has("precision") ? root.get("precision").asInt() : 0;
+                boolean nonneg = getBool(root, "nonneg", false);
+                type = "Number(" + len + "," + prec + (nonneg ? ",nonneg" : "") + ")";
+            }
+        }
+        return type;
+    }
+
+    private void writeDefinedTypeProperties(StringBuilder sb, JsonNode root) {
+        List<String> valueTypes = getValueTypesList(root);
+        if (valueTypes.isEmpty()) {
+            throw new IllegalArgumentException(
+                    "DefinedType requires 'valueTypes' or 'valueType' property");
+        }
+        writeTypeComposite(sb, 3, valueTypes);
+    }
+
+    //++agent TASK-174 XG-108 [20.07.2026 03:28:29]
+    private void writeSessionParameterProperties(StringBuilder sb, JsonNode root) {
+        List<String> valueTypes = getValueTypesList(root);
+        if (valueTypes.isEmpty()) {
+            // Платформа не допускает параметр сеанса без Type; молчаливый строковый
+            // default превращал бы ошибку DSL в другой контракт конфигурации.
+            throw new IllegalArgumentException(
+                    "SessionParameter requires 'valueType' or 'valueTypes' property");
+        }
+        writeTypeComposite(sb, 3, valueTypes);
+    }
+    //++agent TASK-174 XG-108
+
+    private void writeCommonModuleProperties(StringBuilder sb, JsonNode root) {
+        String context = getString(root, "context", null);
+        boolean server = getBool(root, "server", false);
+        boolean serverCall = getBool(root, "serverCall", false);
+        boolean client = getBool(root, "clientManagedApplication", false);
+        boolean clientOrdinary = getBool(root, "clientOrdinaryApplication", false);
+        boolean external = getBool(root, "externalConnection", false);
+
+        // Context shortcuts
+        if (context != null) {
+            switch (context) {
+                case "server" -> { server = true; serverCall = true; }
+                case "client" -> client = true;
+                case "serverClient" -> { server = true; client = true; }
+            }
+        }
+
+        writeElement(sb, 3, "Global", String.valueOf(getBool(root, "global", false)));
+        writeElement(sb, 3, "ClientManagedApplication", String.valueOf(client));
+        writeElement(sb, 3, "Server", String.valueOf(server));
+        writeElement(sb, 3, "ExternalConnection", String.valueOf(external));
+        writeElement(sb, 3, "ClientOrdinaryApplication", String.valueOf(clientOrdinary));
+        writeElement(sb, 3, "ServerCall", String.valueOf(serverCall));
+        writeElement(sb, 3, "Privileged", String.valueOf(getBool(root, "privileged", false)));
+        writeElement(sb, 3, "ReturnValuesReuse",
+                getString(root, "returnValuesReuse", "DontUse"));
+    }
+
+    private void writeScheduledJobProperties(StringBuilder sb, JsonNode root, String objectName) {
+        String methodName = getString(root, "methodName", "");
+        if (!methodName.isEmpty() && !methodName.startsWith("CommonModule.")) {
+            methodName = "CommonModule." + methodName;
+        }
+        writeElement(sb, 3, "MethodName", methodName);
+
+        String description = getString(root, "description",
+                getString(root, "synonym", camelCaseToWords(objectName)));
+        writeElement(sb, 3, "Description", description);
+        writeElement(sb, 3, "Key", getString(root, "key", ""));
+        writeElement(sb, 3, "Use", String.valueOf(getBool(root, "use", false)));
+        writeElement(sb, 3, "Predefined", String.valueOf(getBool(root, "predefined", false)));
+        writeElement(sb, 3, "RestartCountOnFailure",
+                String.valueOf(getInt(root, "restartCountOnFailure", 3)));
+        writeElement(sb, 3, "RestartIntervalOnFailure",
+                String.valueOf(getInt(root, "restartIntervalOnFailure", 10)));
+    }
+
+    private void writeEventSubscriptionProperties(StringBuilder sb, JsonNode root) {
+        // Source (array of types)
+        List<String> source = getStringList(root, "source");
+        if (source.isEmpty()) {
+            writeEmptyElement(sb, 3, "Source");
+        } else {
+            sb.append(indent(3)).append("<Source>\n");
+            for (String s : source) {
+                String normalized = normalizeDslType(s);
+                String xmlType = normalized.startsWith("cfg:") ? normalized : "cfg:" + normalized;
+                sb.append(indent(4)).append("<v8:Type>").append(esc(xmlType)).append("</v8:Type>\n");
+            }
+            sb.append(indent(3)).append("</Source>\n");
+        }
+
+        writeElement(sb, 3, "Event", getString(root, "event", "BeforeWrite"));
+
+        String handler = getString(root, "handler", "");
+        if (!handler.isEmpty() && !handler.startsWith("CommonModule.")) {
+            handler = "CommonModule." + handler;
+        }
+        writeElement(sb, 3, "Handler", handler);
+    }
+
+    //++agent TASK-171 [01.06.2026 21:11:12]
+    // Полный набор Properties Report в порядке xs:sequence по грунт-труфу
+    // Reports/АнализОпроса.xml (15 элементов). Прежний writer выпускал только заданные
+    // формы и пропускал UseStandardCommands/VariantsStorage/SettingsStorage/
+    // IncludeHelpInContents/ExtendedPresentation/Explanation — а формы должны
+    // присутствовать всегда (пустыми). VariantsStorage/SettingsStorage — ссылки на
+    // хранилища настроек (пусты по дефолту).
+    private void writeReportProperties(StringBuilder sb, JsonNode root) {
+        writeElement(sb, 3, "UseStandardCommands",
+                String.valueOf(getBool(root, "useStandardCommands", true)));
+        writeOptionalRefBlock(sb, "DefaultForm", getString(root, "defaultForm", ""));
+        writeOptionalRefBlock(sb, "AuxiliaryForm", getString(root, "auxiliaryForm", ""));
+        writeOptionalRefBlock(sb, "MainDataCompositionSchema",
+                getString(root, "mainDataCompositionSchema", ""));
+        writeOptionalRefBlock(sb, "DefaultSettingsForm", getString(root, "defaultSettingsForm", ""));
+        writeOptionalRefBlock(sb, "AuxiliarySettingsForm", getString(root, "auxiliarySettingsForm", ""));
+        writeOptionalRefBlock(sb, "DefaultVariantForm", getString(root, "defaultVariantForm", ""));
+        writeOptionalRefBlock(sb, "VariantsStorage", getString(root, "variantsStorage", ""));
+        writeOptionalRefBlock(sb, "SettingsStorage", getString(root, "settingsStorage", ""));
+        writeElement(sb, 3, "IncludeHelpInContents",
+                String.valueOf(getBool(root, "includeHelpInContents", false)));
+        writePresentationBlocks(sb, "ExtendedPresentation", "Explanation");
+    }
+    //++agent TASK-171
+
+    //++agent TASK-171 [01.06.2026 21:11:12]
+    // Полный набор Properties DataProcessor по грунт-труфу
+    // DataProcessors/АвтоматическоеИзвлечениеТекстов.xml (9 элементов). Прежний writer
+    // выпускал только заданные формы; UseStandardCommands/формы(пустые)/IncludeHelpInContents/
+    // ExtendedPresentation/Explanation отсутствовали.
+    private void writeDataProcessorProperties(StringBuilder sb, JsonNode root) {
+        writeElement(sb, 3, "UseStandardCommands",
+                String.valueOf(getBool(root, "useStandardCommands", true)));
+        writeOptionalRefBlock(sb, "DefaultForm", getString(root, "defaultForm", ""));
+        writeOptionalRefBlock(sb, "AuxiliaryForm", getString(root, "auxiliaryForm", ""));
+        writeElement(sb, 3, "IncludeHelpInContents",
+                String.valueOf(getBool(root, "includeHelpInContents", false)));
+        writePresentationBlocks(sb, "ExtendedPresentation", "Explanation");
+    }
+    //++agent TASK-171
+
+    //++agent TASK-171 [01.06.2026 21:11:12]
+    // Полный набор Properties BusinessProcess в порядке xs:sequence по грунт-труфу
+    // BusinessProcesses/_ДемоЗаданиеСРолевойАдресацией.xml (40 элементов). Прежний writer
+    // выпускал ~9 элементов без StandardAttributes/форм/презентаций. Особенности порядка:
+    // формы и InputByString идут ДО блока нумерации; DataLockControlMode и FullTextSearch
+    // РАЗНЕСЕНЫ (между ними IncludeHelpInContents) — потому writeBehaviorProperties не
+    // применим; добавлен CreateTaskInPrivilegedMode после Task.
+    private void writeBusinessProcessProperties(StringBuilder sb, JsonNode root) {
+        String objectName = requireString(root, "name");
+
+        writeElement(sb, 3, "UseStandardCommands",
+                String.valueOf(getBool(root, "useStandardCommands", true)));
+        writeElement(sb, 3, "EditType", getString(root, "editType", "InDialog"));
+
+        writeInputByString(sb, "BusinessProcess", objectName, "Number");
+        writeElement(sb, 3, "CreateOnInput", getString(root, "createOnInput", "DontUse"));
+        writeElement(sb, 3, "SearchStringModeOnInputByString",
+                getString(root, "searchStringModeOnInputByString", "Begin"));
+        writeElement(sb, 3, "ChoiceDataGetModeOnInputByString",
+                getString(root, "choiceDataGetModeOnInputByString", "Directly"));
+        writeElement(sb, 3, "FullTextSearchOnInputByString",
+                getString(root, "fullTextSearchOnInputByString", "DontUse"));
+
+        writePresentationBlocks(sb, "DefaultObjectForm", "DefaultListForm",
+                "DefaultChoiceForm", "AuxiliaryObjectForm", "AuxiliaryListForm",
+                "AuxiliaryChoiceForm");
+        writeElement(sb, 3, "ChoiceHistoryOnInput",
+                getString(root, "choiceHistoryOnInput", "Auto"));
+
+        writeElement(sb, 3, "NumberType", getString(root, "numberType", "String"));
+        writeElement(sb, 3, "NumberLength", String.valueOf(getInt(root, "numberLength", 11)));
+        writeElement(sb, 3, "NumberAllowedLength",
+                getString(root, "numberAllowedLength", "Variable"));
+        writeElement(sb, 3, "CheckUnique", String.valueOf(getBool(root, "checkUnique", true)));
+
+        writeStandardAttributes(sb, "BusinessProcess");
+        writeEmptyElement(sb, 3, "Characteristics");
+
+        writeElement(sb, 3, "Autonumbering", String.valueOf(getBool(root, "autonumbering", true)));
+        writeEmptyElement(sb, 3, "BasedOn");
+        writeElement(sb, 3, "NumberPeriodicity",
+                getString(root, "numberPeriodicity", "Nonperiodical"));
+
+        String task = getString(root, "task", "");
+        if (task.isEmpty()) {
+            writeEmptyElement(sb, 3, "Task");
+        } else {
+            writeElement(sb, 3, "Task", task);
+        }
+        writeElement(sb, 3, "CreateTaskInPrivilegedMode",
+                String.valueOf(getBool(root, "createTaskInPrivilegedMode", true)));
+
+        writeEmptyElement(sb, 3, "DataLockFields");
+        writeElement(sb, 3, "DataLockControlMode",
+                getString(root, "dataLockControlMode", "Automatic"));
+        writeElement(sb, 3, "IncludeHelpInContents",
+                String.valueOf(getBool(root, "includeHelpInContents", false)));
+        writeElement(sb, 3, "FullTextSearch", getString(root, "fullTextSearch", "Use"));
+        writePresentationBlocks(sb, "ObjectPresentation", "ExtendedObjectPresentation",
+                "ListPresentation", "ExtendedListPresentation", "Explanation");
+        writeDataHistoryTail(sb, root);
+    }
+    //++agent TASK-171
+
+    //++agent TASK-171 [01.06.2026 21:11:12]
+    // Полный набор Properties Task в порядке xs:sequence по грунт-труфу
+    // Tasks/ЗадачаИсполнителя.xml (43 элемента). ВНИМАНИЕ: для типа Task в репозитории
+    // нет _Демо-объекта (0); образцом взят единственный существующий Task-объект
+    // ЗадачаИсполнителя. Прежний writer выпускал ~10 элементов без StandardAttributes/
+    // форм/презентаций. Порядок: блок нумерации/адресации идёт ДО форм; адресные поля
+    // (Addressing/MainAddressingAttribute/CurrentPerformer) присутствуют всегда (пустыми).
+    private void writeTaskProperties(StringBuilder sb, JsonNode root) {
+        String objectName = requireString(root, "name");
+
+        writeElement(sb, 3, "UseStandardCommands",
+                String.valueOf(getBool(root, "useStandardCommands", true)));
+        writeElement(sb, 3, "NumberType", getString(root, "numberType", "String"));
+        writeElement(sb, 3, "NumberLength", String.valueOf(getInt(root, "numberLength", 14)));
+        writeElement(sb, 3, "NumberAllowedLength",
+                getString(root, "numberAllowedLength", "Variable"));
+        writeElement(sb, 3, "CheckUnique", String.valueOf(getBool(root, "checkUnique", true)));
+        writeElement(sb, 3, "Autonumbering", String.valueOf(getBool(root, "autonumbering", true)));
+        writeElement(sb, 3, "TaskNumberAutoPrefix",
+                getString(root, "taskNumberAutoPrefix", "BusinessProcessNumber"));
+        writeElement(sb, 3, "DescriptionLength",
+                String.valueOf(getInt(root, "descriptionLength", 150)));
+
+        writeOptionalRefBlock(sb, "Addressing", getString(root, "addressing", ""));
+        writeOptionalRefBlock(sb, "MainAddressingAttribute",
+                getString(root, "mainAddressingAttribute", ""));
+        writeOptionalRefBlock(sb, "CurrentPerformer", getString(root, "currentPerformer", ""));
+        writeEmptyElement(sb, 3, "BasedOn");
+
+        writeStandardAttributes(sb, "Task");
+        writeEmptyElement(sb, 3, "Characteristics");
+        writeElement(sb, 3, "DefaultPresentation",
+                getString(root, "defaultPresentation", "AsDescription"));
+
+        writeElement(sb, 3, "EditType", getString(root, "editType", "InDialog"));
+        writeInputByString(sb, "Task", objectName, "Number", "Description");
+        writeElement(sb, 3, "SearchStringModeOnInputByString",
+                getString(root, "searchStringModeOnInputByString", "Begin"));
+        writeElement(sb, 3, "FullTextSearchOnInputByString",
+                getString(root, "fullTextSearchOnInputByString", "DontUse"));
+        writeElement(sb, 3, "ChoiceDataGetModeOnInputByString",
+                getString(root, "choiceDataGetModeOnInputByString", "Directly"));
+        writeElement(sb, 3, "CreateOnInput", getString(root, "createOnInput", "DontUse"));
+
+        writePresentationBlocks(sb, "DefaultObjectForm", "DefaultListForm",
+                "DefaultChoiceForm", "AuxiliaryObjectForm", "AuxiliaryListForm",
+                "AuxiliaryChoiceForm");
+        writeElement(sb, 3, "ChoiceHistoryOnInput",
+                getString(root, "choiceHistoryOnInput", "Auto"));
+
+        writeElement(sb, 3, "IncludeHelpInContents",
+                String.valueOf(getBool(root, "includeHelpInContents", false)));
+        writeEmptyElement(sb, 3, "DataLockFields");
+        writeBehaviorProperties(sb, root); // DataLockControlMode + FullTextSearch
+        writePresentationBlocks(sb, "ObjectPresentation", "ExtendedObjectPresentation",
+                "ListPresentation", "ExtendedListPresentation", "Explanation");
+        writeDataHistoryTail(sb, root);
+    }
+    //++agent TASK-171
+
+    //++agent TASK-171 [01.06.2026 21:11:12]
+    // Полный набор Properties DocumentJournal по грунт-труфу
+    // DocumentJournals/_ДемоЖурналВсехДокументов.xml (11 элементов). Прежний writer
+    // выпускал только заданные формы + RegisteredDocuments; UseStandardCommands(после
+    // форм), IncludeHelpInContents, презентации отсутствовали. У журнала НЕТ
+    // StandardAttributes-блока в Properties (несмотря на запись в таблице) — грунт-труф
+    // его не содержит, поэтому не эмитим.
+    private void writeDocumentJournalProperties(StringBuilder sb, JsonNode root) {
+        writeOptionalRefBlock(sb, "DefaultForm", getString(root, "defaultForm", ""));
+        writeOptionalRefBlock(sb, "AuxiliaryForm", getString(root, "auxiliaryForm", ""));
+        writeElement(sb, 3, "UseStandardCommands",
+                String.valueOf(getBool(root, "useStandardCommands", true)));
+
+        // RegisteredDocuments
+        List<String> regDocs = getStringList(root, "registeredDocuments");
+        if (regDocs.isEmpty()) {
+            writeEmptyElement(sb, 3, "RegisteredDocuments");
+        } else {
+            sb.append(indent(3)).append("<RegisteredDocuments>\n");
+            for (String doc : regDocs) {
+                sb.append(indent(4)).append("<xr:Item xsi:type=\"xr:MDObjectRef\">")
+                        .append(esc(doc)).append("</xr:Item>\n");
+            }
+            sb.append(indent(3)).append("</RegisteredDocuments>\n");
+        }
+        //++agent TASK-171 [01.06.2026 21:11:12]
+        // Хвост Properties журнала по грунт-труфу _ДемоЖурналВсехДокументов: после
+        // RegisteredDocuments идут IncludeHelpInContents + 3 презентации списка.
+        writeElement(sb, 3, "IncludeHelpInContents",
+                String.valueOf(getBool(root, "includeHelpInContents", false)));
+        writePresentationBlocks(sb, "ListPresentation", "ExtendedListPresentation", "Explanation");
+        //++agent TASK-171
+    }
+
+    /**
+     * TASK-171 W1: эмитит ссылочный элемент Properties, который в грунт-труфе
+     * присутствует ВСЕГДА (пустым, если значение не задано). Используется для форм/
+     * хранилищ Report/DataProcessor/DocumentJournal и адресных полей Task — там, где
+     * раньше элемент молча пропускался при отсутствии значения (ломая набор Properties).
+     */
+    private void writeOptionalRefBlock(StringBuilder sb, String tag, String value) {
+        if (value == null || value.isEmpty()) {
+            writeEmptyElement(sb, 3, tag);
+        } else {
+            writeElement(sb, 3, tag, value);
+        }
+    }
+
+    private void writeHTTPServiceProperties(StringBuilder sb, JsonNode root, String objectName) {
+        writeElement(sb, 3, "RootURL", getString(root, "rootURL", objectName.toLowerCase()));
+        writeElement(sb, 3, "ReuseSessions",
+                getString(root, "reuseSessions", "DontUse"));
+        writeElement(sb, 3, "SessionMaxAge",
+                String.valueOf(getInt(root, "sessionMaxAge", 20)));
+    }
+
+    //++agent TASK-171 [01.06.2026 21:11:12]
+    // WebService: добавлен DescriptorFileName между XDTOPackages и ReuseSessions
+    // (грунт-труф WebServices/Exchange_2_0_1_6.xml). Namespace/XDTOPackages присутствуют
+    // всегда (пустыми). Прежний writer пропускал DescriptorFileName и XDTOPackages при
+    // отсутствии значения.
+    private void writeWebServiceProperties(StringBuilder sb, JsonNode root) {
+        writeElement(sb, 3, "Namespace", getString(root, "namespace", ""));
+        writeOptionalRefBlock(sb, "XDTOPackages", getString(root, "xdtoPackages", ""));
+        writeOptionalRefBlock(sb, "DescriptorFileName", getString(root, "descriptorFileName", ""));
+        writeElement(sb, 3, "ReuseSessions",
+                getString(root, "reuseSessions", "DontUse"));
+        writeElement(sb, 3, "SessionMaxAge",
+                String.valueOf(getInt(root, "sessionMaxAge", 20)));
+    }
+    //++agent TASK-171
+
+    // ==================== ChildObjects ====================
+
+    private void writeChildObjects(StringBuilder sb, JsonNode root, String type, String name,
+                                    TypeDescriptor td) {
+        // TASK-171 D-4: блок <ChildObjects> (даже пустой <ChildObjects/>) существует
+        // только у типов, которые в принципе могут иметь дочерние объекты. У
+        // CommonModule/ScheduledJob/EventSubscription/Constant/DefinedType их нет —
+        // пустой <ChildObjects/> платформа отвергает. Не выводим блок вовсе.
+        if (td.childTypes().isEmpty()) {
+            return;
+        }
+
+        boolean hasChildren = false;
+
+        // Check if any ChildObjects content will be written
+        boolean hasDimensions = root.has("dimensions") && root.get("dimensions").size() > 0;
+        boolean hasResources = root.has("resources") && root.get("resources").size() > 0;
+        boolean hasAttributes = root.has("attributes") && root.get("attributes").size() > 0;
+        boolean hasTS = root.has("tabularSections") && root.get("tabularSections").size() > 0;
+        // TASK-171 D-5: значения перечисления принимаем по ключу "values" ИЛИ
+        // алиасу "enumValues" (агенты использовали enumValues — ключ молча игнорился).
+        JsonNode enumValuesNode = enumValuesNode(root);
+        boolean hasEnumValues = "Enum".equals(type) && enumValuesNode != null && enumValuesNode.size() > 0;
+        boolean hasAccountingFlags = root.has("accountingFlags") && root.get("accountingFlags").size() > 0;
+        boolean hasExtDimFlags = root.has("extDimensionAccountingFlags")
+                && root.get("extDimensionAccountingFlags").size() > 0;
+        boolean hasColumns = root.has("columns") && root.get("columns").size() > 0;
+        boolean hasUrlTemplates = root.has("urlTemplates") && root.get("urlTemplates").size() > 0;
+        boolean hasOperations = root.has("operations") && root.get("operations").size() > 0;
+        boolean hasAddrAttrs = root.has("addressingAttributes")
+                && root.get("addressingAttributes").size() > 0;
+
+        hasChildren = hasDimensions || hasResources || hasAttributes || hasTS
+                || hasEnumValues || hasAccountingFlags || hasExtDimFlags
+                || hasColumns || hasUrlTemplates || hasOperations || hasAddrAttrs;
+
+        if (!hasChildren) {
+            sb.append("\t\t<ChildObjects/>\n");
+            return;
+        }
+
+        sb.append("\t\t<ChildObjects>\n");
+
+        //**agent TASK-174 [07.06.2026 12:05:00]
+        // Порт-аудит: канонический порядок ChildObjects регистров в Designer-дампе —
+        // Resource ПЕРЕД Dimension (грунт-труф биг_СебестоимостьАктивов, биг_ЛогиИнтеграций;
+        // так же упорядочивает MetaEditor.CHILD_ORDER). Порт писал Dimension первым.
+        //// Dimensions (registers)
+        //if (hasDimensions) {
+        //    writeDimensions(sb, root.get("dimensions"), type, name);
+        //}
+        //
+        //// Resources (registers)
+        //if (hasResources) {
+        //    writeResources(sb, root.get("resources"), type, name);
+        //}
+        // Resources (registers)
+        if (hasResources) {
+            writeResources(sb, root.get("resources"), type, name);
+        }
+
+        // Dimensions (registers)
+        if (hasDimensions) {
+            writeDimensions(sb, root.get("dimensions"), type, name);
+        }
+        //**agent TASK-174
+
+        // Attributes
+        if (hasAttributes) {
+            writeAttributes(sb, root.get("attributes"), type, name);
+        }
+
+        // TabularSections
+        if (hasTS) {
+            writeTabularSections(sb, root.get("tabularSections"), type, name);
+        }
+
+        // EnumValues
+        if (hasEnumValues) {
+            writeEnumValues(sb, enumValuesNode, name);
+        }
+
+        // AccountingFlags (ChartOfAccounts only)
+        if (hasAccountingFlags) {
+            writeAccountingFlags(sb, root.get("accountingFlags"), "AccountingFlag");
+        }
+
+        // ExtDimensionAccountingFlags (ChartOfAccounts only)
+        if (hasExtDimFlags) {
+            writeAccountingFlags(sb, root.get("extDimensionAccountingFlags"), "ExtDimensionAccountingFlag");
+        }
+
+        // Columns (DocumentJournal)
+        if (hasColumns) {
+            writeColumns(sb, root.get("columns"));
+        }
+
+        // URLTemplates (HTTPService)
+        if (hasUrlTemplates) {
+            writeUrlTemplates(sb, root.get("urlTemplates"));
+        }
+
+        // Operations (WebService)
+        if (hasOperations) {
+            writeOperations(sb, root.get("operations"));
+        }
+
+        // AddressingAttributes (Task)
+        if (hasAddrAttrs) {
+            writeAddressingAttributes(sb, root.get("addressingAttributes"));
+        }
+
+        sb.append("\t\t</ChildObjects>\n");
+    }
+
+    // ==================== Dimension Writer (Registers) ====================
+
+    private void writeDimensions(StringBuilder sb, JsonNode dimsNode, String type, String objectName) {
+        for (JsonNode dimNode : dimsNode) {
+            AttrDef dim = parseAttrDef(dimNode);
+            String uuid = UuidGenerator.generate();
+
+            sb.append(indent(3)).append("<Dimension uuid=\"").append(uuid).append("\">\n");
+            sb.append(indent(4)).append("<Properties>\n");
+
+            writeElement(sb, 5, "Name", dim.name);
+            writeSynonym(sb, 5, dim.synonym != null ? dim.synonym : camelCaseToWords(dim.name));
+            writeComment(sb, 5, dim.comment != null ? dim.comment : "");
+
+            String dimType = applyNonnegFlag(dim.type, dim.flags);
+            writeTypeElement(sb, 5, dimType, dim.allowedLength);
+
+            writeElement(sb, 5, "PasswordMode", "false");
+            writeEmptyElement(sb, 5, "Format");
+            writeEmptyElement(sb, 5, "EditFormat");
+            writeEmptyElement(sb, 5, "ToolTip");
+            writeElement(sb, 5, "MarkNegatives", "false");
+            writeEmptyElement(sb, 5, "Mask");
+            writeElement(sb, 5, "MultiLine",
+                    String.valueOf(dim.flags.contains("multiline")));
+            writeElement(sb, 5, "ExtendedEdit", "false");
+            boolean dimNonneg = dim.flags.contains("nonneg");
+            writeMinValue(sb, 5, dimNonneg);
+            sb.append(indent(5)).append("<MaxValue xsi:nil=\"true\"/>\n");
+            // FillFromFillingValue/FillValue/DataHistory валидны только для InformationRegister;
+            // для Accumulation/Accounting/Calculation вызывают XSD-ошибку при загрузке.
+            boolean dimIsInfoReg = "InformationRegister".equals(type);
+            if (dimIsInfoReg) {
+                writeElement(sb, 5, "FillFromFillingValue", "true");
+                sb.append(indent(5)).append("<FillValue xsi:nil=\"true\"/>\n");
+            }
+
+            writeElement(sb, 5, "FillChecking",
+                    dim.flags.contains("req") ? "ShowError" : "DontCheck");
+
+            //++agent TASK-174 [07.06.2026 12:05:00]
+            // Порт-аудит: ChoiceFoldersAndItems был опущен при переносе (спека §6.1 +
+            // грунт-труф Designer 2.20 пишут его между FillChecking и ChoiceParameterLinks).
+            writeElement(sb, 5, "ChoiceFoldersAndItems", "Items");
+            //++agent TASK-174
+            writeEmptyElement(sb, 5, "ChoiceParameterLinks");
+            writeEmptyElement(sb, 5, "ChoiceParameters");
+            writeElement(sb, 5, "QuickChoice", "Auto");
+            writeElement(sb, 5, "CreateOnInput", "Auto");
+            writeEmptyElement(sb, 5, "ChoiceForm");
+            writeEmptyElement(sb, 5, "LinkByType");
+            writeElement(sb, 5, "ChoiceHistoryOnInput", "Auto");
+
+            //**agent TASK-174 [07.06.2026 12:05:00]
+            // Порт-аудит: хвост Properties измерения зависит от вида регистра, а порт писал
+            // Master/MainFilter ВСЕМ регистрам и ПОСЛЕ Indexing. Канон (грунт-труф 2.20):
+            //   InfoReg:  Master → MainFilter → DenyIncompleteValues → Indexing → FTS → DataHistory
+            //   AccumReg: DenyIncompleteValues → Indexing → FTS → UseInTotals (Master/MainFilter НЕТ)
+            //   AcctReg:  Balance → AccountingFlag → DenyIncompleteValues → Indexing → FTS
+            //   CalcReg:  DenyIncompleteValues → BaseDimension → ScheduleLink → Indexing → FTS
+            // Лишние Master/MainFilter у Accum/Acct/CalcReg — риск XSD-отказа (тот же класс,
+            // что FillFromFillingValue, см. комментарий выше).
+            //// Indexing
+            //String indexing = "DontIndex";
+            //if (dim.flags.contains("index")) {
+            //    indexing = "Index";
+            //}
+            //writeElement(sb, 5, "Indexing", indexing);
+            //
+            //writeElement(sb, 5, "FullTextSearch", "Use");
+            //if (dimIsInfoReg) {
+            //    writeElement(sb, 5, "DataHistory", "Use");
+            //}
+            //
+            //// Dimension-specific properties
+            //writeElement(sb, 5, "Master",
+            //        String.valueOf(dim.flags.contains("master")));
+            //writeElement(sb, 5, "MainFilter",
+            //        String.valueOf(dim.flags.contains("mainfilter")));
+            //writeElement(sb, 5, "DenyIncompleteValues",
+            //        String.valueOf(dim.flags.contains("denyincomplete")));
+            //
+            //// UseInTotals — only for AccumulationRegister, default true per spec §9.4
+            //if ("AccumulationRegister".equals(type)) {
+            //    // Default true; explicit "useintotals" flag confirms, no flag = true
+            //    writeElement(sb, 5, "UseInTotals", "true");
+            //}
+            if (dimIsInfoReg) {
+                writeElement(sb, 5, "Master", String.valueOf(dim.flags.contains("master")));
+                writeElement(sb, 5, "MainFilter", String.valueOf(dim.flags.contains("mainfilter")));
+            }
+            if ("AccountingRegister".equals(type)) {
+                writeElement(sb, 5, "Balance", String.valueOf(dim.flags.contains("balance")));
+                writeEmptyElement(sb, 5, "AccountingFlag");
+            }
+            writeElement(sb, 5, "DenyIncompleteValues",
+                    String.valueOf(dim.flags.contains("denyincomplete")));
+            if ("CalculationRegister".equals(type)) {
+                writeElement(sb, 5, "BaseDimension", String.valueOf(dim.flags.contains("base")));
+                writeEmptyElement(sb, 5, "ScheduleLink");
+            }
+
+            //++agent TASK-174 [14.07.2026 05:55:37] XG-102
+            // Индексация является отдельным typed-свойством поля: shorthand `indexing`
+            // и object-form должны давать один Designer enum без потери намерения DSL.
+            writeElement(sb, 5, "Indexing", dim.indexing.xmlValue);
+            //++agent TASK-174 XG-102
+            writeElement(sb, 5, "FullTextSearch", "Use");
+            if (dimIsInfoReg) {
+                writeElement(sb, 5, "DataHistory", "Use");
+            }
+            if ("AccumulationRegister".equals(type)) {
+                // Default true; explicit "nouseintotals" flag отключает
+                writeElement(sb, 5, "UseInTotals",
+                        String.valueOf(!dim.flags.contains("nouseintotals")));
+            }
+            //**agent TASK-174
+
+            sb.append(indent(4)).append("</Properties>\n");
+            sb.append(indent(3)).append("</Dimension>\n");
+        }
+    }
+
+    // ==================== Resource Writer (Registers) ====================
+
+    private void writeResources(StringBuilder sb, JsonNode resNode, String type, String objectName) {
+        for (JsonNode rNode : resNode) {
+            AttrDef res = parseAttrDef(rNode);
+            String uuid = UuidGenerator.generate();
+
+            sb.append(indent(3)).append("<Resource uuid=\"").append(uuid).append("\">\n");
+            sb.append(indent(4)).append("<Properties>\n");
+
+            writeElement(sb, 5, "Name", res.name);
+            writeSynonym(sb, 5, res.synonym != null ? res.synonym : camelCaseToWords(res.name));
+            writeComment(sb, 5, res.comment != null ? res.comment : "");
+
+            String resType = applyNonnegFlag(res.type, res.flags);
+            writeTypeElement(sb, 5, resType, res.allowedLength);
+
+            writeElement(sb, 5, "PasswordMode", "false");
+            writeEmptyElement(sb, 5, "Format");
+            writeEmptyElement(sb, 5, "EditFormat");
+            writeEmptyElement(sb, 5, "ToolTip");
+            writeElement(sb, 5, "MarkNegatives", "false");
+            writeEmptyElement(sb, 5, "Mask");
+            writeElement(sb, 5, "MultiLine",
+                    String.valueOf(res.flags.contains("multiline")));
+            writeElement(sb, 5, "ExtendedEdit", "false");
+            boolean resNonneg = res.flags.contains("nonneg");
+            writeMinValue(sb, 5, resNonneg);
+            sb.append(indent(5)).append("<MaxValue xsi:nil=\"true\"/>\n");
+            // FillFromFillingValue/FillValue/DataHistory — только для InformationRegister.
+            boolean resIsInfoReg = "InformationRegister".equals(type);
+            if (resIsInfoReg) {
+                //**agent XG-62 [28.09.2026 20:20:00] канон РС: 815 false / 21 true
+                writeElement(sb, 5, "FillFromFillingValue", "false");
+                sb.append(indent(5)).append("<FillValue xsi:nil=\"true\"/>\n");
+            }
+
+            writeElement(sb, 5, "FillChecking",
+                    res.flags.contains("req") ? "ShowError" : "DontCheck");
+
+            //++agent TASK-174 [07.06.2026 12:05:00]
+            // Порт-аудит: опущенный ChoiceFoldersAndItems (спека §6.1 + грунт-труф 2.20).
+            writeElement(sb, 5, "ChoiceFoldersAndItems", "Items");
+            //++agent TASK-174
+            writeEmptyElement(sb, 5, "ChoiceParameterLinks");
+            writeEmptyElement(sb, 5, "ChoiceParameters");
+            writeElement(sb, 5, "QuickChoice", "Auto");
+            writeElement(sb, 5, "CreateOnInput", "Auto");
+            writeEmptyElement(sb, 5, "ChoiceForm");
+            writeEmptyElement(sb, 5, "LinkByType");
+            writeElement(sb, 5, "ChoiceHistoryOnInput", "Auto");
+
+            //**agent XG-62 [28.09.2026 20:20:00]
+            //writeElement(sb, 5, "Indexing", res.indexing.xmlValue);
+            //writeElement(sb, 5, "FullTextSearch", "Use");
+            //if (resIsInfoReg) {
+            //    writeElement(sb, 5, "DataHistory", "Use");
+            //}
+            // Канон: Indexing у Resource есть только у регистра сведений (у накопления -
+            // XDTO-отказ "Свойство Indexing не входит в состав объекта метаданных Resource").
+            if (resIsInfoReg) {
+                writeElement(sb, 5, "Indexing", res.indexing.xmlValue);
+            }
+            writeElement(sb, 5, "FullTextSearch", "Use");
+            if (resIsInfoReg) {
+                writeElement(sb, 5, "DataHistory", "Use");
+            }
+            //**agent XG-62
+
+            sb.append(indent(4)).append("</Properties>\n");
+            sb.append(indent(3)).append("</Resource>\n");
+        }
+    }
+
+    // ==================== Attribute Writer ====================
+
+    private void writeAttributes(StringBuilder sb, JsonNode attrsNode, String type, String objectName) {
+        for (JsonNode attrNode : attrsNode) {
+            AttrDef attr = parseAttrDef(attrNode);
+            String uuid = UuidGenerator.generate();
+
+            sb.append(indent(3)).append("<Attribute uuid=\"").append(uuid).append("\">\n");
+            sb.append(indent(4)).append("<Properties>\n");
+
+            writeElement(sb, 5, "Name", attr.name);
+            writeSynonym(sb, 5, attr.synonym != null ? attr.synonym : camelCaseToWords(attr.name));
+            writeComment(sb, 5, attr.comment != null ? attr.comment : "");
+
+            // Type (apply nonneg flag to Number types)
+            String attrType = applyNonnegFlag(attr.type, attr.flags);
+            writeTypeElement(sb, 5, attrType, attr.allowedLength);
+
+            // Attribute-specific properties
+            writeElement(sb, 5, "PasswordMode", "false");
+            writeEmptyElement(sb, 5, "Format");
+            writeEmptyElement(sb, 5, "EditFormat");
+            writeEmptyElement(sb, 5, "ToolTip");
+            writeElement(sb, 5, "MarkNegatives", "false");
+            writeEmptyElement(sb, 5, "Mask");
+            writeElement(sb, 5, "MultiLine",
+                    String.valueOf(attr.flags.contains("multiline")));
+            writeElement(sb, 5, "ExtendedEdit", "false");
+            //++agent TASK-174 [15.07.2026 22:30:00] XG-108
+            // Designer кодирует nonnegative через AllowedSign; typed MinValue=0
+            // не входит в XDTO anyType реквизита и блокирует Designer load.
+            sb.append(indent(5)).append("<MinValue xsi:nil=\"true\"/>\n");
+            //++agent TASK-174 XG-108
+            sb.append(indent(5)).append("<MaxValue xsi:nil=\"true\"/>\n");
+
+            // Storable objects get extra properties
+            boolean storable = isStorableType(type);
+            //**agent XG-62 [28.09.2026 20:20:00]
+            //if (storable) {
+            //    writeElement(sb, 5, "FillFromFillingValue", "true");
+            //    sb.append(indent(5)).append("<FillValue xsi:nil=\"true\"/>\n");
+            //}
+            // Канон Designer 8.3.27: у реквизитов регистров накопления/бухгалтерии/расчёта
+            // Fill*/DataHistory отсутствуют (XDTO-отказ при загрузке); у регистра сведений
+            // FillFromFillingValue по умолчанию false (канон 815/21).
+            boolean registerAttr = isRegisterType(type);
+            boolean fillAllowed = storable && (!registerAttr || "InformationRegister".equals(type));
+            if (fillAllowed) {
+                writeElement(sb, 5, "FillFromFillingValue", registerAttr ? "false" : "true");
+                sb.append(indent(5)).append("<FillValue xsi:nil=\"true\"/>\n");
+            }
+            //**agent XG-62
+
+            // FillChecking
+            writeElement(sb, 5, "FillChecking",
+                    attr.flags.contains("req") ? "ShowError" : "DontCheck");
+
+            //++agent TASK-174 [07.06.2026 12:05:00]
+            // Порт-аудит: опущенный ChoiceFoldersAndItems (спека §6.1 + грунт-труф 2.20).
+            writeElement(sb, 5, "ChoiceFoldersAndItems", "Items");
+            //++agent TASK-174
+            writeEmptyElement(sb, 5, "ChoiceParameterLinks");
+            writeEmptyElement(sb, 5, "ChoiceParameters");
+            writeElement(sb, 5, "QuickChoice", "Auto");
+            writeElement(sb, 5, "CreateOnInput", "Auto");
+            writeEmptyElement(sb, 5, "ChoiceForm");
+            writeEmptyElement(sb, 5, "LinkByType");
+            writeElement(sb, 5, "ChoiceHistoryOnInput", "Auto");
+
+            //**agent TASK-174 [07.06.2026 12:05:00]
+            // Порт-аудит: (1) у нехранимых (Report/DataProcessor) реквизитов НЕТ Indexing
+            // (спека §6.1, прим. о различии хранимых/нехранимых) — порт писал безусловно;
+            // (2) порядок хвоста у Catalog по грунт-труфу 2.20: Use → Indexing → FTS → DataHistory
+            // (порт писал Use ПОСЛЕДНИМ — расходился с Designer-дампом).
+            //// Indexing (flags are stored lowercase)
+            //String indexing = "DontIndex";
+            //if (attr.flags.contains("indexadditional")) {
+            //    indexing = "IndexWithAdditionalOrder";
+            //} else if (attr.flags.contains("index")) {
+            //    indexing = "Index";
+            //}
+            //writeElement(sb, 5, "Indexing", indexing);
+            //
+            //if (storable) {
+            //    writeElement(sb, 5, "FullTextSearch", "Use");
+            //    writeElement(sb, 5, "DataHistory", "Use");
+            //}
+            //
+            //// Use (Catalog only)
+            //if ("Catalog".equals(type)) {
+            //    writeElement(sb, 5, "Use", "ForItem");
+            //}
+            if ("Catalog".equals(type)) {
+                writeElement(sb, 5, "Use", "ForItem");
+            }
+            if (storable) {
+                //++agent TASK-174 [14.07.2026 05:55:37] XG-102
+                writeElement(sb, 5, "Indexing", attr.indexing.xmlValue);
+                //++agent TASK-174 XG-102
+                writeElement(sb, 5, "FullTextSearch", "Use");
+                //**agent XG-62 [28.09.2026 20:20:00]
+                //writeElement(sb, 5, "DataHistory", "Use");
+                if (!registerAttr || "InformationRegister".equals(type)) {
+                    writeElement(sb, 5, "DataHistory", "Use");
+                }
+                //**agent XG-62
+            }
+            //**agent TASK-174
+
+            sb.append(indent(4)).append("</Properties>\n");
+            sb.append(indent(3)).append("</Attribute>\n");
+        }
+    }
+
+    // ==================== TabularSection Writer ====================
+
+    private void writeTabularSections(StringBuilder sb, JsonNode tsNode, String type, String objectName) {
+        Iterator<Map.Entry<String, JsonNode>> fields = tsNode.fields();
+        while (fields.hasNext()) {
+            Map.Entry<String, JsonNode> entry = fields.next();
+            String tsName = entry.getKey();
+            JsonNode tsAttrs = entry.getValue();
+
+            String tsUuid = UuidGenerator.generate();
+            String tsSynonym = camelCaseToWords(tsName);
+
+            sb.append(indent(3)).append("<TabularSection uuid=\"").append(tsUuid).append("\">\n");
+
+            // InternalInfo for TS
+            sb.append(indent(4)).append("<InternalInfo>\n");
+            String tsGenPrefix = type + "TabularSection." + objectName + "." + tsName;
+            String tsRowGenPrefix = type + "TabularSectionRow." + objectName + "." + tsName;
+            writeGeneratedType(sb, 5, tsGenPrefix, "TabularSection");
+            writeGeneratedType(sb, 5, tsRowGenPrefix, "TabularSectionRow");
+            sb.append(indent(4)).append("</InternalInfo>\n");
+
+            // Properties
+            sb.append(indent(4)).append("<Properties>\n");
+            writeElement(sb, 5, "Name", tsName);
+            writeSynonym(sb, 5, tsSynonym);
+            writeComment(sb, 5, "");
+            writeEmptyElement(sb, 5, "ToolTip");
+            writeElement(sb, 5, "FillChecking", "DontCheck");
+            //++agent TASK-174 [07.06.2026 12:05:00]
+            // Порт-аудит: LineNumberLength (формат 2.20, спека §26.1) был опущен — ТЧ в
+            // Designer-дампе 2.20 имеет его после FillChecking (дефолт платформы — 5).
+            // Для формата < 2.20 строка вырезается глобальным фильтром в generateXml.
+            writeElement(sb, 5, "LineNumberLength", "5");
+            //++agent TASK-174
+
+            // Use (Catalog only)
+            if ("Catalog".equals(type)) {
+                writeElement(sb, 5, "Use", "ForItem");
+            }
+
+            sb.append(indent(4)).append("</Properties>\n");
+
+            // TS ChildObjects (attributes)
+            if (tsAttrs.isArray() && tsAttrs.size() > 0) {
+                sb.append(indent(4)).append("<ChildObjects>\n");
+                for (JsonNode tsAttrNode : tsAttrs) {
+                    AttrDef attr = parseAttrDef(tsAttrNode);
+                    writeTsAttribute(sb, attr, type);
+                }
+                sb.append(indent(4)).append("</ChildObjects>\n");
+            } else {
+                sb.append(indent(4)).append("<ChildObjects/>\n");
+            }
+
+            sb.append(indent(3)).append("</TabularSection>\n");
+        }
+    }
+
+    private void writeTsAttribute(StringBuilder sb, AttrDef attr, String parentType) {
+        String uuid = UuidGenerator.generate();
+        sb.append(indent(5)).append("<Attribute uuid=\"").append(uuid).append("\">\n");
+        sb.append(indent(6)).append("<Properties>\n");
+
+        writeElement(sb, 7, "Name", attr.name);
+        writeSynonym(sb, 7, attr.synonym != null ? attr.synonym : camelCaseToWords(attr.name));
+        writeComment(sb, 7, attr.comment != null ? attr.comment : "");
+        String tsAttrType = applyNonnegFlag(attr.type, attr.flags);
+        writeTypeElement(sb, 7, tsAttrType, attr.allowedLength);
+
+        writeElement(sb, 7, "PasswordMode", "false");
+        writeEmptyElement(sb, 7, "Format");
+        writeEmptyElement(sb, 7, "EditFormat");
+        writeEmptyElement(sb, 7, "ToolTip");
+        writeElement(sb, 7, "MarkNegatives", "false");
+        writeEmptyElement(sb, 7, "Mask");
+        writeElement(sb, 7, "MultiLine",
+                String.valueOf(attr.flags.contains("multiline")));
+        writeElement(sb, 7, "ExtendedEdit", "false");
+        //++agent TASK-174 [15.07.2026 22:30:00] XG-108
+        // У реквизита ТЧ действует тот же XDTO-канон, что и у прямого Attribute.
+        sb.append(indent(7)).append("<MinValue xsi:nil=\"true\"/>\n");
+        //++agent TASK-174 XG-108
+        sb.append(indent(7)).append("<MaxValue xsi:nil=\"true\"/>\n");
+
+        //++agent TASK-174 [07.06.2026 12:05:00]
+        // Порт-аудит: у НЕхранимых объектов (Report/DataProcessor) реквизиты ТЧ имеют
+        // FillFromFillingValue + FillValue между MaxValue и FillChecking (спека
+        // 1c-config-objects §6.2 / 1c-epf-spec §3) — порт их не писал ни для кого.
+        // Для хранимых их отсутствие правильно (грунт-труф Document ТЧ их не содержит).
+        if (!isStorableType(parentType)) {
+            writeElement(sb, 7, "FillFromFillingValue", "false");
+            sb.append(indent(7)).append("<FillValue xsi:nil=\"true\"/>\n");
+        }
+        //++agent TASK-174
+
+        writeElement(sb, 7, "FillChecking",
+                attr.flags.contains("req") ? "ShowError" : "DontCheck");
+
+        //++agent TASK-174 [07.06.2026 12:05:00]
+        // Порт-аудит: опущенный ChoiceFoldersAndItems (спека §6.1/§6.2 + грунт-труф 2.20).
+        writeElement(sb, 7, "ChoiceFoldersAndItems", "Items");
+        //++agent TASK-174
+        writeEmptyElement(sb, 7, "ChoiceParameterLinks");
+        writeEmptyElement(sb, 7, "ChoiceParameters");
+        writeElement(sb, 7, "QuickChoice", "Auto");
+        writeElement(sb, 7, "CreateOnInput", "Auto");
+        writeEmptyElement(sb, 7, "ChoiceForm");
+        writeEmptyElement(sb, 7, "LinkByType");
+        writeElement(sb, 7, "ChoiceHistoryOnInput", "Auto");
+
+        boolean storable = isStorableType(parentType);
+        if (storable) {
+            //++agent TASK-174 [15.07.2026 22:10:56] XG-104
+            // Typed-значение не должно теряться в отдельном writer-пути реквизитов ТЧ.
+            writeElement(sb, 7, "Indexing", attr.indexing.xmlValue);
+            //++agent TASK-174 XG-104
+            writeElement(sb, 7, "FullTextSearch", "Use");
+            writeElement(sb, 7, "DataHistory", "Use");
+        }
+
+        sb.append(indent(6)).append("</Properties>\n");
+        sb.append(indent(5)).append("</Attribute>\n");
+    }
+
+    // ==================== EnumValue Writer ====================
+
+    private void writeEnumValues(StringBuilder sb, JsonNode valuesNode, String objectName) {
+        for (JsonNode val : valuesNode) {
+            String valName;
+            String valSynonym;
+
+            if (val.isTextual()) {
+                valName = val.asText();
+                valSynonym = camelCaseToWords(valName);
+            } else {
+                valName = requireString(val, "name");
+                valSynonym = getString(val, "synonym", camelCaseToWords(valName));
+            }
+
+            String uuid = UuidGenerator.generate();
+            sb.append(indent(3)).append("<EnumValue uuid=\"").append(uuid).append("\">\n");
+            sb.append(indent(4)).append("<Properties>\n");
+            writeElement(sb, 5, "Name", valName);
+            writeSynonym(sb, 5, valSynonym);
+            writeComment(sb, 5, "");
+            sb.append(indent(4)).append("</Properties>\n");
+            sb.append(indent(3)).append("</EnumValue>\n");
+        }
+    }
+
+    // ==================== AccountingFlag Writer ====================
+
+    private void writeAccountingFlags(StringBuilder sb, JsonNode flagsNode, String elementName) {
+        for (JsonNode flag : flagsNode) {
+            String flagName;
+            String flagSynonym;
+
+            if (flag.isTextual()) {
+                flagName = flag.asText();
+                flagSynonym = camelCaseToWords(flagName);
+            } else {
+                flagName = requireString(flag, "name");
+                flagSynonym = getString(flag, "synonym", camelCaseToWords(flagName));
+            }
+
+            String uuid = UuidGenerator.generate();
+            sb.append(indent(3)).append("<").append(elementName)
+                    .append(" uuid=\"").append(uuid).append("\">\n");
+            sb.append(indent(4)).append("<Properties>\n");
+            writeElement(sb, 5, "Name", flagName);
+            writeSynonym(sb, 5, flagSynonym);
+            writeComment(sb, 5, "");
+
+            // AccountingFlags are always Boolean
+            sb.append(indent(5)).append("<Type>\n");
+            sb.append(indent(6)).append("<v8:Type>xs:boolean</v8:Type>\n");
+            sb.append(indent(5)).append("</Type>\n");
+
+            // Standard attribute-like properties
+            writeElement(sb, 5, "PasswordMode", "false");
+            writeEmptyElement(sb, 5, "Format");
+            writeEmptyElement(sb, 5, "EditFormat");
+            writeEmptyElement(sb, 5, "ToolTip");
+            writeElement(sb, 5, "MarkNegatives", "false");
+            writeEmptyElement(sb, 5, "Mask");
+            writeElement(sb, 5, "MultiLine", "false");
+            writeElement(sb, 5, "ExtendedEdit", "false");
+            sb.append(indent(5)).append("<MinValue xsi:nil=\"true\"/>\n");
+            sb.append(indent(5)).append("<MaxValue xsi:nil=\"true\"/>\n");
+            writeElement(sb, 5, "FillFromFillingValue", "true");
+            sb.append(indent(5)).append("<FillValue xsi:nil=\"true\"/>\n");
+            writeElement(sb, 5, "FillChecking", "DontCheck");
+            //++agent TASK-174 [07.06.2026 12:05:00]
+            // Порт-аудит: опущенный ChoiceFoldersAndItems (спека §6.1 + грунт-труф 2.20).
+            writeElement(sb, 5, "ChoiceFoldersAndItems", "Items");
+            //++agent TASK-174
+            writeEmptyElement(sb, 5, "ChoiceParameterLinks");
+            writeEmptyElement(sb, 5, "ChoiceParameters");
+            writeElement(sb, 5, "QuickChoice", "Auto");
+            writeElement(sb, 5, "CreateOnInput", "Auto");
+            writeEmptyElement(sb, 5, "ChoiceForm");
+            writeEmptyElement(sb, 5, "LinkByType");
+            writeElement(sb, 5, "ChoiceHistoryOnInput", "Auto");
+            writeElement(sb, 5, "Indexing", "DontIndex");
+            writeElement(sb, 5, "FullTextSearch", "Use");
+            writeElement(sb, 5, "DataHistory", "Use");
+
+            sb.append(indent(4)).append("</Properties>\n");
+            sb.append(indent(3)).append("</").append(elementName).append(">\n");
+        }
+    }
+
+    // ==================== Column Writer (DocumentJournal) ====================
+
+    private void writeColumns(StringBuilder sb, JsonNode columnsNode) {
+        for (JsonNode col : columnsNode) {
+            String colName;
+            String colSynonym;
+            String indexing = "DontIndex";
+            List<String> references = new ArrayList<>();
+
+            if (col.isTextual()) {
+                colName = col.asText();
+                colSynonym = camelCaseToWords(colName);
+            } else {
+                colName = requireString(col, "name");
+                colSynonym = getString(col, "synonym", camelCaseToWords(colName));
+                indexing = getString(col, "indexing", "DontIndex");
+                references = getStringList(col, "references");
+            }
+
+            String uuid = UuidGenerator.generate();
+            sb.append(indent(3)).append("<Column uuid=\"").append(uuid).append("\">\n");
+            sb.append(indent(4)).append("<Properties>\n");
+            writeElement(sb, 5, "Name", colName);
+            writeSynonym(sb, 5, colSynonym);
+            writeComment(sb, 5, "");
+            writeElement(sb, 5, "Indexing", indexing);
+
+            if (references.isEmpty()) {
+                writeEmptyElement(sb, 5, "References");
+            } else {
+                sb.append(indent(5)).append("<References>\n");
+                for (String ref : references) {
+                    sb.append(indent(6)).append("<xr:Item xsi:type=\"xr:MDObjectRef\">")
+                            .append(esc(ref)).append("</xr:Item>\n");
+                }
+                sb.append(indent(5)).append("</References>\n");
+            }
+
+            sb.append(indent(4)).append("</Properties>\n");
+            sb.append(indent(3)).append("</Column>\n");
+        }
+    }
+
+    // ==================== URLTemplate Writer (HTTPService) ====================
+
+    private void writeUrlTemplates(StringBuilder sb, JsonNode templatesNode) {
+        Iterator<Map.Entry<String, JsonNode>> fields = templatesNode.fields();
+        while (fields.hasNext()) {
+            Map.Entry<String, JsonNode> entry = fields.next();
+            String tplName = entry.getKey();
+            JsonNode tplDef = entry.getValue();
+
+            String uuid = UuidGenerator.generate();
+            sb.append(indent(3)).append("<URLTemplate uuid=\"").append(uuid).append("\">\n");
+            sb.append(indent(4)).append("<Properties>\n");
+            writeElement(sb, 5, "Name", tplName);
+            writeSynonym(sb, 5, camelCaseToWords(tplName));
+            writeComment(sb, 5, "");
+
+            String template;
+            JsonNode methodsNode = null;
+            if (tplDef.isTextual()) {
+                template = tplDef.asText();
+            } else {
+                template = getString(tplDef, "template", "/" + tplName);
+                methodsNode = tplDef.get("methods");
+            }
+            writeElement(sb, 5, "Template", template);
+
+            sb.append(indent(4)).append("</Properties>\n");
+
+            // Methods
+            if (methodsNode != null && methodsNode.size() > 0) {
+                sb.append(indent(4)).append("<ChildObjects>\n");
+                Iterator<Map.Entry<String, JsonNode>> methods = methodsNode.fields();
+                while (methods.hasNext()) {
+                    Map.Entry<String, JsonNode> methodEntry = methods.next();
+                    String methodName = methodEntry.getKey();
+                    String httpMethod = methodEntry.getValue().asText();
+                    String handler = tplName + methodName;
+
+                    String methodUuid = UuidGenerator.generate();
+                    sb.append(indent(5)).append("<Method uuid=\"").append(methodUuid).append("\">\n");
+                    sb.append(indent(6)).append("<Properties>\n");
+                    writeElement(sb, 7, "Name", methodName);
+                    writeSynonym(sb, 7, camelCaseToWords(methodName));
+                    writeComment(sb, 7, "");
+                    writeElement(sb, 7, "HTTPMethod", httpMethod);
+                    writeElement(sb, 7, "Handler", handler);
+                    sb.append(indent(6)).append("</Properties>\n");
+                    sb.append(indent(5)).append("</Method>\n");
+                }
+                sb.append(indent(4)).append("</ChildObjects>\n");
+            } else {
+                sb.append(indent(4)).append("<ChildObjects/>\n");
+            }
+
+            sb.append(indent(3)).append("</URLTemplate>\n");
+        }
+    }
+
+    // ==================== Operation Writer (WebService) ====================
+
+    private void writeOperations(StringBuilder sb, JsonNode opsNode) {
+        Iterator<Map.Entry<String, JsonNode>> fields = opsNode.fields();
+        while (fields.hasNext()) {
+            Map.Entry<String, JsonNode> entry = fields.next();
+            String opName = entry.getKey();
+            JsonNode opDef = entry.getValue();
+
+            String uuid = UuidGenerator.generate();
+            sb.append(indent(3)).append("<Operation uuid=\"").append(uuid).append("\">\n");
+            sb.append(indent(4)).append("<Properties>\n");
+            writeElement(sb, 5, "Name", opName);
+            writeSynonym(sb, 5, camelCaseToWords(opName));
+            writeComment(sb, 5, "");
+
+            String returnType;
+            String handler;
+            boolean nillable;
+            boolean transactioned;
+            JsonNode parametersNode = null;
+
+            if (opDef.isTextual()) {
+                returnType = opDef.asText();
+                handler = opName;
+                nillable = false;
+                transactioned = false;
+            } else {
+                returnType = getString(opDef, "returnType", "xs:string");
+                handler = getString(opDef, "handler", opName);
+                nillable = getBool(opDef, "nillable", false);
+                transactioned = getBool(opDef, "transactioned", false);
+                parametersNode = opDef.get("parameters");
+            }
+
+            sb.append(indent(5)).append("<XDTOReturningValueType>\n");
+            sb.append(indent(6)).append("<v8:Type>").append(esc(returnType)).append("</v8:Type>\n");
+            sb.append(indent(6)).append("<v8:Nillable>").append(nillable).append("</v8:Nillable>\n");
+            sb.append(indent(5)).append("</XDTOReturningValueType>\n");
+            writeElement(sb, 5, "ProcedureName", handler);
+            writeElement(sb, 5, "Transactioned", String.valueOf(transactioned));
+
+            sb.append(indent(4)).append("</Properties>\n");
+
+            // Parameters
+            if (parametersNode != null && parametersNode.size() > 0) {
+                sb.append(indent(4)).append("<ChildObjects>\n");
+                Iterator<Map.Entry<String, JsonNode>> params = parametersNode.fields();
+                while (params.hasNext()) {
+                    Map.Entry<String, JsonNode> paramEntry = params.next();
+                    String paramName = paramEntry.getKey();
+                    JsonNode paramDef = paramEntry.getValue();
+
+                    String paramType;
+                    boolean paramNillable;
+                    String direction;
+                    if (paramDef.isTextual()) {
+                        paramType = paramDef.asText();
+                        paramNillable = true;
+                        direction = "Input";
+                    } else {
+                        paramType = getString(paramDef, "type", "xs:string");
+                        paramNillable = getBool(paramDef, "nillable", true);
+                        direction = getString(paramDef, "direction", "In");
+                    }
+                    // Normalize DSL shorthand → XML values
+                    direction = switch (direction) {
+                        case "In" -> "Input";
+                        case "Out" -> "Output";
+                        case "InOut" -> "InputOutput";
+                        default -> direction; // already canonical
+                    };
+
+                    String paramUuid = UuidGenerator.generate();
+                    sb.append(indent(5)).append("<Parameter uuid=\"").append(paramUuid).append("\">\n");
+                    sb.append(indent(6)).append("<Properties>\n");
+                    writeElement(sb, 7, "Name", paramName);
+                    sb.append(indent(7)).append("<XDTOValueType>\n");
+                    sb.append(indent(8)).append("<v8:Type>").append(esc(paramType)).append("</v8:Type>\n");
+                    sb.append(indent(8)).append("<v8:Nillable>").append(paramNillable).append("</v8:Nillable>\n");
+                    sb.append(indent(7)).append("</XDTOValueType>\n");
+                    writeElement(sb, 7, "TransferDirection", direction);
+                    sb.append(indent(6)).append("</Properties>\n");
+                    sb.append(indent(5)).append("</Parameter>\n");
+                }
+                sb.append(indent(4)).append("</ChildObjects>\n");
+            } else {
+                sb.append(indent(4)).append("<ChildObjects/>\n");
+            }
+
+            sb.append(indent(3)).append("</Operation>\n");
+        }
+    }
+
+    // ==================== AddressingAttribute Writer (Task) ====================
+
+    private void writeAddressingAttributes(StringBuilder sb, JsonNode addrNode) {
+        for (JsonNode node : addrNode) {
+            String attrName;
+            String attrType = "String(10)";
+            String attrSynonym = null;
+            String addressingDimension = "";
+
+            if (node.isTextual()) {
+                attrName = node.asText();
+            } else {
+                attrName = requireString(node, "name");
+                attrType = normalizeDslType(getString(node, "type", "String(10)"));
+                attrSynonym = getString(node, "synonym", null);
+                addressingDimension = getString(node, "addressingDimension", "");
+            }
+
+            if (attrSynonym == null) attrSynonym = camelCaseToWords(attrName);
+
+            String uuid = UuidGenerator.generate();
+            sb.append(indent(3)).append("<AddressingAttribute uuid=\"").append(uuid).append("\">\n");
+            sb.append(indent(4)).append("<Properties>\n");
+            writeElement(sb, 5, "Name", attrName);
+            writeSynonym(sb, 5, attrSynonym);
+            writeComment(sb, 5, "");
+            writeTypeElement(sb, 5, attrType);
+
+            writeElement(sb, 5, "PasswordMode", "false");
+            writeEmptyElement(sb, 5, "Format");
+            writeEmptyElement(sb, 5, "EditFormat");
+            writeEmptyElement(sb, 5, "ToolTip");
+            writeElement(sb, 5, "MarkNegatives", "false");
+            writeEmptyElement(sb, 5, "Mask");
+            writeElement(sb, 5, "MultiLine", "false");
+            writeElement(sb, 5, "ExtendedEdit", "false");
+            sb.append(indent(5)).append("<MinValue xsi:nil=\"true\"/>\n");
+            sb.append(indent(5)).append("<MaxValue xsi:nil=\"true\"/>\n");
+            writeElement(sb, 5, "FillFromFillingValue", "true");
+            sb.append(indent(5)).append("<FillValue xsi:nil=\"true\"/>\n");
+            writeElement(sb, 5, "FillChecking", "DontCheck");
+            //++agent TASK-174 [07.06.2026 12:05:00]
+            // Порт-аудит: опущенный ChoiceFoldersAndItems (спека §6.1 + грунт-труф 2.20).
+            writeElement(sb, 5, "ChoiceFoldersAndItems", "Items");
+            //++agent TASK-174
+            writeEmptyElement(sb, 5, "ChoiceParameterLinks");
+            writeEmptyElement(sb, 5, "ChoiceParameters");
+            writeElement(sb, 5, "QuickChoice", "Auto");
+            writeElement(sb, 5, "CreateOnInput", "Auto");
+            writeEmptyElement(sb, 5, "ChoiceForm");
+            writeEmptyElement(sb, 5, "LinkByType");
+            writeElement(sb, 5, "ChoiceHistoryOnInput", "Auto");
+            writeElement(sb, 5, "Indexing", "DontIndex");
+            writeElement(sb, 5, "FullTextSearch", "Use");
+
+            // AddressingDimension
+            if (!addressingDimension.isEmpty()) {
+                writeElement(sb, 5, "AddressingDimension", addressingDimension);
+            }
+
+            sb.append(indent(4)).append("</Properties>\n");
+            sb.append(indent(3)).append("</AddressingAttribute>\n");
+        }
+    }
+
+    // ==================== Nonneg Flag ====================
+
+    /**
+     * Apply nonneg flag from DSL shorthand to Number type.
+     * "Number(15,2)" + nonneg → "Number(15,2,nonneg)"
+     */
+    private String applyNonnegFlag(String type, Set<String> flags) {
+        if (!flags.contains("nonneg")) return type;
+        if (type == null) return type;
+        // Already has nonneg
+        if (type.toLowerCase().contains("nonneg")) return type;
+        // Only applies to Number types
+        Matcher m = NUMBER_TYPE.matcher(type);
+        if (m.matches()) {
+            int digits = Integer.parseInt(m.group(1));
+            int frac = m.group(2) != null ? Integer.parseInt(m.group(2)) : 0;
+            return "Number(" + digits + "," + frac + ",nonneg)";
+        }
+        return type;
+    }
+
+    // ==================== Type XML Generation ====================
+
+    private void writeTypeElement(StringBuilder sb, int indent, String dslType) {
+        writeTypeElement(sb, indent, dslType, StringAllowedLength.VARIABLE);
+    }
+
+    //++agent TASK-174 [15.07.2026 22:10:56] XG-107
+    private void writeTypeElement(StringBuilder sb, int indent, String dslType,
+                                  StringAllowedLength allowedLength) {
+        if (dslType == null || dslType.isEmpty()) {
+            // Default: String(10)
+            dslType = "String(10)";
+        }
+
+        String normalizedType = normalizeDslType(dslType);
+
+        sb.append(indent(indent)).append("<Type>\n");
+
+        // Check for composite type (array)
+        if (normalizedType.contains(",") && !normalizedType.contains("(")) {
+            // Multiple types separated by comma
+            for (String t : normalizedType.split(",")) {
+                writeTypeValue(sb, indent + 1, t.trim(), allowedLength);
+            }
+        } else {
+            writeTypeValue(sb, indent + 1, normalizedType, allowedLength);
+        }
+
+        sb.append(indent(indent)).append("</Type>\n");
+    }
+
+    private void writeTypeComposite(StringBuilder sb, int indent, List<String> types) {
+        sb.append(indent(indent)).append("<Type>\n");
+        for (String t : types) {
+            String normalized = normalizeDslType(t);
+            writeTypeValue(sb, indent + 1, normalized);
+        }
+        sb.append(indent(indent)).append("</Type>\n");
+    }
+
+    //++agent XG-104 [28.09.2026 19:35:00]
+    public static final int MAX_STRING_LENGTH = 1024;
+    //++agent XG-104
+
+    private void writeTypeValue(StringBuilder sb, int indent, String normalizedType) {
+        writeTypeValue(sb, indent, normalizedType, StringAllowedLength.VARIABLE);
+    }
+
+    private void writeTypeValue(StringBuilder sb, int indent, String normalizedType,
+                                StringAllowedLength allowedLength) {
+        // String
+        Matcher strM = STRING_TYPE.matcher(normalizedType);
+        if (strM.matches()) {
+            int len = strM.group(1) != null ? Integer.parseInt(strM.group(1)) : 0;
+            //++agent XG-104 [28.09.2026 19:35:00]
+            // Платформа 8.3.27 отвергает ограниченную строку длиннее 1024 (SDBL «Слишком
+            // большое значение описателя длины») — только на UpdateDBCfg. Ловим при генерации.
+            if (len > MAX_STRING_LENGTH) {
+                throw new IllegalArgumentException("String(" + len + "): length exceeds platform maximum "
+                        + MAX_STRING_LENGTH + "; use String (unlimited, Length=0)");
+            }
+            //++agent XG-104
+            sb.append(indent(indent)).append("<v8:Type>xs:string</v8:Type>\n");
+            sb.append(indent(indent)).append("<v8:StringQualifiers>\n");
+            sb.append(indent(indent + 1)).append("<v8:Length>").append(len).append("</v8:Length>\n");
+            sb.append(indent(indent + 1)).append("<v8:AllowedLength>")
+                    .append(allowedLength.xmlValue).append("</v8:AllowedLength>\n");
+            sb.append(indent(indent)).append("</v8:StringQualifiers>\n");
+            return;
+        }
+
+        // Number
+        Matcher numM = NUMBER_TYPE.matcher(normalizedType);
+        if (numM.matches()) {
+            int digits = Integer.parseInt(numM.group(1));
+            int frac = numM.group(2) != null ? Integer.parseInt(numM.group(2)) : 0;
+            String sign = numM.group(3) != null ? "Nonnegative" : "Any";
+            sb.append(indent(indent)).append("<v8:Type>xs:decimal</v8:Type>\n");
+            sb.append(indent(indent)).append("<v8:NumberQualifiers>\n");
+            sb.append(indent(indent + 1)).append("<v8:Digits>").append(digits).append("</v8:Digits>\n");
+            sb.append(indent(indent + 1)).append("<v8:FractionDigits>").append(frac).append("</v8:FractionDigits>\n");
+            sb.append(indent(indent + 1)).append("<v8:AllowedSign>").append(sign).append("</v8:AllowedSign>\n");
+            sb.append(indent(indent)).append("</v8:NumberQualifiers>\n");
+            return;
+        }
+
+        // Boolean
+        if ("Boolean".equalsIgnoreCase(normalizedType)) {
+            sb.append(indent(indent)).append("<v8:Type>xs:boolean</v8:Type>\n");
+            return;
+        }
+
+        // Date
+        if ("Date".equalsIgnoreCase(normalizedType)) {
+            sb.append(indent(indent)).append("<v8:Type>xs:dateTime</v8:Type>\n");
+            sb.append(indent(indent)).append("<v8:DateQualifiers>\n");
+            sb.append(indent(indent + 1)).append("<v8:DateFractions>Date</v8:DateFractions>\n");
+            sb.append(indent(indent)).append("</v8:DateQualifiers>\n");
+            return;
+        }
+        if ("DateTime".equalsIgnoreCase(normalizedType)) {
+            sb.append(indent(indent)).append("<v8:Type>xs:dateTime</v8:Type>\n");
+            sb.append(indent(indent)).append("<v8:DateQualifiers>\n");
+            sb.append(indent(indent + 1)).append("<v8:DateFractions>DateTime</v8:DateFractions>\n");
+            sb.append(indent(indent)).append("</v8:DateQualifiers>\n");
+            return;
+        }
+
+        // DefinedType.Xxx → v8:TypeSet
+        if (normalizedType.startsWith("DefinedType.")) {
+            sb.append(indent(indent)).append("<v8:TypeSet>cfg:").append(esc(normalizedType)).append("</v8:TypeSet>\n");
+            return;
+        }
+
+        // Reference types: *Ref.Xxx → cfg:*Ref.Xxx
+        if (normalizedType.contains("Ref.")) {
+            String xmlType = normalizedType.startsWith("cfg:") ? normalizedType : "cfg:" + normalizedType;
+            sb.append(indent(indent)).append("<v8:Type>").append(esc(xmlType)).append("</v8:Type>\n");
+            return;
+        }
+
+        // Object types: *Object.Xxx → cfg:*Object.Xxx
+        if (normalizedType.contains("Object.")) {
+            String xmlType = normalizedType.startsWith("cfg:") ? normalizedType : "cfg:" + normalizedType;
+            sb.append(indent(indent)).append("<v8:Type>").append(esc(xmlType)).append("</v8:Type>\n");
+            return;
+        }
+
+        // Known special types
+        if ("ValueStorage".equalsIgnoreCase(normalizedType) || "v8:ValueStorage".equals(normalizedType)) {
+            sb.append(indent(indent)).append("<v8:Type>v8:ValueStorage</v8:Type>\n");
+            return;
+        }
+        if ("UUID".equalsIgnoreCase(normalizedType) || "v8:UUID".equals(normalizedType)) {
+            sb.append(indent(indent)).append("<v8:Type>v8:UUID</v8:Type>\n");
+            return;
+        }
+
+        // xs: prefixed types pass through
+        if (normalizedType.startsWith("xs:") || normalizedType.startsWith("v8:") || normalizedType.startsWith("cfg:")) {
+            sb.append(indent(indent)).append("<v8:Type>").append(esc(normalizedType)).append("</v8:Type>\n");
+            return;
+        }
+
+        throw new IllegalArgumentException("Unknown DSL type: '" + normalizedType
+                + "'. Supported: String, Number, Boolean, Date, DateTime, *Ref.Name, DefinedType.Name");
+    }
+    //++agent TASK-174 XG-107
+
+    // ==================== Directory Structure ====================
+
+    private void createDirStructure(Path typeDir, String name, String type,
+                                     TypeDescriptor td, String formatVersion,
+                                     int scheduledJobRepeatPause) throws IOException {
+        //++agent TASK-174 XG-108 [20.07.2026 03:28:29]
+        // Designer хранит SessionParameter только одним XML-файлом. Лишний пустой
+        // каталог объекта не является частью канонического dump-контракта.
+        if ("SessionParameter".equals(type)) {
+            return;
+        }
+        //++agent TASK-174 XG-108
+
+        Path objDir = typeDir.resolve(name);
+        Path extDir = objDir.resolve("Ext");
+        Files.createDirectories(extDir);
+
+        // Module files depend on type
+        switch (type) {
+            case "Enum", "DefinedType", "ScheduledJob",
+                 "EventSubscription", "DocumentJournal" -> {
+                // No module files
+            }
+            case "Constant" -> {
+                // Constant has only ManagerModule
+                writeWithBom(extDir.resolve("ManagerModule.bsl"), "");
+            }
+            case "CommonModule", "HTTPService", "WebService" -> {
+                writeWithBom(extDir.resolve("Module.bsl"), "");
+            }
+            case "InformationRegister", "AccumulationRegister",
+                 "AccountingRegister", "CalculationRegister" -> {
+                writeWithBom(extDir.resolve("RecordSetModule.bsl"), "");
+            }
+            default -> {
+                // Reference types, Report, DataProcessor, BusinessProcess, Task
+                writeWithBom(extDir.resolve("ObjectModule.bsl"), "");
+                writeWithBom(extDir.resolve("ManagerModule.bsl"), "");
+            }
+        }
+
+        // ExchangePlan: Content.xml stub
+        if ("ExchangePlan".equals(type)) {
+            writeExchangePlanContent(extDir.resolve("Content.xml"), formatVersion);
+        }
+
+        // BusinessProcess: Flowchart.xml stub
+        if ("BusinessProcess".equals(type)) {
+            writeFlowchartStub(extDir.resolve("Flowchart.xml"), formatVersion);
+        }
+
+        // ScheduledJob: Designer stores schedule settings in a separate XCF body.
+        if ("ScheduledJob".equals(type)) {
+            writeJobScheduleStub(extDir.resolve("Schedule.xml"), formatVersion,
+                    scheduledJobRepeatPause);
+        }
+    }
+
+    //++agent TASK-221 XG-103 [2026-09-22]
+    /**
+     * Читает период паузы между повторами в секундах.
+     * Отсутствующий ключ сохраняет канонический default 0.
+     */
+    private int scheduledJobRepeatPause(JsonNode root) {
+        JsonNode schedule = root.get("schedule");
+        if (schedule == null || schedule.isNull()) {
+            return 0;
+        }
+        if (!schedule.isObject()) {
+            throw new IllegalArgumentException(
+                    "ScheduledJob schedule must be an object with repeatPause (seconds)");
+        }
+
+        JsonNode value = schedule.get("repeatPause");
+        if (value == null) {
+            return 0;
+        }
+        if (!value.isIntegralNumber()
+                || value.bigIntegerValue().signum() < 0
+                || !value.canConvertToInt()) {
+            throw new IllegalArgumentException(
+                    "ScheduledJob schedule.repeatPause must be a non-negative integer number of seconds");
+        }
+        return value.intValue();
+    }
+    //--agent TASK-221 XG-103
+
+    private void writeJobScheduleStub(Path path, String formatVersion,
+                                      int repeatPause) throws IOException {
+        String xml = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
+                + "<JobSchedule xmlns=\"http://v8.1c.ru/8.3/xcf/extrnprops\" "
+                + "xmlns:ent=\"http://v8.1c.ru/8.1/data/enterprise\" "
+                + "xmlns:xs=\"http://www.w3.org/2001/XMLSchema\" "
+                + "xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\" "
+                + "version=\"" + esc(formatVersion) + "\">\n"
+                + "\t<Schedule BeginDate=\"0001-01-01\" EndDate=\"0001-01-01\" "
+                + "BeginTime=\"00:00:00\" EndTime=\"00:00:00\" CompletionTime=\"00:00:00\" "
+                + "CompletionInterval=\"0\" RepeatPeriodInDay=\"0\" RepeatPause=\""
+                + repeatPause + "\" "
+                + "WeekDayInMonth=\"0\" DayInMonth=\"1\" WeeksPeriod=\"1\" DaysRepeatPeriod=\"0\">\n"
+                + "\t\t<ent:WeekDays>1 2 3 4 5 6 7</ent:WeekDays>\n"
+                + "\t\t<ent:Months>1 2 3 4 5 6 7 8 9 10 11 12</ent:Months>\n"
+                + "\t</Schedule>\n"
+                + "</JobSchedule>\n";
+        writeWithBom(path, xml);
+    }
+
+    private void writeExchangePlanContent(Path path, String formatVersion) throws IOException {
+        StringBuilder sb = new StringBuilder();
+        sb.append("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n");
+        sb.append("<ExchangePlanContent xmlns=\"http://v8.1c.ru/8.3/xcf/extrnprops\"\n");
+        // TASK-171 D-2: канонический namespace v8.1c.ru
+        sb.append("\txmlns:xr=\"http://v8.1c.ru/8.3/xcf/readable\"\n");
+        sb.append("\txmlns:xs=\"http://www.w3.org/2001/XMLSchema\"\n");
+        sb.append("\txmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\"\n");
+        sb.append("\tversion=\"").append(formatVersion).append("\"/>\n");
+        writeWithBom(path, sb.toString());
+    }
+
+    private void writeFlowchartStub(Path path, String formatVersion) throws IOException {
+        StringBuilder sb = new StringBuilder();
+        sb.append("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n");
+        sb.append("<GraphicalSchema xmlns=\"http://v8.1c.ru/8.3/xcf/scheme\"\n");
+        sb.append("\txmlns:xs=\"http://www.w3.org/2001/XMLSchema\"\n");
+        sb.append("\txmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\"\n");
+        sb.append("\tversion=\"").append(formatVersion).append("\"/>\n");
+        writeWithBom(path, sb.toString());
+    }
+
+    // ==================== Attribute DSL Parsing ====================
+
+    private AttrDef parseAttrDef(JsonNode node) {
+        if (node.isTextual()) {
+            return parseShorthandAttr(node.asText());
+        }
+        // Object form
+        String name = requireString(node, "name");
+        String type = getString(node, "type", "String(10)");
+        type = normalizeDslType(type);
+
+        // Handle separate length/precision fields
+        if (!type.contains("(")) {
+            if ("String".equalsIgnoreCase(type) && node.has("length")) {
+                type = "String(" + node.get("length").asInt() + ")";
+            } else if ("Number".equalsIgnoreCase(type) && node.has("length")) {
+                int len = node.get("length").asInt();
+                int prec = node.has("precision") ? node.get("precision").asInt() : 0;
+                boolean nonneg = getBool(node, "nonneg", false);
+                type = "Number(" + len + "," + prec + (nonneg ? ",nonneg" : "") + ")";
+            }
+        }
+
+        String synonym = getString(node, "synonym", null);
+        String comment = getString(node, "comment", null);
+        Set<String> flags = new HashSet<>();
+        String fillChecking = getString(node, "fillChecking", null);
+        if ("ShowError".equals(fillChecking)) flags.add("req");
+        FieldIndexing indexing = parseObjectIndexing(node);
+        StringAllowedLength allowedLength = parseObjectAllowedLength(node, type);
+        if (getBool(node, "nonneg", false)) flags.add("nonneg");
+        if (getBool(node, "multiLine", false)) flags.add("multiline");
+
+        // Register-specific dimension flags (object form)
+        if (getBool(node, "master", false)) flags.add("master");
+        if (getBool(node, "mainFilter", false)) flags.add("mainfilter");
+        if (getBool(node, "denyIncomplete", false)) flags.add("denyincomplete");
+        if (getBool(node, "useInTotals", false)) flags.add("useintotals");
+        //++agent TASK-174 [07.06.2026 12:05:00]
+        // Порт-аудит: object-form флаги измерений бух./расчётного регистра + явное
+        // отключение UseInTotals (дефолт true, см. writeDimensions).
+        if (node.has("useInTotals") && !node.get("useInTotals").asBoolean()) flags.add("nouseintotals");
+        if (getBool(node, "balance", false)) flags.add("balance");
+        if (getBool(node, "baseDimension", false)) flags.add("base");
+        //++agent TASK-174
+
+        return new AttrDef(name, type, synonym, comment, flags, indexing, allowedLength);
+    }
+
+    private AttrDef parseShorthandAttr(String shorthand) {
+        Matcher m = ATTR_SHORT.matcher(shorthand.trim());
+        if (!m.matches()) {
+            throw new IllegalArgumentException("Invalid attribute shorthand: " + shorthand);
+        }
+
+        String name = m.group(1).trim();
+        String type = m.group(2) != null ? normalizeDslType(m.group(2).trim()) : "String(10)";
+        Set<String> flags = new HashSet<>();
+
+        if (m.group(3) != null) {
+            for (String flag : m.group(3).split(",")) {
+                flags.add(flag.trim().toLowerCase());
+            }
+        }
+
+        //++agent TASK-174 [14.07.2026 05:55:37] XG-102
+        FieldIndexing indexing = parseShorthandIndexing(flags, shorthand);
+        // Нормализованные legacy-флаги сохраняются для MetaWriter behavior вне indexing.
+        flags.remove("indexing");
+        flags.remove("index");
+        flags.remove("indexadditional");
+        //++agent TASK-174 XG-102
+        return new AttrDef(name, type, null, null, flags, indexing, StringAllowedLength.VARIABLE);
+    }
+
+    //++agent TASK-174 [14.07.2026 05:55:37] XG-102
+    private FieldIndexing parseObjectIndexing(JsonNode node) {
+        JsonNode value = node.get("indexing");
+        if (value == null || value.isNull()) {
+            return FieldIndexing.DONT_INDEX;
+        }
+        if (value.isBoolean()) {
+            return value.asBoolean() ? FieldIndexing.INDEX : FieldIndexing.DONT_INDEX;
+        }
+        if (!value.isTextual()) {
+            throw invalidIndexing("object field", value.toString());
+        }
+        return switch (value.asText()) {
+            case "DontIndex" -> FieldIndexing.DONT_INDEX;
+            case "Index" -> FieldIndexing.INDEX;
+            case "IndexWithAdditionalOrder" -> FieldIndexing.INDEX_WITH_ADDITIONAL_ORDER;
+            default -> throw invalidIndexing("object field", value.asText());
+        };
+    }
+
+    private FieldIndexing parseShorthandIndexing(Set<String> flags, String shorthand) {
+        boolean index = flags.contains("index") || flags.contains("indexing");
+        boolean additional = flags.contains("indexadditional");
+        if (index && additional) {
+            throw new IllegalArgumentException("INVALID_FIELD_INDEXING: conflicting indexing flags in '"
+                    + shorthand + "'");
+        }
+        return additional ? FieldIndexing.INDEX_WITH_ADDITIONAL_ORDER
+                : index ? FieldIndexing.INDEX : FieldIndexing.DONT_INDEX;
+    }
+
+    private IllegalArgumentException invalidIndexing(String subject, String value) {
+        return new IllegalArgumentException("INVALID_FIELD_INDEXING: " + subject + " has value '"
+                + value + "'; expected false/true or DontIndex/Index/IndexWithAdditionalOrder");
+    }
+
+    //++agent TASK-174 [15.07.2026 22:10:56] XG-107
+    private StringAllowedLength parseObjectAllowedLength(JsonNode node, String normalizedType) {
+        JsonNode value = node.get("allowedLength");
+        if (value == null || value.isNull()) {
+            return StringAllowedLength.VARIABLE;
+        }
+        if (!STRING_TYPE.matcher(normalizedType).matches()) {
+            throw new IllegalArgumentException("INVALID_STRING_ALLOWED_LENGTH: allowedLength is applicable "
+                    + "only to object-form String attributes, got type '" + normalizedType + "'");
+        }
+        if (!value.isTextual()) {
+            throw invalidAllowedLength(value.toString());
+        }
+        return switch (value.asText()) {
+            case "Variable" -> StringAllowedLength.VARIABLE;
+            case "Fixed" -> StringAllowedLength.FIXED;
+            default -> throw invalidAllowedLength(value.asText());
+        };
+    }
+
+    private IllegalArgumentException invalidAllowedLength(String value) {
+        return new IllegalArgumentException("INVALID_STRING_ALLOWED_LENGTH: allowedLength has value '"
+                + value + "'; expected Variable/Fixed");
+    }
+
+    private enum StringAllowedLength {
+        VARIABLE("Variable"),
+        FIXED("Fixed");
+
+        private final String xmlValue;
+
+        StringAllowedLength(String xmlValue) {
+            this.xmlValue = xmlValue;
+        }
+    }
+    //++agent TASK-174 XG-107
+
+    private enum FieldIndexing {
+        DONT_INDEX("DontIndex"),
+        INDEX("Index"),
+        INDEX_WITH_ADDITIONAL_ORDER("IndexWithAdditionalOrder");
+
+        private final String xmlValue;
+
+        FieldIndexing(String xmlValue) {
+            this.xmlValue = xmlValue;
+        }
+    }
+
+    private record AttrDef(String name, String type, String synonym, String comment,
+                           Set<String> flags, FieldIndexing indexing,
+                           StringAllowedLength allowedLength) {
+    }
+    //++agent TASK-174 XG-102
+
+    //++agent TASK-174 XG-101 2026-07-14
+    private void preflightReservedObjectFields(JsonNode root, String objectType, String objectName,
+                                               MetadataStandardFields.Context context) {
+        preflightReservedObjectFields(root.get("dimensions"), objectType, objectName, "Dimension", context);
+        preflightReservedObjectFields(root.get("resources"), objectType, objectName, "Resource", context);
+        preflightReservedObjectFields(root.get("attributes"), objectType, objectName, "Attribute", context);
+    }
+
+    //++agent TASK-174 [15.07.2026 22:10:56] XG-104/XG-107
+    private void preflightTabularSectionAttributes(JsonNode tabularSections, String objectType,
+                                                   String objectName) {
+        if (tabularSections == null || tabularSections.isNull()) {
+            return;
+        }
+        Iterator<Map.Entry<String, JsonNode>> sections = tabularSections.fields();
+        while (sections.hasNext()) {
+            Map.Entry<String, JsonNode> section = sections.next();
+            JsonNode attributes = section.getValue();
+            if (!attributes.isArray()) {
+                continue;
+            }
+            for (JsonNode attributeNode : attributes) {
+                AttrDef attribute = parseAttrDef(attributeNode);
+                preflightFieldIndexing(attribute, objectType, objectName,
+                        "TabularSection[" + section.getKey() + "]/Attribute");
+            }
+        }
+    }
+    //++agent TASK-174 XG-104/XG-107
+
+    private void preflightReservedObjectFields(JsonNode fields, String objectType,
+                                               String objectName, String fieldKind,
+                                               MetadataStandardFields.Context context) {
+        if (fields == null || fields.isNull()) {
+            return;
+        }
+        for (JsonNode fieldNode : fields) {
+            AttrDef field = parseAttrDef(fieldNode);
+            //++agent TASK-174 [14.07.2026 05:55:37] XG-102
+            preflightFieldIndexing(field, objectType, objectName, fieldKind);
+            //++agent TASK-174 XG-102
+            MetadataStandardFields.canonicalName(objectType, field.name(), context).ifPresent(canonical -> {
+                String path = objectType + "." + objectName + "/ChildObjects/"
+                        + fieldKind + "[" + field.name() + "]";
+                throw new IllegalArgumentException(MetadataStandardFields.RESERVED_PLATFORM_FIELD_NAME
+                        + ": Reserved standard field name: object="
+                        + objectType + "." + objectName + ", path=" + path
+                        + ", name='" + field.name() + "', standard='" + canonical + "'");
+            });
+        }
+    }
+
+    //++agent TASK-174 [14.07.2026 05:55:37] XG-102
+    private void preflightFieldIndexing(AttrDef field, String objectType,
+                                        String objectName, String fieldKind) {
+        if (field.indexing == FieldIndexing.DONT_INDEX) {
+            return;
+        }
+        String subject = objectType + "." + objectName + "/ChildObjects/"
+                + fieldKind + "[" + field.name + "]";
+        if (!isStorableType(objectType)) {
+            throw new IllegalArgumentException("INVALID_FIELD_INDEXING: indexing is not applicable to "
+                    + subject + " because " + objectType + " fields are not stored");
+        }
+        if (("Dimension".equals(fieldKind) || "Resource".equals(fieldKind))
+                && field.indexing == FieldIndexing.INDEX_WITH_ADDITIONAL_ORDER) {
+            throw new IllegalArgumentException("INVALID_FIELD_INDEXING: IndexWithAdditionalOrder is not "
+                    + "applicable to " + subject + "; use Index");
+        }
+    }
+    //++agent TASK-174 XG-102
+
+    private MetadataStandardFields.Context standardFieldContext(JsonNode root, String objectType) {
+        String registerType = "AccumulationRegister".equals(objectType)
+                ? normalizeRegisterType(getString(root, "registerType", "Balance")) : "Balance";
+        return new MetadataStandardFields.Context(
+                registerType,
+                "AccountingRegister".equals(objectType) && getBool(root, "correspondence", false),
+                "CalculationRegister".equals(objectType) && getBool(root, "actionPeriod", false),
+                "CalculationRegister".equals(objectType) && getBool(root, "basePeriod", false));
+    }
+    //--agent TASK-174 XG-101
+
+    // ==================== Type Name Normalization ====================
+
+    private String normalizeTypeName(String raw) {
+        String canonical = RU_TYPE_NAMES.get(raw);
+        return canonical != null ? canonical : raw;
+    }
+
+    private String normalizeDslType(String raw) {
+        if (raw == null) return "String(10)";
+
+        // Check Russian type synonyms (case-insensitive prefix matching for Строка(100) etc.)
+        for (Map.Entry<String, String> entry : RU_DSL_TYPES.entrySet()) {
+            if (startsWithIgnoreCase(raw, entry.getKey())) {
+                raw = entry.getValue() + raw.substring(entry.getKey().length());
+                break;
+            }
+        }
+
+        return raw;
+    }
+
+    private static boolean startsWithIgnoreCase(String str, String prefix) {
+        if (str.length() < prefix.length()) return false;
+        return str.substring(0, prefix.length()).equalsIgnoreCase(prefix);
+    }
+
+    // ==================== CamelCase to Words ====================
+
+    /**
+     * Split CamelCase identifier into words for auto-synonym.
+     * АвансовыйОтчет → Авансовый отчет
+     * IncomingDocument → Incoming document
+     */
+    static String camelCaseToWords(String name) {
+        if (name == null || name.isEmpty()) return "";
+
+        StringBuilder result = new StringBuilder();
+        result.append(name.charAt(0));
+
+        for (int i = 1; i < name.length(); i++) {
+            char c = name.charAt(i);
+            char prev = name.charAt(i - 1);
+
+            // Detect boundary: lowercase followed by uppercase
+            boolean isCyrBoundary = isCyrLower(prev) && isCyrUpper(c);
+            boolean isLatBoundary = isLatLower(prev) && isLatUpper(c);
+
+            if (isCyrBoundary || isLatBoundary) {
+                result.append(' ');
+                result.append(Character.toLowerCase(c));
+            } else {
+                result.append(c);
+            }
+        }
+
+        return result.toString();
+    }
+
+    private static boolean isCyrUpper(char c) {
+        return (c >= 'А' && c <= 'Я') || c == 'Ё';
+    }
+    private static boolean isCyrLower(char c) {
+        return (c >= 'а' && c <= 'я') || c == 'ё';
+    }
+    private static boolean isLatUpper(char c) {
+        return c >= 'A' && c <= 'Z';
+    }
+    private static boolean isLatLower(char c) {
+        return c >= 'a' && c <= 'z';
+    }
+
+    // ==================== Type Category Checks ====================
+
+    private boolean isStorableType(String type) {
+        // Report and DataProcessor are not "storable" (no Indexing, FullTextSearch, DataHistory)
+        return switch (type) {
+            case "Report", "DataProcessor" -> false;
+            default -> true;
+        };
+    }
+
+    private static boolean isRegisterType(String type) {
+        return switch (type) {
+            case "InformationRegister", "AccumulationRegister",
+                 "AccountingRegister", "CalculationRegister" -> true;
+            default -> false;
+        };
+    }
+
+    // ==================== XML Helpers ====================
+
+    /** Write MinValue: 0 if nonneg, xsi:nil otherwise */
+    private void writeMinValue(StringBuilder sb, int indent, boolean nonneg) {
+        //**agent XG-61 [28.09.2026 20:05:00]
+        // Блок <MinValue><v8:Type>..<v8:Value>0 давал XDTO-отказ Designer (anyType).
+        // Канон метаданных - nil; неотрицательность выражается NumberQualifiers/AllowedSign
+        // (applyNonnegFlag), см. MetaValidator INVALID_ATTRIBUTE_MIN_VALUE.
+        sb.append(indent(indent)).append("<MinValue xsi:nil=\"true\"/>\n");
+        //**agent XG-61
+    }
+
+    private void writeElement(StringBuilder sb, int indent, String name, String value) {
+        sb.append(indent(indent)).append("<").append(name).append(">")
+                .append(esc(value)).append("</").append(name).append(">\n");
+    }
+
+    private void writeEmptyElement(StringBuilder sb, int indent, String name) {
+        sb.append(indent(indent)).append("<").append(name).append("/>\n");
+    }
+
+    private void writeSynonym(StringBuilder sb, int indent, String synonym) {
+        if (synonym == null || synonym.isEmpty()) {
+            writeEmptyElement(sb, indent, "Synonym");
+            return;
+        }
+        sb.append(indent(indent)).append("<Synonym>\n");
+        sb.append(indent(indent + 1)).append("<v8:item>\n");
+        sb.append(indent(indent + 2)).append("<v8:lang>ru</v8:lang>\n");
+        sb.append(indent(indent + 2)).append("<v8:content>").append(esc(synonym)).append("</v8:content>\n");
+        sb.append(indent(indent + 1)).append("</v8:item>\n");
+        sb.append(indent(indent)).append("</Synonym>\n");
+    }
+
+    private void writeComment(StringBuilder sb, int indent, String comment) {
+        if (comment == null || comment.isEmpty()) {
+            writeEmptyElement(sb, indent, "Comment");
+        } else {
+            writeElement(sb, indent, "Comment", comment);
+        }
+    }
+
+    private void writeGeneratedType(StringBuilder sb, int indent, String name, String category) {
+        sb.append(indent(indent)).append("<xr:GeneratedType name=\"").append(esc(name))
+                .append("\" category=\"").append(category).append("\">\n");
+        sb.append(indent(indent + 1)).append("<xr:TypeId>").append(UuidGenerator.generate()).append("</xr:TypeId>\n");
+        sb.append(indent(indent + 1)).append("<xr:ValueId>").append(UuidGenerator.generate()).append("</xr:ValueId>\n");
+        sb.append(indent(indent)).append("</xr:GeneratedType>\n");
+    }
+
+    private static String indent(int level) {
+        return "\t".repeat(level);
+    }
+
+    private static String esc(String s) {
+        if (s == null) return "";
+        return s.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+                .replace("\"", "&quot;").replace("'", "&apos;");
+    }
+
+    // ==================== JSON Helpers ====================
+
+    private static String requireString(JsonNode root, String field) {
+        JsonNode node = root.get(field);
+        if (node == null || node.isNull() || node.asText().isEmpty()) {
+            throw new IllegalArgumentException("Required field missing: " + field);
+        }
+        return node.asText();
+    }
+
+    private static String getString(JsonNode root, String field, String defaultValue) {
+        JsonNode node = root.get(field);
+        if (node == null || node.isNull()) return defaultValue;
+        return node.asText();
+    }
+
+    private static boolean getBool(JsonNode root, String field, boolean defaultValue) {
+        JsonNode node = root.get(field);
+        if (node == null || node.isNull()) return defaultValue;
+        return node.asBoolean();
+    }
+
+    private static int getInt(JsonNode root, String field, int defaultValue) {
+        JsonNode node = root.get(field);
+        if (node == null || node.isNull()) return defaultValue;
+        return node.asInt();
+    }
+
+    private static List<String> getStringList(JsonNode root, String field) {
+        List<String> result = new ArrayList<>();
+        JsonNode node = root.get(field);
+        if (node != null && node.isArray()) {
+            for (JsonNode item : node) {
+                result.add(item.asText());
+            }
+        }
+        return result;
+    }
+
+    /**
+     * Значения перечисления: ключ {@code values} ИЛИ алиас {@code enumValues}
+     * (TASK-171 D-5). Возвращает {@code null}, если массива нет ни под одним ключом.
+     */
+    private static JsonNode enumValuesNode(JsonNode root) {
+        if (root.has("values") && root.get("values").isArray()) return root.get("values");
+        if (root.has("enumValues") && root.get("enumValues").isArray()) return root.get("enumValues");
+        return null;
+    }
+
+    /** Get value types from valueTypes (array) or valueType (string or array alias). */
+    private static List<String> getValueTypesList(JsonNode root) {
+        List<String> result = getStringList(root, "valueTypes");
+        if (!result.isEmpty()) return result;
+
+        JsonNode vtNode = root.get("valueType");
+        if (vtNode == null || vtNode.isNull()) return result;
+
+        if (vtNode.isArray()) {
+            for (JsonNode item : vtNode) {
+                result.add(item.asText());
+            }
+        } else if (vtNode.isTextual()) {
+            result.add(vtNode.asText());
+        }
+        return result;
+    }
+
+    // ==================== Predefined items (TASK-171 D-1) ====================
+
+    /**
+     * Записать {@code <Объект>/Ext/Predefined.xml}, если в DSL есть массив
+     * {@code predefinedItems} (или алиас {@code predefined} в виде массива) и
+     * тип объекта поддерживает предопределённые элементы.
+     *
+     * <p>Каждый элемент: {@code {name, code?, description?, isFolder?}} или просто
+     * строка-имя. Код при отсутствии — авто-нумерация, дополненная нулями до
+     * {@code codeLength} (по умолчанию 9). {@code description} по умолчанию = {@code name}.
+     */
+    private void writePredefinedItems(Path typeDir, String name, String type,
+                                      JsonNode root, String formatVersion) throws IOException {
+        String xmlElement = MetadataTypeRegistry.get(type).xmlElement();
+        String xsiType = PredefinedXmlWriter.xsiTypeFor(xmlElement);
+        if (xsiType == null) {
+            return; // тип не поддерживает предопределённые
+        }
+
+        JsonNode itemsNode = null;
+        if (root.has("predefinedItems") && root.get("predefinedItems").isArray()) {
+            itemsNode = root.get("predefinedItems");
+        } else if (root.has("predefined") && root.get("predefined").isArray()) {
+            // алиас; на ScheduledJob "predefined" — boolean, поэтому проверяем isArray
+            itemsNode = root.get("predefined");
+        }
+        if (itemsNode == null || itemsNode.size() == 0) {
+            return;
+        }
+
+        int codeWidth = getInt(root, "codeLength", PredefinedXmlWriter.DEFAULT_CODE_WIDTH);
+        List<PredefinedXmlWriter.Item> items = new ArrayList<>();
+        int seq = 1;
+        for (JsonNode n : itemsNode) {
+            String itemName;
+            String code;
+            String description;
+            boolean isFolder;
+            if (n.isTextual()) {
+                itemName = n.asText();
+                code = PredefinedXmlWriter.formatCode(seq, codeWidth);
+                description = itemName;
+                isFolder = false;
+            } else {
+                itemName = requireString(n, "name");
+                String rawCode = getString(n, "code", "");
+                code = rawCode.isEmpty() ? PredefinedXmlWriter.formatCode(seq, codeWidth) : rawCode;
+                description = getString(n, "description", itemName);
+                isFolder = getBool(n, "isFolder", false);
+            }
+            items.add(new PredefinedXmlWriter.Item(itemName, code, description, isFolder));
+            seq++;
+        }
+
+        String xml = PredefinedXmlWriter.buildFile(xsiType, formatVersion, items);
+        Path extDir = typeDir.resolve(name).resolve("Ext");
+        Files.createDirectories(extDir);
+        writeWithBom(extDir.resolve("Predefined.xml"), xml);
+    }
+
+    // ==================== File I/O ====================
+
+    private static void writeWithBom(Path path, String content) throws IOException {
+        //++agent TASK-172 [02.06.2026 07:15:00]
+        // Канон Designer (_Демо): метаданные .xml/Predefined.xml — BOM + CRLF.
+        Files.write(path, io.github.onec.xmlgen.io.Crlf.withBom(content));
+        //++agent TASK-172
+    }
+}

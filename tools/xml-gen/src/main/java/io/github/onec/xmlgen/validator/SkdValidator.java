@@ -1,0 +1,513 @@
+package io.github.onec.xmlgen.validator;
+
+import java.util.*;
+
+/**
+ * Валидатор для XML схемы компоновки данных (DataCompositionSchema).
+ * <p>
+ * Level 1 (Structure): SKD-001..005
+ * Level 2 (Semantic):  SKD-101..107
+ */
+public class SkdValidator implements XmlValidator {
+
+    private static final String NS_DCS = "http://v8.1c.ru/8.1/data-composition-system/schema";
+
+    private static final Set<String> KNOWN_DATASET_TYPES = Set.of(
+            "DataSetQuery", "DataSetObject", "DataSetUnion"
+    );
+
+    private static final Set<String> KNOWN_COMPARISON_TYPES = Set.of(
+            "Equal", "NotEqual", "Greater", "GreaterOrEqual",
+            "Less", "LessOrEqual", "InList", "NotInList",
+            "Contains", "NotContains", "BeginsWith",
+            // TASK-171 (Р-6): отрицание BeginsWith — платформенный comparisonType, был пропущен.
+            "NotBeginsWith",
+            "Filled", "NotFilled", "InHierarchy", "NotInHierarchy",
+            "InListByHierarchy", "NotInListByHierarchy"
+    );
+
+    private static final Set<String> KNOWN_ORDER_TYPES = Set.of("Asc", "Desc");
+
+    //++agent TASK-174 [12.07.2026 00:00:00]
+    // Общий validator использует тот же закрытый набор, что и import preflight,
+    // чтобы XML из любого источника получал одинаковую проверку binding-контракта.
+    private static final Set<String> KNOWN_TEMPLATE_TYPES = Set.of(
+            "Header", "OverallHeader", "GroupHeader", "Footer", "OverallFooter");
+    private static final String EXPECTED_TEMPLATE_TYPES =
+            "Header, OverallHeader, GroupHeader, Footer, OverallFooter";
+    //--agent TASK-174
+
+    @Override
+    public String objectType() {
+        return "skd";
+    }
+
+    @Override
+    public boolean supports(XmlDocument document) {
+        return "DataCompositionSchema".equals(document.getRootElement());
+    }
+
+    @Override
+    public List<ValidationIssue> validate(XmlDocument document, ValidationLevel level) {
+        List<ValidationIssue> issues = new ArrayList<>();
+
+        validateStructure(document, issues);
+
+        if (level == ValidationLevel.SEMANTIC) {
+            validateSemantic(document, issues);
+        }
+
+        return issues;
+    }
+
+    // ==================== Level 1: Structure ====================
+
+    private void validateStructure(XmlDocument document, List<ValidationIssue> issues) {
+        XmlNode root = document.getRoot();
+
+        // SKD-001: Root <DataCompositionSchema>
+        if (!"DataCompositionSchema".equals(root.getName())) {
+            issues.add(ValidationIssue.error("SKD-001",
+                    "Expected root element 'DataCompositionSchema', found '" + root.getName() + "'",
+                    root.getLine(), "/"));
+            return;
+        }
+
+        // SKD-002: no global dataSource is valid for empty/helper schemas in
+        // Designer canon. DataSetQuery references are checked separately when
+        // data sets exist.
+
+        // SKD-003 + SKD-004: DataSets
+        List<XmlNode> dataSets = root.children("dataSet");
+        for (int i = 0; i < dataSets.size(); i++) {
+            XmlNode ds = dataSets.get(i);
+            String dsPath = "/DataCompositionSchema/dataSet[" + (i + 1) + "]";
+
+            // SKD-003: xsi:type обязательный
+            String xsiType = ds.attr("xsi:type");
+            if (xsiType == null || xsiType.isEmpty()) {
+                issues.add(ValidationIssue.error("SKD-003",
+                        "DataSet missing required attribute xsi:type",
+                        ds.getLine(), dsPath));
+            }
+
+            // SKD-004: DataSetQuery должен иметь <query>
+            if ("DataSetQuery".equals(xsiType)) {
+                String query = ds.childText("query");
+                if (query == null || query.isEmpty()) {
+                    issues.add(ValidationIssue.error("SKD-004",
+                            "DataSetQuery missing <query> element",
+                            ds.getLine(), dsPath));
+                }
+            }
+
+            // Рекурсивно проверяем вложенные dataSets (DataSetUnion)
+            validateNestedDataSets(ds, dsPath, issues);
+        }
+
+        // SKD-005: ≥1 <settingsVariant>
+        List<XmlNode> settingsVariants = root.children("settingsVariant");
+        if (settingsVariants.isEmpty()) {
+            issues.add(ValidationIssue.warning("SKD-005",
+                    "No <settingsVariant> elements found",
+                    root.getLine(), "/DataCompositionSchema"));
+        }
+
+        //++agent TASK-174 [10.07.2026 19:45:00]
+        // SKD-006: Designer/XDTO требует блок обычных groupTemplate до блока
+        // groupHeaderTemplate; обратный порядок не ловится XML-парсером, но ломает загрузку.
+        boolean groupHeaderSeen = false;
+        for (XmlNode child : root.getChildren()) {
+            if ("groupHeaderTemplate".equals(child.getName())) {
+                groupHeaderSeen = true;
+            } else if (groupHeaderSeen && "groupTemplate".equals(child.getName())) {
+                issues.add(ValidationIssue.error("SKD-006",
+                        "groupTemplate must precede all groupHeaderTemplate elements",
+                        child.getLine(), "/DataCompositionSchema/groupTemplate"));
+            }
+        }
+        //--agent TASK-174
+
+        //++agent TASK-174 [10.07.2026 20:16:00]
+        // SKD-007: platform 8.3.27 XDTO GroupItem допускает только Auto и Field.
+        // Проверка закрывает false green для несуществующего GroupItemDetails.
+        validateGroupItemTypes(root, "/DataCompositionSchema", issues);
+        //--agent TASK-174
+
+        //++agent TASK-174 [12.07.2026 00:00:00]
+        validateTemplateBindings(root, issues);
+        //--agent TASK-174
+    }
+
+    private void validateNestedDataSets(XmlNode parent, String parentPath, List<ValidationIssue> issues) {
+        List<XmlNode> items = parent.children("item");
+        for (int i = 0; i < items.size(); i++) {
+            XmlNode item = items.get(i);
+            String itemPath = parentPath + "/item[" + (i + 1) + "]";
+
+            String xsiType = item.attr("xsi:type");
+            if (xsiType == null || xsiType.isEmpty()) {
+                issues.add(ValidationIssue.error("SKD-003",
+                        "Nested DataSet missing required attribute xsi:type",
+                        item.getLine(), itemPath));
+            }
+
+            if ("DataSetQuery".equals(xsiType)) {
+                String query = item.childText("query");
+                if (query == null || query.isEmpty()) {
+                    issues.add(ValidationIssue.error("SKD-004",
+                            "Nested DataSetQuery missing <query> element",
+                            item.getLine(), itemPath));
+                }
+            }
+        }
+
+    }
+
+    //++agent TASK-174 [10.07.2026 20:16:00]
+    private static void validateGroupItemTypes(XmlNode node, String path,
+                                               List<ValidationIssue> issues) {
+        if ("groupItems".equals(node.getName())) {
+            List<XmlNode> items = node.children("item");
+            for (int index = 0; index < items.size(); index++) {
+                XmlNode item = items.get(index);
+                String type = item.attr("xsi:type");
+                String localType = type == null ? "" : type.substring(type.indexOf(':') + 1);
+                if (!Set.of("GroupItemAuto", "GroupItemField").contains(localType)) {
+                    issues.add(ValidationIssue.error("SKD-007",
+                            "Unknown group item xsi:type '" + type
+                                    + "', expected GroupItemAuto or GroupItemField",
+                            item.getLine(), path + "/item[" + (index + 1) + "]/@xsi:type"));
+                }
+            }
+        }
+        List<XmlNode> children = node.getChildren();
+        for (int index = 0; index < children.size(); index++) {
+            XmlNode child = children.get(index);
+            validateGroupItemTypes(child,
+                    path + "/" + child.getName() + "[" + (index + 1) + "]", issues);
+        }
+    }
+    //--agent TASK-174
+
+    //++agent TASK-174 [12.07.2026 00:00:00]
+    private static void validateTemplateBindings(XmlNode root, List<ValidationIssue> issues) {
+        Set<String> areaTemplateNames = new HashSet<>();
+        for (XmlNode template : root.children("template")) {
+            String name = template.childText("name");
+            if (name != null && !name.isEmpty()) {
+                areaTemplateNames.add(name);
+            }
+        }
+
+        validateTemplateBindings(root.children("groupTemplate"), "groupTemplate",
+                areaTemplateNames, issues);
+        validateTemplateBindings(root.children("groupHeaderTemplate"), "groupHeaderTemplate",
+                areaTemplateNames, issues);
+    }
+
+    private static void validateTemplateBindings(List<XmlNode> bindings, String elementName,
+                                                 Set<String> areaTemplateNames,
+                                                 List<ValidationIssue> issues) {
+        for (int index = 0; index < bindings.size(); index++) {
+            XmlNode binding = bindings.get(index);
+            String path = "/DataCompositionSchema/" + elementName + "[" + (index + 1) + "]";
+            String templateType = "groupHeaderTemplate".equals(elementName)
+                    ? "GroupHeader" : binding.childText("templateType");
+            if (templateType != null && !templateType.isEmpty()
+                    && !KNOWN_TEMPLATE_TYPES.contains(templateType)) {
+                issues.add(ValidationIssue.error("SKD-008",
+                        "Unknown SKD group templateType '" + templateType
+                                + "', expected one of: " + EXPECTED_TEMPLATE_TYPES,
+                        binding.getLine(), path + "/templateType"));
+            }
+
+            String template = binding.childText("template");
+            if (template != null && !template.isEmpty() && !areaTemplateNames.contains(template)) {
+                issues.add(ValidationIssue.error("SKD-009",
+                        "SKD group template binding references missing AreaTemplate: " + template,
+                        binding.getLine(), path + "/template"));
+            }
+        }
+    }
+    //--agent TASK-174
+
+    // ==================== Level 2: Semantic ====================
+
+    private void validateSemantic(XmlDocument document, List<ValidationIssue> issues) {
+        XmlNode root = document.getRoot();
+
+        // Соберём все известные имена наборов и полей — для проверки ссылочной целостности.
+        Set<String> dataSetNames = new HashSet<>();
+        Set<String> allFieldNames = new HashSet<>();
+        Map<String, Set<String>> fieldsByDataSet = new HashMap<>();
+        List<XmlNode> dataSets = root.children("dataSet");
+        for (XmlNode ds : dataSets) {
+            String name = ds.childText("name");
+            if (name != null) dataSetNames.add(name);
+            Set<String> dataSetFields = new HashSet<>();
+            for (XmlNode f : ds.children("field")) {
+                String fld = f.childText("field");
+                if (fld != null) { allFieldNames.add(fld); dataSetFields.add(fld); }
+                String dp = f.childText("dataPath");
+                if (dp != null) { allFieldNames.add(dp); dataSetFields.add(dp); }
+            }
+            for (XmlNode cf : ds.children("calculatedField")) {
+                String n = cf.childText("dataPath");
+                if (n != null) { allFieldNames.add(n); dataSetFields.add(n); }
+            }
+            if (name != null) fieldsByDataSet.put(name, dataSetFields);
+        }
+        for (XmlNode cf : root.children("calculatedField")) {
+            String n = cf.childText("dataPath");
+            if (n != null) allFieldNames.add(n);
+        }
+
+        // SKD-101: DataSet.xsi:type — известный тип
+        for (int i = 0; i < dataSets.size(); i++) {
+            XmlNode ds = dataSets.get(i);
+            String dsPath = "/DataCompositionSchema/dataSet[" + (i + 1) + "]";
+
+            String xsiType = ds.attr("xsi:type");
+            if (xsiType != null && !xsiType.isEmpty() && !KNOWN_DATASET_TYPES.contains(xsiType)) {
+                issues.add(ValidationIssue.error("SKD-101",
+                        "Unknown DataSet type '" + xsiType + "', expected: " + KNOWN_DATASET_TYPES,
+                        ds.getLine(), dsPath + "/@xsi:type"));
+            }
+
+            // SKD-107: DataSetQuery должен иметь <dataSource>
+            if ("DataSetQuery".equals(xsiType)) {
+                String dataSource = ds.childText("dataSource");
+                if (dataSource == null || dataSource.isEmpty()) {
+                    issues.add(ValidationIssue.warning("SKD-107",
+                            "DataSetQuery has no <dataSource> reference",
+                            ds.getLine(), dsPath));
+                }
+            }
+
+            // SKD-108: calculatedField должен иметь expression. valueType в 1c-dcs-spec §6 необязателен.
+            List<XmlNode> calcFields = ds.children("calculatedField");
+            for (int j = 0; j < calcFields.size(); j++) {
+                XmlNode cf = calcFields.get(j);
+                String cfPath = dsPath + "/calculatedField[" + (j + 1) + "]";
+                //**agent TASK-176 [08.06.2026 12:20:00]
+                // S-07 (XG-47, upstream efdf5669): пустой <expression> декларативного
+                // calculatedField легитимен у vendor-схем (формулу может давать соседний
+                // totalField того же dataPath). Java здесь была СТРОЖЕ upstream (error) —
+                // ложный позитив. Понижаем до warning: коллизия всё ещё видна, но не валит
+                // валидацию. Полная totalField-twin-логика (подавление warning при наличии
+                // близнеца) — вынесена в бэклог (граница объёма A-5), здесь только downgrade.
+                if (cf.childText("expression") == null || cf.childText("expression").isEmpty()) {
+                    issues.add(ValidationIssue.warning("SKD-108",
+                            "calculatedField missing <expression> (declarative-only?)",
+                            cf.getLine(), cfPath));
+                }
+                //**agent TASK-176
+            }
+
+            // Проверяем поля в settings/filter
+            validateFields(ds, dsPath, issues);
+        }
+
+        // SKD-109: dataSetLink ссылается на существующие наборы.
+        List<XmlNode> links = root.children("dataSetLink");
+        Set<String> linkMappings = new HashSet<>();
+        for (int i = 0; i < links.size(); i++) {
+            XmlNode link = links.get(i);
+            String linkPath = "/DataCompositionSchema/dataSetLink[" + (i + 1) + "]";
+            String src = link.childText("sourceDataSet");
+            // TASK-171 (Р-5): платформенный элемент назначения — 'destinationDataSet', а не 'destDataSet'.
+            // Грунт-труф: destinationDataSet встречается 48 раз, destDataSet — 0. С опечаткой проверка
+            // целостности назначения молча не срабатывала (false negative).
+            String dst = link.childText("destinationDataSet");
+            String srcExpression = link.childText("sourceExpression");
+            String dstExpression = link.childText("destinationExpression");
+            //++agent TASK-174 [10.07.2026 22:12:00]
+            if (src == null || src.isEmpty() || dst == null || dst.isEmpty()
+                    || srcExpression == null || srcExpression.isEmpty()
+                    || dstExpression == null || dstExpression.isEmpty()) {
+                issues.add(ValidationIssue.error("SKD-110",
+                        "dataSetLink requires sourceDataSet, destinationDataSet, sourceExpression and destinationExpression",
+                        link.getLine(), linkPath));
+            }
+            if (src != null && !src.isEmpty() && !dataSetNames.contains(src)) {
+                issues.add(ValidationIssue.error("SKD-109",
+                        "dataSetLink references unknown source dataSet '" + src + "'",
+                        link.getLine(), linkPath + "/sourceDataSet"));
+            }
+            if (dst != null && !dst.isEmpty() && !dataSetNames.contains(dst)) {
+                issues.add(ValidationIssue.error("SKD-109",
+                        "dataSetLink references unknown dest dataSet '" + dst + "'",
+                        link.getLine(), linkPath + "/destinationDataSet"));
+            }
+            if (fieldsByDataSet.containsKey(src) && srcExpression != null
+                    && !fieldsByDataSet.get(src).contains(srcExpression)) {
+                issues.add(ValidationIssue.error("SKD-111",
+                        "dataSetLink references unknown source field '" + srcExpression + "'",
+                        link.getLine(), linkPath + "/sourceExpression"));
+            }
+            if (fieldsByDataSet.containsKey(dst) && dstExpression != null
+                    && !fieldsByDataSet.get(dst).contains(dstExpression)) {
+                issues.add(ValidationIssue.error("SKD-111",
+                        "dataSetLink references unknown destination field '" + dstExpression + "'",
+                        link.getLine(), linkPath + "/destinationExpression"));
+            }
+            String mappingIdentity = src + "\u0000" + dst + "\u0000" + srcExpression + "\u0000"
+                    + dstExpression + "\u0000" + link.childText("parameter") + "\u0000"
+                    + link.childText("parameterListAllowed");
+            if (!linkMappings.add(mappingIdentity)) {
+                issues.add(ValidationIssue.error("SKD-112",
+                        "Duplicate dataSetLink mapping", link.getLine(), linkPath));
+            }
+            //--agent TASK-174
+        }
+
+        // Проверяем settingsVariants
+        List<XmlNode> settingsVariants = root.children("settingsVariant");
+        for (int i = 0; i < settingsVariants.size(); i++) {
+            XmlNode sv = settingsVariants.get(i);
+            String svPath = "/DataCompositionSchema/settingsVariant[" + (i + 1) + "]";
+
+            XmlNode settings = sv.child("settings");
+            if (settings != null) {
+                validateSettings(settings, svPath + "/settings", issues);
+            }
+        }
+    }
+
+    private void validateSettings(XmlNode settings, String path, List<ValidationIssue> issues) {
+        // Проверяем filter
+        XmlNode filter = settings.child("filter");
+        if (filter != null) {
+            validateFilterItems(filter, path + "/filter", issues);
+        }
+
+        // Проверяем order
+        XmlNode order = settings.child("order");
+        if (order != null) {
+            List<XmlNode> orderItems = order.children("item");
+            for (int i = 0; i < orderItems.size(); i++) {
+                XmlNode item = orderItems.get(i);
+                String itemPath = path + "/order/item[" + (i + 1) + "]";
+
+                // SKD-103: orderType
+                String orderType = item.childText("orderType");
+                if (orderType != null && !KNOWN_ORDER_TYPES.contains(orderType)) {
+                    issues.add(ValidationIssue.error("SKD-103",
+                            "Unknown orderType '" + orderType + "', expected: Asc or Desc",
+                            item.getLine(), itemPath + "/orderType"));
+                }
+
+                // SKD-106: поле непустое — ТОЛЬКО для OrderItemField.
+                // TASK-171 (Р-3): OrderItemAuto не имеет <field> по определению — пропускаем,
+                // иначе ложный фейл на легитимной авто-сортировке (DCS-spec §11.4).
+                if (isItemType(item, "OrderItemField")) {
+                    String field = item.childText("field");
+                    if (field == null || field.isEmpty()) {
+                        issues.add(ValidationIssue.error("SKD-106",
+                                "Order item has empty <field>",
+                                item.getLine(), itemPath + "/field"));
+                    }
+                }
+            }
+        }
+
+        // Проверяем selection
+        XmlNode selection = settings.child("selection");
+        if (selection != null) {
+            List<XmlNode> selItems = selection.children("item");
+            for (int i = 0; i < selItems.size(); i++) {
+                XmlNode item = selItems.get(i);
+                String itemPath = path + "/selection/item[" + (i + 1) + "]";
+
+                // SKD-106: поле непустое — ТОЛЬКО для SelectedItemField.
+                // TASK-171 (Р-2): SelectedItemAuto (поля нет) и SelectedItemFolder (контейнер, поля
+                // во вложенных item) платформа пишет без верхнеуровневого <field> — флагать нельзя.
+                // Элемент без xsi:type трактуем как полевой (минимальный вывод нашего writer / legacy).
+                if (isItemType(item, "SelectedItemField") || !hasItemType(item)) {
+                    String field = item.childText("field");
+                    if (field == null || field.isEmpty()) {
+                        issues.add(ValidationIssue.error("SKD-106",
+                                "Selection item has empty <field>",
+                                item.getLine(), itemPath + "/field"));
+                    }
+                }
+            }
+        }
+    }
+
+    /**
+     * Есть ли у элемента настройки атрибут xsi:type.
+     * TASK-171: платформа всегда проставляет xsi:type у item в selection/order/filter;
+     * отсутствие — признак минимального/legacy-вывода.
+     */
+    private static boolean hasItemType(XmlNode item) {
+        String t = item.attr("xsi:type");
+        return t != null && !t.isEmpty();
+    }
+
+    /**
+     * Совпадает ли локальное имя xsi:type элемента с ожидаемым (без учёта префикса).
+     * TASK-171: платформа пишет тип с префиксом — {@code dcsset:SelectedItemField};
+     * сравниваем по локальной части, чтобы не зависеть от префикса.
+     */
+    private static boolean isItemType(XmlNode item, String localType) {
+        String t = item.attr("xsi:type");
+        if (t == null || t.isEmpty()) return false;
+        String local = t.contains(":") ? t.substring(t.indexOf(':') + 1) : t;
+        return local.equals(localType);
+    }
+
+    private void validateFilterItems(XmlNode filter, String filterPath, List<ValidationIssue> issues) {
+        List<XmlNode> items = filter.children("item");
+        for (int i = 0; i < items.size(); i++) {
+            XmlNode item = items.get(i);
+            String itemPath = filterPath + "/item[" + (i + 1) + "]";
+
+            // TASK-171 (Р-1): ветвимся по xsi:type, как валидатор Николая.
+            // FilterItemGroup — контейнер: рекурсивно ныряем во вложенные item.
+            if (isItemType(item, "FilterItemGroup")) {
+                validateFilterItems(item, itemPath, issues);
+                continue;
+            }
+
+            // SKD-102: comparisonType (для FilterItemComparison).
+            String comparisonType = item.childText("comparisonType");
+            if (comparisonType != null && !comparisonType.isEmpty()
+                    && !KNOWN_COMPARISON_TYPES.contains(comparisonType)) {
+                issues.add(ValidationIssue.error("SKD-102",
+                        "Unknown comparisonType '" + comparisonType + "'",
+                        item.getLine(), itemPath + "/comparisonType"));
+            }
+
+            // TASK-171 (Р-1): левый операнд платформа пишет как <dcsset:left xsi:type="dcscor:Field">
+            // (локальное имя 'left'), а НЕ <leftValue>/<field>. При <use>false</use> (слот
+            // пользовательского отбора) left легитимно отсутствует — это валидно, флагать нельзя.
+            // Поэтому требование непустого левого операнда снято; SKD-106 здесь больше не выдаём.
+        }
+    }
+
+    private void validateFields(XmlNode dataSet, String dsPath, List<ValidationIssue> issues) {
+        List<XmlNode> fields = dataSet.children("field");
+        for (int i = 0; i < fields.size(); i++) {
+            XmlNode field = fields.get(i);
+            String fieldPath = dsPath + "/field[" + (i + 1) + "]";
+
+            // Проверяем xsi:type на значениях
+            String xsiType = field.attr("xsi:type");
+            if (xsiType != null && !xsiType.isEmpty()) {
+                // SKD-104: xsi:type должен быть валидным
+                // Допустимые платформенные варианты, встречающиеся в Designer XML.
+                Set<String> knownFieldTypes = Set.of(
+                        "DataSetFieldField",
+                        "DataSetFieldFolder",
+                        "DataSetFieldNestedDataSet");
+                if (!knownFieldTypes.contains(xsiType)) {
+                    issues.add(ValidationIssue.warning("SKD-104",
+                            "Unknown field xsi:type '" + xsiType + "'",
+                            field.getLine(), fieldPath + "/@xsi:type"));
+                }
+            }
+        }
+    }
+}

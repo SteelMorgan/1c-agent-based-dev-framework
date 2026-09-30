@@ -1,0 +1,698 @@
+﻿<?xml version="1.0" encoding="UTF-8"?>
+<!-- TASK-175 W-03 фикстура (F-03 cross-review, оформление по образцу D-1): СИНТЕТИЧЕСКАЯ копия
+     forms/epf-external-object-form.xml (= Designer-выгрузка биг_УборщикТестовыхДанных, TASK-173)
+     с единственной заменой типа главного реквизита:
+     cfg:ExternalDataProcessorObject.* -> cfg:ExternalReportObject.* (минимум A-7 spec: ОБА External*-типа).
+     Do NOT sync: файл не является выгрузкой Designer. -->
+<Form version="2.17" xmlns="http://v8.1c.ru/8.3/xcf/logform" xmlns:app="http://v8.1c.ru/8.2/managed-application/core" xmlns:v8ui="http://v8.1c.ru/8.1/data/ui" xmlns:v8="http://v8.1c.ru/8.1/data/core" xmlns:dcsset="http://v8.1c.ru/8.1/data-composition-system/settings" xmlns:cfg="http://v8.1c.ru/8.1/data/enterprise/current-config" xmlns:ent="http://v8.1c.ru/8.1/data/enterprise" xmlns:sys="http://v8.1c.ru/8.1/data/ui/fonts/system" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:web="http://v8.1c.ru/8.1/data/ui/colors/web" xmlns:style="http://v8.1c.ru/8.1/data/ui/style" xmlns:xr="http://v8.1c.ru/8.3/xcf/readable" xmlns:xs="http://www.w3.org/2001/XMLSchema" xmlns:win="http://v8.1c.ru/8.1/data/ui/colors/windows" xmlns:cmi="http://v8.1c.ru/8.2/managed-application/cmi" xmlns:dcscor="http://v8.1c.ru/8.1/data-composition-system/core">
+	<Title>
+		<v8:item>
+			<v8:lang>ru</v8:lang>
+			<v8:content>Уборщик тестовых данных</v8:content>
+		</v8:item>
+	</Title>
+	<AutoCommandBar name="ФормаКоманднаяПанель" id="-1"/>
+	<Events>
+		<Event name="OnCreateAtServer">ПриСозданииНаСервере</Event>
+	</Events>
+	<ChildItems>
+		<UsualGroup name="ГруппаПараметры" id="1">
+			<Group>Horizontal</Group>
+			<ExtendedTooltip name="ГруппаПараметрыРасширеннаяПодсказка" id="2"/>
+			<ChildItems>
+			<InputField name="НачалоПериода" id="7">
+				<DataPath>НачалоПериода</DataPath>
+				<ContextMenu name="НачалоПериодаКонтекстноеМеню" id="8"/>
+				<ExtendedTooltip name="НачалоПериодаРасширеннаяПодсказка" id="9"/>
+				<Events>
+					<Event name="OnChange">НачалоПериодаПриИзменении</Event>
+				</Events>
+			</InputField>
+			<InputField name="КонецПериода" id="10">
+				<DataPath>КонецПериода</DataPath>
+				<ContextMenu name="КонецПериодаКонтекстноеМеню" id="11"/>
+				<ExtendedTooltip name="КонецПериодаРасширеннаяПодсказка" id="12"/>
+				<Events>
+					<Event name="OnChange">КонецПериодаПриИзменении</Event>
+				</Events>
+			</InputField>
+			<CheckBoxField name="ТолькоПодсчет" id="13">
+				<DataPath>ТолькоПодсчет</DataPath>
+				<ContextMenu name="ТолькоПодсчетКонтекстноеМеню" id="14"/>
+				<ExtendedTooltip name="ТолькоПодсчетРасширеннаяПодсказка" id="15"/>
+			</CheckBoxField>
+			</ChildItems>
+		</UsualGroup>
+		<UsualGroup name="ГруппаКоманды" id="3">
+			<Group>Horizontal</Group>
+			<ExtendedTooltip name="ГруппаКомандыРасширеннаяПодсказка" id="4"/>
+			<ChildItems>
+			<Button name="КнопкаАнализ" id="16">
+				<Type>UsualButton</Type>
+				<CommandName>Form.Command.Анализ</CommandName>
+				<ExtendedTooltip name="КнопкаАнализРасширеннаяПодсказка" id="17"/>
+			</Button>
+			<Button name="КнопкаПрименить" id="18">
+				<Type>UsualButton</Type>
+				<CommandName>Form.Command.Применить</CommandName>
+				<ExtendedTooltip name="КнопкаПрименитьРасширеннаяПодсказка" id="19"/>
+			</Button>
+			</ChildItems>
+		</UsualGroup>
+		<UsualGroup name="ГруппаРезультаты" id="5">
+			<Group>Vertical</Group>
+			<ExtendedTooltip name="ГруппаРезультатыРасширеннаяПодсказка" id="6"/>
+			<ChildItems>
+			<LabelDecoration name="НадписьСводка" id="20">
+				<DataPath>ТекстСводки</DataPath>
+				<ContextMenu name="НадписьСводкаКонтекстноеМеню" id="21"/>
+				<ExtendedTooltip name="НадписьСводкаРасширеннаяПодсказка" id="22"/>
+			</LabelDecoration>
+			<Pages name="СтраницыРезультатов" id="23">
+				<ExtendedTooltip name="СтраницыРезультатовРасширеннаяПодсказка" id="24"/>
+				<Page name="СтраницаВозвраты" id="25">
+					<ExtendedTooltip name="СтраницаВозвратыРасширеннаяПодсказка" id="26"/>
+					<Table name="ТаблицаВозвратовТбл" id="27">
+						<DataPath>ТаблицаВозвратов</DataPath>
+						<ContextMenu name="ТаблицаВозвратовТблКонтекстноеМеню" id="28"/>
+						<AutoCommandBar name="ТаблицаВозвратовТблКоманднаяПанель" id="29"/>
+						<SearchStringAddition name="ТаблицаВозвратовТблСтрокаПоиска" id="30"/>
+						<ViewStatusAddition name="ТаблицаВозвратовТблСостояниеПросмотра" id="31"/>
+						<SearchControlAddition name="ТаблицаВозвратовТблУправлениеПоиском" id="32"/>
+						<InputField name="ВозвратыСсылка" id="33">
+							<DataPath>ТаблицаВозвратов.Ссылка</DataPath>
+							<ContextMenu name="ВозвратыСсылкаКонтекстноеМеню" id="34"/>
+							<ExtendedTooltip name="ВозвратыСсылкаРасширеннаяПодсказка" id="35"/>
+						</InputField>
+						<InputField name="ВозвратыДата" id="36">
+							<DataPath>ТаблицаВозвратов.Дата</DataPath>
+							<ContextMenu name="ВозвратыДатаКонтекстноеМеню" id="37"/>
+							<ExtendedTooltip name="ВозвратыДатаРасширеннаяПодсказка" id="38"/>
+						</InputField>
+						<InputField name="ВозвратыДоговор" id="39">
+							<DataPath>ТаблицаВозвратов.Договор</DataPath>
+							<ContextMenu name="ВозвратыДоговорКонтекстноеМеню" id="40"/>
+							<ExtendedTooltip name="ВозвратыДоговорРасширеннаяПодсказка" id="41"/>
+						</InputField>
+						<InputField name="ВозвратыАккаунт" id="42">
+							<DataPath>ТаблицаВозвратов.Аккаунт</DataPath>
+							<ContextMenu name="ВозвратыАккаунтКонтекстноеМеню" id="43"/>
+							<ExtendedTooltip name="ВозвратыАккаунтРасширеннаяПодсказка" id="44"/>
+						</InputField>
+						<CheckBoxField name="ВозвратыПроведен" id="45">
+							<DataPath>ТаблицаВозвратов.Проведен</DataPath>
+							<ContextMenu name="ВозвратыПроведенКонтекстноеМеню" id="46"/>
+							<ExtendedTooltip name="ВозвратыПроведенРасширеннаяПодсказка" id="47"/>
+						</CheckBoxField>
+					</Table>
+				</Page>
+				<Page name="СтраницаПартии" id="48">
+					<ExtendedTooltip name="СтраницаПартииРасширеннаяПодсказка" id="49"/>
+					<Table name="ТаблицаПартийТбл" id="50">
+						<DataPath>ТаблицаПартий</DataPath>
+						<ContextMenu name="ТаблицаПартийТблКонтекстноеМеню" id="51"/>
+						<AutoCommandBar name="ТаблицаПартийТблКоманднаяПанель" id="52"/>
+						<SearchStringAddition name="ТаблицаПартийТблСтрокаПоиска" id="53"/>
+						<ViewStatusAddition name="ТаблицаПартийТблСостояниеПросмотра" id="54"/>
+						<SearchControlAddition name="ТаблицаПартийТблУправлениеПоиском" id="55"/>
+						<InputField name="ПартииСсылка" id="56">
+							<DataPath>ТаблицаПартий.Ссылка</DataPath>
+							<ContextMenu name="ПартииСсылкаКонтекстноеМеню" id="57"/>
+							<ExtendedTooltip name="ПартииСсылкаРасширеннаяПодсказка" id="58"/>
+						</InputField>
+						<InputField name="ПартииОрдИд" id="59">
+							<DataPath>ТаблицаПартий.ordId</DataPath>
+							<ContextMenu name="ПартииОрдИдКонтекстноеМеню" id="60"/>
+							<ExtendedTooltip name="ПартииОрдИдРасширеннаяПодсказка" id="61"/>
+						</InputField>
+						<CheckBoxField name="ПартииПроведен" id="62">
+							<DataPath>ТаблицаПартий.Проведен</DataPath>
+							<ContextMenu name="ПартииПроведенКонтекстноеМеню" id="63"/>
+							<ExtendedTooltip name="ПартииПроведенРасширеннаяПодсказка" id="64"/>
+						</CheckBoxField>
+					</Table>
+				</Page>
+				<Page name="СтраницаДемоПометка" id="65">
+					<ExtendedTooltip name="СтраницаДемоПометкаРасширеннаяПодсказка" id="66"/>
+					<Table name="ТаблицаДемоПометкаТбл" id="67">
+						<DataPath>ТаблицаДемоПометка</DataPath>
+						<ContextMenu name="ТаблицаДемоПометкаТблКонтекстноеМеню" id="68"/>
+						<AutoCommandBar name="ТаблицаДемоПометкаТблКоманднаяПанель" id="69"/>
+						<SearchStringAddition name="ТаблицаДемоПометкаТблСтрокаПоиска" id="70"/>
+						<ViewStatusAddition name="ТаблицаДемоПометкаТблСостояниеПросмотра" id="71"/>
+						<SearchControlAddition name="ТаблицаДемоПометкаТблУправлениеПоиском" id="72"/>
+						<InputField name="ДемоПометкаВид" id="73">
+							<DataPath>ТаблицаДемоПометка.Вид</DataPath>
+							<ContextMenu name="ДемоПометкаВидКонтекстноеМеню" id="74"/>
+							<ExtendedTooltip name="ДемоПометкаВидРасширеннаяПодсказка" id="75"/>
+						</InputField>
+						<InputField name="ДемоПометкаНаим" id="76">
+							<DataPath>ТаблицаДемоПометка.Наименование</DataPath>
+							<ContextMenu name="ДемоПометкаНаимКонтекстноеМеню" id="77"/>
+							<ExtendedTooltip name="ДемоПометкаНаимРасширеннаяПодсказка" id="78"/>
+						</InputField>
+						<InputField name="ДемоПометкаМаркер" id="79">
+							<DataPath>ТаблицаДемоПометка.Маркер</DataPath>
+							<ContextMenu name="ДемоПометкаМаркерКонтекстноеМеню" id="80"/>
+							<ExtendedTooltip name="ДемоПометкаМаркерРасширеннаяПодсказка" id="81"/>
+						</InputField>
+					</Table>
+				</Page>
+				<Page name="СтраницаОстаток" id="82">
+					<ExtendedTooltip name="СтраницаОстатокРасширеннаяПодсказка" id="83"/>
+					<Table name="ТаблицаОстатокТбл" id="84">
+						<DataPath>ТаблицаОстаток</DataPath>
+						<ContextMenu name="ТаблицаОстатокТблКонтекстноеМеню" id="85"/>
+						<AutoCommandBar name="ТаблицаОстатокТблКоманднаяПанель" id="86"/>
+						<SearchStringAddition name="ТаблицаОстатокТблСтрокаПоиска" id="87"/>
+						<ViewStatusAddition name="ТаблицаОстатокТблСостояниеПросмотра" id="88"/>
+						<SearchControlAddition name="ТаблицаОстатокТблУправлениеПоиском" id="89"/>
+						<InputField name="ОстатокВид" id="90">
+							<DataPath>ТаблицаОстаток.Вид</DataPath>
+							<ContextMenu name="ОстатокВидКонтекстноеМеню" id="91"/>
+							<ExtendedTooltip name="ОстатокВидРасширеннаяПодсказка" id="92"/>
+						</InputField>
+						<InputField name="ОстатокНаим" id="93">
+							<DataPath>ТаблицаОстаток.Наименование</DataPath>
+							<ContextMenu name="ОстатокНаимКонтекстноеМеню" id="94"/>
+							<ExtendedTooltip name="ОстатокНаимРасширеннаяПодсказка" id="95"/>
+						</InputField>
+					</Table>
+				</Page>
+				<Page name="СтраницаОчередь" id="96">
+					<ExtendedTooltip name="СтраницаОчередьРасширеннаяПодсказка" id="97"/>
+					<Table name="ТаблицаОчередьТбл" id="98">
+						<DataPath>ТаблицаОчередь</DataPath>
+						<ContextMenu name="ТаблицаОчередьТблКонтекстноеМеню" id="99"/>
+						<AutoCommandBar name="ТаблицаОчередьТблКоманднаяПанель" id="100"/>
+						<SearchStringAddition name="ТаблицаОчередьТблСтрокаПоиска" id="101"/>
+						<ViewStatusAddition name="ТаблицаОчередьТблСостояниеПросмотра" id="102"/>
+						<SearchControlAddition name="ТаблицаОчередьТблУправлениеПоиском" id="103"/>
+						<InputField name="ОчередьПредмет" id="104">
+							<DataPath>ТаблицаОчередь.ПредметЗадания</DataPath>
+							<ContextMenu name="ОчередьПредметКонтекстноеМеню" id="105"/>
+							<ExtendedTooltip name="ОчередьПредметРасширеннаяПодсказка" id="106"/>
+						</InputField>
+						<InputField name="ОчередьТип" id="107">
+							<DataPath>ТаблицаОчередь.ТипЗадания</DataPath>
+							<ContextMenu name="ОчередьТипКонтекстноеМеню" id="108"/>
+							<ExtendedTooltip name="ОчередьТипРасширеннаяПодсказка" id="109"/>
+						</InputField>
+						<InputField name="ОчередьКлиент" id="110">
+							<DataPath>ТаблицаОчередь.ИдентификаторКлиента</DataPath>
+							<ContextMenu name="ОчередьКлиентКонтекстноеМеню" id="111"/>
+							<ExtendedTooltip name="ОчередьКлиентРасширеннаяПодсказка" id="112"/>
+						</InputField>
+					</Table>
+				</Page>
+				<Page name="СтраницаБаланс" id="113">
+					<ExtendedTooltip name="СтраницаБалансРасширеннаяПодсказка" id="114"/>
+					<Table name="ТаблицаБалансТбл" id="115">
+						<DataPath>ТаблицаБаланс</DataPath>
+						<ContextMenu name="ТаблицаБалансТблКонтекстноеМеню" id="116"/>
+						<AutoCommandBar name="ТаблицаБалансТблКоманднаяПанель" id="117"/>
+						<SearchStringAddition name="ТаблицаБалансТблСтрокаПоиска" id="118"/>
+						<ViewStatusAddition name="ТаблицаБалансТблСостояниеПросмотра" id="119"/>
+						<SearchControlAddition name="ТаблицаБалансТблУправлениеПоиском" id="120"/>
+						<InputField name="БалансAccount" id="121">
+							<DataPath>ТаблицаБаланс.Account</DataPath>
+							<ContextMenu name="БалансAccountКонтекстноеМеню" id="122"/>
+							<ExtendedTooltip name="БалансAccountРасширеннаяПодсказка" id="123"/>
+						</InputField>
+						<InputField name="БалансCcy" id="124">
+							<DataPath>ТаблицаБаланс.ccy</DataPath>
+							<ContextMenu name="БалансCcyКонтекстноеМеню" id="125"/>
+							<ExtendedTooltip name="БалансCcyРасширеннаяПодсказка" id="126"/>
+						</InputField>
+						<InputField name="БалансКолЗап" id="127">
+							<DataPath>ТаблицаБаланс.КоличествоЗаписей</DataPath>
+							<ContextMenu name="БалансКолЗапКонтекстноеМеню" id="128"/>
+							<ExtendedTooltip name="БалансКолЗапРасширеннаяПодсказка" id="129"/>
+						</InputField>
+					</Table>
+				</Page>
+				<Page name="СтраницаПротокол" id="130">
+					<ExtendedTooltip name="СтраницаПротоколРасширеннаяПодсказка" id="131"/>
+					<Table name="ТаблицаПротоколТбл" id="132">
+						<DataPath>ТаблицаПротокол</DataPath>
+						<ContextMenu name="ТаблицаПротоколТблКонтекстноеМеню" id="133"/>
+						<AutoCommandBar name="ТаблицаПротоколТблКоманднаяПанель" id="134"/>
+						<SearchStringAddition name="ТаблицаПротоколТблСтрокаПоиска" id="135"/>
+						<ViewStatusAddition name="ТаблицаПротоколТблСостояниеПросмотра" id="136"/>
+						<SearchControlAddition name="ТаблицаПротоколТблУправлениеПоиском" id="137"/>
+						<InputField name="ПротоколПоказатель" id="138">
+							<DataPath>ТаблицаПротокол.Показатель</DataPath>
+							<ContextMenu name="ПротоколПоказательКонтекстноеМеню" id="139"/>
+							<ExtendedTooltip name="ПротоколПоказательРасширеннаяПодсказка" id="140"/>
+						</InputField>
+						<InputField name="ПротоколЗначение" id="141">
+							<DataPath>ТаблицаПротокол.Значение</DataPath>
+							<ContextMenu name="ПротоколЗначениеКонтекстноеМеню" id="142"/>
+							<ExtendedTooltip name="ПротоколЗначениеРасширеннаяПодсказка" id="143"/>
+						</InputField>
+					</Table>
+					<Table name="ТаблицаОшибкиТбл" id="144">
+						<DataPath>ТаблицаОшибки</DataPath>
+						<ContextMenu name="ТаблицаОшибкиТблКонтекстноеМеню" id="145"/>
+						<AutoCommandBar name="ТаблицаОшибкиТблКоманднаяПанель" id="146"/>
+						<SearchStringAddition name="ТаблицаОшибкиТблСтрокаПоиска" id="147"/>
+						<ViewStatusAddition name="ТаблицаОшибкиТблСостояниеПросмотра" id="148"/>
+						<SearchControlAddition name="ТаблицаОшибкиТблУправлениеПоиском" id="149"/>
+						<InputField name="ОшибкиОбъект" id="150">
+							<DataPath>ТаблицаОшибки.Объект</DataPath>
+							<ContextMenu name="ОшибкиОбъектКонтекстноеМеню" id="151"/>
+							<ExtendedTooltip name="ОшибкиОбъектРасширеннаяПодсказка" id="152"/>
+						</InputField>
+						<InputField name="ОшибкиТекст" id="153">
+							<DataPath>ТаблицаОшибки.Текст</DataPath>
+							<ContextMenu name="ОшибкиТекстКонтекстноеМеню" id="154"/>
+							<ExtendedTooltip name="ОшибкиТекстРасширеннаяПодсказка" id="155"/>
+						</InputField>
+					</Table>
+				</Page>
+			</Pages>
+			</ChildItems>
+		</UsualGroup>
+		
+	</ChildItems>
+	<Attributes>
+		<Attribute name="НачалоПериода" id="1">
+			<Title>
+				<v8:item>
+					<v8:lang>ru</v8:lang>
+					<v8:content>Начало периода</v8:content>
+				</v8:item>
+			</Title>
+			<Type>
+				<v8:Type>xs:dateTime</v8:Type>
+				<v8:DateQualifiers>
+					<v8:DateFractions>Date</v8:DateFractions>
+				</v8:DateQualifiers>
+			</Type>
+		</Attribute>
+		<Attribute name="КонецПериода" id="2">
+			<Title>
+				<v8:item>
+					<v8:lang>ru</v8:lang>
+					<v8:content>Конец периода</v8:content>
+				</v8:item>
+			</Title>
+			<Type>
+				<v8:Type>xs:dateTime</v8:Type>
+				<v8:DateQualifiers>
+					<v8:DateFractions>Date</v8:DateFractions>
+				</v8:DateQualifiers>
+			</Type>
+		</Attribute>
+		<Attribute name="АнализВыполнен" id="3">
+			<Title>
+				<v8:item>
+					<v8:lang>ru</v8:lang>
+					<v8:content>Анализ выполнен</v8:content>
+				</v8:item>
+			</Title>
+			<Type>
+				<v8:Type>xs:boolean</v8:Type>
+			</Type>
+		</Attribute>
+		<Attribute name="ТолькоПодсчет" id="4">
+			<Title>
+				<v8:item>
+					<v8:lang>ru</v8:lang>
+					<v8:content>Только подсчет (без предъявления списков)</v8:content>
+				</v8:item>
+			</Title>
+			<Type>
+				<v8:Type>xs:boolean</v8:Type>
+			</Type>
+		</Attribute>
+		<Attribute name="ТекстСводки" id="5">
+			<Title>
+				<v8:item>
+					<v8:lang>ru</v8:lang>
+					<v8:content>Сводка</v8:content>
+				</v8:item>
+			</Title>
+			<Type>
+				<v8:Type>xs:string</v8:Type>
+				<v8:StringQualifiers>
+					<v8:Length>0</v8:Length>
+					<v8:AllowedLength>Variable</v8:AllowedLength>
+				</v8:StringQualifiers>
+			</Type>
+		</Attribute>
+		<Attribute name="ТаблицаВозвратов" id="6">
+			<Title>
+				<v8:item>
+					<v8:lang>ru</v8:lang>
+					<v8:content>Возвраты</v8:content>
+				</v8:item>
+			</Title>
+			<Type>
+				<v8:Type>v8:ValueTable</v8:Type>
+			</Type>
+			<Columns>
+				<Column name="Ссылка" id="1">
+					<Type>
+						<v8:Type>cfg:DocumentRef.биг_ВозвратАктивов</v8:Type>
+					</Type>
+				</Column>
+				<Column name="Дата" id="2">
+					<Type>
+						<v8:Type>xs:dateTime</v8:Type>
+						<v8:DateQualifiers>
+							<v8:DateFractions>Date</v8:DateFractions>
+						</v8:DateQualifiers>
+					</Type>
+				</Column>
+				<Column name="Договор" id="3">
+					<Type>
+						<v8:Type>cfg:CatalogRef._ДемоДоговорыКонтрагентов</v8:Type>
+					</Type>
+				</Column>
+				<Column name="Аккаунт" id="4">
+					<Type>
+						<v8:Type>cfg:CatalogRef.big_MarketAccounts</v8:Type>
+					</Type>
+				</Column>
+				<Column name="Проведен" id="5">
+					<Type>
+						<v8:Type>xs:boolean</v8:Type>
+					</Type>
+				</Column>
+			</Columns>
+		</Attribute>
+		<Attribute name="ТаблицаПартий" id="7">
+			<Title>
+				<v8:item>
+					<v8:lang>ru</v8:lang>
+					<v8:content>Партии RET-LOT</v8:content>
+				</v8:item>
+			</Title>
+			<Type>
+				<v8:Type>v8:ValueTable</v8:Type>
+			</Type>
+			<Columns>
+				<Column name="Ссылка" id="1">
+					<Type>
+						<v8:Type>cfg:DocumentRef.big_Order_OKX</v8:Type>
+					</Type>
+				</Column>
+				<Column name="ordId" id="2">
+					<Type>
+						<v8:Type>xs:string</v8:Type>
+						<v8:StringQualifiers>
+							<v8:Length>100</v8:Length>
+							<v8:AllowedLength>Variable</v8:AllowedLength>
+						</v8:StringQualifiers>
+					</Type>
+				</Column>
+				<Column name="Проведен" id="3">
+					<Type>
+						<v8:Type>xs:boolean</v8:Type>
+					</Type>
+				</Column>
+			</Columns>
+		</Attribute>
+		<Attribute name="ТаблицаДемоПометка" id="8">
+			<Title>
+				<v8:item>
+					<v8:lang>ru</v8:lang>
+					<v8:content>Демо к пометке</v8:content>
+				</v8:item>
+			</Title>
+			<Type>
+				<v8:Type>v8:ValueTable</v8:Type>
+			</Type>
+			<Columns>
+				<Column name="Вид" id="1">
+					<Type>
+						<v8:Type>xs:string</v8:Type>
+						<v8:StringQualifiers>
+							<v8:Length>100</v8:Length>
+							<v8:AllowedLength>Variable</v8:AllowedLength>
+						</v8:StringQualifiers>
+					</Type>
+				</Column>
+				<Column name="Ссылка" id="2">
+					<Type>
+						<v8:Type>cfg:CatalogRef._ДемоДоговорыКонтрагентов</v8:Type>
+						<v8:Type>cfg:CatalogRef._ДемоКонтрагенты</v8:Type>
+						<v8:Type>cfg:CatalogRef._ДемоПартнеры</v8:Type>
+						<v8:Type>cfg:CatalogRef._ДемоОрганизации</v8:Type>
+					</Type>
+				</Column>
+				<Column name="Наименование" id="3">
+					<Type>
+						<v8:Type>xs:string</v8:Type>
+						<v8:StringQualifiers>
+							<v8:Length>500</v8:Length>
+							<v8:AllowedLength>Variable</v8:AllowedLength>
+						</v8:StringQualifiers>
+					</Type>
+				</Column>
+				<Column name="Маркер" id="4">
+					<Type>
+						<v8:Type>xs:string</v8:Type>
+						<v8:StringQualifiers>
+							<v8:Length>50</v8:Length>
+							<v8:AllowedLength>Variable</v8:AllowedLength>
+						</v8:StringQualifiers>
+					</Type>
+				</Column>
+			</Columns>
+		</Attribute>
+		<Attribute name="ТаблицаОстаток" id="9">
+			<Title>
+				<v8:item>
+					<v8:lang>ru</v8:lang>
+					<v8:content>Остаток демо (НЕ трогаем)</v8:content>
+				</v8:item>
+			</Title>
+			<Type>
+				<v8:Type>v8:ValueTable</v8:Type>
+			</Type>
+			<Columns>
+				<Column name="Вид" id="1">
+					<Type>
+						<v8:Type>xs:string</v8:Type>
+						<v8:StringQualifiers>
+							<v8:Length>100</v8:Length>
+							<v8:AllowedLength>Variable</v8:AllowedLength>
+						</v8:StringQualifiers>
+					</Type>
+				</Column>
+				<Column name="Ссылка" id="2">
+					<Type>
+						<v8:Type>cfg:CatalogRef._ДемоДоговорыКонтрагентов</v8:Type>
+						<v8:Type>cfg:CatalogRef._ДемоКонтрагенты</v8:Type>
+						<v8:Type>cfg:CatalogRef._ДемоПартнеры</v8:Type>
+						<v8:Type>cfg:CatalogRef._ДемоОрганизации</v8:Type>
+					</Type>
+				</Column>
+				<Column name="Наименование" id="3">
+					<Type>
+						<v8:Type>xs:string</v8:Type>
+						<v8:StringQualifiers>
+							<v8:Length>500</v8:Length>
+							<v8:AllowedLength>Variable</v8:AllowedLength>
+						</v8:StringQualifiers>
+					</Type>
+				</Column>
+			</Columns>
+		</Attribute>
+		<Attribute name="ТаблицаОчередь" id="10">
+			<Title>
+				<v8:item>
+					<v8:lang>ru</v8:lang>
+					<v8:content>Очередь заданий</v8:content>
+				</v8:item>
+			</Title>
+			<Type>
+				<v8:Type>v8:ValueTable</v8:Type>
+			</Type>
+			<Columns>
+				<Column name="ПредметЗадания" id="1">
+					<Type>
+						<v8:Type>xs:string</v8:Type>
+						<v8:StringQualifiers>
+							<v8:Length>200</v8:Length>
+							<v8:AllowedLength>Variable</v8:AllowedLength>
+						</v8:StringQualifiers>
+					</Type>
+				</Column>
+				<Column name="ТипЗадания" id="2">
+					<Type>
+						<v8:Type>xs:string</v8:Type>
+						<v8:StringQualifiers>
+							<v8:Length>100</v8:Length>
+							<v8:AllowedLength>Variable</v8:AllowedLength>
+						</v8:StringQualifiers>
+					</Type>
+				</Column>
+				<Column name="ИдентификаторКлиента" id="3">
+					<Type>
+						<v8:Type>xs:string</v8:Type>
+						<v8:StringQualifiers>
+							<v8:Length>40</v8:Length>
+							<v8:AllowedLength>Variable</v8:AllowedLength>
+						</v8:StringQualifiers>
+					</Type>
+				</Column>
+			</Columns>
+		</Attribute>
+		<Attribute name="ТаблицаБаланс" id="11">
+			<Title>
+				<v8:item>
+					<v8:lang>ru</v8:lang>
+					<v8:content>Баланс-детали</v8:content>
+				</v8:item>
+			</Title>
+			<Type>
+				<v8:Type>v8:ValueTable</v8:Type>
+			</Type>
+			<Columns>
+				<Column name="Account" id="1">
+					<Type>
+						<v8:Type>cfg:CatalogRef.big_MarketAccounts</v8:Type>
+					</Type>
+				</Column>
+				<Column name="ccy" id="2">
+					<Type>
+						<v8:Type>cfg:CatalogRef.big_Currencys</v8:Type>
+					</Type>
+				</Column>
+				<Column name="КоличествоЗаписей" id="3">
+					<Type>
+						<v8:Type>xs:decimal</v8:Type>
+						<v8:NumberQualifiers>
+							<v8:Digits>10</v8:Digits>
+							<v8:FractionDigits>0</v8:FractionDigits>
+							<v8:AllowedSign>Any</v8:AllowedSign>
+						</v8:NumberQualifiers>
+					</Type>
+				</Column>
+			</Columns>
+		</Attribute>
+		<Attribute name="ТаблицаПротокол" id="12">
+			<Title>
+				<v8:item>
+					<v8:lang>ru</v8:lang>
+					<v8:content>Протокол</v8:content>
+				</v8:item>
+			</Title>
+			<Type>
+				<v8:Type>v8:ValueTable</v8:Type>
+			</Type>
+			<Columns>
+				<Column name="Показатель" id="1">
+					<Type>
+						<v8:Type>xs:string</v8:Type>
+						<v8:StringQualifiers>
+							<v8:Length>200</v8:Length>
+							<v8:AllowedLength>Variable</v8:AllowedLength>
+						</v8:StringQualifiers>
+					</Type>
+				</Column>
+				<Column name="Значение" id="2">
+					<Type>
+						<v8:Type>xs:string</v8:Type>
+						<v8:StringQualifiers>
+							<v8:Length>100</v8:Length>
+							<v8:AllowedLength>Variable</v8:AllowedLength>
+						</v8:StringQualifiers>
+					</Type>
+				</Column>
+			</Columns>
+		</Attribute>
+		<Attribute name="ТаблицаОшибки" id="13">
+			<Title>
+				<v8:item>
+					<v8:lang>ru</v8:lang>
+					<v8:content>Ошибки и предупреждения</v8:content>
+				</v8:item>
+			</Title>
+			<Type>
+				<v8:Type>v8:ValueTable</v8:Type>
+			</Type>
+			<Columns>
+				<Column name="Объект" id="1">
+					<Type>
+						<v8:Type>xs:string</v8:Type>
+						<v8:StringQualifiers>
+							<v8:Length>300</v8:Length>
+							<v8:AllowedLength>Variable</v8:AllowedLength>
+						</v8:StringQualifiers>
+					</Type>
+				</Column>
+				<Column name="Текст" id="2">
+					<Type>
+						<v8:Type>xs:string</v8:Type>
+						<v8:StringQualifiers>
+							<v8:Length>500</v8:Length>
+							<v8:AllowedLength>Variable</v8:AllowedLength>
+						</v8:StringQualifiers>
+					</Type>
+				</Column>
+			</Columns>
+		</Attribute>
+		<Attribute name="Объект" id="14">
+			<Type>
+				<v8:Type>cfg:ExternalReportObject.биг_УборщикТестовыхДанных</v8:Type>
+			</Type>
+			<MainAttribute>true</MainAttribute>
+		</Attribute>
+		<Attribute name="ТаблицаАккаунты" id="156">
+			<Title>
+				<v8:item>
+					<v8:lang>ru</v8:lang>
+					<v8:content>Тест-аккаунты бирж</v8:content>
+				</v8:item>
+			</Title>
+			<Type>
+				<v8:Type>v8:ValueTable</v8:Type>
+			</Type>
+			<Columns>
+				<Column name="Ссылка" id="1">
+					<Type>
+						<v8:Type>cfg:CatalogRef.big_MarketAccounts</v8:Type>
+					</Type>
+				</Column>
+				<Column name="Наименование" id="2">
+					<Type>
+						<v8:Type>xs:string</v8:Type>
+						<v8:StringQualifiers>
+							<v8:Length>150</v8:Length>
+							<v8:AllowedLength>Variable</v8:AllowedLength>
+						</v8:StringQualifiers>
+					</Type>
+				</Column>
+				<Column name="demo" id="3">
+					<Type>
+						<v8:Type>xs:boolean</v8:Type>
+					</Type>
+				</Column>
+			</Columns>
+		</Attribute>
+	</Attributes>
+	<Commands>
+		<Command name="Анализ" id="1">
+			<Title>
+				<v8:item>
+					<v8:lang>ru</v8:lang>
+					<v8:content>Анализ (dry-run)</v8:content>
+				</v8:item>
+			</Title>
+			<Action>Анализ_Нажатие</Action>
+		</Command>
+		<Command name="Применить" id="2">
+			<Title>
+				<v8:item>
+					<v8:lang>ru</v8:lang>
+					<v8:content>Применить</v8:content>
+				</v8:item>
+			</Title>
+			<Action>Применить_Нажатие</Action>
+		</Command>
+	</Commands>
+</Form>

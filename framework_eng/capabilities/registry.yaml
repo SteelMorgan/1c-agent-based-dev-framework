@@ -1,0 +1,665 @@
+# Capability registry — связь стабильных capability-имён с их реализацией.
+#
+# Назначение:
+#   - Прикладные навыки ссылаются на capability по имени (frontmatter `uses_capabilities`).
+#   - Реализующие навыки декларируют, какие capability они поставляют
+#     (frontmatter `provides_capabilities`).
+#   - Этот файл резолвит capability → server/tool (для MCP) или runner/command (для CLI).
+#
+# Резолв описан в framework/rules/capability-resolution/SKILL.md.
+#
+# Тип реализации:
+#   kind: mcp  — MCP-сервер + tool. Схема аргументов берётся из tools/list соответствующего сервера.
+#   kind: cli  — CLI-команда. Точный синтаксис и подсказки — в навыке (skill).
+#
+# Универсальные поля:
+#   skill — путь к SKILL.md, объясняющему как пользоваться capability.
+#   notes — необязательный комментарий: ограничения, рантайм-зависимости, deprecated.
+#
+# MCP-поля:
+#   server, tool — имя MCP-сервера и tool в нём (tool ДОЛЖЕН совпадать с именем из tools/list сервера).
+#   lsp_method   — (для lsp-bsl-bridge) LSP-метод, который реализует tool. Третья нога
+#                  сопоставления capability ↔ mcp tool ↔ lsp method; служит для сверки
+#                  корректности привязки tool при ревизии реестра.
+#
+# CLI-поля:
+#   runner   — бинарь (например, v8-runner).
+#   command  — шаблон команды (без аргументов окружения, аргументы — в SKILL.md).
+#
+# Редактирование: вручную либо через `python tools/capability-registry.py`.
+# Не дублировать одну и ту же capability на разные сервера: для конкурирующих реализаций
+# (например `execute_query` через несколько подключённых клиентов v8-session-manager) выбирается
+# один основной источник, остальные документируются как fallback в SKILL.md.
+
+capabilities:
+
+  # ───────────────────────────────────────────────────────
+  # BSL / LSP — навигация, диагностика, рефакторинг
+  # ───────────────────────────────────────────────────────
+  # Переход к определению символа (LSP textDocument/definition).
+  navigate_symbol:
+    kind: mcp
+    server: lsp-bsl-bridge
+    tool: definition
+    lsp_method: textDocument/definition
+    skill: framework/skills/tool-usage/code-analysis/code-navigation
+
+  # Граф вызовов символа (LSP call hierarchy: подготовка + входящие/исходящие).
+  get_call_graph:
+    kind: mcp
+    server: lsp-bsl-bridge
+    tool: call_graph
+    lsp_method: textDocument/prepareCallHierarchy + callHierarchy/incomingCalls + callHierarchy/outgoingCalls
+    skill: framework/skills/tool-usage/code-analysis/code-navigation
+
+  # Диагностики BSL LS по одному файлу (LSP textDocument/diagnostic).
+  get_diagnostics:
+    kind: mcp
+    server: lsp-bsl-bridge
+    tool: document_diagnostics
+    lsp_method: textDocument/diagnostic
+    skill: framework/skills/tool-usage/code-analysis/syntax-checking
+    notes: >
+      Базовая capability диагностики (полный список замечаний по файлу). Для прицельного
+      среза security/perf/sql — get_quality_diagnostics (тот же tool с оффлайн-фильтром).
+
+  # Quick-fix и рефакторинги в позиции (LSP textDocument/codeAction).
+  get_code_actions:
+    kind: mcp
+    server: lsp-bsl-bridge
+    tool: code_actions
+    lsp_method: textDocument/codeAction
+    skill: framework/skills/tool-usage/code-analysis/code-navigation
+
+  # Переименование символа по всему проекту (LSP textDocument/rename).
+  rename_symbol:
+    kind: mcp
+    server: lsp-bsl-bridge
+    tool: rename
+    lsp_method: textDocument/rename
+    skill: framework/skills/tool-usage/code-analysis/code-navigation
+
+  # Поиск функций (в т.ч. БСП) по имени символа в воркспейсе (LSP workspace/symbol).
+  search_ssl_functions:
+    kind: mcp
+    server: lsp-bsl-bridge
+    tool: symbol_explore
+    lsp_method: workspace/symbol
+    skill: framework/skills/tool-usage/code-analysis/code-navigation
+    notes: >
+      symbol_explore — мультирежимный инструмент (workspace/symbol, references,
+      documentSymbol, hover). Для поиска функции БСП по имени используется режим
+      workspace/symbol.
+
+  # Цикломатическая + когнитивная сложность по методам (BSL LS complexity CodeLens).
+  get_method_complexity:
+    kind: mcp
+    server: lsp-bsl-bridge
+    tool: complexity
+    lsp_method: textDocument/codeLens + codeLens/resolve
+    skill: framework/skills/tool-usage/code-analysis/syntax-checking
+    notes: >
+      Возвращает на каждый метод модуля цикломатическую и когнитивную сложность с пометкой
+      превышения порогов BSL LS (cyclomatic > 20, cognitive > 15). Источник — complexity
+      CodeLens (должен быть включён в конфиге BSL LS:
+      codeLens.parameters.cyclomaticComplexity / cognitiveComplexity).
+
+  # Прицельные диагностики безопасности / производительности / SQL.
+  get_quality_diagnostics:
+    kind: mcp
+    server: lsp-bsl-bridge
+    tool: quality_diagnostics
+    lsp_method: textDocument/diagnostic
+    skill: framework/skills/tool-usage/code-analysis/syntax-checking
+    notes: >
+      Фильтрует document_diagnostics по категориям security (SECURITY_HOTSPOT + VULNERABILITY),
+      performance (тег PERFORMANCE) и sql (тег SQL). Классификация — оффлайн-таблица в MCP
+      (LSP-протокол несёт только код правила, без DiagnosticType/Tag). Аргумент categories
+      задаёт подмножество категорий (по умолчанию — все три).
+
+  # Тип значения переменной / выражения под курсором (LSP textDocument/hover).
+  get_hover_info:
+    kind: mcp
+    server: lsp-bsl-bridge
+    tool: hover
+    lsp_method: textDocument/hover
+    skill: framework/skills/tool-usage/code-analysis/code-verification
+    notes: >
+      Возвращает выведенный тип переменной/выражения в указанной позиции (Type System v2
+      BSL LS). Это вывод типа конкретного значения, а не справка по всем типам платформы
+      (для членов платформенного типа — getMembers/getMember).
+
+  # Сигнатуры метода под курсором при вызове (LSP textDocument/signatureHelp).
+  get_signature_help:
+    kind: mcp
+    server: lsp-bsl-bridge
+    tool: signature_help
+    lsp_method: textDocument/signatureHelp
+    skill: framework/skills/bsl-practices/ssl-patterns
+    notes: >
+      Параметры и перегрузки вызываемого метода (в т.ч. функций БСП/ОбщегоНазначения) прямо
+      в точке вызова — без открытия определения. Опирается на bsl-context BSL LS.
+
+  # Автодополнение в позиции (LSP textDocument/completion), type- и metadata-aware (Type System v2).
+  get_completion:
+    kind: mcp
+    server: lsp-bsl-bridge
+    tool: completion
+    lsp_method: textDocument/completion
+    skill: framework/skills/tool-usage/code-analysis/code-navigation
+    notes: >
+      После точки ('Объект.') возвращает членов выведенного типа получателя: для платформенных
+      типов — методы/свойства с сигнатурой и возвращаемым типом; для объектов конфигурации —
+      реквизиты, ТАБЛИЧНЫЕ ЧАСТИ и их колонки. Discovery-канал «что доступно здесь и какой тип
+      возвращает». Применения-рецепты: значения перечисления (после 'Перечисления.X.'),
+      предопределённые (после 'Справочники.X.'), состав ОпределяемогоТипа (+ get_hover_info).
+      Пустой ответ после 'перем.' — сигнал, что тип переменной выведен неверно/неизвестен.
+
+  # ───────────────────────────────────────────────────────
+  # Комбо-возможности (детерминированные цепочки, свёрнутые в один tool).
+  # Один вызов заменяет несколько; одиночные capability при этом сохраняются для узких сценариев.
+  # ───────────────────────────────────────────────────────
+
+  # Здоровье модуля: сложность + диагностики качества, сведённые по методам и ранжированные.
+  get_module_health:
+    kind: mcp
+    server: lsp-bsl-bridge
+    tool: module_health
+    lsp_method: textDocument/codeLens + codeLens/resolve + textDocument/diagnostic
+    skill: framework/skills/tool-usage/code-analysis/syntax-checking
+    notes: >
+      Комбо get_method_complexity + get_quality_diagnostics: за один вызов считает сложность
+      (CodeLens) и security/performance/sql диагностики, атрибутирует каждое замечание методу
+      и выдаёт ранжированный список «что рефакторить первым» (вес: security ×10, sql/perf ×4,
+      превышение порогов сложности). Для метрик одного метода — get_method_complexity; для одной
+      категории риска — get_quality_diagnostics (одиночные не поглощаются).
+
+  # Импакт-анализ символа: входящие вызовы + ссылки + классификация вызывающих по типу модуля.
+  get_symbol_impact:
+    kind: mcp
+    server: lsp-bsl-bridge
+    tool: symbol_impact
+    lsp_method: textDocument/prepareCallHierarchy + callHierarchy/incomingCalls + textDocument/references
+    skill: framework/skills/tool-usage/code-analysis/code-navigation
+    notes: >
+      Комбо get_call_graph(incoming) + references: из одной позиции собирает входящих вызывающих
+      и все места использования, классифицирует вызывающих по типу модуля 1С (CommonModule /
+      FormModule / ManagerModule / ObjectModule / ...), показывая, откуда тянется правка (UI /
+      сервер / фон). ОГРАНИЧЕНИЯ (заложены в вывод): call hierarchy не видит триггеров (подписки
+      на события, обработчики форм, регл.задания, расширения &Вместо/&Перед/&После); references
+      не ловит строковых ('ДокументСсылка.X') и запросных использований — их добирают grep'ом.
+      Для одного направления/глубины > 1 — get_call_graph; для сырых ссылок — search_ssl_functions.
+
+  # ───────────────────────────────────────────────────────
+  # mcp_tools — метаданные, запросы, навигационные ссылки.
+  # Старый стационарный MCP proxy удалён. Эти tools публикуются через wt_mcp_adapter
+  # в v8-client-session-manager / v8-session-manager; для доступности нужен подключённый
+  # 1С-клиент или серверный spoke расширения.
+  # ───────────────────────────────────────────────────────
+  list_metadata_objects:
+    kind: mcp
+    server: v8-session-manager
+    tool: list_metadata_objects
+    skill: framework/skills/tool-usage/platform-data/platform-data-core
+
+  get_metadata_structure:
+    kind: mcp
+    server: v8-session-manager
+    tool: get_metadata_structure
+    skill: framework/skills/tool-usage/platform-data/platform-data-core
+
+  validate_query:
+    kind: mcp
+    server: v8-session-manager
+    tool: validate_query
+    skill: framework/skills/tool-usage/platform-data/platform-data-core
+
+  execute_query:
+    kind: mcp
+    server: v8-session-manager
+    tool: execute_query
+    skill: framework/skills/tool-usage/platform-data/platform-data-core
+
+  parse_nav_link:
+    kind: mcp
+    server: v8-session-manager
+    tool: parse_nav_link
+    skill: framework/skills/tool-usage/platform-data/platform-data-core
+
+  get_nav_link:
+    kind: mcp
+    server: v8-session-manager
+    tool: get_nav_link
+    skill: framework/skills/tool-usage/platform-data/platform-data-core
+
+  # ───────────────────────────────────────────────────────
+  # 1c-platform-context — справочник синтаксиса и API платформы
+  # ───────────────────────────────────────────────────────
+  search_syntax_reference:
+    kind: mcp
+    server: 1c-platform-context
+    tool: search
+    skill: framework/skills/tool-usage/code-analysis/code-verification
+
+  getMembers:
+    kind: mcp
+    server: 1c-platform-context
+    tool: getMembers
+    skill: framework/skills/tool-usage/code-analysis/code-verification
+
+  getMember:
+    kind: mcp
+    server: 1c-platform-context
+    tool: getMember
+    skill: framework/skills/tool-usage/code-analysis/code-verification
+
+  getConstructors:
+    kind: mcp
+    server: 1c-platform-context
+    tool: getConstructors
+    skill: framework/skills/tool-usage/code-analysis/code-verification
+
+  # ───────────────────────────────────────────────────────
+  # 1c-log-checker — журнал регистрации и техжурнал
+  # ───────────────────────────────────────────────────────
+  search_event_log:
+    kind: mcp
+    server: 1c-log-checker
+    tool: logc_get_event_log
+    skill: framework/skills/tool-usage/diagnostics/event-log-analysis
+
+  search_tech_log:
+    kind: mcp
+    server: 1c-log-checker
+    tool: logc_get_tech_log
+    skill: framework/skills/tool-usage/diagnostics/tech-log-analysis
+
+  configure_tech_log:
+    kind: mcp
+    server: 1c-log-checker
+    tool: logc_configure_techlog
+    skill: framework/skills/tool-usage/diagnostics/tech-log-analysis
+
+  logc_get_techlog_config:
+    kind: mcp
+    server: 1c-log-checker
+    tool: logc_get_techlog_config
+    skill: framework/skills/tool-usage/diagnostics/tech-log-analysis
+
+  logc_save_techlog:
+    kind: mcp
+    server: 1c-log-checker
+    tool: logc_save_techlog
+    skill: framework/skills/tool-usage/diagnostics/tech-log-analysis
+
+  logc_restore_techlog:
+    kind: mcp
+    server: 1c-log-checker
+    tool: logc_restore_techlog
+    skill: framework/skills/tool-usage/diagnostics/tech-log-analysis
+
+  logc_disable_techlog:
+    kind: mcp
+    server: 1c-log-checker
+    tool: logc_disable_techlog
+    skill: framework/skills/tool-usage/diagnostics/tech-log-analysis
+
+  logc_get_actual_log_timestamp:
+    kind: mcp
+    server: 1c-log-checker
+    tool: logc_get_actual_log_timestamp
+    skill: framework/skills/tool-usage/diagnostics/event-log-analysis
+
+  # ───────────────────────────────────────────────────────
+  # 1c-debug-mcp — интерактивная отладка BSL через debug server 1С
+  # ───────────────────────────────────────────────────────
+  debug_bsl_code:
+    kind: mcp
+    server: 1c-debug-mcp
+    tool: attach
+    skill: framework/skills/tool-usage/diagnostics/dap-bsl-code-debug-procedure
+    notes: >
+      Сценарная capability интерактивной отладки. `attach` открывает сессию,
+      дальше навык использует связанные tools того же MCP: get_targets,
+      reload_metadata, set_breakpoints, wait_for_stop, get_call_stack,
+      get_variables, evaluate, step_in, step_out, continue, clear_breakpoints
+      detach и force_detach.
+
+  # ───────────────────────────────────────────────────────
+  # 1c-copilot-proxy — Buddy (AI-консультант по 1С)
+  # ───────────────────────────────────────────────────────
+  ask_ai_assistant:
+    kind: mcp
+    server: 1c-copilot-proxy
+    tool: ask_1c_ai
+    skill: framework/skills/tool-usage/code-analysis/buddy-prompting
+
+  # ───────────────────────────────────────────────────────
+  # infostart-kb — база знаний сообщества 1С
+  # ───────────────────────────────────────────────────────
+  infostart_find_solution:
+    kind: mcp
+    server: infostart-kb
+    tool: find_solution
+    skill: framework/skills/tool-usage/infostart-kb
+
+  infostart_how_to:
+    kind: mcp
+    server: infostart-kb
+    tool: how_to
+    skill: framework/skills/tool-usage/infostart-kb
+
+  infostart_troubleshoot:
+    kind: mcp
+    server: infostart-kb
+    tool: troubleshoot
+    skill: framework/skills/tool-usage/infostart-kb
+
+  infostart_report_result:
+    kind: mcp
+    server: infostart-kb
+    tool: report_result
+    skill: framework/skills/tool-usage/infostart-kb
+
+  # ───────────────────────────────────────────────────────
+  # chrome-devtools — браузерная автоматизация
+  # ───────────────────────────────────────────────────────
+  browser_navigate:
+    kind: mcp
+    server: chrome-devtools
+    tool: navigate_page
+    skill: framework/skills/tool-usage/browser-ui/playwright
+
+  browser_snapshot:
+    kind: mcp
+    server: chrome-devtools
+    tool: take_snapshot
+    skill: framework/skills/tool-usage/browser-ui/playwright
+
+  browser_fill:
+    kind: mcp
+    server: chrome-devtools
+    tool: fill
+    skill: framework/skills/tool-usage/browser-ui/playwright
+
+  browser_click:
+    kind: mcp
+    server: chrome-devtools
+    tool: click
+    skill: framework/skills/tool-usage/browser-ui/playwright
+
+  browser_take_screenshot:
+    kind: mcp
+    server: chrome-devtools
+    tool: take_screenshot
+    skill: framework/skills/tool-usage/browser-ui/screenshot
+
+  browser_console_messages:
+    kind: mcp
+    server: chrome-devtools
+    tool: list_console_messages
+    skill: framework/skills/tool-usage/browser-ui/playwright
+
+  browser_wait_for:
+    kind: mcp
+    server: chrome-devtools
+    tool: wait_for
+    skill: framework/skills/tool-usage/browser-ui/playwright
+
+  # ───────────────────────────────────────────────────────
+  # v8-session-manager — встроенные tools менеджера
+  # Описание витрины и naming (v2 — голые имена) — в SKILL.md менеджера.
+  # ───────────────────────────────────────────────────────
+  session_list:
+    kind: mcp
+    server: v8-session-manager
+    tool: session_list
+    skill: framework/skills/tool-usage/v8-session-manager
+
+  # ───────────────────────────────────────────────────────
+  # v8-session-manager → tools, проксируемые подключёнными 1С-клиентами.
+  # Доступны только пока соответствующий 1С-клиент подключён к менеджеру.
+  # Источник tool (конкретное расширение 1С) — в SKILL.md провайдера в exts/<extension>/.
+  # ───────────────────────────────────────────────────────
+
+  # --- client_mcp / system management ---
+  infobase_info:
+    kind: mcp
+    server: v8-session-manager
+    tool: infobase_info
+    skill: framework/skills/tool-usage/v8-session-manager
+    notes: provided by ext `client_mcp`
+
+  system_spawn_1c_client:
+    kind: mcp
+    server: v8-session-manager
+    tool: system_spawn_1c_client
+    skill: framework/skills/tool-usage/v8-session-manager
+    notes: provided by ext `client_mcp`
+
+  system_kill_pid:
+    kind: mcp
+    server: v8-session-manager
+    tool: system_kill_pid
+    skill: framework/skills/tool-usage/v8-session-manager
+    notes: provided by ext `client_mcp`
+
+  timer:
+    kind: mcp
+    server: v8-session-manager
+    tool: Timer
+    skill: framework/skills/tool-usage/v8-session-manager
+    notes: provided by ext `client_mcp`; имя tool регистрозависимо
+
+  # --- test_client: управление UI 1С через тест-клиент ---
+  test_client_start:
+    kind: mcp
+    server: v8-session-manager
+    tool: test_client_start
+    skill: framework/skills/tool-usage/v8-session-manager
+    notes: provided by ext `test_client`
+
+  test_client_stop:
+    kind: mcp
+    server: v8-session-manager
+    tool: test_client_stop
+    skill: framework/skills/tool-usage/v8-session-manager
+    notes: provided by ext `test_client`
+
+  ui_find:
+    kind: mcp
+    server: v8-session-manager
+    tool: find
+    skill: framework/skills/tool-usage/v8-session-manager
+    notes: provided by ext `test_client`
+
+  ui_open_form:
+    kind: mcp
+    server: v8-session-manager
+    tool: open_form
+    skill: framework/skills/tool-usage/v8-session-manager
+    notes: provided by ext `test_client`
+
+  ui_activate:
+    kind: mcp
+    server: v8-session-manager
+    tool: activate
+    skill: framework/skills/tool-usage/v8-session-manager
+    notes: provided by ext `test_client`
+
+  ui_click:
+    kind: mcp
+    server: v8-session-manager
+    tool: click
+    skill: framework/skills/tool-usage/v8-session-manager
+    notes: provided by ext `test_client`
+
+  ui_close:
+    kind: mcp
+    server: v8-session-manager
+    tool: close
+    skill: framework/skills/tool-usage/v8-session-manager
+    notes: provided by ext `test_client`
+
+  ui_input:
+    kind: mcp
+    server: v8-session-manager
+    tool: input
+    skill: framework/skills/tool-usage/v8-session-manager
+    notes: provided by ext `test_client`
+
+  ui_select:
+    kind: mcp
+    server: v8-session-manager
+    tool: select
+    skill: framework/skills/tool-usage/v8-session-manager
+    notes: provided by ext `test_client`
+
+  ui_select_row:
+    kind: mcp
+    server: v8-session-manager
+    tool: select_row
+    skill: framework/skills/tool-usage/v8-session-manager
+    notes: provided by ext `test_client`
+
+  ui_get_value:
+    kind: mcp
+    server: v8-session-manager
+    tool: get_value
+    skill: framework/skills/tool-usage/v8-session-manager
+    notes: provided by ext `test_client`
+
+  ui_get_cell_value:
+    kind: mcp
+    server: v8-session-manager
+    tool: get_cell_value
+    skill: framework/skills/tool-usage/v8-session-manager
+    notes: provided by ext `test_client`
+
+  ui_get_table_rows:
+    kind: mcp
+    server: v8-session-manager
+    tool: get_table_rows
+    skill: framework/skills/tool-usage/v8-session-manager
+    notes: provided by ext `test_client`
+
+  ui_wait_for:
+    kind: mcp
+    server: v8-session-manager
+    tool: wait_for
+    skill: framework/skills/tool-usage/v8-session-manager
+    notes: provided by ext `test_client`
+
+  # ───────────────────────────────────────────────────────
+  # v8-runner — CLI-операции над проектом 1С
+  # Полный список команд и аргументов — в SKILL.md и references/.
+  # ───────────────────────────────────────────────────────
+  build_project:
+    kind: cli
+    runner: v8-runner
+    command: "v8-runner build"
+    skill: framework/skills/tool-usage/v8-runner
+
+  full_rebuild_project:
+    kind: cli
+    runner: v8-runner
+    command: "v8-runner build --full-rebuild"
+    skill: framework/skills/tool-usage/v8-runner
+
+  init_infobase:
+    kind: cli
+    runner: v8-runner
+    command: "v8-runner init"
+    skill: framework/skills/tool-usage/v8-runner
+
+  config_init:
+    kind: cli
+    runner: v8-runner
+    command: "v8-runner config init"
+    skill: framework/skills/tool-usage/v8-runner
+
+  syntax_check_designer_modules:
+    kind: cli
+    runner: v8-runner
+    command: "v8-runner syntax designer-modules"
+    skill: framework/skills/tool-usage/code-analysis/syntax-checking
+
+  syntax_check_designer_config:
+    kind: cli
+    runner: v8-runner
+    command: "v8-runner syntax designer-config"
+    skill: framework/skills/tool-usage/code-analysis/syntax-checking
+
+  syntax_check_edt:
+    kind: cli
+    runner: v8-runner
+    command: "v8-runner syntax edt"
+    skill: framework/skills/tool-usage/code-analysis/syntax-checking
+
+  run_yaxunit:
+    kind: cli
+    runner: v8-runner
+    command: "v8-runner test yaxunit"
+    skill: framework/skills/tool-usage/v8-runner
+
+  run_vanessa:
+    kind: cli
+    runner: v8-runner
+    command: "v8-runner test va"
+    skill: framework/skills/tool-usage/vanessa/vanessa-authoring
+
+  dump_config:
+    kind: cli
+    runner: v8-runner
+    command: "v8-runner dump"
+    skill: framework/skills/tool-usage/v8-runner
+
+  load_artifact:
+    kind: cli
+    runner: v8-runner
+    command: "v8-runner load"
+    skill: framework/skills/tool-usage/v8-runner
+
+  make_artifacts:
+    kind: cli
+    runner: v8-runner
+    command: "v8-runner make"
+    skill: framework/skills/tool-usage/v8-runner
+
+  convert_sources:
+    kind: cli
+    runner: v8-runner
+    command: "v8-runner convert"
+    skill: framework/skills/tool-usage/v8-runner
+
+  launch_designer:
+    kind: cli
+    runner: v8-runner
+    command: "v8-runner launch designer"
+    skill: framework/skills/tool-usage/v8-runner
+
+  launch_thin_client:
+    kind: cli
+    runner: v8-runner
+    command: "v8-runner launch thin"
+    skill: framework/skills/tool-usage/v8-runner
+
+  launch_mcp_client:
+    kind: cli
+    runner: v8-runner
+    command: "v8-runner launch mcp --mode <thin|thick|ordinary> [--mcp-transport ws|legacy|auto] [--manager-url ws://...]"
+    skill: framework/skills/tool-usage/v8-runner
+    notes: «entry-point фиксирует `kind` на стороне клиента, переопределение из CLI запрещено»
+
+  run_session_manager:
+    kind: cli
+    runner: v8-runner
+    command: "v8-runner session-manager"
+    skill: framework/skills/tool-usage/v8-session-manager
+    notes: «встроенный в v8-runner запуск менеджера; в production используется external бинарь v8-session-manager»
+
+  extensions_update:
+    kind: cli
+    runner: v8-runner
+    command: "v8-runner extensions"
+    skill: framework/skills/tool-usage/v8-runner

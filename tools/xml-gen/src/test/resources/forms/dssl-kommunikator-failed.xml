@@ -1,0 +1,562 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Snapshot for err-form-xml-tooling-fix FormValidator tests (FORM-115/FORM-116). Source: exts/epi_Мессенджер/DataProcessors/DSSL_Коммуникатор/Forms/Форма/Ext/Form.xml as of OC-22444 Phase 3c F-01 BLOCK. Do NOT sync with exts/ (failed file may be rewritten in Phase 5). -->
+<Form xmlns="http://v8.1c.ru/8.3/xcf/logform" xmlns:app="http://v8.1c.ru/8.2/managed-application/core" xmlns:cfg="http://v8.1c.ru/8.1/data/enterprise/current-config" xmlns:dcscor="http://v8.1c.ru/8.1/data-composition-system/core" xmlns:dcssch="http://v8.1c.ru/8.1/data-composition-system/schema" xmlns:dcsset="http://v8.1c.ru/8.1/data-composition-system/settings" xmlns:ent="http://v8.1c.ru/8.1/data/enterprise" xmlns:lf="http://v8.1c.ru/8.2/managed-application/logform" xmlns:style="http://v8.1c.ru/8.1/data/ui/style" xmlns:sys="http://v8.1c.ru/8.1/data/ui/fonts/system" xmlns:v8="http://v8.1c.ru/8.1/data/core" xmlns:v8ui="http://v8.1c.ru/8.1/data/ui" xmlns:web="http://v8.1c.ru/8.1/data/ui/colors/web" xmlns:win="http://v8.1c.ru/8.1/data/ui/colors/windows" xmlns:xr="http://v8.1c.ru/8.3/xcf/readable" xmlns:xs="http://www.w3.org/2001/XMLSchema" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" version="2.20">
+	<Title>
+		<v8:item>
+			<v8:lang>ru</v8:lang>
+			<v8:content>Коммуникатор (DSSL)</v8:content>
+		</v8:item>
+		<v8:item>
+			<v8:lang>en</v8:lang>
+			<v8:content>Communicator (DSSL)</v8:content>
+		</v8:item>
+		<v8:item>
+			<v8:lang>tr</v8:lang>
+			<v8:content>İletişim Merkezi (DSSL)</v8:content>
+		</v8:item>
+	</Title>
+	<AutoSaveDataInSettings>Use</AutoSaveDataInSettings>
+	<AutoCommandBar name="ФормаКоманднаяПанель" id="-1"/>
+	<Events>
+		<Event name="OnCreateAtServer">ПриСозданииНаСервере</Event>
+	</Events>
+	<ChildItems>
+		<Pages name="ГруппаСтраницы" id="1">
+			<PagesRepresentation>TabsOnTop</PagesRepresentation>
+			<Events>
+				<Event name="OnCurrentPageChange">ГруппаСтраницыПриСменеТекущейСтраницы</Event>
+			</Events>
+			<ChildItems>
+				<Page name="СтраницаСообщенияБезКонтекста" id="2">
+					<Title>
+						<v8:item>
+							<v8:lang>ru</v8:lang>
+							<v8:content>Сообщения без объекта контекста</v8:content>
+						</v8:item>
+						<v8:item>
+							<v8:lang>en</v8:lang>
+							<v8:content>Messages without context object</v8:content>
+						</v8:item>
+						<v8:item>
+							<v8:lang>tr</v8:lang>
+							<v8:content>Bağlam nesnesi olmayan mesajlar</v8:content>
+						</v8:item>
+					</Title>
+					<Group>Vertical</Group>
+					<ChildItems>
+						<InputField name="АккаунтСтр1" id="10">
+							<DataPath>Аккаунт</DataPath>
+							<TitleLocation>Top</TitleLocation>
+							<Events>
+								<Event name="OnChange">АккаунтПриИзменении</Event>
+								<Event name="StartChoice">АккаунтНачалоВыбора</Event>
+							</Events>
+						</InputField>
+						<Table name="СообщенияБезОбъектаКонтекста" id="11">
+							<DataPath>СообщенияБезОбъектаКонтекста</DataPath>
+							<TitleLocation>None</TitleLocation>
+							<CommandBarLocation>Top</CommandBarLocation>
+							<AutoCommandBar name="СообщенияБезОбъектаКонтекстаКоманднаяПанель" id="12">
+								<ChildItems>
+									<Button name="ОбновитьСписокБезКонтекста" id="13">
+										<CommandName>Form.Command.ОбновитьСписок</CommandName>
+									</Button>
+								</ChildItems>
+							</AutoCommandBar>
+							<Events>
+								<Event name="Selection">СообщенияБезОбъектаКонтекстаВыбор</Event>
+							</Events>
+						</Table>
+					</ChildItems>
+				</Page>
+				<Page name="СтраницаНастройкаСвязей" id="3">
+					<Title>
+						<v8:item>
+							<v8:lang>ru</v8:lang>
+							<v8:content>Настройка связей с контекстом</v8:content>
+						</v8:item>
+						<v8:item>
+							<v8:lang>en</v8:lang>
+							<v8:content>Context links configuration</v8:content>
+						</v8:item>
+						<v8:item>
+							<v8:lang>tr</v8:lang>
+							<v8:content>Bağlam bağlantıları ayarı</v8:content>
+						</v8:item>
+					</Title>
+					<Group>Vertical</Group>
+					<ChildItems>
+						<InputField name="АккаунтСтр2" id="20">
+							<DataPath>Аккаунт</DataPath>
+							<TitleLocation>Top</TitleLocation>
+							<Events>
+								<Event name="OnChange">АккаунтПриИзменении</Event>
+								<Event name="StartChoice">АккаунтНачалоВыбора</Event>
+							</Events>
+						</InputField>
+						<InputField name="КонтактЧат" id="21">
+							<DataPath>КонтактЧат</DataPath>
+							<TitleLocation>Top</TitleLocation>
+							<Events>
+								<Event name="OnChange">КонтактЧатПриИзменении</Event>
+								<Event name="StartChoice">КонтактЧатНачалоВыбора</Event>
+							</Events>
+						</InputField>
+						<InputField name="КонтрагентФормы" id="22">
+							<DataPath>Контрагент</DataPath>
+							<ReadOnly>true</ReadOnly>
+							<TitleLocation>Top</TitleLocation>
+						</InputField>
+						<InputField name="ПериодВвод" id="23">
+							<DataPath>Период</DataPath>
+							<TitleLocation>Top</TitleLocation>
+							<Events>
+								<Event name="OnChange">ПериодВводПриИзменении</Event>
+							</Events>
+						</InputField>
+						<InputField name="ОбъектКонтекста" id="24">
+							<DataPath>ОбъектКонтекста</DataPath>
+							<TitleLocation>Top</TitleLocation>
+							<Events>
+								<Event name="StartChoice">ОбъектКонтекстаНачалоВыбора</Event>
+							</Events>
+						</InputField>
+						<Table name="СообщенияПоПериоду" id="25">
+							<DataPath>СообщенияПоПериоду</DataPath>
+							<TitleLocation>None</TitleLocation>
+							<CommandBarLocation>Top</CommandBarLocation>
+							<AutoCommandBar name="СообщенияПоПериодуКоманднаяПанель" id="26">
+								<ChildItems>
+									<Button name="ОбновитьТаблицуКнопка" id="27">
+										<CommandName>Form.Command.Обновить</CommandName>
+									</Button>
+									<Button name="УстановитьСвязьКнопка" id="28">
+										<CommandName>Form.Command.УстановитьСвязь</CommandName>
+									</Button>
+									<Button name="ОтменитьСвязьКнопка" id="29">
+										<CommandName>Form.Command.ОтменитьСвязь</CommandName>
+									</Button>
+								</ChildItems>
+							</AutoCommandBar>
+						</Table>
+					</ChildItems>
+				</Page>
+			</ChildItems>
+		</Pages>
+	</ChildItems>
+	<Attributes>
+		<Attribute name="Аккаунт" id="100">
+			<Title>
+				<v8:item>
+					<v8:lang>ru</v8:lang>
+					<v8:content>Аккаунт</v8:content>
+				</v8:item>
+				<v8:item>
+					<v8:lang>en</v8:lang>
+					<v8:content>WhatsApp</v8:content>
+				</v8:item>
+				<v8:item>
+					<v8:lang>tr</v8:lang>
+					<v8:content>Hesap</v8:content>
+				</v8:item>
+			</Title>
+			<ValueType>
+				<Type>cfg:CatalogRef.Чаты_epi_Аккаунты</Type>
+			</ValueType>
+			<View>
+				<Common>true</Common>
+			</View>
+			<Edit>
+				<Common>true</Common>
+			</Edit>
+		</Attribute>
+		<Attribute name="КонтактЧат" id="101">
+			<Title>
+				<v8:item>
+					<v8:lang>ru</v8:lang>
+					<v8:content>Контакт</v8:content>
+				</v8:item>
+				<v8:item>
+					<v8:lang>en</v8:lang>
+					<v8:content>Contact</v8:content>
+				</v8:item>
+				<v8:item>
+					<v8:lang>tr</v8:lang>
+					<v8:content>Kişi</v8:content>
+				</v8:item>
+			</Title>
+			<ValueType>
+				<Type>cfg:CatalogRef.Чаты_epi_Чаты</Type>
+			</ValueType>
+			<View>
+				<Common>true</Common>
+			</View>
+			<Edit>
+				<Common>true</Common>
+			</Edit>
+		</Attribute>
+		<Attribute name="Контрагент" id="102">
+			<Title>
+				<v8:item>
+					<v8:lang>ru</v8:lang>
+					<v8:content>Контрагент</v8:content>
+				</v8:item>
+				<v8:item>
+					<v8:lang>en</v8:lang>
+					<v8:content>Customer</v8:content>
+				</v8:item>
+				<v8:item>
+					<v8:lang>tr</v8:lang>
+					<v8:content>Müşteri</v8:content>
+				</v8:item>
+			</Title>
+			<ValueType>
+				<Type>cfg:CatalogRef.Counterparties</Type>
+			</ValueType>
+			<View>
+				<Common>true</Common>
+			</View>
+			<Edit>
+				<Common>true</Common>
+			</Edit>
+		</Attribute>
+		<Attribute name="Период" id="103">
+			<Title>
+				<v8:item>
+					<v8:lang>ru</v8:lang>
+					<v8:content>Период</v8:content>
+				</v8:item>
+				<v8:item>
+					<v8:lang>en</v8:lang>
+					<v8:content>Period</v8:content>
+				</v8:item>
+				<v8:item>
+					<v8:lang>tr</v8:lang>
+					<v8:content>Dönem</v8:content>
+				</v8:item>
+			</Title>
+			<ValueType>
+				<Type>v8:StandardPeriod</Type>
+			</ValueType>
+			<View>
+				<Common>true</Common>
+			</View>
+			<Edit>
+				<Common>true</Common>
+			</Edit>
+		</Attribute>
+		<Attribute name="ОбъектКонтекста" id="104">
+			<Title>
+				<v8:item>
+					<v8:lang>ru</v8:lang>
+					<v8:content>Объект контекста</v8:content>
+				</v8:item>
+				<v8:item>
+					<v8:lang>en</v8:lang>
+					<v8:content>Context object</v8:content>
+				</v8:item>
+				<v8:item>
+					<v8:lang>tr</v8:lang>
+					<v8:content>Bağlam nesnesi</v8:content>
+				</v8:item>
+			</Title>
+			<ValueType>
+				<Type>cfg:DocumentRef.Quote</Type>
+				<Type>cfg:DocumentRef.SalesOrder</Type>
+				<Type>cfg:DocumentRef.SalesInvoice</Type>
+				<Type>cfg:DocumentRef.PurchaseOrder</Type>
+				<Type>cfg:CatalogRef.Leads</Type>
+				<Type>cfg:CatalogRef.Counterparties</Type>
+			</ValueType>
+			<View>
+				<Common>true</Common>
+			</View>
+			<Edit>
+				<Common>true</Common>
+			</Edit>
+		</Attribute>
+		<Attribute name="ПериодИзмененВручную" id="105">
+			<Title>
+				<v8:item>
+					<v8:lang>ru</v8:lang>
+					<v8:content>Период изменён вручную</v8:content>
+				</v8:item>
+			</Title>
+			<ValueType>
+				<Type>xs:boolean</Type>
+			</ValueType>
+			<View>
+				<Common>true</Common>
+			</View>
+			<Edit>
+				<Common>true</Common>
+			</Edit>
+		</Attribute>
+		<Attribute name="СообщенияБезОбъектаКонтекста" id="106">
+			<Title>
+				<v8:item>
+					<v8:lang>ru</v8:lang>
+					<v8:content>Сообщения без объекта контекста</v8:content>
+				</v8:item>
+				<v8:item>
+					<v8:lang>en</v8:lang>
+					<v8:content>Messages without context object</v8:content>
+				</v8:item>
+				<v8:item>
+					<v8:lang>tr</v8:lang>
+					<v8:content>Bağlam nesnesi olmayan mesajlar</v8:content>
+				</v8:item>
+			</Title>
+			<ValueType>
+				<Type>v8:ValueTable</Type>
+			</ValueType>
+			<View>
+				<Common>true</Common>
+			</View>
+			<Edit>
+				<Common>true</Common>
+			</Edit>
+			<Columns>
+				<Column name="Аккаунт" id="200">
+					<ValueType>
+						<Type>cfg:CatalogRef.Чаты_epi_Аккаунты</Type>
+					</ValueType>
+					<View>
+						<Common>true</Common>
+					</View>
+					<Edit>
+						<Common>true</Common>
+					</Edit>
+				</Column>
+				<Column name="Контакт" id="201">
+					<ValueType>
+						<Type>cfg:CatalogRef.Чаты_epi_Чаты</Type>
+					</ValueType>
+					<View>
+						<Common>true</Common>
+					</View>
+					<Edit>
+						<Common>true</Common>
+					</Edit>
+				</Column>
+				<Column name="Количество" id="202">
+					<ValueType>
+						<Type>xs:decimal</Type>
+						<NumberQualifiers>
+							<Digits>15</Digits>
+							<FractionDigits>0</FractionDigits>
+							<AllowedSign>Any</AllowedSign>
+						</NumberQualifiers>
+					</ValueType>
+					<View>
+						<Common>true</Common>
+					</View>
+					<Edit>
+						<Common>true</Common>
+					</Edit>
+				</Column>
+			</Columns>
+		</Attribute>
+		<Attribute name="СообщенияПоПериоду" id="107">
+			<Title>
+				<v8:item>
+					<v8:lang>ru</v8:lang>
+					<v8:content>Сообщения по периоду</v8:content>
+				</v8:item>
+				<v8:item>
+					<v8:lang>en</v8:lang>
+					<v8:content>Messages by period</v8:content>
+				</v8:item>
+				<v8:item>
+					<v8:lang>tr</v8:lang>
+					<v8:content>Döneme göre mesajlar</v8:content>
+				</v8:item>
+			</Title>
+			<ValueType>
+				<Type>v8:ValueTable</Type>
+			</ValueType>
+			<View>
+				<Common>true</Common>
+			</View>
+			<Edit>
+				<Common>true</Common>
+			</Edit>
+			<Columns>
+				<Column name="Отметка" id="300">
+					<ValueType>
+						<Type>xs:boolean</Type>
+					</ValueType>
+					<View>
+						<Common>true</Common>
+					</View>
+					<Edit>
+						<Common>true</Common>
+					</Edit>
+				</Column>
+				<Column name="ОтметкаНаличияСвязи" id="301">
+					<ValueType>
+						<Type>xs:boolean</Type>
+					</ValueType>
+					<View>
+						<Common>true</Common>
+					</View>
+					<Edit>
+						<Common>true</Common>
+					</Edit>
+				</Column>
+				<Column name="Дата" id="302">
+					<ValueType>
+						<Type>xs:dateTime</Type>
+						<DateQualifiers>
+							<DateFractions>DateTime</DateFractions>
+						</DateQualifiers>
+					</ValueType>
+					<View>
+						<Common>true</Common>
+					</View>
+					<Edit>
+						<Common>true</Common>
+					</Edit>
+				</Column>
+				<Column name="ТипСообщения" id="303">
+					<ValueType>
+						<Type>cfg:EnumRef.Чаты_epi_ТипСообщения</Type>
+					</ValueType>
+					<View>
+						<Common>true</Common>
+					</View>
+					<Edit>
+						<Common>true</Common>
+					</Edit>
+				</Column>
+				<Column name="Сообщение" id="304">
+					<ValueType>
+						<Type>xs:string</Type>
+						<StringQualifiers>
+							<Length>0</Length>
+							<AllowedLength>Variable</AllowedLength>
+						</StringQualifiers>
+					</ValueType>
+					<View>
+						<Common>true</Common>
+					</View>
+					<Edit>
+						<Common>true</Common>
+					</Edit>
+				</Column>
+				<Column name="ТекущийОбъектКонтекста" id="305">
+					<ValueType>
+						<Type>cfg:CatalogRef.Counterparties</Type>
+						<Type>cfg:CatalogRef.Leads</Type>
+						<Type>cfg:DocumentRef.Quote</Type>
+						<Type>cfg:DocumentRef.SalesOrder</Type>
+						<Type>cfg:DocumentRef.SalesInvoice</Type>
+						<Type>cfg:DocumentRef.PurchaseOrder</Type>
+					</ValueType>
+					<View>
+						<Common>true</Common>
+					</View>
+					<Edit>
+						<Common>true</Common>
+					</Edit>
+				</Column>
+				<Column name="Пользователь" id="306">
+					<ValueType>
+						<Type>cfg:CatalogRef.Users</Type>
+					</ValueType>
+					<View>
+						<Common>true</Common>
+					</View>
+					<Edit>
+						<Common>true</Common>
+					</Edit>
+				</Column>
+				<Column name="ИдентификаторСообщения" id="307">
+					<ValueType>
+						<Type>xs:string</Type>
+						<StringQualifiers>
+							<Length>100</Length>
+							<AllowedLength>Variable</AllowedLength>
+						</StringQualifiers>
+					</ValueType>
+					<View>
+						<Common>true</Common>
+					</View>
+					<Edit>
+						<Common>true</Common>
+					</Edit>
+				</Column>
+			</Columns>
+		</Attribute>
+	</Attributes>
+	<Commands>
+		<Command name="ОбновитьСписок" id="500">
+			<Title>
+				<v8:item>
+					<v8:lang>ru</v8:lang>
+					<v8:content>Обновить список</v8:content>
+				</v8:item>
+				<v8:item>
+					<v8:lang>en</v8:lang>
+					<v8:content>Refresh list</v8:content>
+				</v8:item>
+				<v8:item>
+					<v8:lang>tr</v8:lang>
+					<v8:content>Listeyi yenile</v8:content>
+				</v8:item>
+			</Title>
+			<Action>ОбновитьСписок</Action>
+		</Command>
+		<Command name="Обновить" id="501">
+			<Title>
+				<v8:item>
+					<v8:lang>ru</v8:lang>
+					<v8:content>Обновить</v8:content>
+				</v8:item>
+				<v8:item>
+					<v8:lang>en</v8:lang>
+					<v8:content>Refresh</v8:content>
+				</v8:item>
+				<v8:item>
+					<v8:lang>tr</v8:lang>
+					<v8:content>Yenile</v8:content>
+				</v8:item>
+			</Title>
+			<Action>Обновить</Action>
+		</Command>
+		<Command name="УстановитьСвязь" id="502">
+			<Title>
+				<v8:item>
+					<v8:lang>ru</v8:lang>
+					<v8:content>Установить связь</v8:content>
+				</v8:item>
+				<v8:item>
+					<v8:lang>en</v8:lang>
+					<v8:content>Link</v8:content>
+				</v8:item>
+				<v8:item>
+					<v8:lang>tr</v8:lang>
+					<v8:content>Bağlantı kur</v8:content>
+				</v8:item>
+			</Title>
+			<Action>УстановитьСвязь</Action>
+		</Command>
+		<Command name="ОтменитьСвязь" id="503">
+			<Title>
+				<v8:item>
+					<v8:lang>ru</v8:lang>
+					<v8:content>Отменить связь</v8:content>
+				</v8:item>
+				<v8:item>
+					<v8:lang>en</v8:lang>
+					<v8:content>Unlink</v8:content>
+				</v8:item>
+				<v8:item>
+					<v8:lang>tr</v8:lang>
+					<v8:content>Bağlantıyı kaldır</v8:content>
+				</v8:item>
+			</Title>
+			<Action>ОтменитьСвязь</Action>
+		</Command>
+	</Commands>
+</Form>

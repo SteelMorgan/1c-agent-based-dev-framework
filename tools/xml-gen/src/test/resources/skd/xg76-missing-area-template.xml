@@ -1,0 +1,13 @@
+﻿<?xml version="1.0" encoding="UTF-8"?>
+<DataCompositionSchema xmlns="http://v8.1c.ru/8.1/data-composition-system/schema" xmlns:dcsat="http://v8.1c.ru/8.1/data-composition-system/area-template" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+	<template>
+		<name>ДругаяОбласть</name>
+		<template xsi:type="dcsat:AreaTemplate"/>
+	</template>
+	<groupTemplate>
+		<groupName>Группа</groupName>
+		<templateType>Header</templateType>
+		<template>ОтсутствующаяОбласть</template>
+	</groupTemplate>
+	<settingsVariant><name>Основной</name></settingsVariant>
+</DataCompositionSchema>

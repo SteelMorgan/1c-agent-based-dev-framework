@@ -1,0 +1,3 @@
+question_id,category,source_file,tier,expected_in_weights,haiku
+Q-SMOKE-001,BSL,framework/skills/bsl-practices/query-patterns/SKILL.md,1,да,knows
+Q-SMOKE-002,BSL,framework/skills/bsl-practices/coding-standards/SKILL.md,1,да,unstable

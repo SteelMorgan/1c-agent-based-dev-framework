@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<DataCompositionSchema xmlns="http://v8.1c.ru/8.1/data-composition-system/schema"
+  xmlns:dcsset="http://v8.1c.ru/8.1/data-composition-system/settings"
+  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+	<dataSet xsi:type="DataSetObject">
+		<name>Соседний</name>
+		<field xsi:type="DataSetFieldField"><dataPath>Аккаунт</dataPath><field>Аккаунт</field></field>
+		<objectName>Соседний</objectName>
+	</dataSet>
+	<dataSet xsi:type="DataSetObject">
+		<name>ДвиженияКапитала</name>
+		<field xsi:type="DataSetFieldField"><dataPath>Дата</dataPath><field>Дата</field></field>
+		<field xsi:type="DataSetFieldField"><dataPath>Аккаунт</dataPath><field>Аккаунт</field></field>
+		<field xsi:type="DataSetFieldField"><dataPath>Портфель</dataPath><field>Портфель</field></field>
+		<field xsi:type="DataSetFieldField"><dataPath>Монета</dataPath><field>Монета</field></field>
+		<field xsi:type="DataSetFieldField"><dataPath>Остаток</dataPath><field>PhysicalОстаток</field></field>
+		<objectName>ДвиженияКапитала</objectName>
+	</dataSet>
+	<dataSetLink>
+		<sourceDataSet>Соседний</sourceDataSet>
+		<destinationDataSet>ДвиженияКапитала</destinationDataSet>
+		<sourceExpression>Аккаунт</sourceExpression>
+		<destinationExpression>Дата</destinationExpression>
+	</dataSetLink>
+	<resource><field>Монета</field></resource>
+	<calculatedField><dataPath>Тест</dataPath><expression>Аккаунт + Портфель + Монета</expression></calculatedField>
+	<settingsVariant>
+		<dcsset:name>Основной</dcsset:name>
+		<dcsset:settings>
+			<dcsset:item xsi:type="dcsset:StructureItemGroup">
+				<dcsset:name>Группа</dcsset:name>
+				<dcsset:selection>
+					<dcsset:item xsi:type="dcsset:SelectedItemField"><dcsset:field>Аккаунт</dcsset:field></dcsset:item>
+				</dcsset:selection>
+			</dcsset:item>
+		</dcsset:settings>
+	</settingsVariant>
+</DataCompositionSchema>

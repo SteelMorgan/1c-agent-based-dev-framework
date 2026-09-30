@@ -1,0 +1,344 @@
+﻿<?xml version="1.0" encoding="UTF-8"?>
+<!-- Snapshot for err-form-xml-tooling-fix FormValidator tests. Source: exts/epi_Мессенджер/DataProcessors/Чаты_epi_Мессенджер/Forms/ВыборКонтрагентаУВЦ/Ext/Form.xml. Canonical schema (FORM-115 NOT triggered, FORM-116 NOT triggered). Do NOT sync with exts/. -->
+<Form xmlns="http://v8.1c.ru/8.3/xcf/logform" xmlns:app="http://v8.1c.ru/8.2/managed-application/core" xmlns:cfg="http://v8.1c.ru/8.1/data/enterprise/current-config" xmlns:dcscor="http://v8.1c.ru/8.1/data-composition-system/core" xmlns:dcssch="http://v8.1c.ru/8.1/data-composition-system/schema" xmlns:dcsset="http://v8.1c.ru/8.1/data-composition-system/settings" xmlns:ent="http://v8.1c.ru/8.1/data/enterprise" xmlns:lf="http://v8.1c.ru/8.2/managed-application/logform" xmlns:style="http://v8.1c.ru/8.1/data/ui/style" xmlns:sys="http://v8.1c.ru/8.1/data/ui/fonts/system" xmlns:v8="http://v8.1c.ru/8.1/data/core" xmlns:v8ui="http://v8.1c.ru/8.1/data/ui" xmlns:web="http://v8.1c.ru/8.1/data/ui/colors/web" xmlns:win="http://v8.1c.ru/8.1/data/ui/colors/windows" xmlns:xr="http://v8.1c.ru/8.3/xcf/readable" xmlns:xs="http://www.w3.org/2001/XMLSchema" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" version="2.20">
+	<Title>
+		<v8:item>
+			<v8:lang>ru</v8:lang>
+			<v8:content>Выбор контрагента</v8:content>
+		</v8:item>
+	</Title>
+	<AutoTitle>false</AutoTitle>
+	<AutoCommandBar name="ФормаКоманднаяПанель" id="-1">
+		<Autofill>false</Autofill>
+	</AutoCommandBar>
+	<Events>
+		<Event name="OnCreateAtServer">ПриСозданииНаСервере</Event>
+	</Events>
+	<ChildItems>
+		<Pages name="Страницы" id="17">
+			<Title>
+				<v8:item>
+					<v8:lang>ru</v8:lang>
+					<v8:content>Страницы</v8:content>
+				</v8:item>
+			</Title>
+			<ToolTip>
+				<v8:item>
+					<v8:lang>ru</v8:lang>
+					<v8:content>Страницы</v8:content>
+				</v8:item>
+			</ToolTip>
+			<PagesRepresentation>None</PagesRepresentation>
+			<ExtendedTooltip name="СтраницыРасширеннаяПодсказка" id="18"/>
+			<ChildItems>
+				<Page name="СтраницаКонтрагенты" id="19">
+					<Title>
+						<v8:item>
+							<v8:lang>ru</v8:lang>
+							<v8:content>Страница контрагенты</v8:content>
+						</v8:item>
+					</Title>
+					<ToolTip>
+						<v8:item>
+							<v8:lang>ru</v8:lang>
+							<v8:content>Страница контрагенты</v8:content>
+						</v8:item>
+					</ToolTip>
+					<ExtendedTooltip name="СтраницаКонтрагентыРасширеннаяПодсказка" id="20"/>
+					<ChildItems>
+						<Table name="СписокКонтрагентов" id="1">
+							<Representation>List</Representation>
+							<ReadOnly>true</ReadOnly>
+							<ChoiceMode>true</ChoiceMode>
+							<Header>false</Header>
+							<AutoInsertNewRow>true</AutoInsertNewRow>
+							<EnableStartDrag>true</EnableStartDrag>
+							<EnableDrag>true</EnableDrag>
+							<DataPath>СписокКонтрагентов</DataPath>
+							<CommandSet>
+								<ExcludedCommand>Add</ExcludedCommand>
+								<ExcludedCommand>Change</ExcludedCommand>
+								<ExcludedCommand>Copy</ExcludedCommand>
+								<ExcludedCommand>Delete</ExcludedCommand>
+								<ExcludedCommand>MoveDown</ExcludedCommand>
+								<ExcludedCommand>MoveUp</ExcludedCommand>
+								<ExcludedCommand>SortListAsc</ExcludedCommand>
+								<ExcludedCommand>SortListDesc</ExcludedCommand>
+							</CommandSet>
+							<RowFilter xsi:nil="true"/>
+							<ContextMenu name="СписокКонтрагентовКонтекстноеМеню" id="2"/>
+							<AutoCommandBar name="СписокКонтрагентовКоманднаяПанель" id="3">
+								<ChildItems>
+									<Button name="СписокКонтрагентовВыбрать" id="46">
+										<Type>CommandBarButton</Type>
+										<CommandName>Form.Item.СписокКонтрагентов.StandardCommand.Choose</CommandName>
+										<BackColor>style:ImportantColor</BackColor>
+										<Font ref="style:NormalTextFont" bold="true" italic="false" underline="false" strikeout="false" kind="StyleItem" scale="100"/>
+										<ExtendedTooltip name="СписокКонтрагентовВыбратьРасширеннаяПодсказка" id="47"/>
+									</Button>
+								</ChildItems>
+							</AutoCommandBar>
+							<ExtendedTooltip name="СписокКонтрагентовРасширеннаяПодсказка" id="4"/>
+							<SearchStringAddition name="СписокКонтрагентовСтрокаПоиска" id="5">
+								<AdditionSource>
+									<Item>СписокКонтрагентов</Item>
+									<Type>SearchStringRepresentation</Type>
+								</AdditionSource>
+								<ContextMenu name="СписокКонтрагентовСтрокаПоискаКонтекстноеМеню" id="6"/>
+								<ExtendedTooltip name="СписокКонтрагентовСтрокаПоискаРасширеннаяПодсказка" id="7"/>
+							</SearchStringAddition>
+							<ViewStatusAddition name="СписокКонтрагентовСостояниеПросмотра" id="8">
+								<AdditionSource>
+									<Item>СписокКонтрагентов</Item>
+									<Type>ViewStatusRepresentation</Type>
+								</AdditionSource>
+								<ContextMenu name="СписокКонтрагентовСостояниеПросмотраКонтекстноеМеню" id="9"/>
+								<ExtendedTooltip name="СписокКонтрагентовСостояниеПросмотраРасширеннаяПодсказка" id="10"/>
+							</ViewStatusAddition>
+							<SearchControlAddition name="СписокКонтрагентовУправлениеПоиском" id="11">
+								<AdditionSource>
+									<Item>СписокКонтрагентов</Item>
+									<Type>SearchControl</Type>
+								</AdditionSource>
+								<ContextMenu name="СписокКонтрагентовУправлениеПоискомКонтекстноеМеню" id="12"/>
+								<ExtendedTooltip name="СписокКонтрагентовУправлениеПоискомРасширеннаяПодсказка" id="13"/>
+							</SearchControlAddition>
+							<Events>
+								<Event name="ValueChoice">СписокКонтрагентовВыборЗначения</Event>
+								<Event name="Selection">СписокКонтрагентовВыбор</Event>
+							</Events>
+							<ChildItems>
+								<InputField name="СписокКонтрагентовКонтрагент" id="14">
+									<DataPath>СписокКонтрагентов.Контрагент</DataPath>
+									<EditMode>EnterOnInput</EditMode>
+									<ContextMenu name="СписокКонтрагентовКонтрагентКонтекстноеМеню" id="15"/>
+									<ExtendedTooltip name="СписокКонтрагентовКонтрагентРасширеннаяПодсказка" id="16"/>
+								</InputField>
+								<InputField name="СписокКонтрагентовПитомцы" id="39">
+									<DataPath>СписокКонтрагентов.Питомцы</DataPath>
+									<CellHyperlink>true</CellHyperlink>
+									<TextColor>style:Чаты_epi_ЦветГиперссылки</TextColor>
+									<ContextMenu name="СписокКонтрагентовПитомцыКонтекстноеМеню" id="40"/>
+									<ExtendedTooltip name="СписокКонтрагентовПитомцыРасширеннаяПодсказка" id="41"/>
+								</InputField>
+							</ChildItems>
+						</Table>
+					</ChildItems>
+				</Page>
+				<Page name="СтраницыПитомцы" id="21">
+					<Title>
+						<v8:item>
+							<v8:lang>ru</v8:lang>
+							<v8:content>Страницы питомцы</v8:content>
+						</v8:item>
+					</Title>
+					<ToolTip>
+						<v8:item>
+							<v8:lang>ru</v8:lang>
+							<v8:content>Страницы питомцы</v8:content>
+						</v8:item>
+					</ToolTip>
+					<ExtendedTooltip name="СтраницыПитомцыРасширеннаяПодсказка" id="22"/>
+					<ChildItems>
+						<Table name="СписокПитомцев" id="23">
+							<Representation>List</Representation>
+							<ReadOnly>true</ReadOnly>
+							<ChoiceMode>true</ChoiceMode>
+							<Header>false</Header>
+							<AutoInsertNewRow>true</AutoInsertNewRow>
+							<EnableStartDrag>true</EnableStartDrag>
+							<EnableDrag>true</EnableDrag>
+							<DataPath>СписокПитомцев</DataPath>
+							<CommandSet>
+								<ExcludedCommand>Add</ExcludedCommand>
+								<ExcludedCommand>Change</ExcludedCommand>
+								<ExcludedCommand>Copy</ExcludedCommand>
+								<ExcludedCommand>Delete</ExcludedCommand>
+								<ExcludedCommand>MoveDown</ExcludedCommand>
+								<ExcludedCommand>MoveUp</ExcludedCommand>
+								<ExcludedCommand>SortListAsc</ExcludedCommand>
+								<ExcludedCommand>SortListDesc</ExcludedCommand>
+							</CommandSet>
+							<RowFilter xsi:nil="true"/>
+							<ContextMenu name="СписокПитомцевКонтекстноеМеню" id="24"/>
+							<AutoCommandBar name="СписокПитомцевКоманднаяПанель" id="25">
+								<ChildItems>
+									<Button name="СписокПитомцевВыбрать" id="44">
+										<Type>CommandBarButton</Type>
+										<CommandName>Form.Item.СписокПитомцев.StandardCommand.Choose</CommandName>
+										<BackColor>style:ImportantColor</BackColor>
+										<Font ref="style:NormalTextFont" bold="true" italic="false" underline="false" strikeout="false" kind="StyleItem" scale="100"/>
+										<ExtendedTooltip name="СписокПитомцевВыбратьРасширеннаяПодсказка" id="45"/>
+									</Button>
+									<Button name="СписокПитомцевКСпискуКонтрагентов" id="42">
+										<Type>CommandBarButton</Type>
+										<CommandName>Form.Command.КСпискуКонтрагентов</CommandName>
+										<ExtendedTooltip name="СписокПитомцевКСпискуКонтрагентовРасширеннаяПодсказка" id="43"/>
+									</Button>
+								</ChildItems>
+							</AutoCommandBar>
+							<ExtendedTooltip name="СписокПитомцевРасширеннаяПодсказка" id="26"/>
+							<SearchStringAddition name="СписокПитомцевСтрокаПоиска" id="27">
+								<AdditionSource>
+									<Item>СписокПитомцев</Item>
+									<Type>SearchStringRepresentation</Type>
+								</AdditionSource>
+								<ContextMenu name="СписокПитомцевСтрокаПоискаКонтекстноеМеню" id="28"/>
+								<ExtendedTooltip name="СписокПитомцевСтрокаПоискаРасширеннаяПодсказка" id="29"/>
+							</SearchStringAddition>
+							<ViewStatusAddition name="СписокПитомцевСостояниеПросмотра" id="30">
+								<AdditionSource>
+									<Item>СписокПитомцев</Item>
+									<Type>ViewStatusRepresentation</Type>
+								</AdditionSource>
+								<ContextMenu name="СписокПитомцевСостояниеПросмотраКонтекстноеМеню" id="31"/>
+								<ExtendedTooltip name="СписокПитомцевСостояниеПросмотраРасширеннаяПодсказка" id="32"/>
+							</ViewStatusAddition>
+							<SearchControlAddition name="СписокПитомцевУправлениеПоиском" id="33">
+								<AdditionSource>
+									<Item>СписокПитомцев</Item>
+									<Type>SearchControl</Type>
+								</AdditionSource>
+								<ContextMenu name="СписокПитомцевУправлениеПоискомКонтекстноеМеню" id="34"/>
+								<ExtendedTooltip name="СписокПитомцевУправлениеПоискомРасширеннаяПодсказка" id="35"/>
+							</SearchControlAddition>
+							<Events>
+								<Event name="ValueChoice">СписокПитомцевВыборЗначения</Event>
+								<Event name="Selection">СписокПитомцевВыбор</Event>
+							</Events>
+							<ChildItems>
+								<InputField name="СписокПитомцевПитомец" id="36">
+									<DataPath>СписокПитомцев.Питомец</DataPath>
+									<EditMode>EnterOnInput</EditMode>
+									<ContextMenu name="СписокПитомцевПитомецКонтекстноеМеню" id="37"/>
+									<ExtendedTooltip name="СписокПитомцевПитомецРасширеннаяПодсказка" id="38"/>
+								</InputField>
+							</ChildItems>
+						</Table>
+					</ChildItems>
+				</Page>
+			</ChildItems>
+		</Pages>
+	</ChildItems>
+	<Attributes>
+		<Attribute name="СписокКонтрагентов" id="2">
+			<Title>
+				<v8:item>
+					<v8:lang>ru</v8:lang>
+					<v8:content>Список контрагентов</v8:content>
+				</v8:item>
+			</Title>
+			<Type>
+				<v8:Type>v8:ValueTable</v8:Type>
+			</Type>
+			<Columns>
+				<Column name="Контрагент" id="1">
+					<Title>
+						<v8:item>
+							<v8:lang>ru</v8:lang>
+							<v8:content>Контрагент</v8:content>
+						</v8:item>
+					</Title>
+					<Type/>
+				</Column>
+				<Column name="Питомцы" id="2">
+					<Title>
+						<v8:item>
+							<v8:lang>ru</v8:lang>
+							<v8:content>Питомцы</v8:content>
+						</v8:item>
+					</Title>
+					<Type>
+						<v8:Type>xs:string</v8:Type>
+						<v8:StringQualifiers>
+							<v8:Length>7</v8:Length>
+							<v8:AllowedLength>Variable</v8:AllowedLength>
+						</v8:StringQualifiers>
+					</Type>
+				</Column>
+			</Columns>
+		</Attribute>
+		<Attribute name="СписокПитомцев" id="1">
+			<Title>
+				<v8:item>
+					<v8:lang>ru</v8:lang>
+					<v8:content>Список питомцев</v8:content>
+				</v8:item>
+			</Title>
+			<Type>
+				<v8:Type>v8:ValueTable</v8:Type>
+			</Type>
+			<Columns>
+				<Column name="Питомец" id="1">
+					<Title>
+						<v8:item>
+							<v8:lang>ru</v8:lang>
+							<v8:content>Питомец</v8:content>
+						</v8:item>
+					</Title>
+					<Type/>
+				</Column>
+				<Column name="Умер" id="2">
+					<Title>
+						<v8:item>
+							<v8:lang>ru</v8:lang>
+							<v8:content>Умер</v8:content>
+						</v8:item>
+					</Title>
+					<Type>
+						<v8:Type>xs:boolean</v8:Type>
+					</Type>
+				</Column>
+			</Columns>
+		</Attribute>
+		<ConditionalAppearance>
+			<dcsset:item>
+				<dcsset:selection>
+					<dcsset:item>
+						<dcsset:field>СписокПитомцев</dcsset:field>
+					</dcsset:item>
+				</dcsset:selection>
+				<dcsset:filter>
+					<dcsset:item xsi:type="dcsset:FilterItemComparison">
+						<dcsset:left xsi:type="dcscor:Field">СписокПитомцев.Умер</dcsset:left>
+						<dcsset:comparisonType>Equal</dcsset:comparisonType>
+						<dcsset:right xsi:type="xs:boolean">true</dcsset:right>
+					</dcsset:item>
+				</dcsset:filter>
+				<dcsset:appearance>
+					<dcscor:item xsi:type="dcsset:SettingsParameterValue">
+						<dcscor:parameter>TextColor</dcscor:parameter>
+						<dcscor:value xsi:type="v8ui:Color">#696969</dcscor:value>
+					</dcscor:item>
+					<dcscor:item xsi:type="dcsset:SettingsParameterValue">
+						<dcscor:parameter>Font</dcscor:parameter>
+						<dcscor:value xsi:type="v8ui:Font" ref="sys:DefaultGUIFont" bold="false" italic="false" underline="false" strikeout="true" kind="WindowsFont"/>
+					</dcscor:item>
+				</dcsset:appearance>
+			</dcsset:item>
+		</ConditionalAppearance>
+	</Attributes>
+	<Commands>
+		<Command name="КСпискуКонтрагентов" id="1">
+			<Title>
+				<v8:item>
+					<v8:lang>ru</v8:lang>
+					<v8:content>Назад</v8:content>
+				</v8:item>
+			</Title>
+			<ToolTip>
+				<v8:item>
+					<v8:lang>ru</v8:lang>
+					<v8:content>К списку контрагентов</v8:content>
+				</v8:item>
+			</ToolTip>
+			<Shortcut>BackSpace</Shortcut>
+			<Picture>
+				<xr:Ref>StdPicture.Back</xr:Ref>
+				<xr:LoadTransparent>true</xr:LoadTransparent>
+			</Picture>
+			<Action>КСпискуКонтрагентов</Action>
+			<Representation>TextPicture</Representation>
+		</Command>
+	</Commands>
+</Form>

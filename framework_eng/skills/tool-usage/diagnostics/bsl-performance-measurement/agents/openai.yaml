@@ -1,0 +1,4 @@
+interface:
+  display_name: "BSL Performance Measurement"
+  short_description: "Measure 1C code paths with the debugger"
+  default_prompt: "Use $bsl-performance-measurement to profile this reproducible 1C procedure and identify measured hot paths."

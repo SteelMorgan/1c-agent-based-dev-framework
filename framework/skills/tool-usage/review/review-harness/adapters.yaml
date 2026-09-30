@@ -1,0 +1,60 @@
+# Единый реестр адаптеров harness (RVSW-01, FR-02). Один на оба инструмента; второй реестр запрещён.
+# strengths ОТСУТСТВУЕТ: read-only проекция из track record, самодекларация запрещена (наследуется).
+# Неизвестные поля отклоняются fail-closed (RISK-10). Единственная вложенная
+# структура schema v3 — строго типизированная capability native_fork.
+version: 3
+participants:
+  - id: claude-opus
+    family: claude                 # семейство (кворум разнообразия, metadata)
+    model: claude-opus-5           # alias модели → --model адаптера
+    adapter: framework/skills/tool-usage/review/review-harness/scripts/adapters/claude_opus_review.py
+    cli: claude                    # бинарь для doctor
+    context_budget: 120000
+    enabled: true
+    gate_legal: true               # capability-флаг participant для gate-ролей (FR-14/FR-16), не family-политика
+    quota_introspection: none      # none | codex-rollout (способ, TD §10)
+    quota_status: unavailable      # proven | unavailable (доказательство TBD-01, TD §10)
+    native_fork:
+      supported: true
+      route: claude_cli_fork_session
+      min_cli_version: 2.1.220
+      exact_checkpoint: true
+      automation_safe: true
+  - id: codex-gpt
+    family: codex
+    model: gpt-5.6-sol             # фактический DEFAULT_MODEL адаптера codex_review.py (проверено 2026-07-29)
+    adapter: framework/skills/tool-usage/review/review-harness/scripts/adapters/codex_review.py
+    cli: codex
+    context_budget: 120000
+    enabled: true
+    gate_legal: true
+    quota_introspection: codex-rollout
+    quota_status: proven
+    native_fork:
+      supported: true
+      route: codex_app_server_thread_fork
+      min_cli_version: 0.146.0
+      exact_checkpoint: true
+      automation_safe: true
+  - id: kimi-k2
+    family: kimi
+    model: kimi-code/k3            # фактический default_model конфигурации kimi CLI (~/.kimi-code/config.toml, проверено 2026-07-29)
+    adapter: framework/skills/tool-usage/review/review-harness/scripts/adapters/kimi_review.py
+    cli: kimi
+    context_budget: 120000
+    enabled: true
+    gate_legal: true               # capability-флаг этого participant; family не фильтрует gate pool
+    quota_introspection: none
+    quota_status: unavailable
+    # Точного форка у kimi НЕТ (решение владельца 2026-08-04): сервер привязывает
+    # ребёнка к каталогу родителя и игнорирует переданный каталог, маршрута форка
+    # нет в описании API. Участник ведётся прежним путём (ask по собственному
+    # ревью тура 1); ниже записан ФАКТИЧЕСКИЙ ответ `kimi_review.py capabilities`
+    # (проверено 2026-08-04, kimi CLI 0.32.0) — сверка capability drift остаётся
+    # осмысленной и упрётся в отказ, если рантайм разойдётся с этой записью.
+    native_fork:
+      supported: false
+      route: kimi_web_rest_fork
+      min_cli_version: 0.31.0
+      exact_checkpoint: false
+      automation_safe: false

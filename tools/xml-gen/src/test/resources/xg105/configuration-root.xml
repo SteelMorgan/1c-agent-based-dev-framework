@@ -1,0 +1,15 @@
+﻿<?xml version="1.0" encoding="UTF-8"?>
+<MetaDataObject xmlns="http://v8.1c.ru/8.3/MDClasses" xmlns:xr="http://v8.1c.ru/8.3/xcf/readable" version="2.20">
+	<Configuration uuid="00000000-0000-0000-0000-000000000105">
+		<Properties>
+			<Name>FixtureConfig</Name>
+			<DefaultLanguage>Language.English</DefaultLanguage>
+			<DefaultRunMode>ManagedApplication</DefaultRunMode>
+		</Properties>
+		<ChildObjects>
+			<Language>English</Language>
+			<Role>FixtureRole</Role>
+			<CommonModule>FixtureModule</CommonModule>
+		</ChildObjects>
+	</Configuration>
+</MetaDataObject>

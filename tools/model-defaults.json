@@ -1,0 +1,85 @@
+{
+  "_comment": "Только утверждённые статические IDE-алиасы интерактивного установщика. Effort, cross-provider Herdr route и Kimi K3 outage fallback задаются только runtime-матрицей framework/skills/framework-meta/agent-development-ext/SKILL.md.",
+
+  "cursor": {
+    "aliases": {
+      "opus": "claude-opus-5",
+      "sol": "gpt-5.6-sol",
+      "luna": "gpt-5.6-luna"
+    },
+    "available": ["claude-opus-5", "gpt-5.6-sol", "gpt-5.6-luna"]
+  },
+
+  "claude-code": {
+    "aliases": {
+      "opus": "claude-opus-5"
+    },
+    "available": ["claude-opus-5"]
+  },
+
+  "windsurf": {
+    "aliases": {
+      "opus": "claude-opus-5"
+    },
+    "available": ["claude-opus-5"]
+  },
+
+  "vscode-continue": {
+    "aliases": {
+      "opus": "claude-opus-5"
+    },
+    "available": ["claude-opus-5"]
+  },
+
+  "roocode": {
+    "aliases": {
+      "opus": "claude-opus-5",
+      "sol": "gpt-5.6-sol",
+      "luna": "gpt-5.6-luna"
+    },
+    "available": ["claude-opus-5", "gpt-5.6-sol", "gpt-5.6-luna"]
+  },
+
+  "kilocode": {
+    "aliases": {
+      "opus": "claude-opus-5",
+      "sol": "gpt-5.6-sol",
+      "luna": "gpt-5.6-luna"
+    },
+    "available": ["claude-opus-5", "gpt-5.6-sol", "gpt-5.6-luna"]
+  },
+
+  "codex": {
+    "aliases": {
+      "opus": "claude-opus-5",
+      "sol": "gpt-5.6-sol",
+      "luna": "gpt-5.6-luna"
+    },
+    "available": ["claude-opus-5", "gpt-5.6-sol", "gpt-5.6-luna"]
+  },
+
+  "kiro": {
+    "aliases": {
+      "opus": "claude-opus-5"
+    },
+    "available": ["claude-opus-5"]
+  },
+
+  "antigravity": {
+    "aliases": {
+      "opus": "claude-opus-5",
+      "sol": "gpt-5.6-sol",
+      "luna": "gpt-5.6-luna"
+    },
+    "available": ["claude-opus-5", "gpt-5.6-sol", "gpt-5.6-luna"]
+  },
+
+  "generic": {
+    "aliases": {
+      "opus": "claude-opus-5",
+      "sol": "gpt-5.6-sol",
+      "luna": "gpt-5.6-luna"
+    },
+    "available": ["claude-opus-5", "gpt-5.6-sol", "gpt-5.6-luna"]
+  }
+}
